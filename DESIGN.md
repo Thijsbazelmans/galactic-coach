@@ -78,6 +78,107 @@ engine (`src/engine/`) fully separated from presentation, so the same core can b
 wrapped for Steam (Tauri/Electron), mobile, or published to itch.io for early
 playtesting. Discover the platform by playing it, don't pick it up front.
 
+## THE NORTH STAR, v2 (from playtesting v0.7) — consequence management
+
+The grind is the enemy. A sports sim where you play 38 near-identical games
+and only lose when your star is injured is a job. This game is different
+because it's COLLEGE: these aren't professionals, and college life matters
+as much as winning. Heighten those stressors, then hand the coach EXTREME
+tools to deal with them. The fun is: the game throws wrenches, you learn to
+handle them. **Consequence management, with galactic madness thrown in.**
+
+**The two clocks.** Every decision serves one of two goals, and usually
+trades against the other:
+1. SHORT TERM — win this week's game.
+2. LONG TERM — have a star two seasons from now (patient training of the
+   freshman prodigy, or scouting/recruiting).
+Both offer shortcuts and cheats. All shortcuts have consequences — short
+term AND long term.
+
+**Extreme tools, honest odds, loud outcomes.** The archetype: your starter
+partied too hard, energy floored — play him and risk serious injury, sit him
+and eat the loss, send him to the shady Beelzebub doctor on stAroid-5 for an
+instant fix (team doctor fury / OD / 6 weeks hospital / rehab), or start the
+freshman prodigy — and maybe send HIM to Coach Xarter, the mind-controlling
+trainer who boosts quickness 50% for two weeks but takes one pupil a year,
+and whose mind-control might spike aggression until the kid bites an
+opponent's leg off (flagrant foul, 3-week suspension). The design rules:
+- Warn continuously: pros AND cons visible before every risky choice.
+- Course-correction moments: multiple chances to steer before impact.
+- Make consequences unmistakably traceable to choices.
+- Dramatize the luck itself: "1 in 700 — and you WON it."
+- Randomness spices decisions; it never replaces them. If the player is just
+  clicking through stories for the literary value, we've failed.
+
+**Tactics = solving puzzles, with feedback.** Identify the opponent's shape
+(they're huge), counter with lineup + tactics (go small, play outside) +
+targeted prep (send both guards to Xarter for a week-long shooting boost) —
+then get explicit feedback in/after the game on whether the plan worked.
+Coaching a fake game is fun when plans visibly succeed or fail.
+
+**A rating system of inherent contradictions.** You can't be big AND agile,
+strong AND small, aggressive AND smart. Stats should be opposed axes, not
+independent bars — so team-building means leaning into strengths and playing
+around weaknesses, and no amount of grinding maxes everything. This gives
+strategic depth WITHOUT data bloat.
+
+**Presentation law:** cards, big knobs, big sliders. One consistent color
+language everywhere. Bigger, bolder, clearer; each screen answers exactly
+one question. Arcade — never idle-clicker, never spreadsheet.
+
+## v1.0 DECISIONS (locked with Thijs)
+
+- **Axes**: BUILD = Strong ◀▶ Quick. HEAD = Fierce ◀▶ Savvy. Plus SKILL
+  (0-99, the only trainable number) and the live meters (energy, mood).
+- **Species define caps on all four axis poles**, and the SPRITE must show
+  it: per-species size ranges (some species all bigger than humans, some all
+  smaller), and temperament readable in the art (a massive friendly rock
+  giant: high Strong cap, low Quick, high Savvy, low Fierce; a clawed
+  predator: high Strong AND high Fierce).
+- **Three species tiers**:
+  1. Humans + humanesque — low caps everywhere (floor material).
+  2. Same-galaxy species — high cap in ONE direction.
+  3. Exotics — high caps in TWO directions, with consequences to match.
+     (Flame beings, translucents, full robots... species design is its own
+     future discussion — do not design them yet.)
+- **League: 6 teams, 10-game season** (double round robin). Finish FIRST and
+  you enter the **Universal Tournament** — max 3 rounds against champions
+  from across the galaxy. Winning it is winning March Madness.
+- **Tools as inventory — THE BAG** (agreed): the coach carries consumable
+  item cards, played at the right moment like RPG spells.
+  - Design law: most items are BARGAINS, not buffs — odds printed on the
+    card face, bad outcomes included ("70% instant fix · 20% doc feud ·
+    10% hospital"). A few honest weak ones for texture.
+  - Scarcity: small bag (~5 slots; full = use or discard). Items come only
+    from play — storylines, wins, shady vendors charging integrity — never
+    from waiting. Legendary items are once-per-season (Xarter takes one
+    pupil a year).
+  - Killer integration: when a story popup fires and you hold a relevant
+    item, it appears as an EXTRA choice button in that popup.
+  - The arsenal splits: KNOWLEDGE (permanent unlocks: training methods,
+    scan regions — the existing skill tree) vs THE BAG (consumables).
+- **Universal Tournament implication**: its 8 entrants are champions of
+  other conferences that exist but are never played during the season —
+  generate them; an unknown-champion scouting report is a fun pre-tournament
+  beat. Finishing 2nd in your league = season over, straight to recruiting.
+  Intended and confirmed: first place matters enormously.
+- **XP under the axis model (working instinct, unconfirmed)**: XP levels
+  SKILL only. Axis positions (Strong↔Quick, Fierce↔Savvy) move rarely —
+  through events, items, and offseason growth, never by grinding.
+
+## NEXT STEP (start of next session)
+
+Draft the complete v1.0 spec as one document BEFORE writing any code:
+- the player card in its minimal form (axis dot + SKILL + energy/mood),
+- all screens, each answering exactly one question,
+- the single color law,
+- the bag & item catalog structure,
+- 6-team / 10-game season + Universal Tournament flow,
+- what carries over from v0.7 (story popups, rig sprites, deploy pipeline)
+  and what dies (4-stat columns, LED clutter, most numbers on cards).
+Thijs reviews the spec, then the rebuild happens in one coherent swing.
+Species redesign (3 tiers, sprite-coded axes) is a SEPARATE future session.
+
 ## v0.7 — the Kairosoft turn (phone-first)
 
 - **Stories unfold**: every event is a popup with typewriter text (tap to
