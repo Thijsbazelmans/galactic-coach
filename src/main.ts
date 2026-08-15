@@ -308,16 +308,24 @@ function gridHtml(s: GameState): string {
     }).join('');
     return `<div class="gridrow"><div class="rowlabel">${label}</div>${cells}</div>`;
   };
-  const resCards = reserves(t)
-    .sort((a, b) => overall(b) - overall(a))
-    .map((p) => playerCard(p, { draggable: isLineup, marked: trainSquad.includes(p.id) && s.phase === 'training' }))
-    .join('');
+  // reserves use the same three columns as the rows above them
+  const resList = reserves(t).sort((a, b) => overall(b) - overall(a));
+  const resRows: string[] = [];
+  for (let i = 0; i < Math.max(3, resList.length); i += 3) {
+    const cells = [0, 1, 2]
+      .map((j) => {
+        const p = resList[i + j];
+        return `<div class="gcell ${isLineup ? 'dropzone' : ''}" ${isLineup ? 'data-zone="reserves"' : ''}>
+          ${p ? playerCard(p, { draggable: isLineup, marked: trainSquad.includes(p.id) && s.phase === 'training' }) : '<div class="pod empty">—</div>'}
+        </div>`;
+      })
+      .join('');
+    resRows.push(`<div class="gridrow"><div class="rowlabel">${i === 0 ? 'RESERVES' : ''}</div>${cells}</div>`);
+  }
   return `<div class="grid">
     ${rowHtml('starters', 'STARTERS')}
     ${rowHtml('bench', 'BENCH')}
-    <div class="gridrow"><div class="rowlabel">RESERVES</div>
-      <div class="rescell ${isLineup ? 'dropzone' : ''}" ${isLineup ? 'data-zone="reserves"' : ''}>${resCards || '<span class="dim">—</span>'}</div>
-    </div>
+    ${resRows.join('')}
   </div>`;
 }
 
