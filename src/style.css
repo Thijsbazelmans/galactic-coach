@@ -202,7 +202,16 @@ button.cell { padding: 1px 6px; margin: 0; font-size: 13px; }
   position: relative;
 }
 .pcard:hover { border-color: var(--fg); }
-.pcard[draggable="true"] { cursor: grab; }
+.pcard.grabbable { cursor: grab; touch-action: pan-y; }
+.pcard.draglift { opacity: 0.35; }
+.dragghost {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  transform: scale(1.06) rotate(-2deg);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8), 0 0 12px rgba(125, 252, 154, 0.35);
+  opacity: 0.95;
+}
 .pcard.sel { border-color: var(--accent); background: #16120a; }
 .pcard.pout { opacity: 0.55; border-style: dashed; cursor: default; }
 

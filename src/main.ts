@@ -67,7 +67,6 @@ let state: GameState = load() ?? freshGame();
 let detailPlayerId: number | null = null;
 let poolSelected: Set<number> | null = null;
 let progressTimer: number | null = null;
-let dragId: number | null = null;
 let trainType: string | null = null;
 let trainSquad: number[] = [];
 let selProspect: number | null = null;
@@ -197,7 +196,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   const t = myTeam(state);
   const kit = opts.kit ?? { bg: t.bg, fg: t.fg };
   const img = spriteUrl(p, kit, p.jersey);
-  return `<div class="pcard ${out ? 'pout' : ''} ${opts.marked ? 'marked' : ''}" ${opts.draggable && !out ? 'draggable="true"' : ''}
+  return `<div class="pcard ${out ? 'pout' : ''} ${opts.marked ? 'marked' : ''} ${opts.draggable && !out ? 'grabbable' : ''}"
       data-action="card" data-id="${p.id}" data-pid="${p.id}">
     <div class="pcard-top">
       <span class="ovr ${oop ? 'bad' : ''}">${ovr}<span class="potslash ${p.potential - overall(p) >= 15 ? 'gold' : ''}" title="potential">/${p.potential}</span></span>
@@ -871,35 +870,122 @@ function render(): void {
   swipeDir = null;
 }
 
-app.addEventListener('dragstart', (e) => {
-  const card = (e.target as HTMLElement).closest('.pcard[draggable="true"]');
-  if (!card) return;
-  dragId = Number(card.getAttribute('data-id'));
-  (e as DragEvent).dataTransfer?.setData('text/plain', String(dragId));
-});
+// ---- pointer-based drag: works with fingers (iOS included) and mouse ------
+// touch: press-and-hold ~250ms to pick a card up (a quick swipe scrolls);
+// mouse: just drag. A plain tap still opens the player card.
 
-app.addEventListener('dragover', (e) => {
-  const zone = (e.target as HTMLElement).closest('.dropzone');
-  if (zone) {
-    e.preventDefault();
-    zone.classList.add('dragover');
+interface PtrDrag {
+  pointerId: number;
+  pid: number;
+  card: HTMLElement;
+  startX: number;
+  startY: number;
+  lastX: number;
+  lastY: number;
+  active: boolean;
+  holdTimer: number;
+  ghost: HTMLElement | null;
+}
+let ptr: PtrDrag | null = null;
+let suppressClick = false;
+
+function activateDrag(): void {
+  if (!ptr || ptr.active) return;
+  ptr.active = true;
+  const rect = ptr.card.getBoundingClientRect();
+  const ghost = ptr.card.cloneNode(true) as HTMLElement;
+  ghost.classList.add('dragghost');
+  ghost.style.width = `${rect.width}px`;
+  document.body.appendChild(ghost);
+  ptr.ghost = ghost;
+  ptr.card.classList.add('draglift');
+  moveGhost();
+}
+
+function moveGhost(): void {
+  if (!ptr?.ghost) return;
+  ptr.ghost.style.left = `${ptr.lastX - ptr.ghost.offsetWidth / 2}px`;
+  ptr.ghost.style.top = `${ptr.lastY - 40}px`;
+  document.querySelectorAll('.dropzone.dragover').forEach((z) => z.classList.remove('dragover'));
+  zoneAtPoint()?.classList.add('dragover');
+}
+
+function zoneAtPoint(): Element | null {
+  if (!ptr) return null;
+  return document.elementFromPoint(ptr.lastX, ptr.lastY)?.closest('.dropzone') ?? null;
+}
+
+function endDrag(drop: boolean): void {
+  if (!ptr) return;
+  clearTimeout(ptr.holdTimer);
+  if (ptr.active) {
+    const zone = drop ? zoneAtPoint() : null;
+    ptr.ghost?.remove();
+    ptr.card.classList.remove('draglift');
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 60);
+    if (zone) {
+      handleDrop(zone.getAttribute('data-zone')!, ptr.pid);
+      ptr = null;
+      render();
+      return;
+    }
+    document.querySelectorAll('.dropzone.dragover').forEach((z) => z.classList.remove('dragover'));
+  }
+  ptr = null;
+}
+
+app.addEventListener('pointerdown', (e) => {
+  if (state.phase !== 'lineup') return;
+  const card = (e.target as HTMLElement).closest('.pcard.grabbable') as HTMLElement | null;
+  if (!card) return;
+  const pid = Number(card.getAttribute('data-pid'));
+  ptr = {
+    pointerId: e.pointerId,
+    pid,
+    card,
+    startX: e.clientX,
+    startY: e.clientY,
+    lastX: e.clientX,
+    lastY: e.clientY,
+    active: false,
+    holdTimer: 0,
+    ghost: null,
+  };
+  if (e.pointerType === 'touch') {
+    ptr.holdTimer = window.setTimeout(() => activateDrag(), 250);
   }
 });
 
-app.addEventListener('dragleave', (e) => {
-  (e.target as HTMLElement).closest('.dropzone')?.classList.remove('dragover');
+document.addEventListener('pointermove', (e) => {
+  if (!ptr || e.pointerId !== ptr.pointerId) return;
+  ptr.lastX = e.clientX;
+  ptr.lastY = e.clientY;
+  const dist = Math.hypot(e.clientX - ptr.startX, e.clientY - ptr.startY);
+  if (!ptr.active) {
+    if (e.pointerType === 'mouse' && dist > 6) activateDrag();
+    else if (e.pointerType !== 'mouse' && dist > 12) endDrag(false); // that's a scroll, not a hold
+    return;
+  }
+  moveGhost();
 });
 
-app.addEventListener('drop', (e) => {
-  const zone = (e.target as HTMLElement).closest('.dropzone');
-  if (!zone || dragId === null) return;
-  e.preventDefault();
-  handleDrop(zone.getAttribute('data-zone')!, dragId);
-  dragId = null;
-  render();
+document.addEventListener('pointerup', (e) => {
+  if (ptr && e.pointerId === ptr.pointerId) endDrag(true);
 });
+document.addEventListener('pointercancel', () => endDrag(false));
+
+// while a card is lifted, the page must not scroll under the finger
+document.addEventListener(
+  'touchmove',
+  (e) => {
+    if (ptr?.active) e.preventDefault();
+  },
+  { passive: false }
+);
 
 app.addEventListener('click', (e) => {
+  if (suppressClick) return;
   const el = (e.target as HTMLElement).closest('[data-action]');
   if (!el) return;
   const action = el.getAttribute('data-action')!;
