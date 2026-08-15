@@ -1,13 +1,13 @@
 import { clamp, emptyLineup, rand } from './gen';
-import type { AttrKey, BoxLine, GameResult, Player, Slot, TacticsSet, Team } from './types';
+import type { BoxLine, GameResult, Player, Slot, StatKey, Team } from './types';
 
-// ---- effective attributes -------------------------------------------------
-// Fitness drags/boosts the physical pair; mood does the same for the head.
+// ---- effective stats ------------------------------------------------------
+// Fitness drags/boosts Physical; mood does the same for Mental.
 
-export function effAttr(p: Player, k: AttrKey): number {
-  let v = p.attrs[k];
-  if (k === 'str' || k === 'agi') v += (p.fitness - 75) * 0.25;
-  if (k === 'foc' || k === 'iq') v += (p.mood - 60) * 0.25;
+export function effStat(p: Player, k: StatKey): number {
+  let v = p.stats[k];
+  if (k === 'phy') v += (p.fitness - 75) * 0.25;
+  if (k === 'men') v += (p.mood - 60) * 0.25;
   return clamp(Math.round(v), 1, 99);
 }
 
@@ -24,8 +24,7 @@ export function posMult(pref: Slot, slot: Slot): number {
 
 /** 0-100: current overall (fitness/mood baked in), no position context. */
 export function overall(p: Player): number {
-  const keys: AttrKey[] = ['agi', 'str', 'han', 'sho', 'foc', 'agg', 'iq', 'tou'];
-  return Math.round(keys.reduce((a, k) => a + effAttr(p, k), 0) / keys.length);
+  return Math.round((effStat(p, 'phy') + effStat(p, 'men') + effStat(p, 'off') + effStat(p, 'def')) / 4);
 }
 
 /** Overall as it plays in a given slot (out-of-position penalty applied). */
@@ -96,85 +95,37 @@ function slotPairs(t: Team): SlotPair[] {
 
 const SCRUB = 22; // an empty slot plays like nobody, because it is nobody
 
-// ---- stat groups & tactics ------------------------------------------------
-
-export type Group = 'phy' | 'tec' | 'def' | 'men';
-
-export const GROUP_ATTRS: Record<Group, [AttrKey, AttrKey]> = {
-  phy: ['agi', 'str'],
-  tec: ['han', 'sho'],
-  def: ['foc', 'agg'],
-  men: ['iq', 'tou'],
-};
-
-/** Position flavors the pair: guards lead with the finesse attribute
- *  (AGI/HAN/FOC/IQ), centers with the power one (STR/SHO/AGG/TOU),
- *  forwards split the difference. */
-export function groupVal(p: Player, g: Group): number {
-  const [lead, power] = GROUP_ATTRS[g];
-  const wLead = p.pos === 'G' ? 0.75 : p.pos === 'C' ? 0.25 : 0.5;
-  return effAttr(p, lead) * wLead + effAttr(p, power) * (1 - wLead);
+function offSkill(p: Player): number {
+  return effStat(p, 'off') * 0.5 + effStat(p, 'phy') * 0.25 + effStat(p, 'men') * 0.25;
+}
+function defSkill(p: Player): number {
+  return effStat(p, 'def') * 0.55 + effStat(p, 'phy') * 0.25 + effStat(p, 'men') * 0.2;
 }
 
-export function teamGroupAvg(t: Team, g: Group): number {
-  const six = slotPairs(t).flatMap((p) => [p.starter, p.bench]).filter((p): p is Player => !!p);
-  return six.length ? Math.round(six.reduce((a, p) => a + groupVal(p, g), 0) / six.length) : SCRUB;
-}
-
-/** Slider positions → group weight multipliers. Lean into your strengths. */
-export function tacticsWeights(t: TacticsSet): Record<Group, number> {
-  return {
-    phy: (1 + 0.3 * t.pace) * (1 - 0.3 * t.plays) * (1 - 0.3 * t.scheme),
-    tec: 1 - 0.3 * t.pace,
-    men: 1 + 0.3 * t.plays,
-    def: 1 + 0.3 * t.scheme,
-  };
-}
-
-/** AI coaches read their own roster and slide toward what they're good at. */
-export function aiTactics(t: Team): TacticsSet {
-  const phy = teamGroupAvg(t, 'phy');
-  const tec = teamGroupAvg(t, 'tec');
-  const men = teamGroupAvg(t, 'men');
-  const def = teamGroupAvg(t, 'def');
-  const lean = (a: number, b: number): number => (a - b > 4 ? 1 : b - a > 4 ? -1 : 0);
-  return { pace: lean(phy, tec), plays: lean(men, phy), scheme: lean(def, phy) };
-}
-
-function offSkill(p: Player, w: Record<Group, number>): number {
-  return groupVal(p, 'tec') * 0.4 * w.tec + groupVal(p, 'phy') * 0.32 * w.phy + groupVal(p, 'men') * 0.28 * w.men;
-}
-function defSkill(p: Player, w: Record<Group, number>): number {
-  return groupVal(p, 'def') * 0.55 * w.def + groupVal(p, 'phy') * 0.25 * w.phy + groupVal(p, 'men') * 0.2 * w.men;
-}
-
-function pairValue(pair: SlotPair, kind: 'off' | 'def', w: Record<Group, number>): number {
+function pairValue(pair: SlotPair, kind: 'off' | 'def'): number {
   const val = (p: Player | null): number => {
     if (!p) return SCRUB;
-    const skill = kind === 'off' ? offSkill(p, w) : defSkill(p, w);
-    return (0.55 * overall(p) + 0.45 * skill) * posMult(p.pos, pair.slot);
+    const skill = kind === 'off' ? offSkill(p) : defSkill(p);
+    return (0.5 * overall(p) + 0.5 * skill) * posMult(p.pos, pair.slot);
   };
   return 0.7 * val(pair.starter) + 0.3 * val(pair.bench);
 }
 
-function teamStrength(t: Team, tac: TacticsSet): { off: number; def: number; sho: number } {
-  const w = tacticsWeights(tac);
+function teamStrength(t: Team): { off: number; def: number; sho: number } {
   const pairs = slotPairs(t);
-  const off = pairs.reduce((a, p) => a + pairValue(p, 'off', w), 0) / 3;
-  const def = pairs.reduce((a, p) => a + pairValue(p, 'def', w), 0) / 3;
+  const off = pairs.reduce((a, p) => a + pairValue(p, 'off'), 0) / 3;
+  const def = pairs.reduce((a, p) => a + pairValue(p, 'def'), 0) / 3;
   const shooters = pairs.flatMap((p) => [p.starter, p.bench]).filter((p): p is Player => !!p);
-  const sho = shooters.length ? shooters.reduce((a, p) => a + effAttr(p, 'sho'), 0) / shooters.length : SCRUB;
+  const sho = shooters.length ? shooters.reduce((a, p) => a + effStat(p, 'off'), 0) / shooters.length : SCRUB;
   return { off, def, sho };
 }
-
-const NEUTRAL_W: Record<Group, number> = { phy: 1, tec: 1, def: 1, men: 1 };
 
 function pickScorer(t: Team): Player | null {
   const pairs = slotPairs(t);
   const pool: { p: Player; w: number }[] = [];
   for (const pair of pairs) {
-    if (pair.starter) pool.push({ p: pair.starter, w: 0.72 * (offSkill(pair.starter, NEUTRAL_W) + 20) });
-    if (pair.bench) pool.push({ p: pair.bench, w: 0.28 * (offSkill(pair.bench, NEUTRAL_W) + 20) });
+    if (pair.starter) pool.push({ p: pair.starter, w: 0.72 * (offSkill(pair.starter) + 20) });
+    if (pair.bench) pool.push({ p: pair.bench, w: 0.28 * (offSkill(pair.bench) + 20) });
   }
   if (!pool.length) return null;
   let r = Math.random() * pool.reduce((a, x) => a + x.w, 0);
@@ -185,9 +136,9 @@ function pickScorer(t: Team): Player | null {
   return pool[pool.length - 1].p;
 }
 
-export function simGame(home: Team, away: Team, homeTac: TacticsSet, awayTac: TacticsSet): GameResult {
-  const H = teamStrength(home, homeTac);
-  const A = teamStrength(away, awayTac);
+export function simGame(home: Team, away: Team): GameResult {
+  const H = teamStrength(home);
+  const A = teamStrength(away);
   const pts: Record<number, number> = {};
   const score: Record<number, number> = { [home.id]: 0, [away.id]: 0 };
 

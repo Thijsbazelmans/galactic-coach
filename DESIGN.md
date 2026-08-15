@@ -78,6 +78,27 @@ engine (`src/engine/`) fully separated from presentation, so the same core can b
 wrapped for Steam (Tauri/Electron), mobile, or published to itch.io for early
 playtesting. Discover the platform by playing it, don't pick it up front.
 
+## v0.7 — the Kairosoft turn (phone-first)
+
+- **Stories unfold**: every event is a popup with typewriter text (tap to
+  skip), the player's mini-card (OVR/POT · year · POS · mood · energy · XP),
+  choices, and the outcome typing out in the SAME popup while the impact
+  animates on the card. Last story dismissed → slide straight into Practice.
+  No news recap screen.
+- **Four stats**: Physical / Mental / Offense / Defense. PHY rides fitness,
+  MEN rides mood. Species caps and position math rebuilt on the 4-stat model.
+- **XP everywhere**: training (1 player per session, popup flow with progress
+  bar) and games grant XP; the bar on each card fills; level-up = the coach
+  assigns 1–3 points (breakthrough: 5) to ONE stat via a blocking popup.
+  XP needs grow with quality and spike near potential. Base energy 6.
+- **Recruiting is the grid**: 9 prospect slots, 3×3. Tap a prospect → woo
+  sequence; tap an empty slot → scouting run sequence.
+- **Tactics sliders shelved** until the design is figured out.
+- **New header**: row 1 team + record + season (big), row 2 coach info in
+  gold (⚡ energy, integrity, trophies, legacy) — integrity/legacy/energy
+  pulse and float deltas when they change. ⚙ options menu holds NEW GAME +
+  version. Whole-screen slide transitions on continue/back.
+
 ## v0.6 — the coach's journey
 
 - **Events are blocking popups**: every decision — news events, press

@@ -30,7 +30,7 @@ body::after {
   background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px);
 }
 
-#app { max-width: 690px; margin: 0 auto; padding: 108px 8px 96px; }
+#app { max-width: 690px; margin: 0 auto; padding: 118px 8px 96px; }
 
 h1 {
   font-size: 22px;
@@ -568,3 +568,111 @@ button.big { display: block; width: 100%; padding: 10px; font-size: 15px; margin
 .pcard { text-align: center; }
 .pcard .pcard-top { text-align: initial; }
 .pcard-name { font-size: 13px; }
+
+
+/* ---- v0.7: story-driven phone UI ---- */
+
+.gear {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 18px;
+  padding: 4px 10px;
+  margin: 0;
+  border-color: var(--dim);
+  color: var(--dim);
+  z-index: 31;
+}
+.hrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hrow1 { font-size: 17px; padding-right: 48px; }
+.hrow1 .chip { font-size: 16px; padding: 3px 12px; }
+.hrow1 .rec b { font-size: 18px; }
+.hrow1 .seasoninfo { color: var(--fg); }
+.hrow2 {
+  margin-top: 6px;
+  color: var(--accent);
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+.hrow2 b { color: #fff3cf; }
+.hrow2 .bolt { font-size: 18px; }
+#hdr-int, #hdr-leg, #hdr-energy { position: relative; }
+.pulse { animation: hdrpulse 0.9s ease-out; }
+@keyframes hdrpulse {
+  0% { text-shadow: 0 0 0 rgba(255, 210, 63, 0); }
+  30% { text-shadow: 0 0 14px rgba(255, 210, 63, 0.9); transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.hdrdelta {
+  position: absolute;
+  top: -14px;
+  right: -6px;
+  font-weight: bold;
+  animation: floatUp 1.4s ease-out forwards;
+}
+.hdrdelta.good { color: var(--fg); }
+.hdrdelta.bad { color: var(--danger); }
+
+/* whole-screen slide between phases */
+.screen { position: relative; }
+@keyframes screenFwd {
+  from { transform: translateX(85%); opacity: 0.2; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes screenBack {
+  from { transform: translateX(-85%); opacity: 0.2; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.screen.swipe-fwd { animation: screenFwd 0.3s ease-out; }
+.screen.swipe-back { animation: screenBack 0.3s ease-out; }
+
+/* typewriter box */
+.typebox {
+  min-height: 72px;
+  margin: 10px 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+.hide { visibility: hidden; }
+.taphint { color: var(--accent); text-align: right; animation: blink 1.2s infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+/* story mini card */
+.storycard {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  background: #071008;
+  padding: 6px 10px;
+  margin: 6px 0;
+  position: relative;
+  color: var(--fg);
+}
+.storycard .sprite.small { width: 64px; height: 64px; margin: 0; }
+.storyinfo { flex: 1; font-size: 13px; }
+.storymeters { display: flex; gap: 6px; align-items: center; margin: 2px 0; }
+.storymeters .face, .storymeters .staticon { width: 15px; height: 15px; }
+
+/* xp bar */
+.xpbar {
+  height: 4px;
+  background: #10180f;
+  border: 1px solid #1d3a25;
+  margin-top: 4px;
+}
+.xpfill { height: 100%; background: var(--accent); box-shadow: 0 0 5px rgba(255, 210, 63, 0.6); }
+
+/* prospect grid scan pods */
+.scanpod {
+  width: 100%;
+  min-height: 180px;
+  border: 1px dashed var(--dim);
+  color: var(--dim);
+  font-size: 15px;
+  letter-spacing: 2px;
+  background: transparent;
+}
+.scanpod:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
+
+.modal .levelup { border-color: var(--accent); }

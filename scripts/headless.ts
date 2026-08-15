@@ -1,17 +1,19 @@
 // Headless smoke test: plays 3 full seasons with a simple auto-coach.
 // Run with: npx tsx scripts/headless.ts
 
-import { ROSTER_SIZE, newGameState } from '../src/engine/gen';
+import { ROSTER_SIZE, STAT_KEYS, newGameState } from '../src/engine/gen';
 import { overall } from '../src/engine/sim';
 import {
   actionScan,
   actionSchmooze,
-  actionTrainSession,
+  actionTrain,
   answerPress,
+  assignStatPoints,
   chooseTeam,
   continueFromResult,
   finalizeRoster,
   myTeam,
+  pendingLevelUps,
   playGame,
   resolveNews,
   resolveSigning,
@@ -24,10 +26,16 @@ import {
 const s = newGameState();
 chooseTeam(s, 0);
 
-let scanCount = 0;
-let schmoozeCount = 0;
+function assignAll(): void {
+  for (const p of pendingLevelUps(s)) {
+    while (p.pendingPoints.length) {
+      assignStatPoints(s, p.id, STAT_KEYS[Math.floor(Math.random() * 4)]);
+    }
+  }
+}
 
-for (let guard = 0; guard < 2000 && s.season <= 3; guard++) {
+let trained = 0;
+for (let guard = 0; guard < 3000 && s.season <= 3; guard++) {
   switch (s.phase) {
     case 'news': {
       if (s.press && !s.press.answered) answerPress(s, Math.floor(Math.random() * s.press.options.length));
@@ -38,19 +46,23 @@ for (let guard = 0; guard < 2000 && s.season <= 3; guard++) {
       break;
     }
     case 'training': {
-      const squad = myTeam(s).players.filter((p) => p.outWeeks === 0).slice(0, 3).map((p) => p.id);
-      const types = ['asteroid', 'laser', 'horizon', 'holofilm', 'mascot'];
-      actionTrainSession(s, types[Math.floor(Math.random() * types.length)], squad);
+      // spend a few energy training random available players
+      for (let i = 0; i < 3; i++) {
+        const avail = myTeam(s).players.filter((p) => p.outWeeks === 0);
+        if (!avail.length) break;
+        const p = avail[Math.floor(Math.random() * avail.length)];
+        if (actionTrain(s, Math.random() < 0.5 ? 'asteroid' : 'horizon', p.id) !== null) trained++;
+      }
+      assignAll();
       toScouting(s);
       break;
     }
     case 'scouting': {
       if (s.prospects.length < 3) {
-        if (actionScan(s, s.shipDamaged ? 'home' : Math.random() < 0.5 ? 'nebula' : 'outerrim')) scanCount++;
+        actionScan(s, s.shipDamaged ? 'home' : Math.random() < 0.5 ? 'nebula' : 'home');
       } else if (s.prospects.length) {
         const target = [...s.prospects].sort((a, b) => b.commitPct - a.commitPct)[0];
-        const methods = ['dinner', 'sorority', 'tour'];
-        if (actionSchmooze(s, target.id, methods[Math.floor(Math.random() * methods.length)])) schmoozeCount++;
+        actionSchmooze(s, target.id, 'tour');
       }
       toLineup(s);
       break;
@@ -59,6 +71,7 @@ for (let guard = 0; guard < 2000 && s.season <= 3; guard++) {
       playGame(s);
       break;
     case 'result':
+      assignAll();
       continueFromResult(s);
       break;
     case 'recruiting': {
@@ -82,28 +95,24 @@ for (let guard = 0; guard < 2000 && s.season <= 3; guard++) {
   }
 }
 
-// invariants
 const t = myTeam(s);
 if (t.players.length !== ROSTER_SIZE) throw new Error(`bad roster size ${t.players.length}`);
 if (t.players.some((p) => p.classYear > 3)) throw new Error('player failed to graduate');
 if (s.integrity < 0 || s.integrity > 100) throw new Error(`integrity out of range: ${s.integrity}`);
 for (const p of t.players) {
   if (p.fitness < 0 || p.fitness > 100 || p.mood < 0 || p.mood > 100) {
-    throw new Error(`fitness/mood out of range for ${p.name}: fit=${p.fitness} mood=${p.mood}`);
+    throw new Error(`fitness/mood out of range for ${p.name}`);
   }
-  if (p.attrs.agi > 99 || p.attrs.str > 99) throw new Error(`attr overflow for ${p.name}`);
+  for (const k of STAT_KEYS) if (p.stats[k] > 99) throw new Error(`stat overflow for ${p.name}`);
 }
 for (const team of s.teams) {
   if (team.players.length < 3) throw new Error(`team ${team.name} under-rostered`);
 }
-const posCounts = { G: 0, F: 0, C: 0 };
-for (const team of s.teams) for (const p of team.players) posCounts[p.pos]++;
 
-console.log(`OK: reached season ${s.season}, week ${s.week}, phase ${s.phase}`);
-console.log(`  wins=${s.totalWins} integrity=${s.integrity} trophies=${s.trophies} scans=${scanCount} schmoozes=${schmoozeCount} shipDamaged=${s.shipDamaged}`);
-console.log(`  league position mix: G=${posCounts.G} F=${posCounts.F} C=${posCounts.C}`);
+console.log(`OK: reached season ${s.season}, week ${s.week}, phase ${s.phase}; sessions=${trained}`);
+console.log(`  wins=${s.totalWins} integrity=${s.integrity} trophies=${s.trophies}`);
 console.log(
   `  roster: ${t.players
-    .map((p) => `${p.name} [${p.speciesId} yr${p.classYear} ${p.pos} ${overall(p)} fit${p.fitness} mood${p.mood}${p.gem ? ' GEM' : p.walkOn ? ' walk-on' : ''}]`)
+    .map((p) => `${p.name} [${p.speciesId} ${['Fr','So','Jr','Sr'][Math.min(p.classYear,3)]} ${p.pos} ${overall(p)}/${p.potential}${p.gem ? ' GEM' : p.walkOn ? ' walk-on' : ''}]`)
     .join('; ')}`
 );
