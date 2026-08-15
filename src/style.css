@@ -30,7 +30,7 @@ body::after {
   background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px);
 }
 
-#app { max-width: 880px; margin: 0 auto; padding: 108px 14px 76px; }
+#app { max-width: 690px; margin: 0 auto; padding: 108px 8px 96px; }
 
 h1 {
   font-size: 22px;
@@ -299,11 +299,11 @@ button.wide { display: block; width: 100%; text-align: left; margin: 6px 0; padd
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 880px;
+  max-width: 690px;
   z-index: 30;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
-  padding: 10px 14px 6px;
+  padding: 10px 10px 6px;
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.6);
 }
 .chip {
@@ -346,17 +346,18 @@ button.wide { display: block; width: 100%; text-align: left; margin: 6px 0; padd
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 880px;
+  max-width: 690px;
   z-index: 30;
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  padding: 10px 14px;
+  gap: 10px;
+  padding: 12px 10px calc(12px + env(safe-area-inset-bottom));
   background: var(--bg);
   border-top: 1px solid var(--border);
   box-shadow: 0 -6px 14px rgba(0, 0, 0, 0.6);
 }
-.navbar button { font-size: 15px; padding: 9px 16px; }
+.navbar button { font-size: 17px; padding: 16px 22px; margin: 0; }
+.navbar .primary { flex: 1; margin-left: 0; }
 .navbar button { margin: 0; }
 .navbar .primary { margin-left: auto; }
 
