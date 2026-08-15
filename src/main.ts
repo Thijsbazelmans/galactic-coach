@@ -72,6 +72,7 @@ let progressTimer: number | null = null;
 let resultShown = false;
 let floatTimers: number[] = [];
 let prevHdr = { integrity: -1, legacy: -1, energy: -1 };
+const xpPrev = new Map<number, number>();
 
 // typewriter
 let typeTimer: number | null = null;
@@ -128,17 +129,17 @@ function addSticker(pid: number, text: string, cls: string, anchor: Anchor = 'mi
   const list = stickers.get(pid) ?? [];
   list.push({ text, cls, anchor });
   stickers.set(pid, list.slice(-6));
-  const host =
+  const hosts =
     anchor === 'mid'
-      ? document.querySelector(`.pcard[data-pid="${pid}"] .stickers`)
-      : document.querySelector(`.pcard[data-pid="${pid}"] .statcol[data-anchor="${anchor}"] .statstick`);
-  if (host) {
+      ? document.querySelectorAll(`.pcard[data-pid="${pid}"] .stickers`)
+      : document.querySelectorAll(`.pcard[data-pid="${pid}"] .statcol[data-anchor="${anchor}"] .statstick`);
+  hosts.forEach((host) => {
     const el = document.createElement('span');
     el.className = `sticker ${cls}`;
     el.textContent = text;
     host.appendChild(el);
     while (host.children.length > (anchor === 'mid' ? 4 : 2)) host.removeChild(host.firstChild!);
-  }
+  });
 }
 
 function stickersHtml(pid: number, anchor: Anchor): string {
@@ -153,36 +154,20 @@ function floatCard(pid: number, msgs: { text: string; cls?: string; anchor?: Anc
   msgs.forEach((m, i) => {
     floatTimers.push(
       window.setTimeout(() => {
-        const card = document.querySelector(`.pcard[data-pid="${pid}"]`);
-        if (!card) return;
-        const el = document.createElement('div');
-        el.className = `floater ${m.cls ?? ''}`;
-        el.textContent = m.text;
-        (el as HTMLElement).style.left = `${20 + (i % 3) * 40}px`;
-        card.appendChild(el);
-        card.classList.add('flash');
+        const cards = document.querySelectorAll(`.pcard[data-pid="${pid}"]`);
+        if (!cards.length) return;
+        cards.forEach((card) => {
+          const el = document.createElement('div');
+          el.className = `floater ${m.cls ?? ''}`;
+          el.textContent = m.text;
+          (el as HTMLElement).style.left = `${20 + (i % 3) * 40}px`;
+          card.appendChild(el);
+          card.classList.add('flash');
+          window.setTimeout(() => el.remove(), 1500);
+          window.setTimeout(() => card.classList.remove('flash'), 600);
+        });
         addSticker(pid, m.text, m.cls ?? '', m.anchor ?? 'mid');
-        window.setTimeout(() => el.remove(), 1500);
-        window.setTimeout(() => card.classList.remove('flash'), 600);
       }, startDelay + i * 420)
-    );
-  });
-}
-
-/** Floaters inside the story modal's mini card. */
-function storyFloat(msgs: { text: string; cls?: string }[]): void {
-  msgs.forEach((m, i) => {
-    floatTimers.push(
-      window.setTimeout(() => {
-        const card = document.getElementById('storycard');
-        if (!card) return;
-        const el = document.createElement('div');
-        el.className = `floater ${m.cls ?? ''}`;
-        el.textContent = m.text;
-        el.style.left = `${30 + (i % 2) * 60}px`;
-        card.appendChild(el);
-        window.setTimeout(() => el.remove(), 1500);
-      }, 300 + i * 500)
     );
   });
 }
@@ -232,6 +217,8 @@ interface CardOpts {
   footer?: string;
   tag?: string;
   kit?: Kit;
+  /** rendered inside a popup: no click action of its own */
+  inert?: boolean;
 }
 
 function statColHtml(p: Player, k: StatKey): string {
@@ -249,7 +236,7 @@ function statColHtml(p: Player, k: StatKey): string {
 
 function xpBarHtml(p: Player): string {
   const pct = Math.min(100, Math.round((p.xp / xpNeed(p)) * 100));
-  return `<div class="xpbar" title="XP ${p.xp}/${xpNeed(p)}"><div class="xpfill" style="width:${pct}%"></div></div>`;
+  return `<div class="xpbar" data-pid="${p.id}" data-pct="${pct}" title="XP ${p.xp}/${xpNeed(p)}"><div class="xpfill" style="width:${pct}%"></div></div>`;
 }
 
 function playerCard(p: Player, opts: CardOpts = {}): string {
@@ -261,7 +248,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   const kit = opts.kit ?? { bg: t.bg, fg: t.fg };
   const img = spriteUrl(p, kit, p.jersey);
   return `<div class="pcard ${out ? 'pout' : ''} ${opts.draggable && !out ? 'grabbable' : ''}"
-      data-action="card" data-id="${p.id}" data-pid="${p.id}">
+      ${opts.inert ? '' : 'data-action="card"'} data-id="${p.id}" data-pid="${p.id}">
     <div class="pcard-top">
       <span class="ovr ${oop ? 'bad' : ''}">${ovr}<span class="potslash ${p.potential - overall(p) >= 15 ? 'gold' : ''}">/${p.potential}</span></span>
       <span class="yr">${CLASS_ABBR[Math.min(p.classYear, 3)]}</span>
@@ -298,19 +285,9 @@ function prospectCard(pr: Prospect): string {
   </div>`;
 }
 
-/** Compact horizontal card used inside story/training popups. */
-function storyCard(p: Player): string {
-  const t = myTeam(state);
-  return `<div class="storycard" id="storycard" data-pid="sc${p.id}">
-    <img class="sprite small" src="${spriteUrl(p, { bg: t.bg, fg: t.fg }, p.jersey)}" alt=""/>
-    <div class="storyinfo">
-      <div><b>${esc(p.name)}</b></div>
-      <div class="dim">${overall(p)}/${p.potential} · ${CLASS_ABBR[Math.min(p.classYear, 3)]} · ${p.pos}</div>
-      <div class="storymeters">${moodFaceImg(p.mood)} <span class="dim">${p.mood}</span>
-        ${boltIcon()} <span class="dim">${p.fitness}</span></div>
-      ${xpBarHtml(p)}
-    </div>
-  </div>`;
+/** A full player card inside a popup — every stat visible and animatable. */
+function modalCard(p: Player): string {
+  return `<div class="modalcard">${playerCard(p, { inert: true })}</div>`;
 }
 
 // ---- header ---------------------------------------------------------------
@@ -534,7 +511,7 @@ function storyModalHtml(s: GameState): string {
     : '<div class="taphint">▸ tap to continue</div>';
   return `<div class="modalback"><div class="modal" data-action="story-tap">
     <span class="tag">${n.playerId === null ? "COACH'S DESK" : 'CAMPUS STORY'}</span>
-    ${p ? storyCard(p) : ''}
+    ${p ? modalCard(p) : ''}
     <div class="typebox" id="typebox"></div>
     <div class="modal-actions hide" id="modal-actions">${btns}</div>
   </div></div>`;
@@ -547,13 +524,15 @@ function levelUpModalHtml(s: GameState): string {
   if (!p) return '';
   const packet = p.pendingPoints[0];
   const btns = STAT_KEYS.map((k) => {
-    const capped = p.stats[k] >= statCap(p, k);
+    const cap = statCap(p, k);
+    const capped = p.stats[k] >= cap;
     return `<button class="wide" data-action="assign" data-id="${p.id}:${k}" ${capped ? 'disabled' : ''}>
-      ${statIcon(k)} ${STAT_LABELS[k]} ${p.stats[k]} → <b class="gold">${Math.min(statCap(p, k), p.stats[k] + packet)}</b>${capped ? ' (MAX)' : ''}</button>`;
+      ${statIcon(k)} ${STAT_LABELS[k]} <b>${p.stats[k]}</b> → <b class="gold">${Math.min(cap, p.stats[k] + packet)}</b>
+      <span class="dim">· potential ${cap}</span>${capped ? ' <span class="bad">(MAXED)</span>' : ''}</button>`;
   }).join('');
   return `<div class="modalback"><div class="modal levelup">
     <span class="tag gold">${packet >= 5 ? '★ BREAKTHROUGH! ★' : 'LEVEL UP!'}</span>
-    ${storyCard(p)}
+    ${modalCard(p)}
     <p>${esc(p.name)} leveled up — assign <b class="gold">+${packet}</b> points to one stat:</p>
     ${btns}
   </div></div>`;
@@ -573,7 +552,7 @@ function trainModalHtml(s: GameState): string {
     ).join('');
     return `<div class="modalback"><div class="modal">
       <span class="tag">PRACTICE</span>
-      ${storyCard(p)}
+      ${modalCard(p)}
       ${p.outWeeks > 0 ? `<p class="bad">OUT ${p.outWeeks}w — ${esc(p.outReason)}. He can watch.</p>` : ''}
       ${methods}
       <button class="wide" data-action="train-close">CLOSE</button>
@@ -582,14 +561,14 @@ function trainModalHtml(s: GameState): string {
   if (trainUi.mode === 'anim') {
     return `<div class="modalback"><div class="modal">
       <span class="tag">PRACTICE</span>
-      ${storyCard(p)}
+      ${modalCard(p)}
       <div class="bar"><div class="fill" id="trainbar"></div></div>
       <p class="dim" id="trainlabel">Working...</p>
     </div></div>`;
   }
   return `<div class="modalback"><div class="modal">
     <span class="tag">PRACTICE COMPLETE</span>
-    ${storyCard(p)}
+    ${modalCard(p)}
     <p class="gold" style="font-size:20px">+${trainUi.xp} XP</p>
     ${p.pendingPoints.length ? '<p class="gold">★ LEVEL UP READY!</p>' : ''}
     <button class="wide primary" data-action="train-close">DONE</button>
@@ -1093,6 +1072,38 @@ function postRender(): void {
     }, 80);
   }
 
+  // XP bars animate toward their new fill (wrapping through 100% on level-up)
+  const seenPids = new Set<number>();
+  document.querySelectorAll<HTMLElement>('.xpbar[data-pid]').forEach((bar) => {
+    const pid = Number(bar.dataset.pid);
+    const newPct = Number(bar.dataset.pct);
+    const fill = bar.firstElementChild as HTMLElement | null;
+    seenPids.add(pid);
+    if (!fill) return;
+    const prev = xpPrev.get(pid);
+    if (prev === undefined || prev === newPct) return;
+    fill.style.transition = 'none';
+    fill.style.width = `${prev}%`;
+    void fill.offsetWidth;
+    fill.style.transition = '';
+    if (newPct >= prev) {
+      fill.style.width = `${newPct}%`;
+    } else {
+      // leveled up: fill to the brim, snap to zero, rise again
+      fill.style.width = '100%';
+      setTimeout(() => {
+        fill.style.transition = 'none';
+        fill.style.width = '0%';
+        void fill.offsetWidth;
+        fill.style.transition = '';
+        fill.style.width = `${newPct}%`;
+      }, 500);
+    }
+  });
+  document.querySelectorAll<HTMLElement>('.xpbar[data-pid]').forEach((bar) => {
+    xpPrev.set(Number(bar.dataset.pid), Number(bar.dataset.pct));
+  });
+
   // header pulses when integrity / legacy / energy move
   const pulse = (id: string, delta: number): void => {
     const el = document.getElementById(id);
@@ -1162,16 +1173,16 @@ app.addEventListener('click', (e) => {
       const fx = resolveNews(state, story.idx, Number(id));
       story.mode = 'result';
       render();
-      if (fx) {
-        const msgs: { text: string; cls?: string }[] = [];
+      if (fx && fx.playerId !== null) {
+        const msgs: { text: string; cls?: string; anchor?: Anchor }[] = [];
         if (fx.moodDelta) msgs.push({ text: `${fx.moodDelta > 0 ? '+' : ''}${fx.moodDelta} MOOD`, cls: fx.moodDelta < 0 ? 'bad' : 'good' });
         if (fx.fitnessDelta) msgs.push({ text: `${fx.fitnessDelta > 0 ? '+' : ''}${fx.fitnessDelta} ⚡`, cls: fx.fitnessDelta < 0 ? 'bad' : 'good' });
         for (const [k, v] of Object.entries(fx.statDeltas)) {
-          if (v) msgs.push({ text: `${v > 0 ? '+' : ''}${v} ${STAT_LABELS[k as StatKey]}`, cls: v < 0 ? 'bad' : 'gold' });
+          if (v) msgs.push({ text: `${v > 0 ? '+' : ''}${v} ${STAT_LABELS[k as StatKey]}`, cls: v < 0 ? 'bad' : 'gold', anchor: k as StatKey });
         }
         if (fx.outWeeks) msgs.push({ text: `OUT ${fx.outWeeks}w`, cls: 'bad' });
         if (fx.weightDelta) msgs.push({ text: `${fx.weightDelta > 0 ? '+' : ''}${fx.weightDelta}kg`, cls: 'warn' });
-        storyFloat(msgs);
+        floatCard(fx.playerId, msgs, 300);
       }
       return;
     }

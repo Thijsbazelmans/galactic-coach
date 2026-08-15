@@ -676,3 +676,9 @@ button.big { display: block; width: 100%; padding: 10px; font-size: 15px; margin
 .scanpod:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
 
 .modal .levelup { border-color: var(--accent); }
+
+
+/* v0.7.1: full cards in popups + animated xp */
+.xpfill { transition: width 0.7s ease-out; }
+.modalcard { display: flex; justify-content: center; margin: 6px 0; }
+.modalcard .pcard { cursor: default; width: 200px; }
