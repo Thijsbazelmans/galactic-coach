@@ -317,7 +317,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       ${compass(p, out ? null : effDot(p), full ? 'full' : 'mini')}
     </div>
     <div class="pcard-skill">
-      <span class="skill" style="color:${vc(p.skill)}">${p.skill}</span><span class="potnotch" title="potential">${starStr(potStars)}</span>
+      <span class="skill" style="color:${vc(p.skill)}">${p.skill}</span>${full ? `<span class="potnotch" title="potential">${starStr(potStars)}</span>` : ''}
       ${energyBar(p.energy)}${moodFace(p.mood)}
     </div>
     ${levelPips(p)}
@@ -443,7 +443,7 @@ function prospectGridHtml(s: GameState): string {
 // ---- stages ----------------------------------------------------------------------------------
 
 function stageStories(): string {
-  return `<h2>THIS WEEK</h2><p class="dim">The stories find you. Answer them.</p>`;
+  return `<h2>THIS WEEK</h2>`;
 }
 
 function stagePractice(s: GameState): string {
@@ -462,18 +462,13 @@ function stagePractice(s: GameState): string {
     ${s.trainedThisWeek
       ? `<div class="panel report">${esc(s.drillReport ?? 'Practice is done for the week.')}</div>`
       : drillPickOne
-        ? `<p class="dim blink">TAP THE PLAYER for the ${drillById2(drillPickOne)} — or tap the drill again to cancel.</p>${drills}`
-        : `<p class="dim">Hold a drill to run it. The whole squad trains — tap players below to sit them out (they rest instead).</p>${drills}`}`;
-}
-
-function drillById2(id: string): string {
-  return DRILLS.find((d) => d.id === id)?.name ?? id;
+        ? `<p class="dim blink">TAP THE PLAYER — or tap the drill again to cancel.</p>${drills}`
+        : drills}`;
 }
 
 function stageGalaxy(s: GameState): string {
   return `<h2>WHO JOINS NEXT SEASON?</h2>
-    <p class="dim">Tap a prospect to SCOUT or RECRUIT him. Tap an empty slot to scan a region.
-    Ignored prospects drift −2%/week.${s.groundedWeeks > 0 ? ` <span class="blink">SHIP GROUNDED ${s.groundedWeeks}w — home scans only.</span>` : ''}</p>`;
+    ${s.groundedWeeks > 0 ? `<p class="blink">SHIP GROUNDED ${s.groundedWeeks}w — home scans only.</p>` : ''}`;
 }
 
 function planWheel(s: GameState): string {
@@ -525,8 +520,7 @@ function oppBlob(s: GameState): string {
       </div>
       <div>${s.scoutedOpp
         ? `<div>Their likely plan: <b>${hint ? planById(hint).name : '?'}</b></div>`
-        : `<button class="hold" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT THEM (1⚡) ${oddsLine({ pct: 50, cls: 'INTEL' }, { pct: 2, cls: 'DRAIN' })}</button>
-           <div class="dim">Unscouted: the meter shows a band, their plan is a rumor.</div>`}
+        : `<button class="hold" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT THEM (1⚡) ${oddsLine({ pct: 50, cls: 'INTEL' }, { pct: 2, cls: 'DRAIN' })}</button>`}
       </div>
     </div>
   </div>`;
@@ -542,8 +536,7 @@ function stageMatchup(s: GameState): string {
   return `<h2>HOW DO WE BEAT THIS TEAM?</h2>
     ${meter}
     ${oppBlob(s)}
-    ${planWheel(s)}
-    <p class="dim">Hold &amp; drag cards to set your three. The meter moves as you do.</p>`;
+    ${planWheel(s)}`;
 }
 
 function stageGamenight(s: GameState): string {
@@ -665,7 +658,6 @@ function viewSigning(s: GameState): string {
     .join('');
   return `${headerHtml(s)}<div class="screen">
     <h2>SIGNING DAY — WHO GETS A LETTER?</h2>
-    <p class="dim">Sign one, keep the full number. Each extra letter costs: −10 on your 2nd, −25 on your 3rd, −45 on your 4th...</p>
     <table><tr><th></th><th>Prospect</th><th>Stars</th><th class="num">Commit</th><th class="num">Odds</th></tr>
     ${rows || '<tr><td colspan="5" class="dim">You scouted nobody this season. Enjoy the walk-ons.</td></tr>'}</table></div>
     <div class="navbar"><span></span><button class="primary hold" data-action="do-signing">▶ SEND THE LETTERS</button></div>`;
@@ -736,7 +728,6 @@ function bagModalHtml(s: GameState): string {
   }).join('');
   return `<div class="modalback"><div class="modal">
     <span class="tag">THE BAG — ${s.bag.length}/${BAG_SIZE}</span>
-    <p class="dim">Bargains, not buffs. The odds are printed. Items also appear as extra choices inside stories.</p>
     ${slots}
     <button class="wide" data-action="bag-close">CLOSE</button>
   </div></div>`;

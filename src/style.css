@@ -21,8 +21,9 @@ body {
   background: var(--rbg);
   color: var(--r75);
   font-family: "Courier New", ui-monospace, monospace;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.45;
+  -webkit-text-size-adjust: 100%;
 }
 
 /* faint CRT scanlines */
@@ -35,10 +36,10 @@ body::after {
   z-index: 90;
 }
 
-#app { max-width: 690px; margin: 0 auto; padding: 108px 8px 84px; }
+#app { max-width: 480px; margin: 0 auto; padding: 128px 8px 104px; }
 
-h1 { font-size: 24px; letter-spacing: 4px; color: var(--r95); margin: 8px 0 2px; }
-h2 { font-size: 17px; letter-spacing: 2px; margin: 14px 0 6px; color: var(--r95); }
+h1 { font-size: 30px; letter-spacing: 4px; color: var(--r95); margin: 8px 0 2px; }
+h2 { font-size: 20px; letter-spacing: 1.5px; margin: 14px 0 8px; color: var(--r95); }
 h2.won { color: var(--r95); }
 h2.lost { color: var(--r35); }
 .sub { color: var(--r55); margin: 0 0 14px; }
@@ -57,16 +58,16 @@ th, td { text-align: left; padding: 3px 8px 3px 0; white-space: nowrap; }
 th { color: var(--r35); font-weight: normal; border-bottom: 1px solid var(--rline); }
 td.num, th.num { text-align: right; }
 tr.me td { color: var(--r95); font-weight: bold; }
-.standings td { font-size: 16px; padding: 6px 8px 6px 0; }
-tr.utline td { color: var(--r95); font-size: 11px; letter-spacing: 2px; border-bottom: 2px solid var(--r95); padding: 0 0 2px; }
+.standings td { font-size: 18px; padding: 8px 8px 8px 0; }
+tr.utline td { color: var(--r95); font-size: 12px; letter-spacing: 2px; border-bottom: 2px solid var(--r95); padding: 0 0 3px; }
 
 button {
   background: transparent;
   border: 1px solid var(--r55);
   color: var(--r75);
   font-family: inherit;
-  font-size: 14px;
-  padding: 7px 12px;
+  font-size: 16px;
+  padding: 10px 14px;
   margin: 3px 4px 3px 0;
   cursor: pointer;
   position: relative;
@@ -98,7 +99,7 @@ button.hold.wiggle::after {
   position: absolute;
   right: 6px;
   top: 4px;
-  font-size: 10px;
+  font-size: 13px;
   letter-spacing: 1px;
   color: var(--r95);
   background: #000;
@@ -122,38 +123,38 @@ button.hold.wiggle::after {
   z-index: 60;
   background: var(--rpanel);
   border-bottom: 1px solid var(--rline);
-  padding: 8px 44px 6px 12px;
-  max-width: 690px;
+  padding: 10px 48px 8px 12px;
+  max-width: 480px;
   margin: 0 auto;
 }
 .gear, .bagbtn {
   position: absolute;
   right: 6px;
   border: 1px solid var(--rline);
-  padding: 3px 8px;
-  font-size: 15px;
+  padding: 6px 10px;
+  font-size: 19px;
 }
-.gear { top: 6px; }
-.bagbtn { top: 42px; }
+.gear { top: 8px; }
+.bagbtn { top: 54px; }
 .bagn { font-size: 10px; vertical-align: super; }
 .hrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.hrow1 { font-size: 15px; }
-.hrow2 { margin-top: 5px; font-size: 12px; gap: 12px; }
+.hrow1 { font-size: 16px; }
+.hrow2 { margin-top: 8px; font-size: 13px; gap: 10px; }
 .rec b, .seasoninfo b { color: var(--r95); }
 
 .chip {
-  padding: 2px 8px;
+  padding: 3px 9px;
   font-weight: bold;
   letter-spacing: 1px;
-  font-size: 13px;
+  font-size: 15px;
   white-space: nowrap;
 }
-.chip.small { font-size: 11px; padding: 1px 5px; }
+.chip.small { font-size: 13px; padding: 2px 6px; }
 
 .ecache { letter-spacing: 0; white-space: nowrap; }
 .ecell {
   display: inline-block;
-  width: 8px; height: 12px;
+  width: 9px; height: 15px;
   margin-right: 2px;
   background: var(--r20);
   vertical-align: middle;
@@ -163,7 +164,7 @@ button.hold.wiggle::after {
 .hslabel { font-size: 9px; letter-spacing: 1px; color: var(--r35); }
 .hstrack {
   position: relative;
-  width: 110px; height: 10px;
+  width: 96px; height: 13px;
   background: var(--r20);
   overflow: hidden;
 }
@@ -171,11 +172,12 @@ button.hold.wiggle::after {
 .hsfill.l { left: 0; }
 .hsfill.r { right: 0; opacity: 0.75; }
 
-.miniwin b { color: var(--r95); }
+.miniwin { font-size: 14px; }
+.miniwin b { color: var(--r95); font-size: 16px; }
 
 /* ---- the odds line ---------------------------------------------------------- */
 
-.odds { display: inline-block; font-size: 11px; letter-spacing: 0.5px; }
+.odds { display: inline-block; font-size: 13px; letter-spacing: 0.5px; }
 .odds .tail { margin-right: 8px; white-space: nowrap; }
 .odds .tail.up::first-letter, .odds .tail.up { color: var(--r95); }
 .odds .tail.down { color: var(--r55); }
@@ -189,7 +191,7 @@ button.hold.wiggle::after {
 .rowlabel {
   writing-mode: vertical-lr;
   transform: rotate(180deg);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 2px;
   color: var(--r35);
   width: 14px;
@@ -235,7 +237,7 @@ button.hold.wiggle::after {
   padding: 5px 6px;
 }
 
-.pcard-top { display: flex; justify-content: space-between; font-size: 11px; gap: 4px; }
+.pcard-top { display: flex; justify-content: space-between; font-size: 13px; gap: 4px; }
 .pname { color: var(--r95); font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pmeta { color: var(--r35); flex: none; }
 .pcard-mid { display: flex; align-items: center; justify-content: space-around; gap: 4px; margin: 4px 0; }
@@ -248,8 +250,8 @@ button.hold.wiggle::after {
   border: 1px solid var(--rline);
   flex: none;
 }
-.compass.mini { width: 46px; height: 46px; }
-.compass.full { width: 96px; height: 96px; margin: 8px 14px; }
+.compass.mini { width: 52px; height: 52px; }
+.compass.full { width: 120px; height: 120px; margin: 8px 16px; }
 .compass .axis { position: absolute; background: var(--r20); }
 .compass .axis.h { left: 4%; right: 4%; top: 50%; height: 1px; }
 .compass .axis.v { top: 4%; bottom: 4%; left: 50%; width: 1px; }
@@ -286,21 +288,21 @@ button.hold.wiggle::after {
 .compass.fuzzy2 .dot { filter: blur(4px); }
 
 .pcard-skill { display: flex; align-items: center; gap: 5px; margin: 2px 0; }
-.skill { font-size: 22px; font-weight: bold; line-height: 1; }
-.pcard.big .skill { font-size: 34px; }
-.potnotch { font-size: 8px; color: var(--r55); letter-spacing: 1px; }
+.skill { font-size: 28px; font-weight: bold; line-height: 1; }
+.pcard.big .skill { font-size: 42px; }
+.potnotch { font-size: 12px; color: var(--r55); letter-spacing: 1px; }
 .segbar { display: inline-flex; gap: 1px; align-items: center; font-size: 10px; margin-left: auto; }
-.seg { display: inline-block; width: 5px; height: 9px; background: var(--r20); }
-.face { width: 16px; height: 16px; image-rendering: pixelated; }
+.seg { display: inline-block; width: 6px; height: 12px; background: var(--r20); }
+.face { width: 22px; height: 22px; image-rendering: pixelated; }
 
 .pips { display: flex; gap: 2px; margin-top: 3px; }
-.pip { width: 6px; height: 3px; background: var(--r20); }
+.pip { width: 7px; height: 4px; background: var(--r20); }
 .pip.on { background: var(--r75); }
 .xpbar { height: 2px; background: var(--r20); margin-top: 2px; }
 .xpfill { height: 100%; background: var(--r55); transition: width 0.6s; }
 
 .outtag, .sittag, .cardtag {
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 1px;
   margin-top: 3px;
   color: var(--r95);
@@ -311,9 +313,9 @@ button.hold.wiggle::after {
 .sittag { color: var(--r35); border: 1px dashed var(--r35); background: transparent; }
 .cardtag { color: var(--r55); }
 
-.prstars { font-size: 9px; letter-spacing: 1px; color: var(--r75); margin-top: 2px; }
-.prcommit { font-size: 11px; margin-top: 2px; }
-.pickbtn { width: 100%; margin-top: 4px; font-size: 11px; padding: 4px; }
+.prstars { font-size: 12px; letter-spacing: 1px; color: var(--r75); margin-top: 3px; }
+.prcommit { font-size: 14px; margin-top: 3px; }
+.pickbtn { width: 100%; margin-top: 6px; font-size: 14px; padding: 9px 4px; }
 .pickbtn.on { border-color: var(--r95); color: var(--r95); }
 
 /* change = a floater on a black tag */
@@ -324,7 +326,7 @@ button.hold.wiggle::after {
   background: #000;
   color: var(--r95);
   border: 1px solid var(--r55);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: bold;
   padding: 1px 5px;
   white-space: nowrap;
@@ -350,13 +352,13 @@ button.hold.wiggle::after {
 }
 .drill.locked { border: 1px dashed var(--r20); color: var(--r35); padding: 8px 10px; margin: 6px 0; }
 .drill.picking { border-color: var(--r95); }
-.drill b { color: var(--r95); }
+.drill b { color: var(--r95); font-size: 18px; }
 .xpg { color: var(--r95); margin-left: 6px; }
-.ddesc { color: var(--r35); font-size: 12px; display: block; }
+.ddesc { color: var(--r35); font-size: 13px; display: block; }
 
 .wheel { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0; }
 .planbtn { text-align: left; padding: 8px; margin: 0; }
-.planbtn b { color: var(--r95); font-size: 15px; }
+.planbtn b { color: var(--r95); font-size: 18px; }
 .planbtn.sel { border: 2px solid var(--r95); background: var(--rpanel); }
 .fitbar { display: inline-block; width: 70px; height: 8px; background: var(--r20); vertical-align: middle; }
 .fitfill { display: block; height: 100%; }
@@ -365,21 +367,22 @@ button.hold.wiggle::after {
 .blobrow { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
 
 .bigmeter { font-size: 15px; margin: 8px 0; }
-.meterval { font-size: 34px; font-weight: bold; margin: 0 8px; }
+.meterval { font-size: 44px; font-weight: bold; margin: 0 8px; }
 
 .verdict { border: 1px solid var(--r55); background: var(--rpanel); padding: 10px 12px; margin: 8px 0; }
-.vline { margin: 3px 0; font-size: 15px; color: var(--r95); }
-.vline.dim { color: var(--r35); font-size: 13px; }
+.vline { margin: 4px 0; font-size: 17px; color: var(--r95); }
+.vline.dim { color: var(--r35); font-size: 14px; }
 
 #progress-wrap { padding: 28px 8px; }
 #progress-label { color: var(--r95); margin-bottom: 8px; }
 .bar { height: 12px; background: var(--r20); margin: 8px 0; }
 .fill { height: 100%; width: 0; background: var(--r75); transition: width 0.1s linear; }
 
-.teampick { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-.teampickbtn { text-align: left; padding: 12px; border-left-width: 6px; margin: 0; }
+.teampick { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.teampickbtn { text-align: left; padding: 18px 16px; border-left-width: 8px; margin: 0; font-size: 16px; }
+.teampickbtn b { font-size: 20px; letter-spacing: 1px; }
 
-.cardshelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.cardshelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
 
 .propane { margin: 6px 0; padding: 6px 0; border-top: 1px dashed var(--rline); }
 
@@ -406,7 +409,7 @@ button.hold.wiggle::after {
   justify-content: space-between;
   align-items: center;
 }
-.navbar button { font-size: 16px; padding: 10px 18px; }
+.navbar button { font-size: 20px; font-weight: bold; padding: 16px 22px; flex: 1; margin: 0 4px; }
 
 /* ---- modals --------------------------------------------------------------------------- */
 
@@ -428,16 +431,28 @@ button.hold.wiggle::after {
   width: 100%;
   padding: 14px 16px;
 }
-.modal .tag { color: var(--r95); letter-spacing: 2px; font-size: 12px; }
+.modal .tag { color: var(--r95); letter-spacing: 2px; font-size: 14px; }
 .modalcard { max-width: 300px; margin: 10px auto; }
-.typebox { white-space: pre-wrap; min-height: 40px; margin: 10px 0; color: var(--r95); font-size: 15px; }
+.typebox { white-space: pre-wrap; min-height: 40px; margin: 12px 0; color: var(--r95); font-size: 18px; line-height: 1.5; }
 .modal-actions.hide { visibility: hidden; }
-.taphint { color: var(--r35); text-align: right; font-size: 12px; animation: blink 1.6s steps(2, start) infinite; }
+.taphint { color: var(--r35); text-align: right; font-size: 15px; animation: blink 1.6s steps(2, start) infinite; }
 .itembtn { border-style: double; border-width: 3px; }
 
-.itemcard { border: 1px solid var(--rline); background: var(--rpanel); padding: 8px 10px; margin: 6px 0; font-size: 13px; }
+.itemcard { border: 1px solid var(--rline); background: var(--rpanel); padding: 10px 12px; margin: 8px 0; font-size: 15px; }
 .itemcard.empty { color: var(--r35); border-style: dashed; text-align: center; }
 .itemcard.legendary { border-width: 2px; border-color: var(--r95); }
 .itemcard b { color: var(--r95); }
 
 .scanpod { cursor: pointer; }
+
+/* narrow phones: keep three tiles per row without overflow */
+@media (max-width: 420px) {
+  .compass.mini { width: 46px; height: 46px; }
+  .sprite { width: 44px; height: 44px; }
+  .seg { width: 5px; height: 11px; }
+  .skill { font-size: 25px; }
+  .face { width: 19px; height: 19px; }
+  .hstrack { width: 72px; }
+  .miniwin { font-size: 12px; }
+  .miniwin b { font-size: 14px; }
+}

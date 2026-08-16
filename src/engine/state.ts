@@ -3,6 +3,7 @@
 
 import {
   ITEMS,
+  TIPS,
   VOYAGE_POOL,
   drillById,
   fragility,
@@ -291,6 +292,7 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
 function giveItem(s: GameState, itemId: string): void {
   if (s.bag.length < BAG_SIZE) {
     s.bag.push(itemId);
+    maybeTip(s, 'bag');
     return;
   }
   queueStory(s, 'bagfull', 'start', null, { itemId });
@@ -307,6 +309,13 @@ function storyCtx(s: GameState, playerId: number | null, data: Record<string, un
     team: () => t.players,
     bestPlayer: () => [...t.players].sort((a, b) => b.skill - a.skill)[0] ?? null,
   };
+}
+
+/** The assistant coach explains each screen exactly once, then trusts you. */
+export function maybeTip(s: GameState, key: string): void {
+  if (s.tipsSeen.includes(key) || !TIPS[key]) return;
+  s.tipsSeen.push(key);
+  queueStory(s, 'notice', 'start', null, { tag: 'ASSISTANT COACH', text: TIPS[key] });
 }
 
 export function queueStory(
@@ -385,7 +394,10 @@ export function resolveStory(s: GameState, choiceKey: string): { resolved: Story
 /** Dismiss the current (resolved or choice-less) story. */
 export function dismissStory(s: GameState): void {
   s.queue.shift();
-  if (!s.queue.length && s.phase === 'stories') s.phase = isUtWeek(s) ? 'matchup' : 'practice';
+  if (!s.queue.length && s.phase === 'stories') {
+    s.phase = isUtWeek(s) ? 'matchup' : 'practice';
+    maybeTip(s, isUtWeek(s) ? 'matchup' : 'practice');
+  }
   if (!s.queue.length && s.phase === 'gamenight' && !s.lastResult && !s.end) simWeek(s);
   save(s);
 }
@@ -749,6 +761,7 @@ export function toMatchup(s: GameState): void {
   if (s.phase === 'stories' && s.queue.length) return;
   normalizeLineup(myTeam(s));
   s.phase = 'matchup';
+  maybeTip(s, 'matchup');
   save(s);
 }
 
@@ -761,6 +774,7 @@ export function toPractice(s: GameState): void {
 export function toGalaxy(s: GameState): void {
   if (s.queue.length) return;
   s.phase = 'galaxy';
+  maybeTip(s, 'galaxy');
   save(s);
 }
 
@@ -1056,6 +1070,7 @@ function endCareer(s: GameState, cause: 'RETIRED' | 'FIRED' | 'LOST TO THE VOID'
 export function toSigning(s: GameState): void {
   if (s.proDeparts.some((d) => !d.resolved) || s.queue.length) return;
   s.phase = 'signing';
+  maybeTip(s, 'signing');
   save(s);
 }
 
@@ -1168,10 +1183,9 @@ export function chooseTeam(s: GameState, teamId: number): void {
   while (pool.length < SELECT_POOL_SIZE) pool.push(genWalkOn(counter));
   s.nextId = counter.nextId;
   s.selectPool = pool;
-  s.signingResults = [
-    "FIRST PRACTICE. Six players from last year's squad, a gym full of hopefuls, and one clipboard: yours. Pick your nine.",
-  ];
+  s.signingResults = [];
   s.phase = 'teamSelect';
+  maybeTip(s, 'tryouts');
   save(s);
 }
 

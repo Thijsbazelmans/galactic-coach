@@ -1801,6 +1801,22 @@ export const STORIES: StoryDef[] = [
   },
 ];
 
+// one-time explainers from the assistant coach (shown once, then never again)
+export const TIPS: Record<string, string> = {
+  tryouts:
+    "First practice, coach. Six players from last year's squad, a gym full of hopefuls, and one clipboard: yours.\n\nPick your nine. The rest of the galaxy already picked theirs.",
+  practice:
+    "Practice runs itself — you just pick THE DRILL. Hold it down to commit; everything you can't take back works that way.\n\nThe whole squad trains. Tap a player first to SIT HIM OUT — he rests instead of risking whatever's printed on the card. Every card in this galaxy prints its odds. They never lie.",
+  galaxy:
+    "The board holds nine names. Tap an empty slot to SCAN a region — deeper space, stranger talent, worse trips home.\n\nTap a prospect and you have two moves: SCOUT him (know him — the stars sharpen) or RECRUIT him (want him — the commitment climbs). You never have energy for both. That's the job.\n\nOh — and ignored prospects drift. Kids notice silence.",
+  matchup:
+    "Read their shape on the compass, then pick the plan that eats it: POUND beats CLOCKWORK beats SWARM beats BLITZ beats POUND.\n\nThe big number is your chance of winning — it moves LIVE when you swap starters or change the plan. Scout them once to sharpen it from a guess to a fact.",
+  signing:
+    "Signing day math, coach: sign ONE letter and you keep his full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.",
+  bag:
+    "That's THE BAG — five slots, no more. Everything in it is a bargain with the odds printed on its face. The right item shows up as an extra button exactly when a story makes you want it. That's not a coincidence. That's the galaxy.",
+};
+
 // a tap-through announcement: text in, nothing decided
 STORIES.push({
   id: 'notice',

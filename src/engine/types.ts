@@ -297,6 +297,8 @@ export interface GameState {
 
   unlockedDrills: string[];
   unlockedRegions: string[];
+  /** one-time assistant-coach explainers, by key */
+  tipsSeen: string[];
   /** the ship: 0 = flying; >0 = grounded (home-planet scouting only, no deep scans) */
   groundedWeeks: number;
 

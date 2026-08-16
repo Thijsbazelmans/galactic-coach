@@ -15,7 +15,7 @@ import {
 import type { ChampTeam, GameState, Lineup, PlanId, Player, Pole, Prospect, Team } from './types';
 import { clamp, lean, pick, rand, star } from './util';
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
 export const UT_WEEKS = 3; // QF, SF, THE UNIVERSAL FINAL
 export const ROSTER_SIZE = 9;
@@ -313,6 +313,7 @@ export function newGameState(): GameState {
     legendariesUsed: [],
     unlockedDrills: ['shootaround', 'asteroid', 'rest'],
     unlockedRegions: ['home', 'nebula', 'outerrim'],
+    tipsSeen: [],
     groundedWeeks: 0,
     trainedThisWeek: false,
     sitouts: [],
