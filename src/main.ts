@@ -241,15 +241,37 @@ function oddsLine(up?: { pct: number; cls: string; note?: string }, down?: { pct
 
 // ---- the compass card ---------------------------------------------------------------------------
 
-function compass(p: { build: number; head: number }, eff: { build: number; head: number } | null, size: 'mini' | 'full'): string {
+// Every compass reads the same: fangs N, brain S, dumbbell W, runner E —
+// faint icons instead of labels. The light box is the species' hard limit.
+function compassIcons(): string {
+  const c = ramp(0.33);
+  return `<img class="cicon n" src="${iconUrl('fang', c)}" alt=""/>
+    <img class="cicon s" src="${iconUrl('men', c)}" alt=""/>
+    <img class="cicon w" src="${iconUrl('phy', c)}" alt=""/>
+    <img class="cicon e" src="${iconUrl('run', c)}" alt=""/>`;
+}
+
+function speciesBox(caps: Record<Pole, number>): string {
+  const l = 50 - caps.strong / 2;
+  const t = 50 - caps.fierce / 2;
+  const w = (caps.strong + caps.quick) / 2;
+  const h = (caps.fierce + caps.savvy) / 2;
+  return `<span class="cbox" style="left:${l}%;top:${t}%;width:${w}%;height:${h}%"></span>`;
+}
+
+function compass(
+  p: { build: number; head: number },
+  eff: { build: number; head: number } | null,
+  size: 'mini' | 'full',
+  caps?: Record<Pole, number>,
+  fuzz = ''
+): string {
   const dotX = eff ? eff.build : p.build;
   const dotY = eff ? eff.head : p.head;
   const muted = eff && (Math.abs(eff.build - p.build) >= 4 || Math.abs(eff.head - p.head) >= 4);
-  const labels = size === 'full'
-    ? `<span class="pole n">FIERCE</span><span class="pole s">SAVVY</span><span class="pole w">S<br/>T<br/>R</span><span class="pole e">Q<br/>C<br/>K</span>`
-    : '';
-  return `<div class="compass ${size}">
-    ${labels}
+  return `<div class="compass ${size} ${fuzz}">
+    ${compassIcons()}
+    ${caps ? speciesBox(caps) : ''}
     <span class="axis h"></span><span class="axis v"></span>
     ${muted ? `<span class="ghost" style="left:${p.build}%;top:${p.head}%"></span>` : ''}
     <span class="dot ${muted ? 'muted' : ''}" style="left:${dotX}%;top:${dotY}%"></span>
@@ -293,7 +315,7 @@ interface CardOpts {
 
 // The card, phone-first. Importance top-down: RATING · NAME · YEAR head,
 // meters flanking the sprite (⚡ left, mood right), then the 2×2 pole box
-// between the XP/LVL twin bars and the POT star column.
+// between the XP/LVL twin bars and the compass (species limit drawn in).
 function playerCard(p: Player, opts: CardOpts = {}): string {
   const t = myTeam(state);
   const kit = opts.kit ?? { bg: t.bg, fg: t.fg };
@@ -323,7 +345,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
         <span class="pc-bars"><span class="vbar"><span class="vfill" style="height:${xpPct}%"></span></span><span class="vseglvl">${lvlSegs}</span></span>
         <i class="pc-lab">XP</i></span>
       <span class="pc-stats">${statCell('strong')}${statCell('quick')}${statCell('fierce')}${statCell('savvy')}</span>
-      <span class="pc-side">${vstars(star(p.potential))}<i class="pc-lab">POT</i></span>
+      ${compass(p, out ? null : effDot(p), 'mini', speciesById(p.speciesId).poleCaps)}
     </div>
     ${out ? `<div class="ptag blink">OUT ${p.outWeeks}w</div>` : ''}
     ${opts.sitout ? '<div class="ptag dimtag">SITS OUT</div>' : ''}
@@ -333,40 +355,44 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   </div>`;
 }
 
-// Prospects wear the same frame: seen-skill stars where the rating sits,
-// species tier where the year sits, commit% + POT column in the foot.
+// Prospects wear the same frame: commit% where the rating sits, then
+// SKL stars | compass (species limit drawn in) | POT stars. A ? marks
+// star ratings that are still a scout's guess.
 function prospectCard(pr: Prospect): string {
   const img = spriteUrl(pr, PRACTICE_KIT, null);
   const known = pr.scoutLevel;
   const sp = speciesById(pr.speciesId);
+  const q = known < 2 ? '?' : '';
   return `<div class="pcard prospect" data-action="pcell" data-id="${pr.id}" data-pid="p${pr.id}">
     <div class="pc-head">
-      <span class="pc-rating">${pr.seenSkillStar}★${known < 2 ? '<span class="dim">?</span>' : ''}</span>
+      <span class="pc-rating" style="color:${vc(pr.commitPct)}">${pr.commitPct}%</span>
       <span class="pc-name">${esc(pr.name)}</span>
-      <span class="pc-year">T${'I'.repeat(sp.tier)}</span>
+      <span class="pc-year"></span>
     </div>
     <div class="pc-body">
       <img class="sprite" src="${img}" alt="" draggable="false"/>
-      <div class="compass mini ${known === 0 ? 'fuzzy2' : known === 1 ? 'fuzzy1' : ''}">
-        <span class="axis h"></span><span class="axis v"></span>
-        <span class="dot" style="left:${pr.seenBuild}%;top:${pr.seenHead}%"></span>
-      </div>
+      <span class="pc-side">${vstars(pr.seenSkillStar)}<i class="pc-lab">SKL${q}</i></span>
+      ${compass({ build: pr.seenBuild, head: pr.seenHead }, null, 'mini', sp.poleCaps, known === 0 ? 'fuzzy2' : known === 1 ? 'fuzzy1' : '')}
+      <span class="pc-side">${vstars(pr.seenPotStar)}<i class="pc-lab">POT${q}</i></span>
     </div>
-    <div class="pc-foot">
-      <span class="prcommit" style="color:${vc(pr.commitPct)}">${pr.bannedWeeks > 0 ? `<span class="blink">BANNED ${pr.bannedWeeks}w</span>` : `${pr.commitPct}%`}</span>
-      <span class="pc-side">${vstars(pr.seenPotStar)}<i class="pc-lab">POT</i></span>
-    </div>
+    ${pr.bannedWeeks > 0 ? `<div class="ptag blink">BANNED ${pr.bannedWeeks}w</div>` : ''}
   </div>`;
 }
 
 // ---- header (always there) ---------------------------------------------------------------------
 
-function hotSeatBar(s: GameState): string {
+// JOB SECURITY: a bright bar the darkness eats from both ends —
+// scholar cap = the school's heat (left), $ = the boosters' (right).
+function jobBar(s: GameState): string {
   const danger = s.heatS + s.heatB >= 75;
-  return `<div class="hotseat ${danger ? 'blink' : ''}" title="hot seat — school ${s.heatS} · boosters ${s.heatB}">
-    <span class="hslabel">SCH</span>
-    <div class="hstrack"><div class="hsfill l" style="width:${s.heatS}%"></div><div class="hsfill r" style="width:${s.heatB}%"></div></div>
-    <span class="hslabel">BST</span>
+  return `<div class="jobbar ${danger ? 'blink' : ''}" title="job security — school heat ${s.heatS} · booster heat ${s.heatB}">
+    <img class="jicon" src="${iconUrl('cap', ramp(0.75))}" alt=""/>
+    <div class="jtrack">
+      <div class="jdark l" style="width:${s.heatS}%"></div>
+      <div class="jdark r" style="width:${s.heatB}%"></div>
+      <span class="jlabel">JOB SECURITY</span>
+    </div>
+    <span class="jicon dollar">$</span>
   </div>`;
 }
 
@@ -375,7 +401,7 @@ function meterText(s: GameState): string {
   if (!m) return '';
   const label = isUtWeek(s) ? 'UT' : myMatchup(s) ? myMatchup(s)!.opponent.name : '';
   const val = m.exact ? `<b>${m.lo}%</b>` : `<b>${m.lo}–${m.hi}%</b>`;
-  return `<span class="miniwin">vs ${esc(label)} ${val}</span>`;
+  return `<span class="miniwin">vs ${esc(label)} · WIN ${val}</span>`;
 }
 
 function headerHtml(s: GameState): string {
@@ -386,17 +412,17 @@ function headerHtml(s: GameState): string {
   return `<div class="topbar">
     <div class="hrow hrow1">
       ${chip(t.name, t.bg, t.fg)}
-      <span class="rec"><b>${t.wins}–${t.losses}</b></span>
-      <span class="seasoninfo">S<b>${Math.max(1, s.season)}</b>·<b>${weekLabel(s)}</b></span>
+      <span class="seasoninfo">S<b>${Math.max(1, s.season)}</b></span>
+      ${jobBar(s)}
       <span class="hbtns">
         <button class="hbtn" data-action="help">?</button>
         <button class="hbtn" data-action="coach-open">⚙</button>
       </span>
     </div>
     <div class="hrow hrow2">
-      <span class="ecache ${s.energy === 0 ? 'blink' : ''}" title="power cells ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">⚡${cells}</span>
-      ${hotSeatBar(s)}
+      <span class="weeklab"><b>${weekLabel(s)}</b> · ${t.wins}–${t.losses}</span>
       ${meterText(s)}
+      <span class="ecache ${s.energy === 0 ? 'blink' : ''}" title="power cells ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">${cells}⚡</span>
     </div>
   </div>`;
 }
@@ -487,10 +513,10 @@ function storyPanel(s: GameState): string {
 // ---- stages (middle content per phase) -----------------------------------------------------------------
 
 function stagePractice(s: GameState): string {
-  const fourth = s.trainedThisWeek
-    ? `<div class="fourthrow"><div class="report">${esc(s.drillReport ?? 'Practice is done.')}</div></div>`
-    : drillPickOne
-      ? `<div class="fourthrow"><button class="bigctl blink" data-action="drill-cancel">TAP THE PLAYER — or tap here to cancel</button></div>`
+  const fourth = drillPickOne
+    ? `<div class="fourthrow"><button class="bigctl blink" data-action="drill-cancel">TAP THE PLAYER — or tap here to cancel</button></div>`
+    : s.trainedThisWeek
+      ? `<div class="fourthrow"><div class="report">${esc(s.drillReport ?? 'Practice is done.')}</div><button class="bigctl again" data-action="drill-sheet">⬆ AGAIN</button></div>`
       : `<div class="fourthrow"><button class="bigctl" data-action="drill-sheet">⬆ CHOOSE THE DRILL</button></div>`;
   return `<h2>WHO GETS BETTER THIS WEEK?</h2>${gridHtml(s, true)}${fourth}`;
 }
@@ -705,7 +731,7 @@ function drillSheetHtml(s: GameState): string {
   const drills = DRILLS.map((d) => {
     const unlocked = s.unlockedDrills.includes(d.id);
     if (!unlocked) return `<div class="drill locked">▓▓▓▓ <span class="dim">undiscovered method</span></div>`;
-    const cant = s.energy < d.cost || s.trainedThisWeek;
+    const cant = s.energy < d.cost;
     return `<button class="drill hold" data-action="drill" data-id="${d.id}" ${cant ? 'disabled' : ''}>
       <b>${d.name}</b> ${d.xp[1] > 0 ? `<span class="xpg">+${d.xp[0]}–${d.xp[1]} XP${d.target === 'one' ? ' · ONE PLAYER' : ''}</span>` : '<span class="xpg">squad ⚡ up</span>'}
       ${oddsLine(d.up, d.down, d.cost)}<br/><span class="ddesc">${esc(d.desc)}</span>
@@ -826,7 +852,8 @@ function detailModalHtml(s: GameState): string {
   return `<div class="modalback" data-action="close-detail"><div class="modal">
     <span class="tag">#${p.jersey} ${esc(p.name)}</span>
     <div class="modalcard">${playerCard(p, { full: true, inert: true })}</div>
-    <div class="detailcompass">${compass(p, p.outWeeks > 0 ? null : effDot(p), 'full')}</div>
+    <div class="detailcompass">${compass(p, p.outWeeks > 0 ? null : effDot(p), 'full', sp.poleCaps)}</div>
+    <div>POTENTIAL <span class="potline">${starStr(star(p.potential))}</span></div>
     <div class="dim">${esc(sp.name)} (tier ${sp.tier}) — ${esc(sp.desc)}</div>
     <div>${(['strong', 'quick', 'fierce', 'savvy'] as const)
       .filter((pl) => lean(p, pl) > 5)
@@ -869,11 +896,16 @@ function render(): void {
     }
   }
 
+  // popups live INSIDE the middle: the stats bar, THE BAG and the nav stay
+  // visible (⚡ readable while a story asks you to spend it) — the nav just dims.
+  const overlays = drillSheetHtml(state) + prospectModalHtml(state) + scanModalHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state) + detailModalHtml(state);
+  const modalOpen = drillSheet || coachOpen || itemUi !== null || toast !== null || prospectUi !== null || scanUi !== null || detailPlayerId !== null;
+  const navHtml = `<div class="navbar ${modalOpen ? 'dimmed' : ''}">${nav(state)}</div>`;
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
-    ? `<div class="middle solo">${middle}</div><div class="navbar">${nav(state)}</div>`
-    : `${headerHtml(state)}<div class="middle">${middle}</div>${bagBar(state)}<div class="navbar">${nav(state)}</div>`;
+    ? `<div class="midwrap"><div class="middle solo">${middle}</div>${overlays}</div>${navHtml}`
+    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${overlays}</div>${bagBar(state)}${navHtml}`;
 
-  app.innerHTML = frame + drillSheetHtml(state) + prospectModalHtml(state) + scanModalHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state) + detailModalHtml(state);
+  app.innerHTML = frame;
   postRender();
 }
 
@@ -1117,8 +1149,8 @@ document.addEventListener('pointermove', (e) => {
   ptr.lastY = e.clientY;
   const dist = Math.hypot(e.clientX - ptr.startX, e.clientY - ptr.startY);
   if (!ptr.active) {
-    if (e.pointerType === 'mouse' && dist > 6) activateDrag();
-    else if (e.pointerType !== 'mouse' && dist > 12) endDrag(false);
+    // any real movement starts the drag — no hold required, no cancel path
+    if (dist > 6) activateDrag();
     return;
   }
   moveGhost();
@@ -1287,10 +1319,8 @@ app.addEventListener('click', (e) => {
             out.xpByPlayer.forEach((xp, pid2) => floatCard(pid2, [{ text: `+${xp} XP` }], 200));
             out.levelUps.forEach((lu, i) => floatCard(lu.playerId, [{ text: `★ LEVEL UP +${lu.skillGain}`, up: true }], 900 + i * 300));
           }
-        } else if (!state.trainedThisWeek) {
-          toggleSitout(state, pid);
         } else {
-          detailPlayerId = pid;
+          toggleSitout(state, pid);
         }
       } else if (state.phase === 'teamSelect') {
         if (poolSelected) {

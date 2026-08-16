@@ -539,9 +539,10 @@ export interface DrillOutcome {
   levelUps: LevelUp[];
 }
 
-/** One drill per week, whole squad (minus sit-outs). The odds line rolls once. */
+/** Whole squad (minus sit-outs). Train as often as your ⚡ allows — the
+    odds line rolls fresh every time. */
 export function runDrill(s: GameState, drillId: string, onePlayerId?: number): DrillOutcome | null {
-  if (s.trainedThisWeek || !s.unlockedDrills.includes(drillId)) return null;
+  if (!s.unlockedDrills.includes(drillId)) return null;
   const d = drillById(drillId);
   if (s.energy < d.cost) return null;
   const t = myTeam(s);
