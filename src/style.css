@@ -534,6 +534,50 @@ button.hold.wiggle::after {
 .storypanel .tag { color: var(--r95); letter-spacing: 2px; font-size: 13px; flex: none; }
 .modalcard { max-width: 250px; margin: 8px auto; width: 100%; flex: none; display: flex; }
 .typebox { white-space: pre-wrap; min-height: 36px; margin: 8px 0; color: var(--r95); font-size: 16px; line-height: 1.45; flex: none; }
+/* a lone beat gets center stage */
+.typebox.beatbox { flex: 1 1 auto; display: flex; align-items: center; font-size: 19px; line-height: 1.55; }
+
+/* ---- the impact: one stat at a time, full focus ---------------------------------- */
+
+.impactpanel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 0;
+}
+.imp-sprite { width: 96px; height: 96px; image-rendering: pixelated; }
+.imp-name { color: var(--r95); font-weight: bold; font-size: 15px; letter-spacing: 1px; margin-bottom: 8px; }
+.imp-rows { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.imp-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.25s, transform 0.25s;
+}
+.imp-row.show { opacity: 1; transform: none; }
+.imp-lab { font-size: 12px; letter-spacing: 2px; color: var(--r35); }
+.imp-val { font-size: 34px; font-weight: bold; color: var(--r95); line-height: 1; }
+.imp-text { font-size: 20px; font-weight: bold; color: var(--r95); letter-spacing: 1px; }
+.imp-arrow { font-size: 16px; }
+.imp-row.up .imp-arrow { color: var(--r95); }
+.imp-row.down .imp-arrow { color: var(--r35); }
+.imp-row.down .imp-text { color: var(--r55); }
+.imp-row.up.landed { animation: imp-pop 0.4s; }
+.imp-row.down.landed { animation: imp-shake 0.4s; }
+@keyframes imp-pop {
+  30% { transform: scale(1.18); }
+  60% { transform: scale(0.96); }
+}
+@keyframes imp-shake {
+  20% { transform: translateX(-4px); }
+  45% { transform: translateX(4px); }
+  70% { transform: translateX(-2px); }
+}
 .modal-actions { flex: none; }
 .modal-actions.hide { visibility: hidden; }
 .taphint { color: var(--r35); text-align: right; font-size: 14px; animation: blink 1.6s steps(2, start) infinite; }

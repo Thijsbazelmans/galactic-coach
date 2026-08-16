@@ -36,6 +36,7 @@ import {
   myTeam,
   oppPlanHint,
   playGame,
+  queueStory,
   resolveSigning,
   resolveStory,
   retire,
@@ -120,9 +121,24 @@ function setRamp(): void {
 
 // ---- transient UI state -----------------------------------------------------------
 
-type StoryMode = 'typing' | 'choices' | 'result-typing' | 'result';
-let storyMode: StoryMode = 'typing';
+// The story cycle: anticipation → the verdict → the impact (stats animate,
+// full focus) → the mitigating choice → the cycle repeats for the outcome.
+type StoryMode = 'antic' | 'reveal' | 'choices' | 'r-antic' | 'r-reveal' | 'impact';
+let storyMode: StoryMode = 'antic';
 let storyUid = -1;
+let stageTyped = false;
+
+interface ImpRow {
+  label: string;
+  from?: number;
+  to?: number;
+  text?: string;
+  up: boolean;
+  color?: string;
+}
+let impact: { pid: number | null; rows: ImpRow[] } | null = null;
+let impactPlayed = false;
+let impactTimers: number[] = [];
 let coachOpen = false;
 let itemUi: string | null = null;
 let toast: string | null = null;
@@ -174,25 +190,139 @@ function floatCard(pid: number, msgs: { text: string; up?: boolean }[], startDel
   });
 }
 
-function floatFx(fxList: Fx[], defaultPid: number | null, delay = 300): void {
-  const byPid = new Map<number, { text: string; up?: boolean }[]>();
-  for (const fx of fxList) {
-    const pid = fx.playerId ?? defaultPid;
-    if (pid === null) continue;
-    const list = byPid.get(pid) ?? [];
-    if (fx.skill) list.push({ text: `${fx.skill > 0 ? '+' : ''}${fx.skill} SKILL`, up: fx.skill > 0 });
-    if (fx.levelDelta) list.push({ text: `${fx.levelDelta > 0 ? '+' : ''}${fx.levelDelta} LEVEL`, up: fx.levelDelta > 0 });
-    if (fx.potential) list.push({ text: `CEILING ${fx.potential > 0 ? '↑' : '↓'}`, up: fx.potential > 0 });
-    if (fx.energyP) list.push({ text: `${fx.energyP > 0 ? '+' : ''}${fx.energyP}⚡`, up: fx.energyP > 0 });
-    if (fx.mood) list.push({ text: `${fx.mood > 0 ? '+' : ''}${fx.mood} MOOD`, up: fx.mood > 0 });
-    if (fx.build) list.push({ text: fx.build < 0 ? '◀ STRONGER' : 'QUICKER ▶' });
-    if (fx.head) list.push({ text: fx.head < 0 ? '▲ FIERCER' : 'SAVVIER ▼' });
-    if (fx.outWeeks) list.push({ text: `OUT ${fx.outWeeks}w`, up: false });
-    if (fx.xp) list.push({ text: `+${fx.xp} XP` });
-    if (list.length) byPid.set(pid, list);
+// ---- the impact reveal: snapshot → resolve → diff → animate -----------------------
+
+interface PlayerSnap {
+  skill: number; level: number; energy: number; mood: number;
+  potential: number; build: number; head: number; outWeeks: number;
+}
+interface Snap {
+  energy: number; heatS: number; heatB: number; legacy: number;
+  players: Map<number, PlayerSnap>;
+}
+
+function snapState(): Snap {
+  const t = myTeam(state);
+  return {
+    energy: state.energy, heatS: state.heatS, heatB: state.heatB, legacy: state.legacy,
+    players: new Map(t.players.map((p) => [p.id, {
+      skill: p.skill, level: p.level, energy: p.energy, mood: p.mood,
+      potential: p.potential, build: p.build, head: p.head, outWeeks: p.outWeeks,
+    }])),
+  };
+}
+
+/** Diff the world before/after a resolution into celebration rows. */
+function buildImpact(snap: Snap, fxList: Fx[], pid: number | null): { pid: number | null; rows: ImpRow[] } {
+  const t = myTeam(state);
+  const rows: ImpRow[] = [];
+  const was = pid !== null ? snap.players.get(pid) : undefined;
+  const p = pid !== null ? t.players.find((x) => x.id === pid) : undefined;
+  if (was && !p) rows.push({ label: '', text: 'GONE', up: false });
+  if (was && p) {
+    if (p.skill !== was.skill) rows.push({ label: 'SKILL', from: was.skill, to: p.skill, up: p.skill > was.skill, color: vc(p.skill) });
+    if (p.level !== was.level) rows.push({ label: 'LEVEL', from: was.level, to: p.level, up: p.level > was.level });
+    const xpGain = fxList.reduce((a, f) => a + ((f.playerId ?? pid) === pid ? f.xp ?? 0 : 0), 0);
+    if (xpGain > 0 && p.level === was.level) rows.push({ label: 'XP', text: `+${xpGain}`, up: true });
+    if (star(p.potential) !== star(was.potential)) rows.push({ label: 'POTENTIAL', text: starStr(star(p.potential)), up: p.potential > was.potential });
+    if (p.energy !== was.energy) rows.push({ label: 'ENERGY ⚡', from: was.energy, to: p.energy, up: p.energy > was.energy, color: vc(p.energy) });
+    if (p.mood !== was.mood) rows.push({ label: 'MOOD', from: was.mood, to: p.mood, up: p.mood > was.mood, color: vc(p.mood) });
+    if (Math.abs(p.build - was.build) >= 2) rows.push({ label: 'BUILD', text: p.build < was.build ? '◀ STRONGER' : 'QUICKER ▶', up: true });
+    if (Math.abs(p.head - was.head) >= 2) rows.push({ label: 'HEAD', text: p.head < was.head ? '▲ FIERCER' : 'SAVVIER ▼', up: true });
+    if (p.outWeeks > 0 && p.outWeeks !== was.outWeeks) rows.push({ label: 'OUT', text: `${p.outWeeks} WEEK${p.outWeeks > 1 ? 'S' : ''}`, up: false });
+    if (p.outWeeks === 0 && was.outWeeks > 0) rows.push({ label: 'BACK', text: 'READY TO PLAY', up: true });
   }
-  let i = 0;
-  for (const [pid, msgs] of byPid) floatCard(pid, msgs, delay + i++ * 250);
+  // the rest of the squad, collapsed
+  const others = t.players.filter((q) => q.id !== pid && snap.players.has(q.id));
+  for (const key of ['mood', 'energy'] as const) {
+    const changed = others.filter((q) => q[key] !== snap.players.get(q.id)![key]);
+    if (!changed.length) continue;
+    const d = changed[0][key] - snap.players.get(changed[0].id)![key];
+    const label = changed.length > 1 ? 'THE SQUAD' : changed[0].name;
+    rows.push({ label, text: `${key.toUpperCase()} ${d > 0 ? '+' : ''}${d}`, up: d > 0 });
+  }
+  // the coach's world
+  if (state.energy !== snap.energy) rows.push({ label: '⚡ CELLS', from: snap.energy, to: state.energy, up: state.energy > snap.energy });
+  const sec0 = 100 - snap.heatS - snap.heatB;
+  const sec1 = 100 - state.heatS - state.heatB;
+  if (sec1 !== sec0) rows.push({ label: 'JOB SECURITY', from: sec0, to: sec1, up: sec1 > sec0 });
+  if (state.legacy !== snap.legacy) rows.push({ label: 'LEGACY', from: snap.legacy, to: state.legacy, up: state.legacy > snap.legacy });
+  return { pid, rows };
+}
+
+/** The anticipation, then the verdict: split on the paragraph break when
+    the author gave one, on the first sentence otherwise. */
+function splitBeats(text: string): string[] {
+  const t = text.trim();
+  if (!t) return [];
+  const para = t.split(/\n{2,}/);
+  if (para.length > 1) return [para[0], para.slice(1).join('\n\n')];
+  const m = t.match(/^([\s\S]{10,}?[.!?…]["')]?)\s+([\s\S]{20,})$/);
+  return m ? [m[1], m[2]] : [t];
+}
+
+/** Resolve a story choice and arm the outcome cycle (beats → impact). */
+function doResolve(key: string): void {
+  const ev = currentStory(state);
+  if (!ev) return;
+  const snap = snapState();
+  const res = resolveStory(state, key);
+  if (!res) return;
+  impact = buildImpact(snap, res.fx, res.resolved.playerId ?? ev.playerId);
+  impactPlayed = false;
+  const rBeats = splitBeats(res.resolved.resolvedText ?? '');
+  if (rBeats.length) {
+    storyMode = rBeats.length > 1 ? 'r-antic' : 'r-reveal';
+  } else if (impact.rows.length) {
+    storyMode = 'impact';
+  } else {
+    dismissStory(state);
+    storyUid = -1;
+  }
+  stageTyped = false;
+}
+
+function clearImpactTimers(): void {
+  for (const tm of impactTimers) { clearTimeout(tm); clearInterval(tm); }
+  impactTimers = [];
+}
+
+/** One stat at a time: land, count, pop. Tap skips to the end. */
+function animateImpact(): void {
+  clearImpactTimers();
+  const rowEls = [...document.querySelectorAll('.imp-row')] as HTMLElement[];
+  rowEls.forEach((row, i) => {
+    impactTimers.push(window.setTimeout(() => {
+      row.classList.add('show');
+      const val = row.querySelector('.imp-val') as HTMLElement | null;
+      const land = (): void => row.classList.add('landed');
+      if (val?.dataset.from !== undefined) {
+        const from = Number(val.dataset.from);
+        const to = Number(val.dataset.to);
+        const steps = 12;
+        let step = 0;
+        const iv = window.setInterval(() => {
+          step++;
+          val!.textContent = String(Math.round(from + (to - from) * (step / steps)));
+          if (step >= steps) { clearInterval(iv); land(); }
+        }, 45);
+        impactTimers.push(iv);
+      } else {
+        land();
+      }
+    }, 400 + i * 850));
+  });
+  impactTimers.push(window.setTimeout(() => { impactPlayed = true; }, 400 + rowEls.length * 850 + 600));
+}
+
+function finishImpactNow(): void {
+  clearImpactTimers();
+  document.querySelectorAll('.imp-row').forEach((row) => {
+    row.classList.add('show', 'landed');
+    const val = row.querySelector('.imp-val') as HTMLElement | null;
+    if (val?.dataset.to !== undefined) val.textContent = val.dataset.to;
+  });
+  impactPlayed = true;
 }
 
 function clearFloatTimers(): void {
@@ -467,12 +597,38 @@ function prospectGridHtml(s: GameState): string {
 
 // ---- the story takeover (hides grid + fourth row; the bag stays) ------------------------------------
 
+function impactHtml(s: GameState): string {
+  if (!impact) return '';
+  const imp = impact;
+  const t = myTeam(s);
+  const p = imp.pid !== null ? t.players.find((x) => x.id === imp.pid) : undefined;
+  const rows = imp.rows.map((r) => `<div class="imp-row ${r.up ? 'up' : 'down'}">
+    <span class="imp-lab">${esc(r.label)}</span>
+    ${r.from !== undefined
+      ? `<span class="imp-val" data-from="${r.from}" data-to="${r.to}" style="${r.color ? `color:${r.color}` : ''}">${r.from}</span>`
+      : `<span class="imp-text">${esc(r.text ?? '')}</span>`}
+    <span class="imp-arrow">${r.up ? '▲' : '▼'}</span>
+  </div>`).join('');
+  return `<div class="impactpanel">
+    ${p ? `<img class="imp-sprite" src="${spriteUrl(p, { bg: t.bg, fg: t.fg }, p.jersey)}" alt=""/><div class="imp-name">${esc(p.name)}</div>` : ''}
+    <div class="imp-rows">${rows}</div>
+  </div>`;
+}
+
+// One thing at a time: a typed beat, OR the decision, OR the impact.
 function storyPanel(s: GameState): string {
   const ev = currentStory(s)!;
   const p = ev.playerId !== null ? myTeam(s).players.find((x) => x.id === ev.playerId) : undefined;
-  let actions = '';
+  if (storyMode === 'impact') {
+    return `<div class="storypanel" data-action="story-tap" id="storypanel">
+      <span class="tag">${esc(ev.tag)}</span>
+      ${impactHtml(s)}
+      <div class="modal-actions" id="modal-actions"><div class="taphint">▸ tap</div></div>
+    </div>`;
+  }
   if (storyMode === 'choices' && ev.choices && !ev.resolvedText) {
-    actions = ev.choices
+    const beats = splitBeats(ev.text);
+    let actions = ev.choices
       .filter((c) => !c.itemId) // items live in THE BAG below — tap or drag them in
       .map((c) => {
         const cant = c.cost !== undefined && s.energy < c.cost;
@@ -482,14 +638,18 @@ function storyPanel(s: GameState): string {
     if (ev.choices.some((c) => c.itemId)) {
       actions += `<div class="itemhint blink">◆ something in THE BAG could help — tap it below</div>`;
     }
-  } else if (storyMode === 'result' || (!ev.choices && storyMode !== 'typing')) {
-    actions = '<div class="taphint">▸ tap to continue</div>';
+    return `<div class="storypanel" data-action="story-tap" id="storypanel">
+      <span class="tag">${esc(ev.tag)}</span>
+      ${p ? `<div class="modalcard">${playerCard(p, { inert: true })}</div>` : ''}
+      <div class="typebox">${esc(beats[beats.length - 1])}</div>
+      <div class="modal-actions" id="modal-actions">${actions}</div>
+    </div>`;
   }
+  // a single typed beat, center stage
   return `<div class="storypanel" data-action="story-tap" id="storypanel">
     <span class="tag">${esc(ev.tag)}</span>
-    ${p ? `<div class="modalcard">${playerCard(p, { inert: true })}</div>` : ''}
-    <div class="typebox" id="typebox"></div>
-    <div class="modal-actions ${actions ? '' : 'hide'}" id="modal-actions">${actions}</div>
+    <div class="typebox beatbox" id="typebox"></div>
+    <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap</div></div>
   </div>`;
 }
 
@@ -857,7 +1017,14 @@ function render(): void {
   const ev = currentStory(state);
   if (ev && ev.uid !== storyUid) {
     storyUid = ev.uid;
-    storyMode = 'typing';
+    stageTyped = false;
+    impact = null;
+    impactPlayed = false;
+    if (ev.resolvedText) {
+      storyMode = splitBeats(ev.resolvedText).length > 1 ? 'r-antic' : 'r-reveal';
+    } else {
+      storyMode = splitBeats(ev.text).length > 1 ? 'antic' : 'reveal';
+    }
   }
 
   let middle: string;
@@ -896,31 +1063,39 @@ function revealActions(): void {
   document.getElementById('modal-actions')?.classList.remove('hide');
 }
 
+function currentBeatText(ev: { text: string; resolvedText?: string }): string | null {
+  const beats = splitBeats(ev.text);
+  const rBeats = splitBeats(ev.resolvedText ?? '');
+  switch (storyMode) {
+    case 'antic': return beats[0] ?? '';
+    case 'reveal': return beats.length > 1 ? beats[1] : beats[0] ?? '';
+    case 'r-antic': return rBeats[0] ?? '';
+    case 'r-reveal': return rBeats.length > 1 ? rBeats[1] : rBeats[0] ?? '';
+    default: return null;
+  }
+}
+
 function postRender(): void {
   const ev = currentStory(state);
   const box = document.getElementById('typebox');
   const overlayText = toast ?? prospectUi?.text ?? scanUi?.text;
   if (box && overlayText !== undefined && overlayText !== null) {
     typewrite(box, overlayText, revealActions);
-  } else if (box && ev) {
-    if (storyMode === 'typing') {
-      typewrite(box, ev.text, () => {
-        storyMode = ev.choices && !ev.resolvedText ? 'choices' : 'result';
-        revealActions();
-        render();
+  } else if (ev) {
+    const text = box ? currentBeatText(ev) : null;
+    if (box && text !== null) {
+      typewrite(box, text, () => {
+        stageTyped = true;
+        // the verdict is out and a decision is waiting — bring it up
+        if (storyMode === 'reveal' && ev.choices && !ev.resolvedText) {
+          storyMode = 'choices';
+          render();
+        } else {
+          revealActions();
+        }
       });
-    } else if (storyMode === 'choices') {
-      box.textContent = ev.text;
-      revealActions();
-    } else if (storyMode === 'result-typing') {
-      typewrite(box, ev.resolvedText ?? '', () => {
-        storyMode = 'result';
-        revealActions();
-      });
-    } else {
-      box.textContent = ev.resolvedText || ev.text;
-      revealActions();
     }
+    if (storyMode === 'impact' && !impactPlayed) animateImpact();
   }
 
   if (state.phase === 'gamenight' && state.lastResult && gnStage === 'beat' && !state.queue.length) {
@@ -1049,11 +1224,7 @@ function dropItemOnStory(itemId: string): void {
   const ev = currentStory(state);
   const key = ev?.choices?.find((c) => c.itemId === itemId && !ev.resolvedText)?.key;
   if (!key) return;
-  const res = resolveStory(state, key);
-  if (res) {
-    storyMode = 'result-typing';
-    floatFx(res.fx, res.resolved.playerId, 500);
-  }
+  doResolve(key);
 }
 
 function activateDrag(): void {
@@ -1162,14 +1333,9 @@ function executeAction(action: string, id: string): void {
   switch (action) {
     case 'pick-team': chooseTeam(state, Number(id)); break;
 
-    case 'story-choice': {
-      const res = resolveStory(state, id);
-      if (res) {
-        storyMode = 'result-typing';
-        if (state.phase !== 'gameover') floatFx(res.fx, res.resolved.playerId, 500);
-      }
+    case 'story-choice':
+      doResolve(id);
       break;
-    }
 
     case 'drill': {
       const d = DRILLS.find((x) => x.id === id)!;
@@ -1224,11 +1390,7 @@ function executeAction(action: string, id: string): void {
       const storyKey = ev?.choices?.find((c) => c.itemId === itemId && !ev.resolvedText)?.key;
       itemUi = null;
       if (storyKey) {
-        const res = resolveStory(state, storyKey);
-        if (res) {
-          storyMode = 'result-typing';
-          floatFx(res.fx, res.resolved.playerId, 500);
-        }
+        doResolve(storyKey);
       } else {
         const text = useItem(state, itemId, prospectUi ? { prospectId: prospectUi.id } : {});
         if (text) toast = text;
@@ -1261,27 +1423,31 @@ app.addEventListener('click', (e) => {
 
   switch (action) {
     case 'story-tap': {
-      if (finishTypeNow()) return;
       const ev = currentStory(state);
       if (!ev) break;
-      if (storyMode === 'result') {
+      if (storyMode === 'impact') {
+        if (!impactPlayed) { finishImpactNow(); return; } // first tap: land everything
         clearFloatTimers();
+        clearImpactTimers();
+        impact = null;
         dismissStory(state);
         storyUid = -1;
         break;
       }
-      if (!ev.choices && storyMode !== 'typing') {
-        const res = resolveStory(state, 'ok');
-        if (res && res.resolved.resolvedText) {
-          storyMode = 'result-typing';
-          floatFx(res.fx, res.resolved.playerId, 400);
-        } else {
-          dismissStory(state);
-          storyUid = -1;
-        }
+      if (finishTypeNow()) return; // finish the current beat instantly
+      if (!stageTyped || storyMode === 'choices') return;
+      if (storyMode === 'antic') { storyMode = 'reveal'; stageTyped = false; break; }
+      if (storyMode === 'r-antic') { storyMode = 'r-reveal'; stageTyped = false; break; }
+      if (storyMode === 'r-reveal') {
+        if (impact && impact.rows.length) { storyMode = 'impact'; impactPlayed = false; break; }
+        impact = null;
+        dismissStory(state);
+        storyUid = -1;
         break;
       }
-      return;
+      // 'reveal' with no pending choices: tap-through story resolves now
+      doResolve('ok');
+      break;
     }
 
     case 'to-practice': toPractice(state); break;
@@ -1376,6 +1542,14 @@ app.addEventListener('click', (e) => {
 });
 
 // dev handle
-(window as unknown as { gc: unknown }).gc = { state: () => state, starters };
+(window as unknown as { gc: unknown }).gc = {
+  state: () => state,
+  starters,
+  story: (defId: string, beat: string, playerId: number | null, data?: Record<string, unknown>) => {
+    queueStory(state, defId, beat, playerId, data ?? {});
+    render();
+  },
+  ui: () => ({ storyMode, stageTyped, impact, impactPlayed }),
+};
 
 render();
