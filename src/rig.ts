@@ -375,21 +375,14 @@ export function sizeLabel(body: RigBody): string {
 }
 
 // ---- pixel mood faces -----------------------------------------------------
-// 9×9 outline smiley, colored by band — no yellow emoji in this house.
-
-const FACE_COLORS: Record<string, string> = {
-  green: '#46e065',
-  yellow: '#ffd23f',
-  orange: '#ff9d42',
-  red: '#ff3b3b',
-};
+// 9×9 outline smiley. COLOR LAW: one hue per save — the caller passes the ramp
+// color at the mood's brightness; the expression carries the meaning.
 
 const faceCache = new Map<string, string>();
 
-export function faceUrl(mood: number): string {
-  const band = mood >= 75 ? 'green' : mood >= 50 ? 'yellow' : mood >= 25 ? 'orange' : 'red';
+export function faceUrl(mood: number, color: string): string {
   const variant = mood >= 75 ? 'happy' : mood >= 50 ? 'neutral' : mood >= 25 ? 'sad' : 'angry';
-  const key = `${band}|${variant}`;
+  const key = `${color}|${variant}`;
   const hit = faceCache.get(key);
   if (hit) return hit;
 
@@ -397,7 +390,7 @@ export function faceUrl(mood: number): string {
   c.width = 9;
   c.height = 9;
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = FACE_COLORS[band];
+  ctx.fillStyle = color;
   const px = (x: number, y: number): void => ctx.fillRect(x, y, 1, 1);
 
   // outline ring

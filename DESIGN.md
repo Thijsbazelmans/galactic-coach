@@ -168,7 +168,24 @@ one question. Arcade — never idle-clicker, never spreadsheet.
 
 ## NEXT STEP (start of next session)
 
-Draft the complete v1.0 spec as one document BEFORE writing any code:
+**DONE — the spec is drafted and revised: see `SPEC.md` (v2).** Thijs's
+review rounds (Aug 15) added: the odds line (2/5/10/25/50 rungs, ten
+classes, two tails everywhere), team-hue ramp + motion-for-urgency color
+law, the whole-squad drill board, star-scouted skill/potential + level cap
+10, the 6/12 energy cache with the debt ladder (smugglers take a player),
+the hot seat (replaces integrity scoring), voyages, alumni verdicts,
+aging/retirement/high scores, and hold-to-commit buttons. The final round
+locked the last pieces: the two-ended hot-seat bar (the gap in the middle
+is your job; one side at 50 = interference, combined 75 = SUMMONS zone),
+the win-meter band for unscouted opponents, aging at season 21, random
+alumni encounter stories (no disposition stat, no auto-scoring), and THE
+EMPTY LOCKER (rare void-taken player → fill the 9th spot: training-squad
+walk-on / the dean's daughter / a booster-built droid). **The spec is fully
+locked — next step is the rebuild, in one coherent swing.** Species design
+AND story-sequence writing are separate future sessions; parked ideas live
+in SPEC §17.
+
+The spec was required to cover:
 - the player card in its minimal form (axis dot + SKILL + energy/mood),
 - all screens, each answering exactly one question,
 - the single color law,

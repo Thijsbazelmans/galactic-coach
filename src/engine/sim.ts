@@ -1,187 +1,201 @@
-import { clamp, emptyLineup, rand } from './gen';
-import type { BoxLine, GameResult, Player, Slot, StatKey, Team } from './types';
+// The sim (SPEC §4): SKILL is never muted, leans are, the wheel decides ±12%,
+// and the whole thing fits on one screen. Tactics = read their shape, pick the
+// counter, get graded out loud.
 
-// ---- effective stats ------------------------------------------------------
-// Fitness drags/boosts Physical; mood does the same for Mental.
-
-export function effStat(p: Player, k: StatKey): number {
-  let v = p.stats[k];
-  if (k === 'phy') v += (p.fitness - 75) * 0.25;
-  if (k === 'men') v += (p.mood - 60) * 0.25;
-  return clamp(Math.round(v), 1, 99);
-}
-
-// ---- position & rating ----------------------------------------------------
-
-export const SLOT_ORDER: Slot[] = ['G', 'F', 'C'];
-
-/** Out-of-position penalty: adjacent position −20%, G↔C −50%. */
-export function posMult(pref: Slot, slot: Slot): number {
-  if (pref === slot) return 1;
-  if ((pref === 'G' && slot === 'C') || (pref === 'C' && slot === 'G')) return 0.5;
-  return 0.8;
-}
-
-/** 0-100: current overall (fitness/mood baked in), no position context. */
-export function overall(p: Player): number {
-  return Math.round((effStat(p, 'phy') + effStat(p, 'men') + effStat(p, 'off') + effStat(p, 'def')) / 4);
-}
-
-/** Overall as it plays in a given slot (out-of-position penalty applied). */
-export function ovrInSlot(p: Player, slot: Slot): number {
-  return Math.round(overall(p) * posMult(p.pos, slot));
-}
-
-// ---- lineup management ----------------------------------------------------
+import { PLANS, planById } from './data';
+import type { ChampTeam, GameState, MyGameResult, PlanId, Player, Team } from './types';
+import { clamp, effLean, pick, rand } from './util';
 
 export function available(p: Player): boolean {
   return p.outWeeks === 0;
 }
 
+// ---- lineup -------------------------------------------------------------------
+
 function byId(t: Team, id: number | null): Player | null {
-  if (id === null) return null;
-  return t.players.find((p) => p.id === id) ?? null;
+  return id === null ? null : t.players.find((p) => p.id === id) ?? null;
 }
 
-/** Strip unavailable/missing players, then fill empty slots from reserves by rating. */
+/** Strip unavailable players, fill holes from reserves by skill. */
 export function normalizeLineup(t: Team): void {
   const seen = new Set<number>();
   for (const row of ['starters', 'bench'] as const) {
-    for (const s of SLOT_ORDER) {
-      const p = byId(t, t.lineup[row][s]);
-      if (!p || !available(p) || seen.has(p.id)) t.lineup[row][s] = null;
+    for (let i = 0; i < 3; i++) {
+      const p = byId(t, t.lineup[row][i]);
+      if (!p || !available(p) || seen.has(p.id)) t.lineup[row][i] = null;
       else seen.add(p.id);
     }
   }
-  const pool = t.players.filter((p) => available(p) && !seen.has(p.id));
+  const pool = t.players.filter((p) => available(p) && !seen.has(p.id)).sort((a, b) => b.skill - a.skill);
   for (const row of ['starters', 'bench'] as const) {
-    for (const s of SLOT_ORDER) {
-      if (t.lineup[row][s] === null && pool.length > 0) {
-        const idx = pool.reduce((bi, p, i) => (ovrInSlot(p, s) > ovrInSlot(pool[bi], s) ? i : bi), 0);
-        t.lineup[row][s] = pool.splice(idx, 1)[0].id;
-      }
+    for (let i = 0; i < 3; i++) {
+      if (t.lineup[row][i] === null && pool.length) t.lineup[row][i] = pool.shift()!.id;
     }
   }
 }
 
-/** AI teams: rebuild the whole lineup from scratch by best fit. */
 export function autoLineup(t: Team): void {
-  t.lineup = emptyLineup();
+  t.lineup = { starters: [null, null, null], bench: [null, null, null] };
   normalizeLineup(t);
 }
 
+export function starters(t: Team): Player[] {
+  return t.lineup.starters.map((id) => byId(t, id)).filter((p): p is Player => !!p);
+}
+export function benchPlayers(t: Team): Player[] {
+  return t.lineup.bench.map((id) => byId(t, id)).filter((p): p is Player => !!p);
+}
 export function reserves(t: Team): Player[] {
-  const used = new Set<number>();
-  for (const row of ['starters', 'bench'] as const) {
-    for (const s of SLOT_ORDER) {
-      const id = t.lineup[row][s];
-      if (id !== null) used.add(id);
-    }
-  }
+  const used = new Set([...t.lineup.starters, ...t.lineup.bench].filter((x): x is number => x !== null));
   return t.players.filter((p) => !used.has(p.id));
 }
 
-// ---- game simulation ------------------------------------------------------
+// ---- power ---------------------------------------------------------------------
 
-interface SlotPair { starter: Player | null; bench: Player | null; slot: Slot }
-
-function slotPairs(t: Team): SlotPair[] {
-  return SLOT_ORDER.map((s) => ({
-    slot: s,
-    starter: byId(t, t.lineup.starters[s]),
-    bench: byId(t, t.lineup.bench[s]),
-  }));
+export function playerPower(p: Player, plan: PlanId): number {
+  return p.skill + effLean(p, planById(plan).pole) * 0.5;
 }
 
-const SCRUB = 22; // an empty slot plays like nobody, because it is nobody
-
-function offSkill(p: Player): number {
-  return effStat(p, 'off') * 0.5 + effStat(p, 'phy') * 0.25 + effStat(p, 'men') * 0.25;
-}
-function defSkill(p: Player): number {
-  return effStat(p, 'def') * 0.55 + effStat(p, 'phy') * 0.25 + effStat(p, 'men') * 0.2;
+export function teamPower(t: Team, plan: PlanId): number {
+  return (
+    starters(t).reduce((a, p) => a + playerPower(p, plan), 0) +
+    benchPlayers(t).reduce((a, p) => a + playerPower(p, plan), 0) * 0.3
+  );
 }
 
-function pairValue(pair: SlotPair, kind: 'off' | 'def'): number {
-  const val = (p: Player | null): number => {
-    if (!p) return SCRUB;
-    const skill = kind === 'off' ? offSkill(p) : defSkill(p);
-    return (0.5 * overall(p) + 0.5 * skill) * posMult(p.pos, pair.slot);
-  };
-  return 0.7 * val(pair.starter) + 0.3 * val(pair.bench);
+/** Average effective lean of the starters toward the plan's pole (0–100). */
+export function planFit(t: Team, plan: PlanId): number {
+  const st = starters(t);
+  if (!st.length) return 0;
+  return Math.round(st.reduce((a, p) => a + effLean(p, planById(plan).pole), 0) / st.length);
 }
 
-function teamStrength(t: Team): { off: number; def: number; sho: number } {
-  const pairs = slotPairs(t);
-  const off = pairs.reduce((a, p) => a + pairValue(p, 'off'), 0) / 3;
-  const def = pairs.reduce((a, p) => a + pairValue(p, 'def'), 0) / 3;
-  const shooters = pairs.flatMap((p) => [p.starter, p.bench]).filter((p): p is Player => !!p);
-  const sho = shooters.length ? shooters.reduce((a, p) => a + effStat(p, 'off'), 0) / shooters.length : SCRUB;
-  return { off, def, sho };
+export function wheel(mine: PlanId, theirs: PlanId): 'win' | 'lose' | 'tie' {
+  if (planById(mine).beats === theirs) return 'win';
+  if (planById(theirs).beats === mine) return 'lose';
+  return 'tie';
 }
 
-function pickScorer(t: Team): Player | null {
-  const pairs = slotPairs(t);
-  const pool: { p: Player; w: number }[] = [];
-  for (const pair of pairs) {
-    if (pair.starter) pool.push({ p: pair.starter, w: 0.72 * (offSkill(pair.starter) + 20) });
-    if (pair.bench) pool.push({ p: pair.bench, w: 0.28 * (offSkill(pair.bench) + 20) });
-  }
-  if (!pool.length) return null;
-  let r = Math.random() * pool.reduce((a, x) => a + x.w, 0);
-  for (const x of pool) {
-    r -= x.w;
-    if (r <= 0) return x.p;
-  }
-  return pool[pool.length - 1].p;
+const WHEEL_F = { win: 1.12, lose: 0.89, tie: 1.0 };
+
+export function aiPlan(t: Team): PlanId {
+  if (Math.random() < 0.15) return pick(PLANS).id; // the occasional surprise
+  return PLANS.reduce((best, pl) => (planFit(t, pl.id) > planFit(t, best) ? pl.id : best), 'pound' as PlanId);
 }
 
-export function simGame(home: Team, away: Team): GameResult {
-  const H = teamStrength(home);
-  const A = teamStrength(away);
-  const pts: Record<number, number> = {};
-  const score: Record<number, number> = { [home.id]: 0, [away.id]: 0 };
+export function logistic(diff: number): number {
+  return 1 / (1 + Math.exp(-diff / 28));
+}
 
-  const possession = (off: Team, offS: typeof H, defS: typeof H): void => {
-    const homeCourt = off.id === home.id ? 1.5 : 0;
-    const p = clamp(0.42 + (offS.off - defS.def + homeCourt) * 0.006, 0.2, 0.68);
-    if (Math.random() < p) {
-      const three = Math.random() < clamp(0.3 + (offS.sho - 50) * 0.004, 0.14, 0.5);
-      const scorer = pickScorer(off);
-      const v = three ? 3 : 2;
-      score[off.id] += v;
-      if (scorer) pts[scorer.id] = (pts[scorer.id] ?? 0) + v;
-    }
-  };
+// ---- the game itself ----------------------------------------------------------------
 
-  const rounds = 29 + rand(5);
-  for (let i = 0; i < rounds; i++) {
-    possession(home, H, A);
-    possession(away, A, H);
-  }
-  while (score[home.id] === score[away.id]) {
-    for (let i = 0; i < 4; i++) {
-      possession(home, H, A);
-      possession(away, A, H);
-    }
-  }
+function scoreLines(pWin: number, won: boolean): { my: number; opp: number } {
+  const margin = 1 + rand(5) + Math.round(Math.abs(pWin - 0.5) * 24);
+  const base = 52 + rand(16);
+  return won ? { my: base + margin, opp: base } : { my: base, opp: base + margin };
+}
 
-  const box: BoxLine[] = [];
-  for (const t of [home, away]) {
-    for (const p of t.players) {
-      if (pts[p.id] !== undefined) box.push({ playerId: p.id, name: p.name, teamId: t.id, pts: pts[p.id] });
-    }
-  }
-  box.sort((a, b) => b.pts - a.pts);
-  const star = box[0];
-  const starTeam = star ? (star.teamId === home.id ? home : away) : null;
+export interface SimOutcome {
+  result: MyGameResult;
+  won: boolean;
+}
 
+function verdictLines(
+  me: Team,
+  myPlan: PlanId,
+  oppPlan: PlanId,
+  w: 'win' | 'lose' | 'tie',
+  won: boolean
+): { wheelLine: string; heroLine: string } {
+  const mine = planById(myPlan);
+  const theirs = planById(oppPlan);
+  let wheelLine: string;
+  if (w === 'win') wheelLine = `Your ${mine.name} broke their ${theirs.name}. ${mine.beatLine}`;
+  else if (w === 'lose') wheelLine = `They saw ${mine.name} coming — their ${theirs.name} was built to beat it.`;
+  else wheelLine = `${mine.name} vs ${theirs.name}: no counter either way. It came down to the players.`;
+  const st = starters(me);
+  if (!st.length) return { wheelLine, heroLine: 'You fielded nobody. The scoreboard noticed.' };
+  const fit = (p: Player): number => effLean(p, mine.pole);
+  const hero = [...st].sort((a, b) => fit(b) - fit(a))[0];
+  const goat = [...st].sort((a, b) => fit(a) - fit(b))[0];
+  const goatMuted =
+    (mine.pole === 'strong' || mine.pole === 'quick' ? goat.energy : goat.mood) <= 40;
+  const heroLine = won
+    ? `${hero.name} was built for this.`
+    : goatMuted
+      ? `${goat.name} played half a step slow — ${mine.pole === 'strong' || mine.pole === 'quick' ? '⚡ was low' : 'his head wasn\'t here'}.`
+      : `${goat.name} never fit the plan tonight.`;
+  return { wheelLine, heroLine };
+}
+
+export function simMyLeagueGame(s: GameState, me: Team, opp: Team, home: boolean): SimOutcome {
+  const oppPlan = s.pregameFlags.cloak ? pick(PLANS).id : aiPlan(opp);
+  let w = wheel(s.plan, oppPlan);
+  if (s.pregameFlags.wallet && w === 'tie') w = 'win';
+  const mine = teamPower(me, s.plan) * WHEEL_F[w] * (home ? 1.03 : 1);
+  const theirs = teamPower(opp, oppPlan) * (home ? 1 : 1.03);
+  const p = logistic(mine - theirs);
+  const won = Math.random() < p;
+  const sc = scoreLines(p, won);
+  const { wheelLine, heroLine } = verdictLines(me, s.plan, oppPlan, w, won);
+  const st = starters(me);
+  const top = st.length ? pick(st) : null;
   return {
-    homeId: home.id,
-    awayId: away.id,
-    homeScore: score[home.id],
-    awayScore: score[away.id],
-    box,
-    starLine: star && starTeam ? `Star of the game: ${star.name} (${starTeam.name}), ${star.pts} pts` : '',
+    won,
+    result: {
+      win: won,
+      myScore: sc.my,
+      oppScore: sc.opp,
+      oppName: `${opp.planet} ${opp.name}`,
+      planMine: s.plan,
+      planOpp: oppPlan,
+      wheel: w,
+      wheelLine,
+      heroLine,
+      boxLine: top ? `${top.name} led the way with ${12 + rand(14)} points.` : '',
+    },
   };
 }
+
+export function simMyChampGame(s: GameState, me: Team, champ: ChampTeam): SimOutcome {
+  const oppPlan = s.pregameFlags.cloak ? pick(PLANS).id : champ.plan;
+  let w = wheel(s.plan, oppPlan);
+  if (s.pregameFlags.wallet && w === 'tie') w = 'win';
+  const mine = teamPower(me, s.plan) * WHEEL_F[w];
+  const p = logistic(mine - champ.power);
+  const won = Math.random() < p;
+  const sc = scoreLines(p, won);
+  const { wheelLine, heroLine } = verdictLines(me, s.plan, oppPlan, w, won);
+  const st = starters(me);
+  const top = st.length ? pick(st) : null;
+  return {
+    won,
+    result: {
+      win: won,
+      myScore: sc.my,
+      oppScore: sc.opp,
+      oppName: champ.name,
+      planMine: s.plan,
+      planOpp: oppPlan,
+      wheel: w,
+      wheelLine,
+      heroLine,
+      boxLine: top ? `${top.name} left everything on that floor: ${14 + rand(16)} points.` : '',
+    },
+  };
+}
+
+/** AI vs AI league game: plans auto, straight power roll. */
+export function simAiGame(a: Team, b: Team): { winner: Team; loser: Team; scoreW: number; scoreL: number } {
+  const pa = teamPower(a, aiPlan(a)) * 1.03;
+  const pb = teamPower(b, aiPlan(b));
+  const aWins = Math.random() < logistic(pa - pb);
+  const margin = 1 + rand(9);
+  const base = 52 + rand(16);
+  return aWins
+    ? { winner: a, loser: b, scoreW: base + margin, scoreL: base }
+    : { winner: b, loser: a, scoreW: base + margin, scoreL: base };
+}
+
+/** Clamp helper re-exported for state.ts convenience. */
+export { clamp };
