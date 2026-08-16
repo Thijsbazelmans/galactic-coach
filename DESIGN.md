@@ -181,13 +181,48 @@ the win-meter band for unscouted opponents, aging at season 21, random
 alumni encounter stories (no disposition stat, no auto-scoring), and THE
 EMPTY LOCKER (rare void-taken player → fill the 9th spot: training-squad
 walk-on / the dean's daughter / a booster-built droid). **The rebuild
-SHIPPED as v1.0 (Aug 15, 2026) — one coherent swing, straight from
-SPEC.md**: new engine (types/data/gen/sim/state + util), new UI (compass
-cards, team-hue ramp, hold-to-commit, live win meter), headless auto-coach
-that plays full careers to all three endings, SAVE_VERSION 10.
-Next: Thijs playtests v1.0 on the phone; then the two dedicated sessions —
-species design and story-sequence writing (schema is live, ~30 defs shipped,
-the "few dozen" full trees still to write). Parked ideas live in SPEC §17.
+SHIPPED as v1.0 (Aug 15, 2026)**, then two phone-driven UI passes landed
+the same night: **v1.0.1** (device-width viewport, 2x type, one-time
+ASSISTANT COACH tips) and **v1.1 THE FRAME** (commit adb3e9a): fixed
+no-scroll app layout — stats bar always top (with ? help + ⚙), THE BAG's
+5 slots + nav always bottom, the 3×3 grid in between with a 4th row for
+controls. The grid IS the lineup everywhere (drag anytime); columns are
+BACKCOURT/WING/FRONTCOURT with MISCAST penalties (up to −25% for
+wrong-column leans); injured players sink to their column's reserve slot.
+Story popups take over the middle; matching bag items pulse and drag in.
+
+## NEXT SESSION: redesign the main screen (v1.2)
+
+Thijs's iPhone screenshot of v1.1 tryouts (Aug 16, ~1:06) showed THE FRAME
+is right but the CARD is not — it overflows its cell in every direction:
+
+1. **Right overflow**: the energy segbar + mood face spill past the card
+   border (faces render ON TOP of the next column's cards). The
+   `.pcard-skill` row (skill + stars + ⚡segs + face) is wider than a
+   3-per-row card on a real iPhone.
+2. **Bottom overflow**: picktag ("TAP TO PICK") + cardtag ("WALK-ON")
+   stack below the card bottom and get covered by the next row.
+3. **Horizontal page overflow**: the h2 was cut off at the LEFT edge and
+   the header win meter at the RIGHT — something forces the page wider
+   than the viewport (likely the overflowing cards / intrinsic min-widths).
+4. **It still scrolls**: cards have intrinsic min-height ~150pt, so 4 rows
+   + tags blow past the middle; the overflow-y safety net kicks in.
+
+The mandate: **a compact player card with a HARD fixed height that can
+never overflow its grid cell**, so 3 grid rows + 4th row truly fit a
+recent iPhone with zero scroll (design target ~390×660 CSS px, verify
+document.scrollWidth === viewport too). Directions to explore WITH Thijs
+before coding: what the tile's minimum truthful content is (spec §2.2 says
+sprite + dot + SKILL is enough); tags as absolute overlays inside the card
+instead of flow elements; stars/meters demoted to the detail card;
+`overflow:hidden` on .pcard as a backstop, never as the fix. Sizes must be
+budgeted top-down from the frame (header + middle/4 rows + bag + nav =
+100dvh), not bottom-up from content.
+
+Everything else carries: engine is solid (headless plays full careers,
+~58% win rate, all three endings), deploy pipeline auto-pushes to Pages,
+SAVE_VERSION 12. After the main screen: species design + story-writing
+sessions remain parked, plus SPEC §17 ideas.
 
 The spec was required to cover:
 - the player card in its minimal form (axis dot + SKILL + energy/mood),
