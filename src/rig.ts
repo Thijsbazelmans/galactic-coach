@@ -423,7 +423,7 @@ export function faceUrl(mood: number, color: string): string {
 
 // ---- single-color pixel stat icons ---------------------------------------
 
-type IconKind = 'phy' | 'men' | 'tec' | 'def' | 'bolt' | 'fang' | 'run' | 'cap';
+type IconKind = 'phy' | 'men' | 'tec' | 'def' | 'bolt' | 'fang' | 'run' | 'cap' | 'shades';
 
 const ICON_PIXELS: Record<IconKind, string[]> = {
   // dumbbell
@@ -510,17 +510,29 @@ const ICON_PIXELS: Record<IconKind, string[]> = {
     '.X...X..X',
     'X....X...',
   ],
-  // scholar cap (the school side of the hot seat)
+  // scholar cap (the school side of job security)
   cap: [
+    '.........',
     '.........',
     '....X....',
     '.XXXXXXX.',
     'XXXXXXXXX',
     '..XXXXX..',
-    '...XXX.X.',
-    '.......X.',
-    '.......X.',
-    '......XX.',
+    '...XXX...',
+    '.........',
+    '.........',
+  ],
+  // booster in sunglasses (the money side of job security)
+  shades: [
+    '..XXXXX..',
+    '.X.....X.',
+    'X.......X',
+    'X.XXXXX.X',
+    'X.XX.XX.X',
+    'X.......X',
+    'X..XXX..X',
+    '.X.....X.',
+    '..XXXXX..',
   ],
 };
 

@@ -186,7 +186,6 @@ button.hold.wiggle::after {
 /* JOB SECURITY: bright bar, darkness eats in from both sides */
 .jobbar { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
 .jicon { width: 11px; height: 11px; image-rendering: pixelated; flex: none; }
-.jicon.dollar { width: auto; font-size: 12px; font-weight: bold; color: var(--r75); line-height: 1; }
 .jtrack { position: relative; flex: 1; min-width: 56px; height: 14px; background: var(--r75); overflow: hidden; }
 .jdark { position: absolute; top: 0; bottom: 0; background: var(--rbg); }
 .jdark.l { left: 0; border-right: 1px solid var(--r95); }
@@ -330,7 +329,7 @@ button.hold.wiggle::after {
 /* head: RATING · NAME · YEAR */
 .pc-head { display: flex; align-items: baseline; gap: 3px; flex: none; }
 .pc-rating { font-size: 16px; font-weight: bold; line-height: 1; flex: none; color: var(--r75); }
-.pc-name { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-name { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .pc-year { font-size: 10px; color: var(--r35); flex: none; letter-spacing: 1px; }
 
 /* body: ⚡ meter | sprite | mood meter */
@@ -357,11 +356,6 @@ button.hold.wiggle::after {
 .lvlseg.on { background: var(--r75); }
 .vstars { display: flex; flex-direction: column; font-size: 7px; line-height: 1; color: var(--r20); text-align: center; }
 .vstars .on { color: var(--r95); }
-.pc-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 7px; min-width: 0; }
-.pc-stat { display: flex; justify-content: space-between; align-items: baseline; gap: 3px; font-size: 9px; }
-.pc-stat i { font-style: normal; font-size: 8px; letter-spacing: 0.5px; color: var(--r35); }
-.pc-stat b { font-size: 11px; line-height: 1.1; }
-
 /* the big (modal) variant — same anatomy, scaled up */
 .pcard.big { padding: 6px 8px; }
 .pcard.big .sprite { width: 72px; height: 72px; }
@@ -374,24 +368,22 @@ button.hold.wiggle::after {
 .pcard.big .vbar, .pcard.big .vseglvl { width: 8px; }
 .pcard.big .vstars { font-size: 12px; }
 .pcard.big .pc-lab { font-size: 9px; }
-.pcard.big .pc-stat { font-size: 12px; }
-.pcard.big .pc-stat i { font-size: 10px; }
-.pcard.big .pc-stat b { font-size: 16px; }
+.pcard.big .compass.mini { width: 64px; height: 64px; }
 
 .compass { position: relative; background: #000; border: 1px solid var(--rline); flex: none; overflow: hidden; }
 .compass.mini { width: 42px; height: 42px; }
 .compass.full { width: 120px; height: 120px; }
-/* the four poles, same on every compass: fangs N, brain S, dumbbell W, runner E */
-.cicon { position: absolute; width: 9px; height: 9px; image-rendering: pixelated; opacity: 0.55; }
-.cicon.n { top: 1px; left: 50%; transform: translateX(-50%); }
-.cicon.s { bottom: 1px; left: 50%; transform: translateX(-50%); }
-.cicon.w { left: 1px; top: 50%; transform: translateY(-50%); }
-.cicon.e { right: 1px; top: 50%; transform: translateY(-50%); }
-.compass.full .cicon { width: 16px; height: 16px; }
-.compass.full .cicon.n { top: 3px; }
-.compass.full .cicon.s { bottom: 3px; }
-.compass.full .cicon.w { left: 3px; }
-.compass.full .cicon.e { right: 3px; }
+/* the four poles, same on every compass: FRC N, SVY S, STR W, QCK E */
+.clabel { position: absolute; font-size: 6px; letter-spacing: 1px; color: var(--r35); line-height: 1; }
+.clabel.n { top: 1px; left: 50%; transform: translateX(-50%); }
+.clabel.s { bottom: 1px; left: 50%; transform: translateX(-50%); }
+.clabel.w { left: 1px; top: 50%; transform: translateY(-50%); writing-mode: vertical-lr; }
+.clabel.e { right: 1px; top: 50%; transform: translateY(-50%); writing-mode: vertical-lr; }
+.compass.full .clabel { font-size: 10px; letter-spacing: 2px; }
+.compass.full .clabel.n { top: 3px; }
+.compass.full .clabel.s { bottom: 3px; }
+.compass.full .clabel.w { left: 3px; }
+.compass.full .clabel.e { right: 3px; }
 /* how far this species can ever stretch */
 .cbox { position: absolute; border: 1px solid var(--r35); opacity: 0.55; }
 .compass .axis { position: absolute; background: var(--r20); }
