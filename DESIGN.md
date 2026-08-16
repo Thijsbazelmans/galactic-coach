@@ -180,10 +180,14 @@ is your job; one side at 50 = interference, combined 75 = SUMMONS zone),
 the win-meter band for unscouted opponents, aging at season 21, random
 alumni encounter stories (no disposition stat, no auto-scoring), and THE
 EMPTY LOCKER (rare void-taken player → fill the 9th spot: training-squad
-walk-on / the dean's daughter / a booster-built droid). **The spec is fully
-locked — next step is the rebuild, in one coherent swing.** Species design
-AND story-sequence writing are separate future sessions; parked ideas live
-in SPEC §17.
+walk-on / the dean's daughter / a booster-built droid). **The rebuild
+SHIPPED as v1.0 (Aug 15, 2026) — one coherent swing, straight from
+SPEC.md**: new engine (types/data/gen/sim/state + util), new UI (compass
+cards, team-hue ramp, hold-to-commit, live win meter), headless auto-coach
+that plays full careers to all three endings, SAVE_VERSION 10.
+Next: Thijs playtests v1.0 on the phone; then the two dedicated sessions —
+species design and story-sequence writing (schema is live, ~30 defs shipped,
+the "few dozen" full trees still to write). Parked ideas live in SPEC §17.
 
 The spec was required to cover:
 - the player card in its minimal form (axis dot + SKILL + energy/mood),
