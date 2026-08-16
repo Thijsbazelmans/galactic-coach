@@ -60,9 +60,9 @@ import {
   winMeter,
   wipeSave,
 } from './engine/state';
-import type { Fx, GameState, PlanId, Player, Prospect, Team } from './engine/types';
+import type { Fx, GameState, PlanId, Player, Pole, Prospect, Team } from './engine/types';
 import { clamp, effLean, lean, star, starStr } from './engine/util';
-import { PRACTICE_KIT, faceUrl, spriteUrl, type Kit } from './rig';
+import { PRACTICE_KIT, faceUrl, iconUrl, spriteUrl, type Kit } from './rig';
 
 const VERSION = 'v1.1';
 
@@ -262,17 +262,23 @@ function effDot(p: Player): { build: number; head: number } {
   return { build: 50 + (p.build - 50) * be, head: 50 + (p.head - 50) * hm };
 }
 
-function energyBar(v: number): string {
+/** Vertical LED strip, 5 cells, lit bottom-up. The card's meter language. */
+function vled(v: number): string {
   const lit = Math.ceil(clamp(v, 0, 100) / 20);
   const cells = Array.from({ length: 5 }, (_, i) =>
-    `<span class="seg ${i < lit ? 'on' : ''}" style="${i < lit ? `background:${vc(v)}` : ''}"></span>`
+    `<span class="lseg" style="${4 - i < lit ? `background:${vc(v)}` : ''}"></span>`
   ).join('');
-  return `<span class="segbar ${v <= 20 ? 'blink' : ''}" title="energy ${v}">⚡${cells}</span>`;
+  return `<span class="vled ${v <= 20 ? 'blink' : ''}">${cells}</span>`;
 }
 
-function moodFace(v: number): string {
-  return `<img class="face ${v <= 20 ? 'blink' : ''}" src="${faceUrl(v, vc(v))}" alt="" title="mood ${v}"/>`;
+/** Vertical star column (5 cells, filled bottom-up, same read as the LEDs). */
+function vstars(n: number): string {
+  return `<span class="vstars">${Array.from({ length: 5 }, (_, i) =>
+    `<span class="${4 - i < n ? 'on' : ''}">${4 - i < n ? '★' : '☆'}</span>`
+  ).join('')}</span>`;
 }
+
+const POLE_SHORT: Record<Pole, string> = { strong: 'STR', quick: 'QCK', fierce: 'FRC', savvy: 'SVY' };
 
 interface CardOpts {
   full?: boolean;
@@ -283,52 +289,73 @@ interface CardOpts {
   sitout?: boolean;
   miscast?: number; // % penalty to print
   pick?: boolean; // selection screens
-  stars?: boolean;
 }
 
+// The card, phone-first. Importance top-down: RATING · NAME · YEAR head,
+// meters flanking the sprite (⚡ left, mood right), then the 2×2 pole box
+// between the XP/LVL twin bars and the POT star column.
 function playerCard(p: Player, opts: CardOpts = {}): string {
   const t = myTeam(state);
   const kit = opts.kit ?? { bg: t.bg, fg: t.fg };
   const out = p.outWeeks > 0;
   const img = spriteUrl(p, kit, p.jersey);
   const xpPct = p.level >= LEVEL_CAP ? 100 : Math.min(100, Math.round((p.xp / xpNeed(p.level)) * 100));
+  const lvlSegs = Array.from({ length: LEVEL_CAP }, (_, i) =>
+    `<span class="lvlseg ${LEVEL_CAP - 1 - i < p.level ? 'on' : ''}"></span>`).join('');
+  const statCell = (pole: Pole): string => {
+    const v = Math.round(lean(p, pole));
+    return `<span class="pc-stat"><i>${POLE_SHORT[pole]}</i><b style="color:${vc(v)}">${v}</b></span>`;
+  };
   return `<div class="pcard ${opts.full ? 'big' : ''} ${out ? 'pout' : ''} ${opts.draggable && !out ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
       ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
-    <div class="pcard-top"><span class="pname">${esc(p.name)}</span>
-      <span class="pmeta">${CLASS_ABBR[Math.min(p.classYear, 3)]}${opts.full ? ` · ${esc(speciesById(p.speciesId).name)}` : ''}</span></div>
-    <div class="pcard-mid">
+    <div class="pc-head">
+      <span class="pc-rating" style="color:${vc(p.skill)}">${p.skill}</span>
+      <span class="pc-name">${esc(p.name)}</span>
+      <span class="pc-year">${CLASS_ABBR[Math.min(p.classYear, 3)].toUpperCase()}</span>
+    </div>
+    <div class="pc-body">
+      <span class="pc-meter" title="energy ${p.energy}">${vled(p.energy)}<img class="micon" src="${iconUrl('bolt', vc(p.energy))}" alt=""/></span>
       <img class="sprite" src="${img}" alt="" draggable="false"/>
-      ${compass(p, out ? null : effDot(p), opts.full ? 'full' : 'mini')}
+      <span class="pc-meter" title="mood ${p.mood}">${vled(p.mood)}<img class="micon" src="${faceUrl(p.mood, vc(p.mood))}" alt=""/></span>
     </div>
-    <div class="pcard-skill">
-      <span class="skill" style="color:${vc(p.skill)}">${p.skill}</span>
-      ${opts.stars || opts.full ? `<span class="potnotch">${starStr(star(p.potential))}</span>` : ''}
-      ${energyBar(p.energy)}${moodFace(p.mood)}
+    <div class="pc-foot">
+      <span class="pc-side" title="level ${p.level}/${LEVEL_CAP}">
+        <span class="pc-bars"><span class="vbar"><span class="vfill" style="height:${xpPct}%"></span></span><span class="vseglvl">${lvlSegs}</span></span>
+        <i class="pc-lab">XP</i></span>
+      <span class="pc-stats">${statCell('strong')}${statCell('quick')}${statCell('fierce')}${statCell('savvy')}</span>
+      <span class="pc-side">${vstars(star(p.potential))}<i class="pc-lab">POT</i></span>
     </div>
-    <div class="xpbar"><div class="xpfill" style="width:${xpPct}%"></div></div>
-    ${out ? `<div class="outtag blink">OUT ${p.outWeeks}w</div>` : ''}
-    ${opts.sitout ? '<div class="sittag">SITS OUT</div>' : ''}
-    ${opts.miscast && opts.miscast >= 8 && !out ? `<div class="outtag">MISCAST −${opts.miscast}%</div>` : ''}
+    ${out ? `<div class="ptag blink">OUT ${p.outWeeks}w</div>` : ''}
+    ${opts.sitout ? '<div class="ptag dimtag">SITS OUT</div>' : ''}
+    ${opts.miscast && opts.miscast >= 8 && !out ? `<div class="ptag">MISCAST −${opts.miscast}%</div>` : ''}
     ${opts.pick !== undefined ? `<div class="picktag ${opts.pick ? 'on' : ''}">${opts.pick ? '☑ ON THE SQUAD' : '☐ TAP TO PICK'}</div>` : ''}
     ${opts.tag ? `<div class="cardtag">${opts.tag}</div>` : ''}
   </div>`;
 }
 
+// Prospects wear the same frame: seen-skill stars where the rating sits,
+// species tier where the year sits, commit% + POT column in the foot.
 function prospectCard(pr: Prospect): string {
   const img = spriteUrl(pr, PRACTICE_KIT, null);
   const known = pr.scoutLevel;
   const sp = speciesById(pr.speciesId);
   return `<div class="pcard prospect" data-action="pcell" data-id="${pr.id}" data-pid="p${pr.id}">
-    <div class="pcard-top"><span class="pname">${esc(pr.name)}</span><span class="pmeta">T${'I'.repeat(sp.tier)}</span></div>
-    <div class="pcard-mid">
+    <div class="pc-head">
+      <span class="pc-rating">${pr.seenSkillStar}★${known < 2 ? '<span class="dim">?</span>' : ''}</span>
+      <span class="pc-name">${esc(pr.name)}</span>
+      <span class="pc-year">T${'I'.repeat(sp.tier)}</span>
+    </div>
+    <div class="pc-body">
       <img class="sprite" src="${img}" alt="" draggable="false"/>
       <div class="compass mini ${known === 0 ? 'fuzzy2' : known === 1 ? 'fuzzy1' : ''}">
         <span class="axis h"></span><span class="axis v"></span>
         <span class="dot" style="left:${pr.seenBuild}%;top:${pr.seenHead}%"></span>
       </div>
     </div>
-    <div class="prstars">${starStr(pr.seenSkillStar)} <span class="dim">p</span>${starStr(pr.seenPotStar)}${known < 2 ? '<span class="dim">?</span>' : ''}</div>
-    <div class="prcommit" style="color:${vc(pr.commitPct)}">${pr.bannedWeeks > 0 ? `<span class="blink">BANNED ${pr.bannedWeeks}w</span>` : `${pr.commitPct}%`}</div>
+    <div class="pc-foot">
+      <span class="prcommit" style="color:${vc(pr.commitPct)}">${pr.bannedWeeks > 0 ? `<span class="blink">BANNED ${pr.bannedWeeks}w</span>` : `${pr.commitPct}%`}</span>
+      <span class="pc-side">${vstars(pr.seenPotStar)}<i class="pc-lab">POT</i></span>
+    </div>
   </div>`;
 }
 
@@ -554,7 +581,7 @@ function stageTeamSelect(s: GameState): string {
   for (let r = 0; r < Math.ceil(sorted.length / 3); r++) {
     const cells = sorted.slice(r * 3, r * 3 + 3).map((p) => {
       const tag = returning.has(p.id) ? 'RETURNER' : commits.has(p.id) ? 'RECRUIT' : 'WALK-ON';
-      return `<div class="gcell">${playerCard(p, { tag, stars: true, pick: poolSelected!.has(p.id), kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT })}</div>`;
+      return `<div class="gcell">${playerCard(p, { tag, pick: poolSelected!.has(p.id), kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT })}</div>`;
     }).join('');
     rows.push(`<div class="gridrow"><div class="rowlabel"></div>${cells}</div>`);
   }
@@ -562,7 +589,7 @@ function stageTeamSelect(s: GameState): string {
   const results = s.signingResults.length
     ? `<div class="report">${s.signingResults.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`
     : '';
-  return `<h2>${s.season === 0 ? 'TRYOUTS' : 'PICK YOUR SQUAD'} — ${n}/${ROSTER_SIZE}</h2>${results}<div class="grid">${rows.join('')}</div>`;
+  return `<h2>${s.season === 0 ? 'TRYOUTS' : 'PICK YOUR SQUAD'} — ${n}/${ROSTER_SIZE}</h2>${results}<div class="grid scroll">${rows.join('')}</div>`;
 }
 
 function stageDepartures(s: GameState): string {
@@ -799,6 +826,7 @@ function detailModalHtml(s: GameState): string {
   return `<div class="modalback" data-action="close-detail"><div class="modal">
     <span class="tag">#${p.jersey} ${esc(p.name)}</span>
     <div class="modalcard">${playerCard(p, { full: true, inert: true })}</div>
+    <div class="detailcompass">${compass(p, p.outWeeks > 0 ? null : effDot(p), 'full')}</div>
     <div class="dim">${esc(sp.name)} (tier ${sp.tier}) — ${esc(sp.desc)}</div>
     <div>${(['strong', 'quick', 'fierce', 'savvy'] as const)
       .filter((pl) => lean(p, pl) > 5)
