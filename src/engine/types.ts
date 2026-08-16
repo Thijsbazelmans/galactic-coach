@@ -70,9 +70,10 @@ export interface Player {
   special?: 'daughter' | 'droid';
 }
 
+/** The grid IS the lineup: 9 slots row-major. Rows: starters/bench/reserves.
+    Columns: 0 backcourt, 1 wing, 2 frontcourt. */
 export interface Lineup {
-  starters: (number | null)[];
-  bench: (number | null)[];
+  slots: (number | null)[];
 }
 
 export interface Team {
@@ -299,6 +300,8 @@ export interface GameState {
   unlockedRegions: string[];
   /** one-time assistant-coach explainers, by key */
   tipsSeen: string[];
+  /** auto-show tips (the ? button always works) */
+  tipsAuto: boolean;
   /** the ship: 0 = flying; >0 = grounded (home-planet scouting only, no deep scans) */
   groundedWeeks: number;
 

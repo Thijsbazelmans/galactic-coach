@@ -367,6 +367,8 @@ export interface StoryCtx {
 export interface ItemDef {
   id: string;
   name: string;
+  /** ≤5 chars for the always-visible bag bar */
+  short: string;
   rarity: 'common' | 'rare' | 'legendary';
   flavor: string;
   effectText: string;
@@ -386,6 +388,7 @@ function tails(up: number, down: number): 'up' | 'down' | 'mid' {
 export const ITEMS: ItemDef[] = [
   {
     id: 'vial',
+    short: 'VIAL',
     name: "BEELZEBUB'S VIAL",
     rarity: 'rare',
     flavor: '"One sip. Ask nothing." — the doctor on stAroid-5',
@@ -417,6 +420,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'xarter',
+    short: 'XART',
     name: "XARTER'S INVITATION",
     rarity: 'legendary',
     flavor: 'The mind-controlling trainer takes one pupil a year.',
@@ -447,6 +451,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'chrono',
+    short: 'CHRNO',
     name: 'CHRONO SIP',
     rarity: 'legendary',
     flavor: 'Time is a liquid if you know the right bartender.',
@@ -477,6 +482,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'icepack',
+    short: 'ICE',
     name: 'METEOR ICE PACK',
     rarity: 'common',
     flavor: 'Cold from before the solar system. The honest one.',
@@ -496,6 +502,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'espresso',
+    short: 'ESPR',
     name: 'NEBULA ESPRESSO',
     rarity: 'common',
     flavor: 'Brewed under pressure. Like everyone here.',
@@ -511,6 +518,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'karaoke',
+    short: 'KARA',
     name: 'MOOD KARAOKE CHIP',
     rarity: 'common',
     flavor: 'Contains every power ballad ever written, in every language, at once.',
@@ -530,6 +538,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'hologram',
+    short: 'HOLO',
     name: 'STUDY-BUDDY HOLOGRAM',
     rarity: 'common',
     flavor: 'A tutor of light. Extremely thorough. Slightly too thorough.',
@@ -553,6 +562,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'vip',
+    short: 'VIP',
     name: 'KAPPA NEBULA VIP PASS',
     rarity: 'rare',
     flavor: 'Laminated. Glowing. Slightly sticky.',
@@ -578,6 +588,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'boots',
+    short: 'BOOTS',
     name: 'GRAVITY BOOTS',
     rarity: 'rare',
     flavor: 'Every step is leg day.',
@@ -599,6 +610,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'wallet',
+    short: 'WALLT',
     name: 'THE REFEREE\'S "LOST" WALLET',
     rarity: 'rare',
     flavor: 'You found it. You could return it. You could return it COURTSIDE.',
@@ -618,6 +630,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'cloak',
+    short: 'CLOAK',
     name: 'CLOAKING DOUBT',
     rarity: 'rare',
     flavor: 'A device that makes your game plan look like every game plan.',
@@ -635,6 +648,7 @@ export const ITEMS: ItemDef[] = [
   },
   {
     id: 'check',
+    short: 'CHECK',
     name: "BOOSTER'S BLANK CHECK",
     rarity: 'rare',
     flavor: 'The amount is blank. The strings are not.',
@@ -1814,7 +1828,15 @@ export const TIPS: Record<string, string> = {
   signing:
     "Signing day math, coach: sign ONE letter and you keep his full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.",
   bag:
-    "That's THE BAG — five slots, no more. Everything in it is a bargain with the odds printed on its face. The right item shows up as an extra button exactly when a story makes you want it. That's not a coincidence. That's the galaxy.",
+    "That's THE BAG — the five slots at the bottom of your screen, always within reach. Every item is a bargain with printed odds. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. That's not a coincidence. That's the galaxy.",
+  grid:
+    "The grid is your lineup, always: top row starts, middle row comes off the bench, bottom row watches. Hold and drag to rearrange — any screen, any time.\n\nColumns matter: BACKCOURT left, FRONTCOURT right. It's positionless out here, but put a wall in the backcourt or a waterbug in the frontcourt and the card will say MISCAST — and mean it. When someone goes down, he sinks to the bottom of his column and the column steps up.",
+  stories:
+    "The week opens with whatever the galaxy throws at you. Every choice prints its two tails — the chance it goes wrong, the chance it goes wonderful. The numbers never lie. The people sometimes do.",
+  gamenight:
+    "The verdict tells you if the PLAN worked, not just the score. Watch the cards: energy spent, mood swung, XP earned — then the table. First place is the only door to the Universal Tournament.",
+  departures:
+    "Season's over, coach. Seniors walk, stars flirt with the pros — one conversation each, odds printed as always. And every offseason the question waits at the bottom: walk away with your legacy, or go again.",
 };
 
 // a tap-through announcement: text in, nothing decided

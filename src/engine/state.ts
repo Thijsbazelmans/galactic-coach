@@ -313,9 +313,22 @@ function storyCtx(s: GameState, playerId: number | null, data: Record<string, un
 
 /** The assistant coach explains each screen exactly once, then trusts you. */
 export function maybeTip(s: GameState, key: string): void {
-  if (s.tipsSeen.includes(key) || !TIPS[key]) return;
+  if (!s.tipsAuto || s.tipsSeen.includes(key) || !TIPS[key]) return;
   s.tipsSeen.push(key);
   queueStory(s, 'notice', 'start', null, { tag: 'ASSISTANT COACH', text: TIPS[key] });
+}
+
+/** The ? button: the assistant explains the current screen, on demand. */
+export function showTip(s: GameState, key: string): void {
+  if (!TIPS[key] || s.queue.some((e) => e.tag === 'ASSISTANT COACH')) return;
+  if (!s.tipsSeen.includes(key)) s.tipsSeen.push(key);
+  queueStory(s, 'notice', 'start', null, { tag: 'ASSISTANT COACH', text: TIPS[key] });
+  save(s);
+}
+
+export function toggleTips(s: GameState): void {
+  s.tipsAuto = !s.tipsAuto;
+  save(s);
 }
 
 export function queueStory(

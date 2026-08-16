@@ -1,5 +1,7 @@
-// GALACTIC COACH v1.0 — the UI. One hue per save (your team color), brightness
-// says how much, motion says pay attention. Every screen answers one question.
+// GALACTIC COACH v1.1 — the app frame. No scrolling, ever (recent phones):
+// stats always on top, THE BAG + navigation always at the bottom, and between
+// them the 3×3 grid — which IS your lineup — with a fourth row for controls.
+// Popups take over the middle; the bag stays reachable, items drag right in.
 
 import {
   CLASS_ABBR,
@@ -12,20 +14,12 @@ import {
   planById,
   speciesById,
 } from './engine/data';
-import {
-  BAG_SIZE,
-  CACHE_MAX,
-  LEVEL_CAP,
-  ROSTER_SIZE,
-  stipendFor,
-  xpNeed,
-} from './engine/gen';
-import { planFit } from './engine/sim';
+import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, ROSTER_SIZE, stipendFor, xpNeed } from './engine/gen';
+import { COL_LABELS, planFit, slotMult, slotPlayer } from './engine/sim';
 import {
   actionDropProspect,
   actionProspect,
   actionScan,
-  benchPlayers,
   chooseTeam,
   continueFromResult,
   convincePro,
@@ -42,7 +36,6 @@ import {
   myTeam,
   oppPlanHint,
   playGame,
-  reserves,
   resolveSigning,
   resolveStory,
   retire,
@@ -50,6 +43,7 @@ import {
   save,
   scoutOpponent,
   setPlan,
+  showTip,
   sortedStandings,
   startNewSeason,
   starters,
@@ -59,6 +53,7 @@ import {
   toSigning,
   toggleProspect,
   toggleSitout,
+  toggleTips,
   useItem,
   utOpponent,
   weekLabel,
@@ -69,11 +64,11 @@ import type { Fx, GameState, PlanId, Player, Prospect, Team } from './engine/typ
 import { clamp, effLean, lean, star, starStr } from './engine/util';
 import { PRACTICE_KIT, faceUrl, spriteUrl, type Kit } from './rig';
 
-const VERSION = 'v1.0';
+const VERSION = 'v1.1';
 
 let state: GameState = load() ?? freshGame();
 
-// ---- THE RAMP: one hue per save -----------------------------------------------
+// ---- THE RAMP: one hue per save ------------------------------------------------
 
 let rampH = 140;
 let rampS = 60;
@@ -96,7 +91,6 @@ function hexToHsl(hex: string): [number, number, number] {
   return [h * 360, s * 100, l * 100];
 }
 
-/** ramp(t): t=0 → 18% brightness, t=1 → near white. Same hue the whole way. */
 function ramp(t: number): string {
   const tt = clamp(t, 0, 1);
   const l = 18 + tt * 79;
@@ -104,7 +98,6 @@ function ramp(t: number): string {
   return `hsl(${Math.round(rampH)} ${Math.round(s)}% ${Math.round(l)}%)`;
 }
 
-/** A value 0–100 rendered at its own brightness (the law). */
 function vc(v: number): string {
   return ramp(0.2 + 0.8 * (clamp(v, 0, 100) / 100));
 }
@@ -125,25 +118,24 @@ function setRamp(): void {
   root.setProperty('--rline', `hsl(${Math.round(rampH)} ${Math.round(rampS * 0.5)}% 20%)`);
 }
 
-// ---- transient UI state ----------------------------------------------------------
+// ---- transient UI state -----------------------------------------------------------
 
 type StoryMode = 'typing' | 'choices' | 'result-typing' | 'result';
 let storyMode: StoryMode = 'typing';
 let storyUid = -1;
-let bagOpen = false;
 let coachOpen = false;
-let toast: string | null = null; // tap-through result panel (item use etc.)
+let itemUi: string | null = null;
+let toast: string | null = null;
 let prospectUi: { id: number; text?: string } | null = null;
 let scanUi: { open: boolean; text?: string } | null = null;
-let drillPickOne: string | null = null; // 'personal' waiting for a player tap
+let drillSheet = false;
+let drillPickOne: string | null = null;
 let detailPlayerId: number | null = null;
 let poolSelected: Set<number> | null = null;
-let gnShown = false; // gamenight verdict revealed
-let meterPrev = -1;
+let gnStage: 'beat' | 'verdict' | 'table' = 'beat';
 let progressTimer: number | null = null;
 let floatTimers: number[] = [];
 
-// typewriter
 let typeTimer: number | null = null;
 let typeState: { el: HTMLElement; text: string; done: () => void } | null = null;
 
@@ -161,7 +153,7 @@ function chip(label: string, bg: string, fg: string, small = false): string {
   return `<span class="chip ${small ? 'small' : ''}" style="background:${bg};color:${fg}">${esc(label)}</span>`;
 }
 
-// ---- floaters (change = a floater on a black tag) -----------------------------------
+// ---- floaters -------------------------------------------------------------------------
 
 function floatCard(pid: number, msgs: { text: string; up?: boolean }[], startDelay = 0): void {
   msgs.forEach((m, i) => {
@@ -171,7 +163,7 @@ function floatCard(pid: number, msgs: { text: string; up?: boolean }[], startDel
           const el = document.createElement('div');
           el.className = `floater ${m.up === false ? 'down' : m.up ? 'up' : ''}`;
           el.textContent = m.text;
-          (el as HTMLElement).style.left = `${14 + (i % 3) * 34}px`;
+          (el as HTMLElement).style.left = `${8 + (i % 2) * 30}px`;
           card.appendChild(el);
           card.classList.add('flash');
           window.setTimeout(() => el.remove(), 1600);
@@ -208,7 +200,7 @@ function clearFloatTimers(): void {
   floatTimers = [];
 }
 
-// ---- typewriter ------------------------------------------------------------------------
+// ---- typewriter ---------------------------------------------------------------------------
 
 function typewrite(el: HTMLElement | null, text: string, done: () => void): void {
   stopType();
@@ -237,7 +229,7 @@ function finishTypeNow(): boolean {
   return true;
 }
 
-// ---- the odds line ------------------------------------------------------------------------
+// ---- the odds line ---------------------------------------------------------------------------
 
 function oddsLine(up?: { pct: number; cls: string; note?: string }, down?: { pct: number; cls: string; note?: string }, cost?: number): string {
   const parts: string[] = [];
@@ -247,7 +239,7 @@ function oddsLine(up?: { pct: number; cls: string; note?: string }, down?: { pct
   return parts.length ? `<span class="odds">${parts.join(' ')}</span>` : '';
 }
 
-// ---- the compass card ------------------------------------------------------------------------
+// ---- the compass card ---------------------------------------------------------------------------
 
 function compass(p: { build: number; head: number }, eff: { build: number; head: number } | null, size: 'mini' | 'full'): string {
   const dotX = eff ? eff.build : p.build;
@@ -282,58 +274,51 @@ function moodFace(v: number): string {
   return `<img class="face ${v <= 20 ? 'blink' : ''}" src="${faceUrl(v, vc(v))}" alt="" title="mood ${v}"/>`;
 }
 
-function levelPips(p: Player): string {
-  const pips = Array.from({ length: LEVEL_CAP }, (_, i) =>
-    `<span class="pip ${i < p.level ? 'on' : ''}"></span>`
-  ).join('');
-  const pct = p.level >= LEVEL_CAP ? 100 : Math.min(100, Math.round((p.xp / xpNeed(p.level)) * 100));
-  return `<div class="pips" title="level ${p.level}/${LEVEL_CAP}">${pips}</div>
-    <div class="xpbar" data-pid-xp="${p.id}"><div class="xpfill" style="width:${pct}%"></div></div>`;
-}
-
 interface CardOpts {
-  size?: 'tile' | 'full';
+  full?: boolean;
   kit?: Kit;
-  footer?: string;
   tag?: string;
   inert?: boolean;
   draggable?: boolean;
   sitout?: boolean;
+  miscast?: number; // % penalty to print
+  pick?: boolean; // selection screens
+  stars?: boolean;
 }
 
 function playerCard(p: Player, opts: CardOpts = {}): string {
   const t = myTeam(state);
   const kit = opts.kit ?? { bg: t.bg, fg: t.fg };
   const out = p.outWeeks > 0;
-  const full = opts.size === 'full';
   const img = spriteUrl(p, kit, p.jersey);
-  const potStars = star(p.potential);
-  return `<div class="pcard ${full ? 'big' : ''} ${out ? 'pout' : ''} ${opts.draggable && !out ? 'grabbable' : ''}"
+  const xpPct = p.level >= LEVEL_CAP ? 100 : Math.min(100, Math.round((p.xp / xpNeed(p.level)) * 100));
+  return `<div class="pcard ${opts.full ? 'big' : ''} ${out ? 'pout' : ''} ${opts.draggable && !out ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
       ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
     <div class="pcard-top"><span class="pname">${esc(p.name)}</span>
-      <span class="pmeta">${CLASS_ABBR[Math.min(p.classYear, 3)]}${full ? ` · ${esc(speciesById(p.speciesId).name)}` : ''}</span></div>
+      <span class="pmeta">${CLASS_ABBR[Math.min(p.classYear, 3)]}${opts.full ? ` · ${esc(speciesById(p.speciesId).name)}` : ''}</span></div>
     <div class="pcard-mid">
       <img class="sprite" src="${img}" alt="" draggable="false"/>
-      ${compass(p, out ? null : effDot(p), full ? 'full' : 'mini')}
+      ${compass(p, out ? null : effDot(p), opts.full ? 'full' : 'mini')}
     </div>
     <div class="pcard-skill">
-      <span class="skill" style="color:${vc(p.skill)}">${p.skill}</span>${full ? `<span class="potnotch" title="potential">${starStr(potStars)}</span>` : ''}
+      <span class="skill" style="color:${vc(p.skill)}">${p.skill}</span>
+      ${opts.stars || opts.full ? `<span class="potnotch">${starStr(star(p.potential))}</span>` : ''}
       ${energyBar(p.energy)}${moodFace(p.mood)}
     </div>
-    ${levelPips(p)}
-    ${out ? `<div class="outtag blink">OUT ${p.outWeeks}w — ${esc(p.outReason)}</div>` : ''}
+    <div class="xpbar"><div class="xpfill" style="width:${xpPct}%"></div></div>
+    ${out ? `<div class="outtag blink">OUT ${p.outWeeks}w</div>` : ''}
     ${opts.sitout ? '<div class="sittag">SITS OUT</div>' : ''}
-    ${p.special === 'droid' ? '<div class="cardtag">UNDECLARED SPECIES</div>' : ''}
+    ${opts.miscast && opts.miscast >= 8 && !out ? `<div class="outtag">MISCAST −${opts.miscast}%</div>` : ''}
+    ${opts.pick !== undefined ? `<div class="picktag ${opts.pick ? 'on' : ''}">${opts.pick ? '☑ ON THE SQUAD' : '☐ TAP TO PICK'}</div>` : ''}
     ${opts.tag ? `<div class="cardtag">${opts.tag}</div>` : ''}
-    ${opts.footer ?? ''}
   </div>`;
 }
 
-function prospectCard(pr: Prospect, inert = false): string {
+function prospectCard(pr: Prospect): string {
   const img = spriteUrl(pr, PRACTICE_KIT, null);
   const known = pr.scoutLevel;
   const sp = speciesById(pr.speciesId);
-  return `<div class="pcard prospect" ${inert ? '' : `data-action="pcell" data-id="${pr.id}"`} data-pid="p${pr.id}">
+  return `<div class="pcard prospect" data-action="pcell" data-id="${pr.id}" data-pid="p${pr.id}">
     <div class="pcard-top"><span class="pname">${esc(pr.name)}</span><span class="pmeta">T${'I'.repeat(sp.tier)}</span></div>
     <div class="pcard-mid">
       <img class="sprite" src="${img}" alt="" draggable="false"/>
@@ -342,25 +327,18 @@ function prospectCard(pr: Prospect, inert = false): string {
         <span class="dot" style="left:${pr.seenBuild}%;top:${pr.seenHead}%"></span>
       </div>
     </div>
-    <div class="prstars">
-      <span title="skill now">${starStr(pr.seenSkillStar)}</span>
-      <span class="dim">pot</span> <span title="ceiling">${starStr(pr.seenPotStar)}</span>
-      ${known < 2 ? '<span class="dim">?</span>' : ''}
-    </div>
-    <div class="prcommit" style="color:${vc(pr.commitPct)}">${pr.bannedWeeks > 0 ? `<span class="blink">NO CONTACT ${pr.bannedWeeks}w</span>` : `${pr.commitPct}% committed`}</div>
+    <div class="prstars">${starStr(pr.seenSkillStar)} <span class="dim">p</span>${starStr(pr.seenPotStar)}${known < 2 ? '<span class="dim">?</span>' : ''}</div>
+    <div class="prcommit" style="color:${vc(pr.commitPct)}">${pr.bannedWeeks > 0 ? `<span class="blink">BANNED ${pr.bannedWeeks}w</span>` : `${pr.commitPct}%`}</div>
   </div>`;
 }
 
-// ---- header --------------------------------------------------------------------------------
+// ---- header (always there) ---------------------------------------------------------------------
 
 function hotSeatBar(s: GameState): string {
   const danger = s.heatS + s.heatB >= 75;
-  return `<div class="hotseat ${danger ? 'blink' : ''}" title="THE HOT SEAT — school ${s.heatS} · boosters ${s.heatB}">
+  return `<div class="hotseat ${danger ? 'blink' : ''}" title="hot seat — school ${s.heatS} · boosters ${s.heatB}">
     <span class="hslabel">SCH</span>
-    <div class="hstrack">
-      <div class="hsfill l" style="width:${s.heatS}%"></div>
-      <div class="hsfill r" style="width:${s.heatB}%"></div>
-    </div>
+    <div class="hstrack"><div class="hsfill l" style="width:${s.heatS}%"></div><div class="hsfill r" style="width:${s.heatB}%"></div></div>
     <span class="hslabel">BST</span>
   </div>`;
 }
@@ -368,9 +346,9 @@ function hotSeatBar(s: GameState): string {
 function meterText(s: GameState): string {
   const m = winMeter(s);
   if (!m) return '';
-  const label = isUtWeek(s) ? utOpponent(s)?.name ?? '' : myMatchup(s) ? myMatchup(s)!.opponent.name : '';
-  const val = m.exact ? `<b data-meter="${m.lo}">${m.lo}%</b>` : `<b data-meter="${Math.round((m.lo + m.hi) / 2)}">${m.lo}–${m.hi}%</b>`;
-  return `<span class="miniwin">vs ${esc(label)} · ${val}</span>`;
+  const label = isUtWeek(s) ? 'UT' : myMatchup(s) ? myMatchup(s)!.opponent.name : '';
+  const val = m.exact ? `<b>${m.lo}%</b>` : `<b>${m.lo}–${m.hi}%</b>`;
+  return `<span class="miniwin">vs ${esc(label)} ${val}</span>`;
 }
 
 function headerHtml(s: GameState): string {
@@ -379,379 +357,373 @@ function headerHtml(s: GameState): string {
     `<span class="ecell ${i < s.energy ? 'on' : ''}" style="${i < s.energy ? `background:${ramp(0.35 + 0.55 * (i / CACHE_MAX))}` : ''}"></span>`
   ).join('');
   return `<div class="topbar">
-    <button class="gear" data-action="coach-open">⚙</button>
-    <button class="bagbtn" data-action="bag-open">◆<span class="bagn">${s.bag.length}</span></button>
     <div class="hrow hrow1">
-      ${chip(teamLabel(t), t.bg, t.fg)}
+      ${chip(t.name, t.bg, t.fg)}
       <span class="rec"><b>${t.wins}–${t.losses}</b></span>
-      <span class="seasoninfo">S<b>${Math.max(1, s.season)}</b> · <b>${weekLabel(s)}</b></span>
+      <span class="seasoninfo">S<b>${Math.max(1, s.season)}</b>·<b>${weekLabel(s)}</b></span>
+      <span class="hbtns">
+        <button class="hbtn" data-action="help">?</button>
+        <button class="hbtn" data-action="coach-open">⚙</button>
+      </span>
     </div>
     <div class="hrow hrow2">
-      <span class="ecache ${s.energy === 0 ? 'blink' : ''}" id="hdr-energy" title="power cells ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">⚡${cells}</span>
+      <span class="ecache ${s.energy === 0 ? 'blink' : ''}" title="power cells ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">⚡${cells}</span>
       ${hotSeatBar(s)}
       ${meterText(s)}
     </div>
   </div>`;
 }
 
-// ---- the grid -------------------------------------------------------------------------------
+// ---- THE BAG bar (always there) -------------------------------------------------------------------
 
-function gridHtml(s: GameState): string {
+function bagBar(s: GameState): string {
+  const ev = currentStory(s);
+  const usableInStory = new Set(
+    (ev?.choices ?? []).filter((c) => c.itemId && !ev?.resolvedText).map((c) => c.itemId as string)
+  );
+  const slots = Array.from({ length: BAG_SIZE }, (_, i) => {
+    const id = s.bag[i];
+    if (!id) return '<div class="bslot empty">·</div>';
+    const item = itemById(id);
+    const spent = item.rarity === 'legendary' && s.legendariesUsed.includes(item.id);
+    return `<button class="bslot filled ${item.rarity} ${usableInStory.has(id) ? 'pulse' : ''} ${spent ? 'spent' : ''}"
+      data-action="bag-item" data-id="${item.id}" data-bagitem="${item.id}">◆<span class="bshort">${item.short}</span></button>`;
+  }).join('');
+  return `<div class="bagbar">${slots}</div>`;
+}
+
+// ---- the grid (IS the lineup) -----------------------------------------------------------------------
+
+const ROW_LABELS = ['START', 'BENCH', 'RES'];
+
+function gridHtml(s: GameState, draggable: boolean): string {
   const t = myTeam(s);
-  const isLineup = s.phase === 'matchup';
   const isPractice = s.phase === 'practice';
-  const row = (ids: (number | null)[], label: string, zone: string): string => {
-    const cells = ids.map((id, i) => {
-      const p = id !== null ? t.players.find((x) => x.id === id) : undefined;
-      return `<div class="gcell ${isLineup ? 'dropzone' : ''}" ${isLineup ? `data-zone="${zone}:${i}"` : ''}>
-        ${p ? playerCard(p, { draggable: isLineup, sitout: isPractice && s.sitouts.includes(p.id) }) : '<div class="pod empty">—</div>'}
+  const colHead = `<div class="colhead"><span class="rowlabel"></span>${COL_LABELS.map((c) => `<span>${c}</span>`).join('')}</div>`;
+  const rows: string[] = [];
+  for (let r = 0; r < 3; r++) {
+    const cells = [0, 1, 2].map((c) => {
+      const idx = r * 3 + c;
+      const p = slotPlayer(t, idx);
+      const mult = p && r < 2 ? slotMult(p, c) : 1;
+      return `<div class="gcell dropzone" data-zone="${idx}">
+        ${p
+          ? playerCard(p, { draggable, sitout: isPractice && s.sitouts.includes(p.id), miscast: Math.round((1 - mult) * 100) })
+          : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');
-    return `<div class="gridrow"><div class="rowlabel">${label}</div>${cells}</div>`;
-  };
-  const resList = reserves(t).sort((a, b) => b.skill - a.skill);
-  const resRows: string[] = [];
-  for (let i = 0; i < Math.max(3, resList.length); i += 3) {
-    const cells = [0, 1, 2].map((j) => {
-      const p = resList[i + j];
-      return `<div class="gcell ${isLineup ? 'dropzone' : ''}" ${isLineup ? 'data-zone="reserves"' : ''}>
-        ${p ? playerCard(p, { draggable: isLineup, sitout: isPractice && s.sitouts.includes(p.id) }) : '<div class="pod empty">—</div>'}
-      </div>`;
-    }).join('');
-    resRows.push(`<div class="gridrow"><div class="rowlabel">${i === 0 ? 'RESERVES' : ''}</div>${cells}</div>`);
+    rows.push(`<div class="gridrow"><div class="rowlabel">${ROW_LABELS[r]}</div>${cells}</div>`);
   }
-  return `<div class="grid">
-    ${row(t.lineup.starters, 'STARTERS', 'starters')}
-    ${row(t.lineup.bench, 'BENCH', 'bench')}
-    ${resRows.join('')}
-  </div>`;
+  return `<div class="grid">${colHead}${rows.join('')}</div>`;
 }
 
 function prospectGridHtml(s: GameState): string {
-  const cells: string[] = [];
-  for (let i = 0; i < 9; i++) {
-    const pr = s.prospects[i];
-    cells.push(`<div class="gcell">${pr ? prospectCard(pr) : '<button class="pod empty scanpod" data-action="scancell">+ SCAN</button>'}</div>`);
-  }
   const rows: string[] = [];
-  for (let i = 0; i < 9; i += 3) {
-    rows.push(`<div class="gridrow"><div class="rowlabel">${i === 0 ? 'PROSPECTS' : ''}</div>${cells.slice(i, i + 3).join('')}</div>`);
+  for (let r = 0; r < 3; r++) {
+    const cells = [0, 1, 2].map((c) => {
+      const pr = s.prospects[r * 3 + c];
+      return `<div class="gcell">${pr ? prospectCard(pr) : '<button class="pod empty scanpod" data-action="scancell">+ SCAN</button>'}</div>`;
+    }).join('');
+    rows.push(`<div class="gridrow"><div class="rowlabel">${r === 0 ? 'BOARD' : ''}</div>${cells}</div>`);
   }
   return `<div class="grid">${rows.join('')}</div>`;
 }
 
-// ---- stages ----------------------------------------------------------------------------------
+// ---- the story takeover (hides grid + fourth row; the bag stays) ------------------------------------
 
-function stageStories(): string {
-  return `<h2>THIS WEEK</h2>`;
+function storyPanel(s: GameState): string {
+  const ev = currentStory(s)!;
+  const p = ev.playerId !== null ? myTeam(s).players.find((x) => x.id === ev.playerId) : undefined;
+  let actions = '';
+  if (storyMode === 'choices' && ev.choices && !ev.resolvedText) {
+    actions = ev.choices
+      .filter((c) => !c.itemId) // items live in THE BAG below — tap or drag them in
+      .map((c) => {
+        const cant = c.cost !== undefined && s.energy < c.cost;
+        return `<button class="wide hold" data-action="story-choice" data-id="${esc(c.key)}" ${cant || c.disabled ? 'disabled' : ''}>
+          ${esc(c.label)}${cant ? ' — NOT ENOUGH ⚡' : ''}<br/>${oddsLine(c.up, c.down, c.cost)}</button>`;
+      }).join('');
+    if (ev.choices.some((c) => c.itemId)) {
+      actions += `<div class="itemhint blink">◆ something in THE BAG could help — tap it below</div>`;
+    }
+  } else if (storyMode === 'result' || (!ev.choices && storyMode !== 'typing')) {
+    actions = '<div class="taphint">▸ tap to continue</div>';
+  }
+  return `<div class="storypanel" data-action="story-tap" id="storypanel">
+    <span class="tag">${esc(ev.tag)}</span>
+    ${p ? `<div class="modalcard">${playerCard(p, { inert: true })}</div>` : ''}
+    <div class="typebox" id="typebox"></div>
+    <div class="modal-actions ${actions ? '' : 'hide'}" id="modal-actions">${actions}</div>
+  </div>`;
 }
 
+// ---- stages (middle content per phase) -----------------------------------------------------------------
+
 function stagePractice(s: GameState): string {
-  const drills = DRILLS.map((d) => {
-    const unlocked = s.unlockedDrills.includes(d.id);
-    if (!unlocked) return `<div class="drill locked">▓▓▓▓ <span class="dim">undiscovered method</span></div>`;
-    const cant = s.energy < d.cost || s.trainedThisWeek;
-    const picking = drillPickOne === d.id;
-    return `<button class="drill hold ${picking ? 'picking' : ''}" data-action="drill" data-id="${d.id}" ${cant ? 'disabled' : ''}>
-      <b>${d.name}</b> ${d.xp[1] > 0 ? `<span class="xpg">+${d.xp[0]}–${d.xp[1]} XP${d.target === 'one' ? ' · ONE PLAYER' : d.target === 'rest' ? '' : ' each'}</span>` : '<span class="xpg">squad ⚡ up</span>'}
-      ${oddsLine(d.up, d.down, d.cost)}
-      <span class="ddesc">${esc(d.desc)}</span>
-    </button>`;
-  }).join('');
-  return `<h2>WHO GETS BETTER THIS WEEK?</h2>
-    ${s.trainedThisWeek
-      ? `<div class="panel report">${esc(s.drillReport ?? 'Practice is done for the week.')}</div>`
-      : drillPickOne
-        ? `<p class="dim blink">TAP THE PLAYER — or tap the drill again to cancel.</p>${drills}`
-        : drills}`;
+  const fourth = s.trainedThisWeek
+    ? `<div class="fourthrow"><div class="report">${esc(s.drillReport ?? 'Practice is done.')}</div></div>`
+    : drillPickOne
+      ? `<div class="fourthrow"><button class="bigctl blink" data-action="drill-cancel">TAP THE PLAYER — or tap here to cancel</button></div>`
+      : `<div class="fourthrow"><button class="bigctl" data-action="drill-sheet">⬆ CHOOSE THE DRILL</button></div>`;
+  return `<h2>WHO GETS BETTER THIS WEEK?</h2>${gridHtml(s, true)}${fourth}`;
 }
 
 function stageGalaxy(s: GameState): string {
   return `<h2>WHO JOINS NEXT SEASON?</h2>
-    ${s.groundedWeeks > 0 ? `<p class="blink">SHIP GROUNDED ${s.groundedWeeks}w — home scans only.</p>` : ''}`;
-}
-
-function planWheel(s: GameState): string {
-  const hint = oppPlanHint(s);
-  const t = myTeam(s);
-  return `<div class="wheel">${PLANS.map((pl) => {
-    const fit = planFit(t, pl.id);
-    const sel = s.plan === pl.id;
-    let vs = '';
-    if (hint) {
-      if (pl.beats === hint) vs = '<span class="tail up">▲ beats theirs</span>';
-      else if (planById(hint).beats === pl.id) vs = '<span class="tail down">▼ loses to theirs</span>';
-      else vs = '<span class="dim">· even</span>';
-    }
-    return `<button class="planbtn ${sel ? 'sel' : ''}" data-action="plan" data-id="${pl.id}">
-      <b>${pl.name}</b> <span class="dim">${POLE_LABEL[pl.pole]}</span><br/>
-      <span class="fitbar"><span class="fitfill" style="width:${fit}%;background:${vc(fit)}"></span></span> <span style="color:${vc(fit)}">${fit}</span>
-      ${vs}<br/><span class="ddesc">${esc(pl.fantasy)}</span>
-    </button>`;
-  }).join('')}</div>`;
-}
-
-function oppBlob(s: GameState): string {
-  if (isUtWeek(s)) {
-    const c = utOpponent(s);
-    if (!c) return '';
-    return `<div class="opppanel">
-      ${chip(c.name, c.bg, c.fg)} <span class="dim">${esc(c.gimmick)}</span>
-      <div class="blobrow"><div class="compass full">
-        <span class="pole n">FIERCE</span><span class="pole s">SAVVY</span><span class="pole w">S<br/>T<br/>R</span><span class="pole e">Q<br/>C<br/>K</span>
-        <span class="axis h"></span><span class="axis v"></span>
-        ${c.dots.map((d) => `<span class="dot" style="left:${d.build}%;top:${d.head}%"></span>`).join('')}
-      </div>
-      <div class="dim">Scout's read: they live in <b>${planById(c.plan).name}</b>.</div></div>
-    </div>`;
-  }
-  const m = myMatchup(s);
-  if (!m) return '';
-  const opp = m.opponent;
-  const st = starters(opp);
-  const hint = oppPlanHint(s);
-  return `<div class="opppanel">
-    ${chip(teamLabel(opp), opp.bg, opp.fg)} <b>${opp.wins}–${opp.losses}</b> <span class="dim">${m.home ? 'they come to YOUR planet' : 'AWAY — a voyage'}</span>
-    <div class="blobrow">
-      <div class="compass full ${s.scoutedOpp ? '' : 'fuzzy1'}">
-        <span class="pole n">FIERCE</span><span class="pole s">SAVVY</span><span class="pole w">S<br/>T<br/>R</span><span class="pole e">Q<br/>C<br/>K</span>
-        <span class="axis h"></span><span class="axis v"></span>
-        ${st.map((p) => `<span class="dot" style="left:${p.build}%;top:${p.head}%"></span>`).join('')}
-      </div>
-      <div>${s.scoutedOpp
-        ? `<div>Their likely plan: <b>${hint ? planById(hint).name : '?'}</b></div>`
-        : `<button class="hold" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT THEM (1⚡) ${oddsLine({ pct: 50, cls: 'INTEL' }, { pct: 2, cls: 'DRAIN' })}</button>`}
-      </div>
-    </div>
-  </div>`;
+    ${prospectGridHtml(s)}
+    <div class="fourthrow">${s.groundedWeeks > 0 ? `<div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — home scans only</div>` : `<div class="report dim">tap a prospect · tap an empty slot to scan</div>`}</div>`;
 }
 
 function stageMatchup(s: GameState): string {
   const m = winMeter(s);
+  const hint = oppPlanHint(s);
+  let oppBit: string;
+  if (isUtWeek(s)) {
+    const c = utOpponent(s)!;
+    oppBit = `${chip(c.name, c.bg, c.fg, true)} <span class="dim">${esc(c.gimmick)}</span> · they live in <b>${planById(c.plan).name}</b>`;
+  } else {
+    const mu = myMatchup(s)!;
+    oppBit = `${chip(mu.opponent.name, mu.opponent.bg, mu.opponent.fg, true)} <b>${mu.opponent.wins}–${mu.opponent.losses}</b> ${mu.home ? 'HOME' : 'AWAY'}
+      ${s.scoutedOpp
+        ? `· they'll come out in <b>${hint ? planById(hint).name : '?'}</b>`
+        : `<button class="hold scoutbtn" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT 1⚡</button>`}`;
+  }
   const meter = m
-    ? `<div class="bigmeter"><span class="dim">UPCOMING:</span>
-        <span class="meterval" data-meter="${m.exact ? m.lo : Math.round((m.lo + m.hi) / 2)}" style="color:${vc(m.exact ? m.lo : (m.lo + m.hi) / 2)}">${m.exact ? `${m.lo}%` : `${m.lo}–${m.hi}%`}</span>
-        <span class="dim">chance of winning</span></div>`
+    ? `<span class="bigval" style="color:${vc(m.exact ? m.lo : (m.lo + m.hi) / 2)}">${m.exact ? `${m.lo}%` : `${m.lo}–${m.hi}%`}</span>`
     : '';
-  return `<h2>HOW DO WE BEAT THIS TEAM?</h2>
-    ${meter}
-    ${oppBlob(s)}
-    ${planWheel(s)}`;
+  const plans = PLANS.map((pl) => {
+    const fit = planFit(myTeam(s), pl.id);
+    let vs = '';
+    if (hint) {
+      if (pl.beats === hint) vs = ' ▲';
+      else if (planById(hint).beats === pl.id) vs = ' ▼';
+    }
+    return `<button class="planchip ${s.plan === pl.id ? 'sel' : ''}" data-action="plan" data-id="${pl.id}">
+      <b>${pl.name}</b>${vs}<br/><span style="color:${vc(fit)}">${fit}</span></button>`;
+  }).join('');
+  return `<div class="mustrip"><span class="muq">HOW DO WE BEAT THEM?</span> ${meter}<div class="oppbit">${oppBit}</div></div>
+    ${gridHtml(s, true)}
+    <div class="fourthrow planrow">${plans}</div>`;
 }
 
 function stageGamenight(s: GameState): string {
   if (!s.lastResult) {
-    return `<h2>GAME NIGHT</h2><p class="dim">The shuttle hums. The story continues...</p>`;
+    return `<h2>GAME NIGHT</h2><div class="report dim">The shuttle hums...</div>`;
   }
   const r = s.lastResult;
-  if (!gnShown) {
+  if (gnStage === 'beat') {
     return `<div id="progress-wrap">
       <div id="progress-label">Tip-off...</div>
       <div class="bar"><div class="fill" id="progress-fill"></div></div>
-      <button data-action="skip-progress">SKIP</button>
     </div>`;
   }
+  if (gnStage === 'verdict') {
+    return `<h2 class="${r.win ? 'won' : 'lost'}">${r.win ? 'VICTORY' : 'DEFEAT'} ${r.myScore}–${r.oppScore}</h2>
+      <div class="verdict">
+        <div class="vline">${esc(r.wheelLine)}</div>
+        <div class="vline">${esc(r.heroLine)}</div>
+        <div class="vline dim">${esc(r.boxLine)}</div>
+      </div>
+      ${gridHtml(s, true)}`;
+  }
   const table = !isUtWeek(s)
-    ? `<h2>WHERE DO WE STAND?</h2><table class="standings">${sortedStandings(s)
+    ? `<table class="standings">${sortedStandings(s)
         .map((t, i) => `<tr class="${t.id === s.myTeamId ? 'me' : ''}">
-          <td>${i + 1}. ${chip(teamLabel(t), t.bg, t.fg, true)}</td><td class="num">${t.wins}–${t.losses}</td></tr>
+          <td>${i + 1}. ${chip(t.name, t.bg, t.fg, true)}</td><td class="num">${t.wins}–${t.losses}</td></tr>
           ${i === 0 ? '<tr class="utline"><td colspan="2">▲ THE UNIVERSAL TOURNAMENT ▲</td></tr>' : ''}`)
         .join('')}</table>`
-    : `<div class="panel">${(s.ut?.log ?? []).map((l) => `<div>${esc(l)}</div>`).join('')}</div>`;
+    : `<div class="report">${(s.ut?.log ?? []).map((l) => `<div>${esc(l)}</div>`).join('')}</div>`;
   const others = s.resultsLog.length
-    ? `<div class="panel dim">${s.resultsLog.map((l) => `<div>${esc(l)}</div>`).join('')}</div>`
+    ? `<div class="report dim">${s.resultsLog.map((l) => `<div>${esc(l)}</div>`).join('')}</div>`
     : '';
-  return `<h2 class="${r.win ? 'won' : 'lost'}">${r.win ? 'VICTORY' : 'DEFEAT'} — ${r.myScore}–${r.oppScore} <span class="dim">vs ${esc(r.oppName)}</span></h2>
-    <div class="verdict">
-      <div class="vline">${esc(r.wheelLine)}</div>
-      <div class="vline">${esc(r.heroLine)}</div>
-      <div class="vline dim">${esc(r.boxLine)}</div>
-    </div>
-    ${others}
-    ${table}`;
+  return `<h2>WHERE DO WE STAND?</h2>${table}${others}`;
 }
 
-// ---- full-screen views -----------------------------------------------------------------------
+// ---- full views in the same frame ----------------------------------------------------------------------
 
-function viewPickTeam(s: GameState): string {
-  const cards = s.teams.map((t) => {
-    const avg = Math.round(t.players.reduce((a, p) => a + p.skill, 0) / t.players.length);
-    return `<button class="teampickbtn" data-action="pick-team" data-id="${t.id}" style="background:${t.bg};color:${t.fg}">
-      <b>${esc(teamLabel(t))}</b><br/><span>${esc(t.region)} · avg skill ${avg}</span></button>`;
-  }).join('');
-  return `<h1>GALACTIC COACH</h1>
-    <p class="sub">Intergalactic college basketball. 3-on-3. Every choice has two tails.</p>
-    <h2>CHOOSE YOUR PROGRAM</h2>
-    <div class="teampick">${cards}</div>`;
-}
-
-function viewTeamSelect(s: GameState): string {
+function stageTeamSelect(s: GameState): string {
   if (poolSelected === null) {
     poolSelected = new Set(
       [...s.selectPool].filter((p) => !p.walkOn).sort((a, b) => b.skill - a.skill).slice(0, ROSTER_SIZE).map((p) => p.id)
     );
   }
-  const results = s.signingResults.map((r) => `<div>${esc(r)}</div>`).join('');
   const returning = new Set(myTeam(s).players.map((p) => p.id));
   const commits = new Set(s.commits.map((p) => p.id));
-  const cards = [...s.selectPool]
-    .sort((a, b) => b.skill - a.skill)
-    .map((p) => {
-      const tag = returning.has(p.id) ? 'RETURNER' : commits.has(p.id) ? 'RECRUIT ✓' : 'WALK-ON';
-      const on = poolSelected!.has(p.id);
-      return playerCard(p, {
-        tag,
-        kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT,
-        footer: `<button class="pickbtn ${on ? 'on' : ''}" data-action="pool" data-id="${p.id}">${on ? '☑ ON THE SQUAD' : '☐ PICK'}</button>`,
-      });
-    })
-    .join('');
+  const sorted = [...s.selectPool].sort((a, b) => b.skill - a.skill);
+  const rows: string[] = [];
+  for (let r = 0; r < Math.ceil(sorted.length / 3); r++) {
+    const cells = sorted.slice(r * 3, r * 3 + 3).map((p) => {
+      const tag = returning.has(p.id) ? 'RETURNER' : commits.has(p.id) ? 'RECRUIT' : 'WALK-ON';
+      return `<div class="gcell">${playerCard(p, { tag, stars: true, pick: poolSelected!.has(p.id), kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT })}</div>`;
+    }).join('');
+    rows.push(`<div class="gridrow"><div class="rowlabel"></div>${cells}</div>`);
+  }
   const n = poolSelected.size;
-  return `${headerHtml(s)}<div class="screen">
-    ${results ? `<div class="panel report">${results}</div>` : ''}
-    <h2>${s.season === 0 ? 'TRYOUTS' : 'PICK YOUR SQUAD'} — choose ${ROSTER_SIZE} (${n}/${ROSTER_SIZE})</h2>
-    <div class="cardshelf">${cards}</div></div>
-    <div class="navbar"><span></span><button class="primary hold" data-action="confirm-roster" ${n === ROSTER_SIZE ? '' : 'disabled'}>
-      ${n === ROSTER_SIZE ? '▶ START THE SEASON' : `SELECT EXACTLY ${ROSTER_SIZE}`}</button></div>`;
+  const results = s.signingResults.length
+    ? `<div class="report">${s.signingResults.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`
+    : '';
+  return `<h2>${s.season === 0 ? 'TRYOUTS' : 'PICK YOUR SQUAD'} — ${n}/${ROSTER_SIZE}</h2>${results}<div class="grid">${rows.join('')}</div>`;
 }
 
-function viewDepartures(s: GameState): string {
+function stageDepartures(s: GameState): string {
   const notes = s.seasonNotes.map((x) => `<div>${esc(x)}</div>`).join('');
-  const unresolved = s.proDeparts.filter((d) => !d.resolved);
   const pros = s.proDeparts.length
-    ? `<div class="panel"><b>GOING PRO</b><br/>${s.proDeparts.map((d) => {
+    ? s.proDeparts.map((d) => {
         if (d.resolved) return `<div class="propane">${esc(d.note)}</div>`;
         const p = myTeam(s).players.find((x) => x.id === d.playerId);
         const chance = p ? clamp(15 + (p.mood - 40), 10, 80) : 15;
-        return `<div class="propane">${esc(d.name)} has pro scouts in his dorm lobby. One conversation.
-          <button class="hold" data-action="convince-pro" data-id="${d.playerId}">TALK HIM INTO STAYING ${oddsLine({ pct: chance as 2, cls: 'SPIRIT' }, { pct: (100 - chance) as 2, cls: 'DRAMA' })}</button>
-          <button class="hold" data-action="letgo-pro" data-id="${d.playerId}">SHAKE HIS HAND</button></div>`;
-      }).join('')}</div>`
+        return `<div class="propane"><b>${esc(d.name)}</b> has pro scouts in his dorm lobby.
+          <button class="hold" data-action="convince-pro" data-id="${d.playerId}">KEEP HIM ${oddsLine({ pct: chance as 2, cls: 'SPIRIT' }, { pct: (100 - chance) as 2, cls: 'DRAMA' })}</button>
+          <button class="hold" data-action="letgo-pro" data-id="${d.playerId}">LET HIM FLY</button></div>`;
+      }).join('')
     : '';
-  return `${headerHtml(s)}<div class="screen">
-    <h2>SEASON ${s.season} — THE RECKONING</h2>
-    <div class="panel report">${notes}</div>
+  return `<h2>SEASON ${s.season} — THE RECKONING</h2>
+    <div class="report">${notes}</div>
     ${pros}
-    <div class="panel"><b>LEGACY: <span style="color:${vc(clamp(s.legacy, 0, 100))}">${s.legacy}</span></b>
-      <span class="dim">· ${s.trophies}🏆 · ${s.utTitles} Universal title${s.utTitles === 1 ? '' : 's'} · ${s.totalWins} career wins</span><br/>
-      <span class="dim">Walk away now and the high-score table remembers you kindly. Or keep coaching.</span><br/>
-      <button class="hold danger" data-action="retire">🏁 RETIRE — LOCK IN YOUR LEGACY</button></div>
-    </div>
-    <div class="navbar"><span></span><button class="primary" data-action="to-signing" ${unresolved.length || s.queue.length ? 'disabled' : ''}>
-      ${unresolved.length ? 'DEAL WITH YOUR STARS FIRST' : 'ON TO SIGNING DAY ▶'}</button></div>`;
+    <div class="report">LEGACY <b style="color:${vc(clamp(s.legacy, 0, 100))}">${s.legacy}</b>
+      <span class="dim">· ${s.trophies}🏆 · ${s.utTitles} UT · ${s.totalWins}W</span><br/>
+      <button class="hold danger" data-action="retire">🏁 RETIRE — LOCK IN YOUR LEGACY</button></div>`;
 }
 
-function viewSigning(s: GameState): string {
+function stageSigning(s: GameState): string {
   const chances = effectiveChances(s);
   const rows = [...s.prospects]
     .sort((a, b) => b.commitPct - a.commitPct)
     .map((pr) => {
       const eff = chances.find((c) => c.prospect.id === pr.id);
       return `<tr>
-        <td><button data-action="pursue" data-id="${pr.id}">${pr.selected ? '☑ SIGNING' : '☐ sign him'}</button></td>
+        <td><button class="signbtn" data-action="pursue" data-id="${pr.id}">${pr.selected ? '☑' : '☐'}</button></td>
         <td>${esc(pr.name)}</td>
-        <td>${starStr(pr.seenSkillStar)} <span class="dim">pot</span> ${starStr(pr.seenPotStar)}</td>
+        <td class="starcell">${starStr(pr.seenSkillStar)}<br/><span class="dim">${starStr(pr.seenPotStar)}</span></td>
         <td class="num" style="color:${vc(pr.commitPct)}">${pr.commitPct}%</td>
-        <td class="num">${pr.selected && eff ? `<b style="color:${vc(eff.pct)}">→ ${eff.pct}%</b>` : ''}</td>
+        <td class="num">${pr.selected && eff ? `<b style="color:${vc(eff.pct)}">→${eff.pct}%</b>` : ''}</td>
       </tr>`;
     })
     .join('');
-  return `${headerHtml(s)}<div class="screen">
-    <h2>SIGNING DAY — WHO GETS A LETTER?</h2>
-    <table><tr><th></th><th>Prospect</th><th>Stars</th><th class="num">Commit</th><th class="num">Odds</th></tr>
-    ${rows || '<tr><td colspan="5" class="dim">You scouted nobody this season. Enjoy the walk-ons.</td></tr>'}</table></div>
-    <div class="navbar"><span></span><button class="primary hold" data-action="do-signing">▶ SEND THE LETTERS</button></div>`;
+  return `<h2>WHO GETS A LETTER?</h2>
+    <table>${rows || '<tr><td class="dim">You scouted nobody. Enjoy the walk-ons.</td></tr>'}</table>`;
 }
 
-function viewGrowth(s: GameState): string {
-  return `${headerHtml(s)}<div class="screen">
-    <h2>THE OFFSEASON DOES ITS WORK</h2>
-    <div class="panel report">${s.seasonNotes.map((x) => `<div>${esc(x)}</div>`).join('')}</div></div>
-    <div class="navbar"><span></span><button class="primary hold" data-action="new-season">▶ SEASON ${s.season + 1}</button></div>`;
+function stageGrowth(s: GameState): string {
+  return `<h2>THE OFFSEASON DOES ITS WORK</h2>
+    <div class="report">${s.seasonNotes.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`;
 }
 
-function viewGameover(s: GameState): string {
+function stageGameover(s: GameState): string {
   const e = s.end!;
-  return `<div class="screen tombstone">
+  return `<div class="tombstone">
     <h1 class="blink">${esc(e.cause)}</h1>
     <p class="sub">${esc(e.text)}</p>
-    <div class="panel">
-      <div>SEASONS COACHED: <b>${s.season}</b></div>
-      <div>LEGACY: <b style="color:${vc(clamp(s.legacy, 0, 100))}">${s.legacy}</b></div>
-      <div>TROPHIES: <b>${s.trophies}</b> · UNIVERSAL TITLES: <b>${s.utTitles}</b> · WINS: <b>${s.totalWins}</b></div>
+    <div class="report">
+      <div>SEASONS <b>${s.season}</b> · LEGACY <b style="color:${vc(clamp(s.legacy, 0, 100))}">${s.legacy}</b></div>
+      <div>${s.trophies}🏆 · ${s.utTitles} UNIVERSAL · ${s.totalWins} WINS</div>
     </div>
-    ${s.careerLog.length ? `<div class="panel dim">${s.careerLog.map((l) => `<div>${esc(l)}</div>`).join('')}</div>` : ''}
-    <button class="primary hold" data-action="new-game-direct">▶ NEW GAME</button>
+    ${s.careerLog.length ? `<div class="report dim">${s.careerLog.slice(-8).map((l) => `<div>${esc(l)}</div>`).join('')}</div>` : ''}
   </div>`;
 }
 
-// ---- modals ------------------------------------------------------------------------------------
+function stagePickTeam(s: GameState): string {
+  const cards = s.teams.map((t) => {
+    const avg = Math.round(t.players.reduce((a, p) => a + p.skill, 0) / t.players.length);
+    return `<button class="teampickbtn" data-action="pick-team" data-id="${t.id}" style="background:${t.bg};color:${t.fg}">
+      <b>${esc(teamLabel(t))}</b><br/><span>${esc(t.region)} · avg skill ${avg}</span></button>`;
+  }).join('');
+  return `<h1>GALACTIC COACH</h1>
+    <p class="sub">3-on-3. Every choice has two tails.</p>
+    <div class="teampick">${cards}</div>`;
+}
 
-function storyModalHtml(s: GameState): string {
-  const ev = currentStory(s);
-  if (!ev) return '';
-  const p = ev.playerId !== null ? myTeam(s).players.find((x) => x.id === ev.playerId) : undefined;
-  let actions = '';
-  if (storyMode === 'choices' && ev.choices && !ev.resolvedText) {
-    actions = ev.choices.map((c) => {
-      const cant = c.cost !== undefined && s.energy < c.cost;
-      return `<button class="wide hold ${c.itemId ? 'itembtn' : ''}" data-action="story-choice" data-id="${esc(c.key)}" ${cant || c.disabled ? 'disabled' : ''}>
-        ${esc(c.label)}${cant ? ' — NOT ENOUGH ⚡' : ''}<br/>${oddsLine(c.up, c.down, c.cost)}</button>`;
-    }).join('');
-  } else if (storyMode === 'result' || (!ev.choices && storyMode !== 'typing')) {
-    actions = '<div class="taphint">▸ tap to continue</div>';
+// ---- nav (always there) ------------------------------------------------------------------------------------
+
+function nav(s: GameState): string {
+  if (currentStory(s)) return `<span class="navnote dim">the galaxy is talking…</span>`;
+  switch (s.phase) {
+    case 'pickTeam':
+      return `<span class="navnote dim">choose your program above</span>`;
+    case 'teamSelect':
+      return `<span></span><button class="primary hold" data-action="confirm-roster" ${poolSelected?.size === ROSTER_SIZE ? '' : 'disabled'}>
+        ${poolSelected?.size === ROSTER_SIZE ? '▶ START' : `PICK ${ROSTER_SIZE}`}</button>`;
+    case 'practice':
+      return `<span></span><button class="primary" data-action="to-galaxy">CONTINUE ▶</button>`;
+    case 'galaxy':
+      return `<button data-action="to-practice">◀</button><button class="primary" data-action="to-matchup">CONTINUE ▶</button>`;
+    case 'matchup':
+      return `${isUtWeek(s) ? '<span></span>' : '<button data-action="to-galaxy">◀</button>'}
+        <button class="primary hold" data-action="play-game">▶ PLAY</button>`;
+    case 'gamenight': {
+      if (!s.lastResult || gnStage === 'beat') return `<span class="navnote dim">…</span>`;
+      if (gnStage === 'verdict') return `<span></span><button class="primary" data-action="gn-table">CONTINUE ▶</button>`;
+      return `<span></span><button class="primary" data-action="continue-result">NEXT WEEK ▶</button>`;
+    }
+    case 'departures': {
+      const unresolved = s.proDeparts.some((d) => !d.resolved);
+      return `<span></span><button class="primary" data-action="to-signing" ${unresolved ? 'disabled' : ''}>
+        ${unresolved ? 'YOUR STARS FIRST' : 'SIGNING DAY ▶'}</button>`;
+    }
+    case 'signing':
+      return `<span></span><button class="primary hold" data-action="do-signing">▶ SEND THE LETTERS</button>`;
+    case 'growth':
+      return `<span></span><button class="primary hold" data-action="new-season">▶ SEASON ${s.season + 1}</button>`;
+    case 'gameover':
+      return `<span></span><button class="primary hold" data-action="new-game-direct">▶ NEW GAME</button>`;
+    default:
+      return '';
   }
-  return `<div class="modalback"><div class="modal" data-action="story-tap">
-    <span class="tag">${esc(ev.tag)}</span>
-    ${p ? `<div class="modalcard">${playerCard(p, { size: 'full', inert: true })}</div>` : ''}
-    <div class="typebox" id="typebox"></div>
-    <div class="modal-actions ${actions ? '' : 'hide'}" id="modal-actions">${actions}</div>
+}
+
+// ---- overlays --------------------------------------------------------------------------------------------------
+
+function drillSheetHtml(s: GameState): string {
+  if (!drillSheet) return '';
+  const drills = DRILLS.map((d) => {
+    const unlocked = s.unlockedDrills.includes(d.id);
+    if (!unlocked) return `<div class="drill locked">▓▓▓▓ <span class="dim">undiscovered method</span></div>`;
+    const cant = s.energy < d.cost || s.trainedThisWeek;
+    return `<button class="drill hold" data-action="drill" data-id="${d.id}" ${cant ? 'disabled' : ''}>
+      <b>${d.name}</b> ${d.xp[1] > 0 ? `<span class="xpg">+${d.xp[0]}–${d.xp[1]} XP${d.target === 'one' ? ' · ONE PLAYER' : ''}</span>` : '<span class="xpg">squad ⚡ up</span>'}
+      ${oddsLine(d.up, d.down, d.cost)}<br/><span class="ddesc">${esc(d.desc)}</span>
+    </button>`;
+  }).join('');
+  return `<div class="modalback sheet" data-action="drill-sheet-close"><div class="modal sheetup">
+    <span class="tag">THE DRILL — hold to run it</span>
+    ${drills}
   </div></div>`;
 }
 
-function bagModalHtml(s: GameState): string {
-  if (!bagOpen) return '';
-  const slots = Array.from({ length: BAG_SIZE }, (_, i) => {
-    const id = s.bag[i];
-    if (!id) return '<div class="itemcard empty">— empty slot —</div>';
-    const item = itemById(id);
-    const spent = item.rarity === 'legendary' && s.legendariesUsed.includes(item.id);
-    const ctxOk = ['practice', 'matchup', 'galaxy', 'stories'].includes(s.phase);
-    return `<div class="itemcard ${item.rarity}">
+function itemModalHtml(s: GameState): string {
+  if (!itemUi) return '';
+  const item = itemById(itemUi);
+  const spent = item.rarity === 'legendary' && s.legendariesUsed.includes(item.id);
+  const ev = currentStory(s);
+  const storyKey = ev?.choices?.find((c) => c.itemId === item.id && !ev.resolvedText)?.key ?? null;
+  const phaseOk = !ev && ['practice', 'matchup', 'galaxy'].includes(s.phase);
+  const usable = !spent && (storyKey !== null || phaseOk);
+  return `<div class="modalback" data-action="item-close"><div class="modal">
+    <div class="itemcard ${item.rarity}">
       <b>◆ ${esc(item.name)}</b> <span class="dim">${item.rarity}${item.rarity === 'legendary' ? ' · once/season' : ''}</span><br/>
       <i class="dim">${esc(item.flavor)}</i><br/>
       ${esc(item.effectText)}<br/>${oddsLine(item.up, item.down)}
-      <span class="dim">plays: ${item.context.join(', ')}</span><br/>
-      <button class="hold" data-action="use-item" data-id="${item.id}" ${spent || !ctxOk ? 'disabled' : ''}>
-        ${spent ? 'USED THIS SEASON' : 'USE NOW'}</button>
-    </div>`;
-  }).join('');
-  return `<div class="modalback"><div class="modal">
-    <span class="tag">THE BAG — ${s.bag.length}/${BAG_SIZE}</span>
-    ${slots}
-    <button class="wide" data-action="bag-close">CLOSE</button>
+    </div>
+    <button class="wide hold" data-action="use-item" data-id="${item.id}" ${usable ? '' : 'disabled'}>
+      ${spent ? 'USED THIS SEASON' : storyKey ? '◆ USE IT ON THIS STORY' : usable ? 'USE NOW' : 'NOT THE MOMENT'}</button>
+    <button class="wide" data-action="item-close">CLOSE</button>
   </div></div>`;
 }
 
 function coachModalHtml(s: GameState): string {
   if (!coachOpen) return '';
   const drills = DRILLS.map((d) =>
-    s.unlockedDrills.includes(d.id)
-      ? `<div>✓ ${d.name}</div>`
-      : `<div class="dim">▓▓▓ undiscovered</div>`
+    s.unlockedDrills.includes(d.id) ? `<div>✓ ${d.name}</div>` : `<div class="dim">▓▓▓ undiscovered</div>`
   ).join('');
   const regions = SCAN_REGIONS.map((r) =>
     s.unlockedRegions.includes(r.id) ? `<div>✓ ${r.name}</div>` : `<div class="dim">▓▓▓ uncharted</div>`
   ).join('');
   return `<div class="modalback"><div class="modal">
     <span class="tag">THE COACH</span>
-    <div class="panel"><b>LEGACY <span style="color:${vc(clamp(s.legacy, 0, 100))}">${s.legacy}</span></b>
-      · ${s.trophies}🏆 · ${s.utTitles} Universal · ${s.totalWins} wins · season ${s.season}${s.season >= 20 ? ' <span class="blink">— you feel the years</span>' : ''}</div>
-    <div class="panel"><b>THE HOT SEAT</b><br/>${hotSeatBar(s)}
-      <span class="dim">School heat ${s.heatS} · booster heat ${s.heatB}. A side at 50 interferes. Combined 75+: the SUMMONS.</span></div>
-    <div class="panel"><b>KNOWLEDGE — drills</b>${drills}</div>
-    <div class="panel"><b>KNOWLEDGE — scan regions</b>${regions}</div>
-    ${s.careerLog.length ? `<div class="panel dim">${s.careerLog.map((l) => `<div>${esc(l)}</div>`).join('')}</div>` : ''}
+    <div class="report">LEGACY <b style="color:${vc(clamp(s.legacy, 0, 100))}">${s.legacy}</b>
+      · ${s.trophies}🏆 · ${s.utTitles} UT · ${s.totalWins}W · season ${s.season}${s.season >= 20 ? ' <span class="blink">— you feel the years</span>' : ''}</div>
+    <div class="report"><b>KNOWLEDGE</b>${drills}${regions}</div>
+    <button class="wide" data-action="toggle-tips">ASSISTANT AUTO-TIPS: ${s.tipsAuto ? 'ON' : 'OFF'}</button>
     <p class="dim">GALACTIC COACH ${VERSION}</p>
     <button class="wide danger hold" data-action="new-game">NEW GAME (wipes this save)</button>
     <button class="wide" data-action="coach-close">CLOSE</button>
@@ -769,23 +741,20 @@ function prospectModalHtml(s: GameState): string {
       <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap to continue</div></div>
     </div></div>`;
   }
-  const scoutActs = PROSPECT_ACTS.filter((a) => a.kind === 'scout');
-  const recruitActs = PROSPECT_ACTS.filter((a) => a.kind === 'recruit');
   const actBtn = (a: (typeof PROSPECT_ACTS)[number]): string => {
     const banned = a.kind === 'recruit' && pr.bannedWeeks > 0;
     const known = a.kind === 'scout' && pr.scoutLevel >= 2;
     return `<button class="wide hold" data-action="prospect-act" data-id="${a.id}" ${s.energy < a.cost || banned || known ? 'disabled' : ''}>
-      <b>${a.name}</b>${a.gain ? ` <span class="xpg">+${a.gain[0]}–${a.gain[1]}%</span>` : ''}${known ? ' — YOU KNOW HIM' : ''}
-      ${oddsLine(a.up, a.down, a.cost)}<br/><span class="ddesc">${esc(a.desc)}</span></button>`;
+      <b>${a.name}</b>${a.gain ? ` <span class="xpg">+${a.gain[0]}–${a.gain[1]}%</span>` : ''}${known ? ' — KNOWN' : ''}
+      ${oddsLine(a.up, a.down, a.cost)}</button>`;
   };
   return `<div class="modalback"><div class="modal">
-    <span class="tag">${esc(pr.name)} — ${pr.scoutLevel === 0 ? 'A RUMOR' : pr.scoutLevel === 1 ? 'ONE LOOK TAKEN' : 'KNOWN'}</span>
-    <div class="modalcard">${prospectCard(pr, true)}</div>
-    <p class="dim">${esc(pr.blurb)} <i>(${esc(speciesById(pr.speciesId).desc)})</i></p>
-    ${pr.bannedWeeks > 0 ? `<p class="blink">NO CONTACT ORDER — ${pr.bannedWeeks} more week${pr.bannedWeeks === 1 ? '' : 's'}.</p>` : ''}
-    <div class="acthead">SCOUT — know him</div>${scoutActs.map(actBtn).join('')}
-    <div class="acthead">RECRUIT — want him</div>${recruitActs.map(actBtn).join('')}
-    <button class="wide hold" data-action="prospect-drop">✕ DROP HIM FROM THE BOARD</button>
+    <span class="tag">${esc(pr.name)} — ${pr.scoutLevel === 0 ? 'A RUMOR' : pr.scoutLevel === 1 ? 'ONE LOOK' : 'KNOWN'}</span>
+    <div class="modalcard">${prospectCard(pr)}</div>
+    <p class="dim">${esc(pr.blurb)}</p>
+    <div class="acthead">SCOUT — know him</div>${PROSPECT_ACTS.filter((a) => a.kind === 'scout').map(actBtn).join('')}
+    <div class="acthead">RECRUIT — want him</div>${PROSPECT_ACTS.filter((a) => a.kind === 'recruit').map(actBtn).join('')}
+    <button class="wide hold" data-action="prospect-drop">✕ DROP HIM</button>
     <button class="wide" data-action="prospect-close">CLOSE</button>
   </div></div>`;
 }
@@ -829,50 +798,18 @@ function detailModalHtml(s: GameState): string {
   const sp = speciesById(p.speciesId);
   return `<div class="modalback" data-action="close-detail"><div class="modal">
     <span class="tag">#${p.jersey} ${esc(p.name)}</span>
-    <div class="modalcard">${playerCard(p, { size: 'full', inert: true })}</div>
+    <div class="modalcard">${playerCard(p, { full: true, inert: true })}</div>
     <div class="dim">${esc(sp.name)} (tier ${sp.tier}) — ${esc(sp.desc)}</div>
-    <div>Leans: ${(['strong', 'quick', 'fierce', 'savvy'] as const)
+    <div>${(['strong', 'quick', 'fierce', 'savvy'] as const)
       .filter((pl) => lean(p, pl) > 5)
       .map((pl) => `${POLE_LABEL[pl]} <b style="color:${vc(lean(p, pl))}">${Math.round(lean(p, pl))}</b>${effLean(p, pl) < lean(p, pl) - 4 ? ` <span class="dim">(now ${Math.round(effLean(p, pl))})</span>` : ''}`)
       .join(' · ') || 'dead center — a blank slate'}</div>
-    <div class="dim">Level ${p.level}/${LEVEL_CAP} · XP ${p.xp}/${p.level >= LEVEL_CAP ? '—' : xpNeed(p.level)} · potential ${starStr(star(p.potential))}</div>
+    <div class="dim">Level ${p.level}/${LEVEL_CAP} · XP ${p.xp}/${p.level >= LEVEL_CAP ? '—' : xpNeed(p.level)}${p.outWeeks > 0 ? ` · <b>OUT ${p.outWeeks}w — ${esc(p.outReason)}</b>` : ''}</div>
     <button class="wide" data-action="close-detail">CLOSE</button>
   </div></div>`;
 }
 
-// ---- nav ---------------------------------------------------------------------------------------
-
-function nav(s: GameState): string {
-  switch (s.phase) {
-    case 'stories':
-      return `<span class="dim">answer the week...</span><span></span>`;
-    case 'practice':
-      return `<span></span><button class="primary" data-action="to-galaxy">CONTINUE ▶</button>`;
-    case 'galaxy':
-      return `<button data-action="to-practice">◀ BACK</button><button class="primary" data-action="to-matchup">CONTINUE ▶</button>`;
-    case 'matchup':
-      return `${isUtWeek(s) ? '<span></span>' : '<button data-action="to-galaxy">◀ BACK</button>'}
-        <button class="primary hold" data-action="play-game">▶ PLAY THE GAME</button>`;
-    case 'gamenight': {
-      const blocked = !gnShown || s.queue.length > 0;
-      return `<span></span><button class="primary" data-action="continue-result" ${blocked ? 'disabled' : ''}>CONTINUE ▶</button>`;
-    }
-    default:
-      return '';
-  }
-}
-
-// ---- shell & render -------------------------------------------------------------------------------
-
-function shell(s: GameState, stage: string): string {
-  const grid = s.phase === 'galaxy' ? prospectGridHtml(s) : gridHtml(s);
-  return `${headerHtml(s)}
-    <div class="screen" id="screen">
-      <div class="stage">${stage}</div>
-      ${grid}
-    </div>
-    <div class="navbar">${nav(s)}</div>`;
-}
+// ---- render ------------------------------------------------------------------------------------------------
 
 function render(): void {
   if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
@@ -885,22 +822,30 @@ function render(): void {
     storyMode = 'typing';
   }
 
-  let html = '';
-  switch (state.phase) {
-    case 'pickTeam': html = viewPickTeam(state); break;
-    case 'teamSelect': html = viewTeamSelect(state); break;
-    case 'departures': html = viewDepartures(state); break;
-    case 'signing': html = viewSigning(state); break;
-    case 'growth': html = viewGrowth(state); break;
-    case 'gameover': html = viewGameover(state); break;
-    case 'stories': html = shell(state, stageStories()); break;
-    case 'practice': html = shell(state, stagePractice(state)); break;
-    case 'galaxy': html = shell(state, stageGalaxy(state)); break;
-    case 'matchup': html = shell(state, stageMatchup(state)); break;
-    case 'gamenight': html = shell(state, stageGamenight(state)); break;
+  let middle: string;
+  const takeover = ev !== null && state.phase !== 'pickTeam' && state.phase !== 'gameover';
+  if (state.phase === 'pickTeam') middle = stagePickTeam(state);
+  else if (state.phase === 'gameover') middle = stageGameover(state);
+  else if (takeover) middle = storyPanel(state);
+  else {
+    switch (state.phase) {
+      case 'teamSelect': middle = stageTeamSelect(state); break;
+      case 'practice': middle = stagePractice(state); break;
+      case 'galaxy': middle = stageGalaxy(state); break;
+      case 'matchup': middle = stageMatchup(state); break;
+      case 'gamenight': middle = stageGamenight(state); break;
+      case 'departures': middle = stageDepartures(state); break;
+      case 'signing': middle = stageSigning(state); break;
+      case 'growth': middle = stageGrowth(state); break;
+      default: middle = `<h2>THIS WEEK</h2>`;
+    }
   }
-  html += storyModalHtml(state) + prospectModalHtml(state) + scanModalHtml(state) + toastModalHtml() + bagModalHtml(state) + coachModalHtml(state) + detailModalHtml(state);
-  app.innerHTML = html;
+
+  const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
+    ? `<div class="middle solo">${middle}</div><div class="navbar">${nav(state)}</div>`
+    : `${headerHtml(state)}<div class="middle">${middle}</div>${bagBar(state)}<div class="navbar">${nav(state)}</div>`;
+
+  app.innerHTML = frame + drillSheetHtml(state) + prospectModalHtml(state) + scanModalHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state) + detailModalHtml(state);
   postRender();
 }
 
@@ -911,7 +856,10 @@ function revealActions(): void {
 function postRender(): void {
   const ev = currentStory(state);
   const box = document.getElementById('typebox');
-  if (box && ev && !toast && !prospectUi?.text && !scanUi?.text) {
+  const overlayText = toast ?? prospectUi?.text ?? scanUi?.text;
+  if (box && overlayText !== undefined && overlayText !== null) {
+    typewrite(box, overlayText, revealActions);
+  } else if (box && ev) {
     if (storyMode === 'typing') {
       typewrite(box, ev.text, () => {
         storyMode = ev.choices && !ev.resolvedText ? 'choices' : 'result';
@@ -930,32 +878,11 @@ function postRender(): void {
       box.textContent = ev.resolvedText || ev.text;
       revealActions();
     }
-  } else if (box && (prospectUi?.text !== undefined || scanUi?.text !== undefined || toast)) {
-    typewrite(box, toast ?? prospectUi?.text ?? scanUi?.text ?? '', revealActions);
   }
 
-  // gamenight progress beat
-  if (state.phase === 'gamenight' && state.lastResult && !gnShown && !state.queue.length) {
+  if (state.phase === 'gamenight' && state.lastResult && gnStage === 'beat' && !state.queue.length) {
     animateProgress();
   }
-
-  // win meter tween
-  document.querySelectorAll<HTMLElement>('[data-meter]').forEach((el) => {
-    const target = Number(el.dataset.meter);
-    if (meterPrev >= 0 && meterPrev !== target && el.classList.contains('meterval')) {
-      let cur = meterPrev;
-      const step = (): void => {
-        cur += Math.sign(target - cur) * Math.max(1, Math.abs(target - cur) / 6);
-        if ((target - cur) * Math.sign(target - cur) <= 0.6) cur = target;
-        el.textContent = `${Math.round(cur)}%`;
-        el.style.color = vc(cur);
-        if (cur !== target) requestAnimationFrame(step);
-      };
-      const m = winMeter(state);
-      if (m?.exact) requestAnimationFrame(step);
-    }
-    if (el.classList.contains('meterval')) meterPrev = target;
-  });
 }
 
 function animateProgress(): void {
@@ -966,9 +893,8 @@ function animateProgress(): void {
   const label = document.getElementById('progress-label');
   const finish = (): void => {
     if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
-    gnShown = true;
+    gnStage = 'verdict';
     render();
-    // locker room: consequences card by card
     state.postGame.forEach((d, i) => {
       const msgs: { text: string; up?: boolean }[] = [];
       if (d.xpGain > 0) msgs.push({ text: `+${d.xpGain} XP` });
@@ -977,7 +903,7 @@ function animateProgress(): void {
       if (msgs.length) floatCard(d.playerId, msgs, 300 + i * 260);
     });
     lastLevelUps.forEach((lu, i) => {
-      floatCard(lu.playerId, [{ text: `★ LEVEL UP +${lu.skillGain} SKILL`, up: true }, ...(lu.bonus ? [{ text: lu.bonus.toUpperCase(), up: true }] : [])], 1200 + i * 400);
+      floatCard(lu.playerId, [{ text: `★ LEVEL UP +${lu.skillGain}`, up: true }, ...(lu.bonus ? [{ text: lu.bonus.toUpperCase(), up: true }] : [])], 1400 + i * 400);
     });
   };
   progressTimer = window.setInterval(() => {
@@ -989,7 +915,7 @@ function animateProgress(): void {
   document.getElementById('progress-wrap')?.addEventListener('click', finish);
 }
 
-// ---- hold-to-commit ----------------------------------------------------------------------------
+// ---- hold-to-commit -----------------------------------------------------------------------------------------
 
 let holdEl: HTMLElement | null = null;
 let holdTimer = 0;
@@ -1003,7 +929,7 @@ function startHold(el: HTMLElement): void {
     const a = el.getAttribute('data-action')!;
     const id = el.getAttribute('data-id') ?? '';
     holdEl = null;
-    executeAction(a, id, el);
+    executeAction(a, id);
     render();
   }, 800);
 }
@@ -1032,12 +958,14 @@ document.addEventListener('pointerup', (e) => {
 });
 document.addEventListener('pointercancel', () => cancelHold());
 
-// ---- drag (matchup lineup) ------------------------------------------------------------------------
+// ---- drag: lineup cards AND bag items -------------------------------------------------------------------------
 
 interface PtrDrag {
   pointerId: number;
+  kind: 'card' | 'item';
   pid: number;
-  card: HTMLElement;
+  itemId: string;
+  el: HTMLElement;
   startX: number;
   startY: number;
   lastX: number;
@@ -1049,87 +977,107 @@ interface PtrDrag {
 let ptr: PtrDrag | null = null;
 let suppressClick = false;
 
-function locate(t: Team, playerId: number): { row: 'starters' | 'bench'; idx: number } | 'reserve' {
-  for (const row of ['starters', 'bench'] as const) {
-    const i = t.lineup[row].indexOf(playerId);
-    if (i >= 0) return { row, idx: i };
-  }
-  return 'reserve';
+function gridDraggablePhase(): boolean {
+  return ['practice', 'matchup', 'gamenight'].includes(state.phase) && !currentStory(state);
 }
 
-function handleDrop(zone: string, playerId: number): void {
-  if (state.phase !== 'matchup') return;
+function handleDrop(zoneIdx: number, playerId: number): void {
   const t = myTeam(state);
   const p = t.players.find((x) => x.id === playerId);
   if (!p || p.outWeeks > 0) return;
-  const from = locate(t, playerId);
-  if (zone === 'reserves') {
-    if (from !== 'reserve') t.lineup[from.row][from.idx] = null;
-    save(state);
-    return;
+  const from = t.lineup.slots.indexOf(playerId);
+  if (from < 0 || from === zoneIdx) return;
+  const occupant = t.lineup.slots[zoneIdx];
+  t.lineup.slots[zoneIdx] = playerId;
+  t.lineup.slots[from] = occupant;
+  // unavailable players sink back down their column
+  for (let c = 0; c < 3; c++) {
+    const idxs = [c, c + 3, c + 6];
+    const members = idxs.map((i) => (t.lineup.slots[i] !== null ? t.players.find((x) => x.id === t.lineup.slots[i]) ?? null : null));
+    const up = members.filter((x): x is Player => !!x && x.outWeeks === 0);
+    const down = members.filter((x): x is Player => !!x && x.outWeeks > 0);
+    const ordered = [...up, ...down];
+    idxs.forEach((i, r) => { t.lineup.slots[i] = ordered[r]?.id ?? null; });
   }
-  const [row, idxS] = zone.split(':') as ['starters' | 'bench', string];
-  const idx = Number(idxS);
-  const occupant = t.lineup[row][idx];
-  if (occupant === playerId) return;
-  t.lineup[row][idx] = playerId;
-  if (from !== 'reserve') t.lineup[from.row][from.idx] = occupant;
   save(state);
+}
+
+function dropItemOnStory(itemId: string): void {
+  const ev = currentStory(state);
+  const key = ev?.choices?.find((c) => c.itemId === itemId && !ev.resolvedText)?.key;
+  if (!key) return;
+  const res = resolveStory(state, key);
+  if (res) {
+    storyMode = 'result-typing';
+    floatFx(res.fx, res.resolved.playerId, 500);
+  }
 }
 
 function activateDrag(): void {
   if (!ptr || ptr.active) return;
   ptr.active = true;
-  const rect = ptr.card.getBoundingClientRect();
-  const ghost = ptr.card.cloneNode(true) as HTMLElement;
+  const rect = ptr.el.getBoundingClientRect();
+  const ghost = ptr.el.cloneNode(true) as HTMLElement;
   ghost.classList.add('dragghost');
   ghost.style.width = `${rect.width}px`;
   document.body.appendChild(ghost);
   ptr.ghost = ghost;
-  ptr.card.classList.add('draglift');
+  ptr.el.classList.add('draglift');
   moveGhost();
 }
 
 function moveGhost(): void {
   if (!ptr?.ghost) return;
   ptr.ghost.style.left = `${ptr.lastX - ptr.ghost.offsetWidth / 2}px`;
-  ptr.ghost.style.top = `${ptr.lastY - 40}px`;
-  document.querySelectorAll('.dropzone.dragover').forEach((z) => z.classList.remove('dragover'));
-  zoneAtPoint()?.classList.add('dragover');
+  ptr.ghost.style.top = `${ptr.lastY - 46}px`;
+  document.querySelectorAll('.dropzone.dragover, .storypanel.dragover').forEach((z) => z.classList.remove('dragover'));
+  targetAtPoint()?.classList.add('dragover');
 }
 
-function zoneAtPoint(): Element | null {
+function targetAtPoint(): Element | null {
   if (!ptr) return null;
-  return document.elementFromPoint(ptr.lastX, ptr.lastY)?.closest('.dropzone') ?? null;
+  const el = document.elementFromPoint(ptr.lastX, ptr.lastY);
+  if (!el) return null;
+  return ptr.kind === 'item' ? el.closest('.storypanel') : el.closest('.dropzone');
 }
 
 function endDrag(drop: boolean): void {
   if (!ptr) return;
   clearTimeout(ptr.holdTimer);
   if (ptr.active) {
-    const zone = drop ? zoneAtPoint() : null;
+    const target = drop ? targetAtPoint() : null;
     ptr.ghost?.remove();
-    ptr.card.classList.remove('draglift');
+    ptr.el.classList.remove('draglift');
     suppressClick = true;
     setTimeout(() => { suppressClick = false; }, 60);
-    if (zone) {
-      handleDrop(zone.getAttribute('data-zone')!, ptr.pid);
+    document.querySelectorAll('.dropzone.dragover, .storypanel.dragover').forEach((z) => z.classList.remove('dragover'));
+    if (target) {
+      if (ptr.kind === 'card') handleDrop(Number(target.getAttribute('data-zone')), ptr.pid);
+      else dropItemOnStory(ptr.itemId);
       ptr = null;
       render();
       return;
     }
-    document.querySelectorAll('.dropzone.dragover').forEach((z) => z.classList.remove('dragover'));
   }
   ptr = null;
 }
 
 app.addEventListener('pointerdown', (e) => {
-  if (state.phase !== 'matchup') return;
+  const bag = (e.target as HTMLElement).closest('.bslot.filled') as HTMLElement | null;
+  if (bag && currentStory(state)) {
+    ptr = {
+      pointerId: e.pointerId, kind: 'item', pid: -1, itemId: bag.getAttribute('data-bagitem')!, el: bag,
+      startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY,
+      active: false, holdTimer: 0, ghost: null,
+    };
+    if (e.pointerType === 'touch') ptr.holdTimer = window.setTimeout(() => activateDrag(), 220);
+    return;
+  }
+  if (!gridDraggablePhase()) return;
   const card = (e.target as HTMLElement).closest('.pcard.grabbable') as HTMLElement | null;
   if (!card) return;
-  const pid = Number(card.getAttribute('data-pid'));
   ptr = {
-    pointerId: e.pointerId, pid, card,
+    pointerId: e.pointerId, kind: 'card', pid: Number(card.getAttribute('data-pid')), itemId: '', el: card,
     startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY,
     active: false, holdTimer: 0, ghost: null,
   };
@@ -1153,13 +1101,24 @@ document.addEventListener('pointerup', (e) => {
 document.addEventListener('pointercancel', () => endDrag(false));
 document.addEventListener('touchmove', (e) => { if (ptr?.active) e.preventDefault(); }, { passive: false });
 
-// ---- actions ---------------------------------------------------------------------------------------
+// ---- actions ----------------------------------------------------------------------------------------------------
 
-function executeAction(action: string, id: string, _el?: HTMLElement): void {
+const PHASE_TIP: Record<string, string> = {
+  teamSelect: 'tryouts',
+  stories: 'stories',
+  practice: 'practice',
+  galaxy: 'galaxy',
+  matchup: 'matchup',
+  gamenight: 'gamenight',
+  departures: 'departures',
+  signing: 'signing',
+  growth: 'departures',
+};
+
+function executeAction(action: string, id: string): void {
   switch (action) {
     case 'pick-team': chooseTeam(state, Number(id)); break;
 
-    // stories
     case 'story-choice': {
       const res = resolveStory(state, id);
       if (res) {
@@ -1169,11 +1128,11 @@ function executeAction(action: string, id: string, _el?: HTMLElement): void {
       break;
     }
 
-    // practice
     case 'drill': {
       const d = DRILLS.find((x) => x.id === id)!;
+      drillSheet = false;
       if (d.target === 'one') {
-        drillPickOne = drillPickOne === id ? null : id;
+        drillPickOne = id;
         break;
       }
       drillPickOne = null;
@@ -1185,7 +1144,6 @@ function executeAction(action: string, id: string, _el?: HTMLElement): void {
       break;
     }
 
-    // galaxy
     case 'scan-region': {
       const text = actionScan(state, id);
       if (text !== null) scanUi = { open: true, text };
@@ -1202,11 +1160,9 @@ function executeAction(action: string, id: string, _el?: HTMLElement): void {
       prospectUi = null;
       break;
 
-    // matchup / game
     case 'scout-opp': scoutOpponent(state); break;
-    case 'play-game': gnShown = false; clearFloatTimers(); playGame(state); break;
+    case 'play-game': gnStage = 'beat'; clearFloatTimers(); playGame(state); break;
 
-    // offseason
     case 'convince-pro': convincePro(state, Number(id)); break;
     case 'letgo-pro': letGoPro(state, Number(id)); break;
     case 'retire': retire(state); break;
@@ -1219,10 +1175,21 @@ function executeAction(action: string, id: string, _el?: HTMLElement): void {
       break;
     case 'new-season': startNewSeason(state); break;
 
-    // meta
     case 'use-item': {
-      const text = useItem(state, id, prospectUi ? { prospectId: prospectUi.id } : {});
-      if (text) { toast = text; bagOpen = false; }
+      const itemId = id;
+      const ev = currentStory(state);
+      const storyKey = ev?.choices?.find((c) => c.itemId === itemId && !ev.resolvedText)?.key;
+      itemUi = null;
+      if (storyKey) {
+        const res = resolveStory(state, storyKey);
+        if (res) {
+          storyMode = 'result-typing';
+          floatFx(res.fx, res.resolved.playerId, 500);
+        }
+      } else {
+        const text = useItem(state, itemId, prospectUi ? { prospectId: prospectUi.id } : {});
+        if (text) toast = text;
+      }
       break;
     }
     case 'new-game':
@@ -1230,12 +1197,13 @@ function executeAction(action: string, id: string, _el?: HTMLElement): void {
       wipeSave();
       state = freshGame();
       coachOpen = false;
-      bagOpen = false;
+      itemUi = null;
       toast = null;
       prospectUi = null;
       scanUi = null;
       poolSelected = null;
       detailPlayerId = null;
+      drillSheet = false;
       break;
   }
 }
@@ -1246,48 +1214,43 @@ app.addEventListener('click', (e) => {
   if (!el) return;
   const action = el.getAttribute('data-action')!;
   const id = el.getAttribute('data-id') ?? '';
-  if (el.classList.contains('hold')) return; // hold buttons commit via the hold, never a tap
+  if (el.classList.contains('hold')) return;
 
   switch (action) {
-    // story modal taps
     case 'story-tap': {
       if (finishTypeNow()) return;
       const ev = currentStory(state);
       if (!ev) break;
-      if (storyMode === 'result' || (!ev.choices && storyMode !== 'typing') || ev.resolvedText) {
-        if (storyMode === 'result') {
-          clearFloatTimers();
+      if (storyMode === 'result') {
+        clearFloatTimers();
+        dismissStory(state);
+        storyUid = -1;
+        break;
+      }
+      if (!ev.choices && storyMode !== 'typing') {
+        const res = resolveStory(state, 'ok');
+        if (res && res.resolved.resolvedText) {
+          storyMode = 'result-typing';
+          floatFx(res.fx, res.resolved.playerId, 400);
+        } else {
           dismissStory(state);
           storyUid = -1;
-          break;
         }
-        if (!ev.choices) {
-          // tap-through story: resolve with 'ok', then show any outcome text
-          const res = resolveStory(state, 'ok');
-          if (res && res.resolved.resolvedText) {
-            storyMode = 'result-typing';
-            floatFx(res.fx, res.resolved.playerId, 400);
-          } else {
-            dismissStory(state);
-            storyUid = -1;
-          }
-          break;
-        }
+        break;
       }
       return;
     }
 
-    // navigation
     case 'to-practice': toPractice(state); break;
-    case 'to-galaxy': drillPickOne = null; toGalaxy(state); break;
+    case 'to-galaxy': drillPickOne = null; drillSheet = false; toGalaxy(state); break;
     case 'to-matchup': prospectUi = null; scanUi = null; toMatchup(state); break;
     case 'to-signing': toSigning(state); break;
-    case 'continue-result': gnShown = false; clearFloatTimers(); continueFromResult(state); break;
-    case 'skip-progress': return; // progress-wrap handles its own click
+    case 'gn-table': gnStage = 'table'; clearFloatTimers(); break;
+    case 'continue-result': gnStage = 'beat'; clearFloatTimers(); continueFromResult(state); break;
 
-    // cards
     case 'card': {
       const pid = Number(id);
+      if (currentStory(state)) break;
       if (state.phase === 'practice') {
         if (drillPickOne) {
           const out = runDrill(state, drillPickOne, pid);
@@ -1299,11 +1262,13 @@ app.addEventListener('click', (e) => {
         } else if (!state.trainedThisWeek) {
           toggleSitout(state, pid);
         } else {
-          detailPlayerId = detailPlayerId === pid ? null : pid;
+          detailPlayerId = pid;
         }
-      } else if (state.phase === 'matchup') {
-        // drag handles lineup; tap shows detail
-        detailPlayerId = detailPlayerId === pid ? null : pid;
+      } else if (state.phase === 'teamSelect') {
+        if (poolSelected) {
+          if (poolSelected.has(pid)) poolSelected.delete(pid);
+          else if (poolSelected.size < ROSTER_SIZE) poolSelected.add(pid);
+        }
       } else {
         detailPlayerId = detailPlayerId === pid ? null : pid;
       }
@@ -1311,7 +1276,6 @@ app.addEventListener('click', (e) => {
     }
     case 'close-detail': detailPlayerId = null; break;
 
-    // galaxy modals
     case 'pcell': prospectUi = { id: Number(id) }; break;
     case 'scancell': scanUi = { open: true }; break;
     case 'prospect-close': prospectUi = null; break;
@@ -1329,25 +1293,24 @@ app.addEventListener('click', (e) => {
       toast = null;
       break;
 
-    // plan wheel
     case 'plan': setPlan(state, id as PlanId); break;
 
-    // drawers
-    case 'bag-open': bagOpen = true; break;
-    case 'bag-close': bagOpen = false; break;
+    case 'drill-sheet': drillSheet = true; break;
+    case 'drill-sheet-close': if (e.target === el) drillSheet = false; break;
+    case 'drill-cancel': drillPickOne = null; break;
+
+    case 'bag-item': itemUi = id; break;
+    case 'item-close': itemUi = null; break;
     case 'coach-open': coachOpen = true; break;
     case 'coach-close': coachOpen = false; break;
-
-    // signing & selection
-    case 'pursue': toggleProspect(state, Number(id)); break;
-    case 'pool': {
-      const pid = Number(id);
-      if (poolSelected) {
-        if (poolSelected.has(pid)) poolSelected.delete(pid);
-        else if (poolSelected.size < ROSTER_SIZE) poolSelected.add(pid);
-      }
+    case 'toggle-tips': toggleTips(state); break;
+    case 'help': {
+      const key = PHASE_TIP[state.phase];
+      if (key) showTip(state, key);
       break;
     }
+
+    case 'pursue': toggleProspect(state, Number(id)); break;
 
     default:
       executeAction(action, id);
@@ -1356,7 +1319,7 @@ app.addEventListener('click', (e) => {
   render();
 });
 
-// dev handle for the console
-(window as unknown as { gc: unknown }).gc = { state: () => state, benchPlayers };
+// dev handle
+(window as unknown as { gc: unknown }).gc = { state: () => state, starters };
 
 render();
