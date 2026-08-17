@@ -191,7 +191,78 @@ BACKCOURT/WING/FRONTCOURT with MISCAST penalties (up to −25% for
 wrong-column leans); injured players sink to their column's reserve slot.
 Story popups take over the middle; matching bag items pulse and drag in.
 
-## NEXT SESSION: redesign the main screen (v1.2)
+## v1.2–v1.5 — the redesign day (Aug 16, 2026)
+
+Four releases in one session, all live on Pages. The v1.2 mandate below was
+executed and then iterated three more times with Thijs directing from his
+phone:
+
+- **v1.2 (b16e1da) — the card anatomy.** RATING top-left · NAME center ·
+  YEAR top-right; vertical 5-LED strips flanking the sprite (⚡ bolt left,
+  mood face right, bottom-up fill, blink ≤20); foot row below. Status tags
+  (OUT / SITS OUT / MISCAST / BANNED) became centered overlays so every
+  card has identical height. Grid rows split space evenly but never shrink
+  below card content (`min-height: max-content`) — tight screens scroll
+  instead of clipping. Tryouts pool uses `grid scroll` (natural height).
+- **v1.3 (690b60a) — feel + frame.** The drag bug: on touch, moving >12px
+  before a 250ms hold timer CANCELLED the drag. Now any >6px movement
+  starts the drag (no hold), with `touch-action: none` on grabbables.
+  Popups render INSIDE `.midwrap` (absolute, not fixed) so the stats bar,
+  THE BAG and nav stay visible — ⚡ readable while a story asks you to
+  spend it; nav dims (`.navbar.dimmed`) while any popup is open. Header
+  became: team chip · S# · JOB SECURITY bar (bright middle, heat darkness
+  eats in from both ends; scholar cap = school, right icon = boosters) /
+  week · record · energy far right. Drills became repeatable (energy is
+  the only limiter; "⬆ AGAIN" next to the report).
+- **v1.4 (a39ebf1) — subtraction.** Card foot is XP twin bars (fill +
+  10-seg LVL) | compass | POT star column — the 2×2 pole box died. Compass
+  poles are text (FRC/SVY horizontal, STR/QCK vertical) on every compass;
+  dot + species-cap box plot in an inset area (`CT: 15 + v*0.7`) so even a
+  95-cap species stops short of the letters. The species box is the light
+  rectangle showing pole caps — terrans small and centered. Underlined
+  NAME is the only door to the detail view; the rest of the card drags
+  (or toggles sitout / squad pick). Titles went one-word: TRAINING,
+  RECRUITING, MATCHUP, STANDINGS, ROSTER, OFFSEASON, SIGNING DAY, GROWTH.
+  Win% left the header (it lives on MATCHUP, labeled WIN). Prospect card:
+  commit% in the rating corner, SKL?/POT? star columns flanking the fuzzy
+  compass, tier gone.
+- **v1.5 (4381ecb) — celebrate the moment.** Every story is now a staged
+  cycle: **anticipation** (one line alone, center stage — "the gym goes
+  quiet") → tap → **verdict** → tap → **impact** (full-focus panel: sprite
+  + name + each changed stat landing one at a time, number counting old→new,
+  ▲ pop on gains / ▼ shake on losses; tap skips to final values) → the
+  mitigating **choice** (card + odds buttons) → the outcome repeats the
+  cycle. Impacts come from diffing a full world snapshot across
+  `resolveStory` (so clamps, level-up side effects, squad-wide and coach
+  fx all show true numbers, incl. ⚡ CELLS / JOB SECURITY / LEGACY rows).
+  Beats split on the author's `\n\n` (most story texts already have one),
+  else first sentence. Old floaters remain only for drills + post-game.
+  Dev handles for testing: `gc.story(defId, beat, playerId, data)`,
+  `gc.ui()`, `gc.state()`.
+
+## NEXT SESSION (pick up here)
+
+1. **Thijs playtests v1.5 on phone.** Two open questions he should answer
+   from feel: (a) no-choice stories now take 3 taps (antic → verdict →
+   impact) — too slow for minor beats? If yes: auto-advance the
+   anticipation beat after ~1.5s instead of requiring the tap. (b) Does
+   the 11px scholar-cap icon in the job bar read as a cap?
+2. Known state of Thijs's live save (mutated by this session's testing,
+   with apologies): week 2 of season 1, 0–1, SHOOTAROUND run twice, Enkii
+   genuinely leveled up via a test breakthrough, Svarogg −20 energy from a
+   test injury he tape-and-played through, Freyr-X OUT 3w from the
+   academic-exchange story I answered during testing. Eshuu's test injury
+   was reverted.
+3. Parked as before: species design session, story-writing session,
+   SPEC §17 ideas.
+
+Workflow reminders: pushing needs `gh auth switch -u Thijsbazelmans`
+(default active account is thijs-miketeevee and lacks repo access) — switch
+back after. Pages deploys via Actions on every push (~40s); the HTML is
+cached 10 min and the phone home-screen shortcut needs a full close/reopen
+to pick up a deploy.
+
+## NEXT SESSION: redesign the main screen (v1.2) — DONE, see v1.2–v1.5 above
 
 Thijs's iPhone screenshot of v1.1 tryouts (Aug 16, ~1:06) showed THE FRAME
 is right but the CARD is not — it overflows its cell in every direction:
