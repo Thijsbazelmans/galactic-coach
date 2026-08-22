@@ -328,37 +328,61 @@ button.hold.wiggle::after {
   padding: 4px 6px;
 }
 
-/* head: LVL · NAME · YEAR */
+/* head (STATS lens only): LVL · NAME · YEAR */
 .pc-head { display: flex; align-items: baseline; gap: 3px; flex: none; }
 .pc-lvl { font-size: 10px; font-weight: bold; line-height: 1; flex: none; color: var(--r55); letter-spacing: 0.5px; }
 .pc-name { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .pc-year { font-size: 10px; color: var(--r35); flex: none; letter-spacing: 1px; }
 
-/* body: ⚡ meter | sprite | mood meter */
-.pc-body { display: flex; align-items: center; justify-content: space-between; gap: 2px; margin: 2px 0 1px; padding: 0 3px; flex: none; }
-.pc-meter { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: none; }
-.vled { display: flex; flex-direction: column; gap: 1px; }
-.lseg { width: 7px; height: 4px; background: var(--r20); }
-.micon { width: 10px; height: 10px; image-rendering: pixelated; }
 .sprite { width: 38px; height: 38px; image-rendering: pixelated; flex: none; }
 .sprite.tiny { width: 30px; height: 30px; }
 .sprite.big { width: 72px; height: 72px; }
 
-/* prospects have no foot — sprite + cloud kite share the body */
-.pcard.prospect .pc-body { flex: 1 1 auto; padding: 0 1px; justify-content: space-evenly; }
-.pcard.prospect .sprite { width: 34px; height: 34px; }
+/* ---- the full-bleed square card -------------------------------------------------
+   The card IS the compass. Sprite in the middle, name strip on top, OVERALL
+   big bottom-left, ring counter bottom-right. Mood/energy/size read from the
+   sprite (sprite pass in progress), so no meters here. */
 
-/* foot: XP/LVL twin bars | kite (OVR in the center) | SIZE */
-.pc-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 3px; flex: none; }
-.pc-side { display: flex; flex-direction: column; align-items: center; gap: 1px; flex: none; }
-.pc-lab { font-style: normal; font-size: 7px; letter-spacing: 1px; color: var(--r35); }
-.pc-bars { display: flex; gap: 2px; align-items: stretch; height: 25px; }
-.vbar { width: 5px; background: var(--r20); position: relative; overflow: hidden; }
-.vfill { position: absolute; bottom: 0; left: 0; right: 0; background: var(--r55); transition: height 0.6s; }
-.vseglvl { display: flex; flex-direction: column; gap: 1px; width: 5px; }
-.lvlseg { flex: 1; background: var(--r20); }
-.lvlseg.on { background: var(--r75); }
-.sizelab { font-size: 12px; color: var(--r75); letter-spacing: 1px; }
+.pcard.sq { padding: 0; }
+.ksq { position: relative; width: 100%; aspect-ratio: 1 / 1; background: #000; overflow: hidden; }
+.ksvg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ksprite {
+  position: absolute;
+  left: 50%; top: 55%;
+  transform: translate(-50%, -50%);
+  width: 48px; height: 48px;
+  image-rendering: pixelated;
+  z-index: 2;
+  pointer-events: none;
+}
+.ktop {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex; align-items: baseline; gap: 3px;
+  padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 3;
+}
+.kname { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.kyear { font-size: 9px; color: var(--r35); flex: none; letter-spacing: 1px; }
+.kbl { position: absolute; left: 3px; bottom: 3px; z-index: 3; }
+.kovr { font-size: 18px; font-weight: bold; line-height: 1.1; background: rgba(0, 0, 0, 0.72); padding: 1px 4px; }
+.kbr { position: absolute; right: 3px; bottom: 3px; z-index: 3; }
+/* the ring counter: XP around LVL (players) · commitment (prospects) */
+.kring { position: relative; width: 32px; height: 32px; display: block; background: rgba(0, 0, 0, 0.72); border-radius: 50%; }
+.kring svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.krbg { fill: none; stroke: var(--r20); stroke-width: 3.5; }
+.krfill { fill: none; stroke: var(--r75); stroke-width: 3.5; }
+.krtxt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; gap: 1px; }
+.krtxt i { font-style: normal; font-size: 6px; letter-spacing: 0.5px; color: var(--r35); }
+.krtxt b { font-size: 11px; color: var(--r95); }
+/* the POT chip (growth lens) mirrors the ring's spot */
+.kpot { display: flex; flex-direction: column; align-items: center; line-height: 1.1; background: rgba(0, 0, 0, 0.72); border: 1px solid var(--r35); padding: 2px 5px; gap: 1px; }
+.kpot i { font-style: normal; font-size: 6px; letter-spacing: 1px; color: var(--r35); }
+.kpot b { font-size: 13px; }
+.ksq .klabel.n { top: 17px; }
+.ksq.fuzzy1 polygon { filter: blur(1.5px); }
+.ksq.fuzzy2 polygon { filter: blur(3.5px); }
 
 /* ---- the kite: SKL up · ATH right · FRC down · BRN left ------------------------ */
 
@@ -404,11 +428,6 @@ button.hold.wiggle::after {
 .strow.lead b { color: var(--r95); }
 .crown { color: var(--r95); font-size: 9px; }
 .pc-gp { font-size: 8px; color: var(--r35); letter-spacing: 0.5px; flex: none; }
-
-/* ---- the GROWTH lens -------------------------------------------------------------- */
-
-.pc-grow { display: flex; align-items: center; justify-content: space-evenly; gap: 3px; flex: 1 1 auto; min-height: 0; }
-.potnum { font-size: 14px; }
 
 /* ---- the lens bar ------------------------------------------------------------------ */
 

@@ -65,7 +65,7 @@ import {
 import type { AttrRec, GameState, PlanId, Player, Prospect, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, SIZE_LABELS, attrEff, clamp, copyAttrs, ovr, perGame, sizeIndex } from './engine/util';
-import { PRACTICE_KIT, faceUrl, iconUrl, spriteUrl, type Kit } from './rig';
+import { PRACTICE_KIT, iconUrl, spriteUrl, type Kit } from './rig';
 
 const VERSION = 'v2.0';
 
@@ -410,13 +410,49 @@ function kite(cur: AttrRec, opts: KiteOpts = {}): string {
   </div>`;
 }
 
-/** Vertical LED strip, 5 cells, lit bottom-up. The card's meter language. */
-function vled(v: number): string {
-  const lit = Math.ceil(clamp(v, 0, 100) / 20);
-  const cells = Array.from({ length: 5 }, (_, i) =>
-    `<span class="lseg" style="${4 - i < lit ? `background:${vc(v)}` : ''}"></span>`
-  ).join('');
-  return `<span class="vled ${v <= 20 ? 'blink' : ''}">${cells}</span>`;
+// ---- the full-bleed square card -------------------------------------------------
+// The whole card IS the compass: a full-width square kite with the sprite in
+// its middle, name+year on a strip up top, the OVERALL big in the bottom-left,
+// and a circular counter in the bottom-right. Mood, energy and size read from
+// the sprite itself (sprite pass in progress) — no meters on the card.
+
+function ringCounter(pct: number, label: string, val: string, title = ''): string {
+  const clamped = clamp(Math.round(pct), 0, 100);
+  return `<span class="kring" ${title ? `title="${title}"` : ''}>
+    <svg viewBox="0 0 36 36">
+      <circle class="krbg" cx="18" cy="18" r="15.9155"/>
+      <circle class="krfill" cx="18" cy="18" r="15.9155" stroke-dasharray="${clamped} 100"/>
+    </svg>
+    <span class="krtxt"><i>${label}</i><b>${val}</b></span>
+  </span>`;
+}
+
+interface SqOpts {
+  pot?: AttrRec | null;
+  start?: AttrRec | null;
+  fuzz?: 0 | 1 | 2;
+  sprite?: string | null;
+  nameHtml: string; // the top strip
+  blHtml: string; // bottom-left (the big number)
+  brHtml: string; // bottom-right (a ring or a chip)
+}
+
+function squareKite(cur: AttrRec, o: SqOpts): string {
+  return `<div class="ksq ${o.fuzz ? `fuzzy${o.fuzz}` : ''}">
+    <svg class="ksvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <line class="k-axis" x1="50" y1="4" x2="50" y2="96"/>
+      <line class="k-axis" x1="4" y1="50" x2="96" y2="50"/>
+      ${o.pot ? `<polygon class="k-pot" points="${kitePoints(o.pot)}"/>` : ''}
+      ${o.start ? `<polygon class="k-start" points="${kitePoints(o.start)}"/>` : ''}
+      <polygon class="k-cur" points="${kitePoints(cur)}"/>
+    </svg>
+    <span class="klabel n">SKL</span><span class="klabel e">ATH</span>
+    <span class="klabel s">FRC</span><span class="klabel w">BRN</span>
+    ${o.sprite ? `<img class="ksprite" src="${o.sprite}" alt="" draggable="false"/>` : ''}
+    <div class="ktop">${o.nameHtml}</div>
+    <span class="kbl">${o.blHtml}</span>
+    <span class="kbr">${o.brHtml}</span>
+  </div>`;
 }
 
 // ---- the three lenses -----------------------------------------------------------
@@ -467,9 +503,10 @@ function cardHead(p: Player, opts: CardOpts): string {
     </div>`;
 }
 
-// The card, phone-first, one lens at a time. SKILLS: meters flank the sprite,
-// the kite (OVR in its center) sits in the foot. STATS: the season box score.
-// GROWTH: the layered kite — dashes where he started, outline where he can go.
+// The card, phone-first, one lens at a time. SKILLS: the full-bleed square
+// kite, sprite centered, OVR bottom-left, XP ring (LVL inside) bottom-right.
+// STATS: the season box score. GROWTH: the same square, layered — dashes where
+// the season started, outline where he can go, POT chip instead of the ring.
 function playerCard(p: Player, opts: CardOpts = {}): string {
   const t = myTeam(state);
   const kit = opts.kit ?? { bg: t.bg, fg: t.fg };
@@ -477,42 +514,39 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   const img = spriteUrl(p, kit, p.jersey);
   const l = opts.lens ?? 0;
   const xpPct = p.level >= LEVEL_CAP ? 100 : Math.min(100, Math.round((p.xp / xpNeed(p.level)) * 100));
+  const nameHtml = `<span class="kname" ${opts.inert ? '' : `data-action="detail" data-id="${p.id}"`}>${esc(p.name)}</span>
+      <span class="kyear">${CLASS_ABBR[Math.min(p.classYear, 3)].toUpperCase()}</span>`;
+  const ovrHtml = `<b class="kovr" style="color:${vc(ovr(p.attrs) * 1.6)}">${ovr(p.attrs)}</b>`;
   let body: string;
   if (l === 1) {
     const cells = STAT_KEYS.map((k) => {
       const crown = opts.crowns?.get(k) === p.id;
       return `<div class="strow ${crown ? 'lead' : ''}"><i>${STAT_LABEL[k]}</i><b>${perGame(p.stats, k)}</b>${crown ? '<span class="crown">♛</span>' : ''}</div>`;
     }).join('');
-    body = `<div class="pc-stats">
+    body = `${cardHead(p, opts)}<div class="pc-stats">
         <img class="sprite tiny" src="${img}" alt="" draggable="false"/>
         <div class="stgrid">${cells}</div>
       </div>
       <div class="pc-gp">GP ${p.stats.gp}${p.career.gp ? ` · CAREER ${p.career.gp}` : ''}</div>`;
   } else if (l === 2) {
-    body = `<div class="pc-grow">
-        ${kite(p.attrs, { pot: p.pots, start: p.startAttrs, ovrText: String(ovr(p.attrs)), cls: 'grow' })}
-        <span class="pc-side"><b class="potnum" style="color:${vc(ovr(p.pots))}">${ovr(p.pots)}</b><i class="pc-lab">POT</i></span>
-        <span class="pc-side"><span class="pc-bars"><span class="vbar"><span class="vfill" style="height:${xpPct}%"></span></span></span><i class="pc-lab">XP</i></span>
-      </div>`;
+    body = squareKite(p.attrs, {
+      pot: p.pots,
+      start: p.startAttrs,
+      nameHtml,
+      blHtml: ovrHtml,
+      brHtml: `<span class="kpot"><i>POT</i><b style="color:${vc(ovr(p.pots))}">${ovr(p.pots)}</b></span>`,
+    });
   } else {
-    const lvlSegs = Array.from({ length: LEVEL_CAP }, (_, i) =>
-      `<span class="lvlseg ${LEVEL_CAP - 1 - i < p.level ? 'on' : ''}"></span>`).join('');
-    body = `<div class="pc-body">
-      <span class="pc-meter" title="energy ${p.energy}">${vled(p.energy)}<img class="micon" src="${iconUrl('bolt', vc(p.energy))}" alt=""/></span>
-      <img class="sprite" src="${img}" alt="" draggable="false"/>
-      <span class="pc-meter" title="mood ${p.mood}">${vled(p.mood)}<img class="micon" src="${faceUrl(p.mood, vc(p.mood))}" alt=""/></span>
-    </div>
-    <div class="pc-foot">
-      <span class="pc-side" title="level ${p.level}/${LEVEL_CAP}">
-        <span class="pc-bars"><span class="vbar"><span class="vfill" style="height:${xpPct}%"></span></span><span class="vseglvl">${lvlSegs}</span></span>
-        <i class="pc-lab">XP</i></span>
-      ${kite(p.attrs, { pot: p.pots, ovrText: String(ovr(p.attrs)) })}
-      <span class="pc-side"><b class="sizelab">${SIZE_LABELS[sizeIndex(p)]}</b><i class="pc-lab">SIZE</i></span>
-    </div>`;
+    body = squareKite(p.attrs, {
+      pot: p.pots,
+      sprite: img,
+      nameHtml,
+      blHtml: ovrHtml,
+      brHtml: ringCounter(xpPct, 'LVL', String(p.level), `level ${p.level}/${LEVEL_CAP} · xp ${p.xp}/${p.level >= LEVEL_CAP ? '—' : xpNeed(p.level)}`),
+    });
   }
-  return `<div class="pcard lens${l} ${out ? 'pout' : ''} ${opts.draggable && !out && l === 0 ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
+  return `<div class="pcard lens${l} ${l !== 1 ? 'sq' : ''} ${out ? 'pout' : ''} ${opts.draggable && !out && l === 0 ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
       ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
-    ${cardHead(p, opts)}
     ${body}
     ${out ? `<div class="ptag blink">OUT ${p.outWeeks}w</div>` : ''}
     ${opts.sitout && l === 0 ? '<div class="ptag dimtag">SITS OUT</div>' : ''}
@@ -522,22 +556,21 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   </div>`;
 }
 
-// Prospects wear the same frame: commit% up top, and the kite as a CLOUD —
-// solid guess inside a hazy potential outline — that scouting sharpens.
+// Prospects wear the same square: the kite as a CLOUD that scouting sharpens,
+// sprite centered, seen OVERALL bottom-left, the commit ring bottom-right.
 function prospectCard(pr: Prospect): string {
   const img = spriteUrl(pr, PRACTICE_KIT, null);
   const known = pr.scoutLevel;
   const q = known < 2 ? '?' : '';
-  return `<div class="pcard prospect" data-action="pcell" data-id="${pr.id}" data-pid="p${pr.id}">
-    <div class="pc-head">
-      <span class="pc-lvl" style="color:${vc(pr.commitPct)}">${pr.commitPct}%</span>
-      <span class="pc-name">${esc(pr.name)}</span>
-      <span class="pc-year">${SIZE_LABELS[sizeIndex(pr)]}</span>
-    </div>
-    <div class="pc-body">
-      <img class="sprite" src="${img}" alt="" draggable="false"/>
-      ${kite(pr.seenAttrs, { pot: pr.seenPots, ovrText: `${ovr(pr.seenAttrs)}${q}`, fuzz: known >= 2 ? 0 : known === 1 ? 1 : 2 })}
-    </div>
+  return `<div class="pcard prospect sq" data-action="pcell" data-id="${pr.id}" data-pid="p${pr.id}">
+    ${squareKite(pr.seenAttrs, {
+      pot: pr.seenPots,
+      fuzz: known >= 2 ? 0 : known === 1 ? 1 : 2,
+      sprite: img,
+      nameHtml: `<span class="kname">${esc(pr.name)}</span><span class="kyear">${SIZE_LABELS[sizeIndex(pr)]}</span>`,
+      blHtml: `<b class="kovr" style="color:${vc(ovr(pr.seenAttrs) * 1.6)}">${ovr(pr.seenAttrs)}${q}</b>`,
+      brHtml: ringCounter(pr.commitPct, 'COM', `${pr.commitPct}`, `commitment ${pr.commitPct}%`),
+    })}
     ${pr.bannedWeeks > 0 ? `<div class="ptag blink">BANNED ${pr.bannedWeeks}w</div>` : ''}
   </div>`;
 }
@@ -1091,6 +1124,7 @@ function detailModalHtml(s: GameState): string {
     <div class="dim">${esc(sp.name)} (tier ${sp.tier}) — ${esc(sp.desc)}</div>
     <div class="report">SEASON · GP ${season.gp} · ${perGame(season, 'pts')} pts · ${perGame(season, 'reb')} reb · ${perGame(season, 'stl')} stl · ${perGame(season, 'ast')} ast
       ${career.gp ? `<br/><span class="dim">CAREER · GP ${career.gp} · ${career.pts} pts · ${career.reb} reb · ${career.stl} stl · ${career.ast} ast</span>` : ''}</div>
+    <div class="dim">⚡ ENERGY <b style="color:${vc(p.energy)}">${p.energy}</b> (mutes ATH+FRC) · MOOD <b style="color:${vc(p.mood)}">${p.mood}</b> (mutes SKL+BRN)</div>
     <div class="dim">Level ${p.level}/${LEVEL_CAP} · XP ${p.xp}/${p.level >= LEVEL_CAP ? '—' : xpNeed(p.level)}${p.outWeeks > 0 ? ` · <b>OUT ${p.outWeeks}w — ${esc(p.outReason)}</b>` : ''}</div>
     <button class="wide" data-action="close-detail">CLOSE</button>
   </div></div>`;

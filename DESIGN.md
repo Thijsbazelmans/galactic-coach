@@ -304,10 +304,27 @@ cards too dense) and shipped in one session. **Old saves die (SAVE_VERSION
 - Also in this session: **v1.5.1** — text selection + iOS long-press
   callout disabled app-wide (`user-select: none` on `*`).
 
+## v2.1 — the full-bleed square card (same session)
+
+Thijs's immediate read on v2.0: the kite is cool but too small, and the
+OVR number overlapped it. His redesign, implemented: **the card IS the
+compass** — a full-width square kite with the SPRITE centered inside it,
+name+year on a black strip up top, OVERALL big in the bottom-left, and a
+circular XP ring (LVL number inside) in the bottom-right. Energy/mood/size
+left the card entirely: **Thijs is doing a sprite pass where mood, energy
+and size read from the sprite itself** (meters live in the detail view
+meanwhile). Prospects wear the same square (cloud kite + COM commit ring);
+the GROWTH lens is the same square layered (start dashes + pot outline)
+with a POT chip instead of the ring; STATS lens unchanged.
+
 ## NEXT SESSION (pick up here)
 
-1. **Thijs playtests v2.0 on phone.** Feel questions: (a) do the kite
-   shapes read at card size? (b) does the lens swipe fight the card drag
+1. **The sprite pass (Thijs designing):** make mood, energy and size
+   readable in the rig itself — posture/expression for mood, stance or
+   glow for energy; size already drives the silhouette. When his designs
+   land, wire them into rig.ts.
+2. **Thijs playtests v2.0/v2.1 on phone.** Feel questions: (a) does the
+   full-square kite card read? (b) does the lens swipe fight the card drag
    on the SKILLS lens? (c) are direct-point drills too strong vs XP?
    (d) OVERALL numbers now live around 20–40 (species caps) — does that
    feel right or do the numbers want a bigger scale?

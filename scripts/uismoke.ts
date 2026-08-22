@@ -93,9 +93,11 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('POT')) throw new Error('growth lens did not render');
   must('[data-action="lens-set"]', 'lens set 0');
 
-  // a kite with an OVR number in the center
-  if (!app.innerHTML.includes('k-ovr')) throw new Error('kite OVR missing');
+  // the square card: kite, OVR bottom-left, XP ring bottom-right
+  if (!app.innerHTML.includes('kovr')) throw new Error('card OVR missing');
+  if (!app.innerHTML.includes('kring')) throw new Error('XP ring missing');
   if (!app.innerHTML.includes('k-pot')) throw new Error('potential outline missing');
+  if (!app.innerHTML.includes('ksprite')) throw new Error('centered sprite missing');
 
   // drill: open sheet, run shootaround (hold → gcAction)
   must('[data-action="drill-sheet"]', 'drill sheet');
