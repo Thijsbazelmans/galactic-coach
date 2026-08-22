@@ -3,58 +3,61 @@
 // Content is data + pure decision functions; the engine (state.ts) applies Fx.
 
 import type {
+  Attr,
   Fx,
   GameState,
   OddsTail,
   PlanId,
   Player,
-  Pole,
   SpeciesDef,
   StoryChoiceView,
   StoryEvent,
 } from './types';
-import { clamp, lean, pick, rand } from './util';
+import { ATTRS, clamp, ovr, pick, rand } from './util';
 
 export const CLASS_ABBR = ['Fr', 'So', 'Jr', 'Sr'];
 
 // ---- species (PROVISIONAL — the real species session comes later) ----------
+// Caps are per-attribute ceilings (0–25). Tier 1 = flat floor material,
+// tier 2 = one standout direction, tier 3 = two standouts + a fragile body.
+// SIZE is separate: it lives in height/weight and decides position fit.
 
 export const SPECIES: SpeciesDef[] = [
   {
     id: 'terran',
     name: 'Terran',
     tier: 1,
-    poleCaps: { strong: 55, quick: 55, fierce: 55, savvy: 55 },
-    heightRange: [180, 205],
-    weightRange: [78, 112],
-    desc: 'Baseline bipeds. Can lean any way, never far. The galaxy simply outbuilds them.',
+    attrCaps: { skl: 15, ath: 15, frc: 15, brn: 15 },
+    heightRange: [176, 204],
+    weightRange: [76, 110],
+    desc: 'Baseline bipeds. Decent at everything, great at nothing. The galaxy simply outbuilds them.',
     rarity: 0,
   },
   {
     id: 'lithoid',
     name: 'Lithoid',
     tier: 2,
-    poleCaps: { strong: 95, quick: 15, fierce: 60, savvy: 65 },
-    heightRange: [182, 208],
+    attrCaps: { skl: 8, ath: 18, frc: 23, brn: 14 },
+    heightRange: [185, 210],
     weightRange: [140, 200],
-    desc: 'Sentient rock. Stronger than everyone, forever. Has never once hurried.',
+    desc: 'Sentient rock. The meanest defender in known space — and every shot is an actual brick.',
     rarity: 1,
   },
   {
     id: 'dodecapede',
     name: 'Dodecapede',
     tier: 2,
-    poleCaps: { strong: 15, quick: 95, fierce: 60, savvy: 60 },
-    heightRange: [168, 192],
+    attrCaps: { skl: 14, ath: 24, frc: 10, brn: 15 },
+    heightRange: [165, 190],
     weightRange: [55, 85],
-    desc: 'Twelve legs, zero patience. Nothing in the league moves faster.',
+    desc: 'Twelve legs, zero patience. Nothing in the league moves faster, or smaller.',
     rarity: 1,
   },
   {
     id: 'hexabrach',
     name: 'Hexabrach',
     tier: 2,
-    poleCaps: { strong: 60, quick: 45, fierce: 95, savvy: 60 },
+    attrCaps: { skl: 11, ath: 18, frc: 24, brn: 9 },
     heightRange: [195, 222],
     weightRange: [100, 140],
     desc: 'Six arms and a temper. A full-court press with a pulse.',
@@ -64,7 +67,7 @@ export const SPECIES: SpeciesDef[] = [
     id: 'luminar',
     name: 'Luminar',
     tier: 3,
-    poleCaps: { strong: 10, quick: 90, fierce: 20, savvy: 90 },
+    attrCaps: { skl: 24, ath: 9, frc: 5, brn: 21 },
     heightRange: [188, 218],
     weightRange: [40, 62],
     desc: 'Coherent light with a jumper. Brilliant, blinding, and made of glass.',
@@ -112,29 +115,41 @@ export const DEITY_NAMES = [
 ];
 
 // ---- the plan wheel ----------------------------------------------------------
+// Four tactics, one per attribute, 1:1. Each beats exactly one other:
+// SHOWTIME > LOCKDOWN > CLOCKWORK > RUN & GUN > SHOWTIME.
 
 export interface PlanDef {
   id: PlanId;
   name: string;
-  pole: Pole;
+  attr: Attr;
   beats: PlanId;
   fantasy: string;
   beatLine: string; // "your X broke their Y" flavor
 }
 
 export const PLANS: PlanDef[] = [
-  { id: 'pound', name: 'POUND', pole: 'strong', beats: 'clockwork', fantasy: 'Bully ball. Post them up, wear them down.', beatLine: 'Muscle smashed the system.' },
-  { id: 'blitz', name: 'BLITZ', pole: 'quick', beats: 'pound', fantasy: 'Run and gun. Seven seconds or less.', beatLine: 'You ran their big men ragged.' },
-  { id: 'swarm', name: 'SWARM', pole: 'fierce', beats: 'blitz', fantasy: 'Full-court terror. Make them hate the ball.', beatLine: 'The press ate their speedsters alive.' },
-  { id: 'clockwork', name: 'CLOCKWORK', pole: 'savvy', beats: 'swarm', fantasy: 'The system. Every cut scripted.', beatLine: 'Poise dismantled their press.' },
+  { id: 'showtime', name: 'SHOWTIME', attr: 'skl', beats: 'lockdown', fantasy: 'Shooters shoot. Rise over anything they pack in.', beatLine: 'Pure touch rose over the muggers.' },
+  { id: 'rungun', name: 'RUN & GUN', attr: 'ath', beats: 'showtime', fantasy: 'Outrun everything. Seven seconds or less.', beatLine: 'Their shooters never got a clean look at full sprint.' },
+  { id: 'lockdown', name: 'LOCKDOWN', attr: 'frc', beats: 'clockwork', fantasy: 'Full-court terror. Make them hate the ball.', beatLine: 'The press tore their script to pieces.' },
+  { id: 'clockwork', name: 'CLOCKWORK', attr: 'brn', beats: 'rungun', fantasy: 'The system. Every cut scripted.', beatLine: 'Poise picked the sprinters apart.' },
 ];
 
 export function planById(id: PlanId): PlanDef {
   return PLANS.find((p) => p.id === id)!;
 }
 
-export const POLE_LABEL: Record<Pole, string> = {
-  strong: 'STRONG', quick: 'QUICK', fierce: 'FIERCE', savvy: 'SAVVY',
+/** The two tactics every coach knows on day one. The rest are KNOWLEDGE. */
+export const STARTING_PLANS: PlanId[] = ['showtime', 'rungun'];
+
+export const ATTR_LABEL: Record<Attr, string> = {
+  skl: 'SKILL', ath: 'ATHLETICISM', frc: 'FIERCENESS', brn: 'BRAINS',
+};
+export const ATTR_SHORT: Record<Attr, string> = {
+  skl: 'SKL', ath: 'ATH', frc: 'FRC', brn: 'BRN',
+};
+/** The box-score stat each attribute drives (one system everywhere). */
+export const ATTR_STAT: Record<Attr, 'pts' | 'reb' | 'stl' | 'ast'> = {
+  skl: 'pts', ath: 'reb', frc: 'stl', brn: 'ast',
 };
 
 // ---- the drill board -----------------------------------------------------------
@@ -144,7 +159,10 @@ export interface DrillDef {
   name: string;
   desc: string;
   cost: number;
+  /** the slow universal track: XP toward levels (levels bank +2 free points) */
   xp: [number, number];
+  /** the fast fixed track: direct attribute points — the DRILL picks where */
+  gain?: Partial<Record<Attr, number>>;
   /** 'squad' trains everyone not sitting; 'one' trains a single pick; 'rest' recovers */
   target: 'squad' | 'one' | 'rest';
   up: OddsTail;
@@ -167,32 +185,6 @@ export const DRILLS: DrillDef[] = [
     energyCost: 4,
     injuryBias: 0,
     cause: (n) => `${n} rolled an ankle stepping on a loose ball during shootaround. A loose ball. In shootaround.`,
-  },
-  {
-    id: 'asteroid',
-    name: 'ASTEROID PUSHES',
-    desc: 'Push the practice asteroid up the gravity ramp until something in you changes.',
-    cost: 1,
-    xp: [3, 5],
-    target: 'squad',
-    up: { pct: 5, cls: 'BREAKTHROUGH' },
-    down: { pct: 10, cls: 'INJURY' },
-    energyCost: 10,
-    injuryBias: 1,
-    cause: (n) => `${n} got his arm stuck between two practice asteroids and saw no way out but to have a teammate rip him free.`,
-  },
-  {
-    id: 'blaster',
-    name: 'BLASTER DODGE',
-    desc: 'The training blasters are set to "consequences". Lessons arrive at light speed.',
-    cost: 2,
-    xp: [5, 8],
-    target: 'squad',
-    up: { pct: 10, cls: 'BREAKTHROUGH' },
-    down: { pct: 25, cls: 'INJURY' },
-    energyCost: 14,
-    injuryBias: 2,
-    cause: (n) => `${n} attempted to dodge a blaster bolt with a backflip. The backflip was beautiful. The bolt did not care.`,
   },
   {
     id: 'personal',
@@ -219,6 +211,63 @@ export const DRILLS: DrillDef[] = [
     energyCost: 0,
     injuryBias: 0,
     cause: (n) => `${n}, unsupervised, found a crater to lollygag in on a borrowed grav-board.`,
+  },
+  // ---- discovered methods: direct points, the drill decides where -------------
+  {
+    id: 'asteroid',
+    name: 'ASTEROID PUSHES',
+    desc: 'One player pushes the practice asteroid up the gravity ramp until something in him changes.',
+    cost: 1,
+    xp: [2, 4],
+    gain: { ath: 1 },
+    target: 'one',
+    up: { pct: 5, cls: 'BREAKTHROUGH' },
+    down: { pct: 10, cls: 'INJURY' },
+    energyCost: 14,
+    injuryBias: 1,
+    cause: (n) => `${n} got his arm stuck between two practice asteroids and saw no way out but to have a teammate rip him free.`,
+  },
+  {
+    id: 'meteor',
+    name: 'METEOR DODGING',
+    desc: 'Live meteors, real stakes. Teaches touch AND foot speed to whoever survives the hour.',
+    cost: 2,
+    xp: [2, 4],
+    gain: { skl: 1, ath: 1 },
+    target: 'one',
+    up: { pct: 10, cls: 'BREAKTHROUGH' },
+    down: { pct: 25, cls: 'INJURY' },
+    energyCost: 16,
+    injuryBias: 2,
+    cause: (n) => `${n} dodged eleven meteors with a backflip each. The twelfth did not care about backflips.`,
+  },
+  {
+    id: 'sparring',
+    name: 'GRAVITY CAGE',
+    desc: 'Double gravity, one ball, two players, no whistle. What comes out is meaner.',
+    cost: 1,
+    xp: [2, 4],
+    gain: { frc: 1 },
+    target: 'one',
+    up: { pct: 5, cls: 'BREAKTHROUGH' },
+    down: { pct: 10, cls: 'INJURY' },
+    energyCost: 14,
+    injuryBias: 1,
+    cause: (n) => `${n} won the cage bout but left his shoulder somewhere inside it.`,
+  },
+  {
+    id: 'filmroom',
+    name: 'THE FILM CRYPT',
+    desc: 'Ten thousand seasons of galactic film, fed straight into one player until the floor slows down for him.',
+    cost: 1,
+    xp: [2, 4],
+    gain: { brn: 1 },
+    target: 'one',
+    up: { pct: 5, cls: 'BREAKTHROUGH' },
+    down: { pct: 5, cls: 'DRAMA' },
+    energyCost: 8,
+    injuryBias: 0,
+    cause: (n) => `${n} came out of the crypt after nine hours arguing with a play from 400 years ago. Loudly. At teammates.`,
   },
 ];
 
@@ -409,7 +458,7 @@ export const ITEMS: ItemDef[] = [
       if (t === 'up') {
         return {
           text: `${p.name} downs the vial. Whatever was wrong with him is gone — and something extra came with it. 1 in 50, and you WON it.`,
-          fx: [{ playerId: p.id, outWeeks: 0, energyP: 100, skill: 2, mood: 10 }],
+          fx: [{ playerId: p.id, outWeeks: 0, energyP: 100, anyAttr: 2, mood: 10 }],
         };
       }
       return {
@@ -430,20 +479,20 @@ export const ITEMS: ItemDef[] = [
     down: { pct: 10, cls: 'SCANDAL' },
     use: (ctx) => {
       const squad = ctx.team().filter((p) => p.outWeeks === 0);
-      const p = squad.sort((a, b) => lean(b, 'quick') - lean(a, 'quick'))[0] ?? null;
+      const p = squad.sort((a, b) => b.attrs.ath - a.attrs.ath)[0] ?? null;
       if (!p) return { text: 'Nobody is fit to travel to Xarter. The invitation dissolves.' };
       const t = tails(5, 10);
-      const base: Fx = { playerId: p.id, levelDelta: 1, build: 8 };
+      const base: Fx = { playerId: p.id, levelDelta: 1, attr: { ath: 2 } };
       if (t === 'down') {
         return {
           text: `${p.name} returns from Coach Xarter faster than physics — and wrong behind the eyes. Mid-scrimmage he bites a teammate's leg. The league opens a file with your name on it.`,
-          fx: [base, { playerId: p.id, outWeeks: 3, outReason: 'suspension (the biting)', head: -10 }, { heatS: 15 }],
+          fx: [base, { playerId: p.id, outWeeks: 3, outReason: 'suspension (the biting)', attr: { frc: 2, brn: -2 } }, { heatS: 15 }],
         };
       }
       if (t === 'up') {
         return {
           text: `${p.name} returns from Coach Xarter transformed. His first step now happens slightly before he decides to take it.`,
-          fx: [base, { playerId: p.id, skill: 3, mood: 10 }],
+          fx: [base, { playerId: p.id, anyAttr: 2, mood: 10 }],
         };
       }
       return { text: `${p.name} returns from Coach Xarter a week later, faster, quieter, and unwilling to discuss it.`, fx: [base] };
@@ -461,7 +510,7 @@ export const ITEMS: ItemDef[] = [
     down: { pct: 10, cls: 'DRAMA' },
     use: (ctx) => {
       const squad = ctx.team().filter((p) => p.outWeeks === 0 && p.level < 10);
-      const p = squad.sort((a, b) => b.potential - a.potential)[0] ?? null;
+      const p = squad.sort((a, b) => ovr(b.pots) - ovr(a.pots))[0] ?? null;
       if (!p) return { text: 'Everyone is already who they will be. The sip goes flat.' };
       const t = tails(2, 10);
       if (t === 'down') {
@@ -474,7 +523,7 @@ export const ITEMS: ItemDef[] = [
       if (t === 'up') {
         return {
           text: `${p.name} takes the sip and comes back with three years of work in his hands — and a ceiling you can no longer see. 1 in 50, and you WON it.`,
-          fx: [{ playerId: p.id, levelDelta: 3, potential: 8 }],
+          fx: [{ playerId: p.id, levelDelta: 3, anyPot: 8 }],
         };
       }
       return { text: `${p.name} takes the sip. Three subjective years of empty-gym reps land in his body at once. He sits down for a while.`, fx: [{ playerId: p.id, levelDelta: 3 }] };
@@ -556,7 +605,7 @@ export const ITEMS: ItemDef[] = [
           fx: [{ heatS: 15 }, { playerId: p.id, outWeeks: 1, outReason: 'hologram hearing' }],
         };
       }
-      if (t === 'up') return { text: `${p.name} studies with the hologram and something CLICKS. He aces it — and his game IQ came along.`, fx: [{ playerId: p.id, outWeeks: 0, head: 6, mood: 8 }] };
+      if (t === 'up') return { text: `${p.name} studies with the hologram and something CLICKS. He aces it — and his game IQ came along.`, fx: [{ playerId: p.id, outWeeks: 0, attr: { brn: 2 }, mood: 8 }] };
       return { text: `${p.name} passes. The hologram bows and folds itself into a point of light.`, fx: [{ playerId: p.id, outWeeks: 0, mood: 5 }] };
     },
   },
@@ -580,7 +629,9 @@ export const ITEMS: ItemDef[] = [
       }
       pr.commitPct = clamp(pr.commitPct + 25, 0, 95);
       if (t === 'up') {
-        pr.scoutLevel = 2; pr.seenSkillStar = 0; // engine re-derives on next view
+        pr.scoutLevel = 2;
+        pr.seenAttrs = { ...pr.attrs };
+        pr.seenPots = { ...pr.pots };
         return { text: `${pr.name} has the night of his life — and plays pickup at 3am while your assistant takes notes. Commitment +25%, and now you KNOW him.` };
       }
       return { text: `${pr.name} has the time of his life. He leaves wearing one of your team caps. Commitment +25%.` };
@@ -592,20 +643,20 @@ export const ITEMS: ItemDef[] = [
     name: 'GRAVITY BOOTS',
     rarity: 'rare',
     flavor: 'Every step is leg day.',
-    effectText: 'a body permanently rebuilt toward STRONG',
+    effectText: 'a body permanently rebuilt: +ATHLETICISM',
     context: ['practice'],
     up: { pct: 2, cls: 'BREAKTHROUGH' },
     down: { pct: 25, cls: 'INJURY' },
     use: (ctx) => {
       const squad = ctx.team().filter((p) => p.outWeeks === 0);
-      const p = squad.sort((a, b) => lean(b, 'strong') - lean(a, 'strong'))[0] ?? null;
+      const p = squad.sort((a, b) => b.attrs.ath - a.attrs.ath)[0] ?? null;
       if (!p) return { text: 'No legs available for leg day.' };
       const t = tails(2, 25);
       if (t === 'down') {
-        return { text: `${p.name} wears the gravity boots for a week and his ankle files a formal complaint. 2 weeks.`, fx: [{ playerId: p.id, build: -5, outWeeks: 2, outReason: 'gravity ankle' }] };
+        return { text: `${p.name} wears the gravity boots for a week and his ankle files a formal complaint. 2 weeks.`, fx: [{ playerId: p.id, attr: { ath: 1 }, outWeeks: 2, outReason: 'gravity ankle' }] };
       }
-      if (t === 'up') return { text: `${p.name} wears the gravity boots and becomes LOAD-BEARING. The floor creaks respectfully.`, fx: [{ playerId: p.id, build: -8, skill: 2 }] };
-      return { text: `${p.name} trains a week in the gravity boots. His footsteps now have bass.`, fx: [{ playerId: p.id, build: -5 }] };
+      if (t === 'up') return { text: `${p.name} wears the gravity boots and becomes LOAD-BEARING. The floor creaks respectfully.`, fx: [{ playerId: p.id, attr: { ath: 2 }, anyAttr: 2 }] };
+      return { text: `${p.name} trains a week in the gravity boots. His footsteps now have bass.`, fx: [{ playerId: p.id, attr: { ath: 2 } }] };
     },
   },
   {
@@ -657,7 +708,7 @@ export const ITEMS: ItemDef[] = [
     up: { pct: 2, cls: 'LOOT' },
     down: { pct: 25, cls: 'SCANDAL' },
     use: (ctx) => {
-      const pr = ctx.data.prospectId !== undefined ? ctx.s.prospects.find((x) => x.id === ctx.data.prospectId) : [...ctx.s.prospects].sort((a, b) => b.potential - a.potential)[0];
+      const pr = ctx.data.prospectId !== undefined ? ctx.s.prospects.find((x) => x.id === ctx.data.prospectId) : [...ctx.s.prospects].sort((a, b) => ovr(b.pots) - ovr(a.pots))[0];
       if (!pr) return { text: 'Nobody to buy. The check flutters, unspent.' };
       pr.commitPct = 100;
       pr.selected = true;
@@ -780,13 +831,57 @@ function pname(ctx: StoryCtx): string {
 }
 
 /** Printed odds shifted by the player's head — with the cause shown (law 5). */
-function headMod(p: Player | null, base: number, pole: 'fierce' | 'savvy'): { pct: number; note?: string } {
+function headMod(p: Player | null, base: number, attr: 'frc' | 'brn'): { pct: number; note?: string } {
   if (!p) return { pct: base };
-  if (lean(p, pole) >= 50) return { pct: Math.min(90, base * 2), note: pole === 'fierce' ? "he's Fierce, careful" : "he's Savvy — or says he is" };
+  if (p.attrs[attr] >= 14) return { pct: Math.min(90, base * 2), note: attr === 'frc' ? "he's FIERCE, careful" : "he's got BRAINS — or says he does" };
   return { pct: base };
 }
 
+/** Something the coach doesn't know yet: a locked drill or an unlearned tactic. */
+function pickKnowledge(s: GameState): { kind: 'drill' | 'plan'; id: string; name: string } | null {
+  const options: { kind: 'drill' | 'plan'; id: string; name: string }[] = [
+    ...DRILLS.filter((d) => !s.unlockedDrills.includes(d.id)).map((d) => ({ kind: 'drill' as const, id: d.id, name: d.name })),
+    ...PLANS.filter((pl) => !s.knownPlans.includes(pl.id)).map((pl) => ({ kind: 'plan' as const, id: pl.id, name: pl.name })),
+  ];
+  return options.length ? pick(options) : null;
+}
+
 export const STORIES: StoryDef[] = [
+  // ---- the level-up: XP banked, the coach decides where the growth lands ------
+  {
+    id: 'levelup',
+    kind: 'player',
+    beat: (_b, ctx) => {
+      const p = ctx.player!;
+      const pts = (ctx.data.points as number) ?? 2;
+      const open = ATTRS.filter((a) => p.attrs[a] < p.pots[a]);
+      return {
+        tag: '★ LEVEL UP ★',
+        text: `${p.name} hits LEVEL ${p.level}. The work has banked +${pts} points — and where they land is a coach's call.`,
+        choices: open.length
+          ? ATTRS.map((a) => {
+              const to = Math.min(p.attrs[a] + pts, p.pots[a]);
+              return C(a, `${ATTR_LABEL[a]}  ${p.attrs[a]} → ${to}`, {
+                disabled: p.attrs[a] >= p.pots[a] ? 'at his ceiling' : undefined,
+              });
+            })
+          : [C('done', 'HE IS COMPLETE. SHAKE HIS HAND.')],
+      };
+    },
+    resolve: (key, ctx) => {
+      const p = ctx.player!;
+      const pts = (ctx.data.points as number) ?? 2;
+      if (key === 'done') return { text: `${p.name} has nothing left to grow into. That's not sad. That's a finished sculpture.`, fx: [{ mood: 5 }] };
+      const a = key as Attr;
+      const lines: Record<Attr, string> = {
+        skl: `${p.name} lives in the gym for a week. The net starts making that sound.`,
+        ath: `${p.name} rebuilds his body one brutal morning at a time. The floor feels smaller now.`,
+        frc: `${p.name} finds the mean streak and makes it a tool. Opponents will learn his name the hard way.`,
+        brn: `${p.name} starts seeing the floor two passes early. The game slows down for him.`,
+      };
+      return { text: lines[a], fx: [{ attr: { [a]: pts } }] };
+    },
+  },
   // ---- the injury storyline (class pool: INJURY) — reached from every cause ----
   {
     id: 'injury',
@@ -821,7 +916,7 @@ export const STORIES: StoryDef[] = [
           };
         }
         if (t === 'up') {
-          return { text: `${p.name} tapes it, plays, and finds a gear he didn't know he had. Pain is a teacher, apparently.`, fx: [{ playerId: p.id, head: -4, xp: 10, mood: 6 }] };
+          return { text: `${p.name} tapes it, plays, and finds a gear he didn't know he had. Pain is a teacher, apparently.`, fx: [{ playerId: p.id, attr: { frc: 1 }, xp: 10, mood: 6 }] };
         }
         return { text: `${p.name} grits through the week. It holds. Barely.`, fx: [{ playerId: p.id, energyP: -20 }] };
       }
@@ -907,8 +1002,8 @@ export const STORIES: StoryDef[] = [
     }),
     resolve: (_key, ctx) => {
       const p = ctx.player!;
-      if (Math.random() < 0.5 && p.potential < 95) {
-        return { text: `${p.name}'s ceiling just moved. You felt it move.`, fx: [{ playerId: p.id, potential: 6, mood: 10 }] };
+      if (Math.random() < 0.5) {
+        return { text: `${p.name}'s ceiling just moved. You felt it move.`, fx: [{ playerId: p.id, anyPot: 6, mood: 10 }] };
       }
       return { text: `${p.name} has leveled his whole game up overnight.`, fx: [{ playerId: p.id, levelDelta: 1, mood: 10 }] };
     },
@@ -940,7 +1035,7 @@ export const STORIES: StoryDef[] = [
         choices: [
           C('sure', '"SURE." (ask nothing)', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' } }),
           (() => {
-            const m = headMod(ctx.player, 25, 'fierce');
+            const m = headMod(ctx.player, 25, 'frc');
             return C('why', '"WHY?"', { up: { pct: 50, cls: 'SPIRIT' }, down: { pct: m.pct as 2 | 5 | 10 | 25 | 50, cls: 'DRAMA', note: m.note } as OddsTail });
           })(),
         ],
@@ -982,7 +1077,7 @@ export const STORIES: StoryDef[] = [
         return base;
       }
       // why?
-      const m = headMod(p, 25, 'fierce');
+      const m = headMod(p, 25, 'frc');
       const t = tails(50, m.pct);
       if (t === 'down') return { text: `${p.name}'s jaw sets. "Forget it." He leaves the slip on your desk and the door doesn't quite slam, which is worse.`, fx: [{ playerId: p.id, mood: -12 }] };
       if (t === 'up') {
@@ -991,8 +1086,8 @@ export const STORIES: StoryDef[] = [
           next: { defId: 'festival', beat: 'ask', playerId: p.id, data: { fest: pick(FESTS) } },
         };
       }
-      if (lean(p, 'savvy') >= 50 && tails(25, 0) === 'up') {
-        return { text: `"Family thing," he says smoothly. You sign the slip. (Weeks later you learn there was no family thing. There was a music festival. He's Savvy. People lie.)`, fx: [{ playerId: p.id, outWeeks: 1, outReason: '"family thing"', mood: 8 }] };
+      if (p.attrs.brn >= 14 && tails(25, 0) === 'up') {
+        return { text: `"Family thing," he says smoothly. You sign the slip. (Weeks later you learn there was no family thing. There was a music festival. He has BRAINS. People with brains lie well.)`, fx: [{ playerId: p.id, outWeeks: 1, outReason: '"family thing"', mood: 8 }] };
       }
       return { text: `"Just... home stuff, coach." You sign the slip and don't push.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'home stuff', mood: 3 }] };
     },
@@ -1006,11 +1101,11 @@ export const STORIES: StoryDef[] = [
       let text: string;
       let fx: Fx[];
       if (roll < 15) { text = `${p} is back from the festival — on crutches. Traditional cliff-diving, third cousin's dare. Two more weeks.`; fx = [{ outWeeks: 2, outReason: 'festival cliff-diving', energyP: -20 }]; }
-      else if (roll < 30) { text = `${p} is back from the festival... married. There are also, somehow, triplets. He keeps drifting off mid-drill to look at holos of them.`; fx = [{ mood: -6, head: 4 }]; }
+      else if (roll < 30) { text = `${p} is back from the festival... married. There are also, somehow, triplets. He keeps drifting off mid-drill to look at holos of them.`; fx = [{ mood: -6, attr: { brn: 1 } }]; }
       else if (roll < 65) { text = `${p} is back from the festival glowing. Grandma's cooking, twelve naps, zero basketball. He looks five years younger.`; fx = [{ mood: 22, energyP: 20 }]; }
-      else if (roll < 85) { text = `${p} is back from the festival with six new abs. The ceremonial gravity-crunches are not ceremonial.`; fx = [{ build: -6, mood: 8 }]; }
+      else if (roll < 85) { text = `${p} is back from the festival with six new abs. The ceremonial gravity-crunches are not ceremonial.`; fx = [{ attr: { ath: 2 }, mood: 8 }]; }
       else if (roll < 98) { text = `${p} is back and something's off — time dilation on the pilgrimage route. He's been shooting on his uncle's hoop for three subjective years. His release is silk.`; fx = [{ xp: 30, mood: 5 }]; }
-      else { text = `${p} is back from the festival TRANSFORMED. The elders saw something in him and told him what it was. 1 in 50, and you WON it.`; fx = [{ potential: 8, mood: 15 }]; }
+      else { text = `${p} is back from the festival TRANSFORMED. The elders saw something in him and told him what it was. 1 in 50, and you WON it.`; fx = [{ anyPot: 8, mood: 15 }]; }
       ctx.data.text = text;
       ctx.data.fx = fx;
       return { tag: 'THE RETURN', text };
@@ -1038,7 +1133,7 @@ export const STORIES: StoryDef[] = [
         return { text: 'The gravel goes in a drawer. The drawer now rattles when the team bus passes.', fx: [{ playerId: p.id, mood: -4 }] };
       }
       const t = tails(25, 25);
-      if (t === 'up') return { text: `The monk diet WORKED?? ${p.name} is denser somehow. The training staff refuses to explain the scale readout.`, fx: [{ playerId: p.id, build: -6, weightKg: 6, mood: 5 }] };
+      if (t === 'up') return { text: `The monk diet WORKED?? ${p.name} is denser somehow. The training staff refuses to explain the scale readout.`, fx: [{ playerId: p.id, attr: { ath: 2 }, weightKg: 6, mood: 5 }] };
       if (t === 'down') return { text: `${p.name} spent three days of mineral week in the medical bay. He is not, it turns out, a Lithoid monk.`, fx: [{ playerId: p.id, energyP: -30, mood: -6, outWeeks: 1, outReason: 'gravel recovery' }] };
       return { text: `${p.name} quit the mineral diet on day two and ate an entire celebration cake about it. He regrets nothing.`, fx: [{ playerId: p.id, mood: 10, weightKg: 3 }] };
     },
@@ -1094,13 +1189,13 @@ export const STORIES: StoryDef[] = [
       const p = ctx.player!;
       if (key === 'leave') {
         const t = tails(25, 2);
-        if (t === 'up') return { text: `${p.name} misses a game, attends every appointment, and comes back more grown-up than he left. The team noticed. The team talks about it quietly and well.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'personal leave', mood: 10, head: 5 }, { teamMood: 5 }, { heatS: -4 }] };
+        if (t === 'up') return { text: `${p.name} misses a game, attends every appointment, and comes back more grown-up than he left. The team noticed. The team talks about it quietly and well.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'personal leave', mood: 10, attr: { brn: 2 } }, { teamMood: 5 }, { heatS: -4 }] };
         if (t === 'down') return { text: `${p.name} takes the week — and comes back with MORE questions. You are apparently the godfather now? There was no form for this.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'personal leave', mood: 3 }] };
-        return { text: `${p.name} takes the week and handles his business. He comes back steadier.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'personal leave', mood: 8, head: 3 }] };
+        return { text: `${p.name} takes the week and handles his business. He comes back steadier.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'personal leave', mood: 8, attr: { brn: 1 } }] };
       }
       const t = tails(2, 50);
       if (t === 'down') return { text: `${p.name} stays in the lineup with his head somewhere else entirely. He's stopped eating properly. Zeta Squadron now boos your bench, specifically.`, fx: [{ playerId: p.id, mood: -18, weightKg: -4 }, { heatS: 5 }] };
-      if (t === 'up') return { text: `${p.name} somehow compartmentalizes. You have created a professional. You are not sure you're proud.`, fx: [{ playerId: p.id, mood: -5, head: 3 }] };
+      if (t === 'up') return { text: `${p.name} somehow compartmentalizes. You have created a professional. You are not sure you're proud.`, fx: [{ playerId: p.id, mood: -5, attr: { brn: 1 } }] };
       return { text: `${p.name} plays on, hollow-eyed. The scoreboard doesn't know. Everyone else does.`, fx: [{ playerId: p.id, mood: -12 }] };
     },
   },
@@ -1121,7 +1216,7 @@ export const STORIES: StoryDef[] = [
       const p = ctx.player!;
       if (key === 'pods') {
         const t = tails(10, 2);
-        const base: Fx[] = [{ playerId: p.id, outWeeks: 2, outReason: 'anger-management pods', head: 6 }, { heatS: -8 }];
+        const base: Fx[] = [{ playerId: p.id, outWeeks: 2, outReason: 'anger-management pods', attr: { brn: 2 } }, { heatS: -8 }];
         if (t === 'up') return { text: `${p.name} completes the pod program and hand-writes five apology letters. One lab partner frames theirs. He comes back with a stillness that frightens opponents more than the temper did.`, fx: [...base, { playerId: p.id, mood: 8 }] };
         return { text: `${p.name} does his pod time and writes his letters. The Dean's office stands down.`, fx: base };
       }
@@ -1154,9 +1249,9 @@ export const STORIES: StoryDef[] = [
       if (key === 'go') {
         const t = tails(25, 2);
         const base: Fx[] = [{ playerId: p.id, outWeeks: 3, outReason: 'academic exchange', mood: 10 }, { heatS: -6 }];
-        if (t === 'up') return { text: `${p.name} sends weekly holo-postcards and returns measurably smarter and insufferable about it. The Scholar-Ring rewired how he sees the floor.`, fx: [...base, { playerId: p.id, head: 8 }] };
+        if (t === 'up') return { text: `${p.name} sends weekly holo-postcards and returns measurably smarter and insufferable about it. The Scholar-Ring rewired how he sees the floor.`, fx: [...base, { playerId: p.id, attr: { brn: 2 } }] };
         if (t === 'down') return { text: `${p.name} loves it there SO much. His postcards start mentioning "options". You sleep worse.`, fx: [...base, { playerId: p.id, mood: 5 }] };
-        return { text: `${p.name} goes, learns, returns with a Scholar-Ring hoodie he never takes off.`, fx: [...base, { playerId: p.id, head: 5 }] };
+        return { text: `${p.name} goes, learns, returns with a Scholar-Ring hoodie he never takes off.`, fx: [...base, { playerId: p.id, attr: { brn: 1 } }] };
       }
       const t = tails(2, 25);
       if (t === 'down') return { text: `He says he understands. He does not understand. His advisor files a complaint with the school.`, fx: [{ playerId: p.id, mood: -12 }, { heatS: 8 }] };
@@ -1181,7 +1276,7 @@ export const STORIES: StoryDef[] = [
       if (key === 'lean') {
         const t = tails(10, 25);
         if (t === 'up') return { text: `${p.name}'s follower count triples and so does the season-ticket line. The boosters are DELIGHTED.`, fx: [{ playerId: p.id, mood: 12 }, { heatB: -10 }] };
-        if (t === 'down') return { text: `${p.name} now signs autographs with a stage name and reviews his own highlights during film study. The locker room has opinions about "his brand" too.`, fx: [{ playerId: p.id, mood: 8, head: -5 }, { teamMood: -6 }] };
+        if (t === 'down') return { text: `${p.name} now signs autographs with a stage name and reviews his own highlights during film study. The locker room has opinions about "his brand" too.`, fx: [{ playerId: p.id, mood: 8, attr: { brn: -1 } }, { teamMood: -6 }] };
         return { text: `${p.name} rides the wave. Practice attendance: perfect. Practice focus: negotiable.`, fx: [{ playerId: p.id, mood: 10 }] };
       }
       const t = tails(10, 10);
@@ -1251,11 +1346,12 @@ export const STORIES: StoryDef[] = [
   },
 
   // ---- KNOWLEDGE storylines ---------------------------------------------------
+  // The knowledge pool: undiscovered drills AND unlearned tactics.
   {
     id: 'seminar',
     kind: 'coach',
     weight: 2,
-    when: (s) => s.unlockedDrills.length < DRILLS.length,
+    when: (s) => s.unlockedDrills.length < DRILLS.length || s.knownPlans.length < PLANS.length,
     beat: () => ({
       tag: "COACH'S DESK",
       text: 'An embossed holo-invitation: the Galactic Coaching Seminar on Blorgon 6, this week. Two days of drills, film, and lukewarm banquet food with the best minds in the game.',
@@ -1269,10 +1365,11 @@ export const STORIES: StoryDef[] = [
         return { text: 'You have games to win. The invitation folds itself into a paper shuttle and flies off, offended.', fx: [] };
       }
       const t = tails(50, 10);
-      const locked = DRILLS.filter((d) => !ctx.s.unlockedDrills.includes(d.id));
-      if (t === 'up' && locked.length) {
-        const d = pick(locked);
-        return { text: `Blorgon 6 pays off — a legendary assistant walks you through ${d.name}, step by step. It's yours now, forever.`, fx: [{ unlockDrill: d.id }] };
+      const k = pickKnowledge(ctx.s);
+      if (t === 'up' && k) {
+        return k.kind === 'drill'
+          ? { text: `Blorgon 6 pays off — a legendary assistant walks you through ${k.name}, step by step. It's yours now, forever.`, fx: [{ unlockDrill: k.id }] }
+          : { text: `Blorgon 6 pays off — a retired champion coach diagrams ${k.name} on a napkin until it clicks. A whole new way to play, yours forever.`, fx: [{ unlockPlan: k.id as PlanId }] };
       }
       if (t === 'down') return { text: 'You catch Blorgon flu at the seminar buffet and sneeze through every session. The team spends the week worried about you.', fx: [{ teamMood: -5 }] };
       return { text: 'Six hours of trust falls and a pyramid scheme about "vertical culture". You learned nothing, and it cost you the trip.' };
@@ -1282,7 +1379,7 @@ export const STORIES: StoryDef[] = [
     id: 'oracle',
     kind: 'coach',
     weight: 2,
-    when: (s) => s.unlockedDrills.length < DRILLS.length && s.week > 2,
+    when: (s) => (s.unlockedDrills.length < DRILLS.length || s.knownPlans.length < PLANS.length) && s.week > 2,
     beat: () => ({
       tag: "COACH'S DESK",
       text: 'On the way back from a scouting run, your ship drops out of warp above an uncharted moon. On its surface: a single hut, a single light, and — your instruments insist — a single very old basketball hoop.',
@@ -1294,10 +1391,11 @@ export const STORIES: StoryDef[] = [
     resolve: (key, ctx) => {
       if (key === 'leave') return { text: 'Some doors are better left unknocked. The hoop watches you leave.', fx: [] };
       const t = tails(50, 25);
-      const locked = DRILLS.filter((d) => !ctx.s.unlockedDrills.includes(d.id));
-      if (t === 'up' && locked.length) {
-        const d = pick(locked);
-        return { text: `The door opens before you knock. "You are late," says the oracle, who has never met you. An hour later you know ${d.name} — a method your species has not invented yet.`, fx: [{ unlockDrill: d.id }] };
+      const k = pickKnowledge(ctx.s);
+      if (t === 'up' && k) {
+        return k.kind === 'drill'
+          ? { text: `The door opens before you knock. "You are late," says the oracle, who has never met you. An hour later you know ${k.name} — a method your species has not invented yet.`, fx: [{ unlockDrill: k.id }] }
+          : { text: `The door opens before you knock. The oracle draws ${k.name} in the dust with one long finger, and suddenly it's obvious. It was always obvious. You just couldn't see it.`, fx: [{ unlockPlan: k.id as PlanId }] };
       }
       if (t === 'down') {
         return {
@@ -1556,7 +1654,7 @@ export const STORIES: StoryDef[] = [
         }
         if (key === 'counter' && target) {
           const others = s.teams[s.myTeamId].players.filter((p) => p.id !== target.id);
-          const alt = others.sort((a, b) => a.skill - b.skill)[0];
+          const alt = others.sort((a, b) => ovr(a.attrs) - ovr(b.attrs))[0];
           const t = tails(50, 50);
           if (t === 'up' && alt) {
             return {
@@ -1820,11 +1918,13 @@ export const TIPS: Record<string, string> = {
   tryouts:
     "First practice, coach. Six players from last year's squad, a gym full of hopefuls, and one clipboard: yours.\n\nPick your nine. The rest of the galaxy already picked theirs.",
   practice:
-    "Practice runs itself — you just pick THE DRILL. Hold it down to commit; everything you can't take back works that way.\n\nThe whole squad trains. Tap a player first to SIT HIM OUT — he rests instead of risking whatever's printed on the card. Every card in this galaxy prints its odds. They never lie.",
+    "Practice runs itself — you just pick THE DRILL. Hold it down to commit; everything you can't take back works that way.\n\nTwo kinds of training, coach: basic drills earn XP (levels bank +2 points YOU place anywhere), and discovered methods burn ⚡ to hammer +1 into exact attributes — the drill decides where. Tap a player first to SIT HIM OUT of squad drills. Every card prints its odds. They never lie.",
+  lenses:
+    "One squad, three lenses. Swipe the grid (or tap the arrows): SKILLS is who they are, STATS is what they've done this season, GROWTH is where they started and how far the ceiling goes.\n\nSame nine faces in the same nine places — only the question changes.",
   galaxy:
-    "The board holds nine names. Tap an empty slot to SCAN a region — deeper space, stranger talent, worse trips home.\n\nTap a prospect and you have two moves: SCOUT him (know him — the stars sharpen) or RECRUIT him (want him — the commitment climbs). You never have energy for both. That's the job.\n\nOh — and ignored prospects drift. Kids notice silence.",
+    "The board holds nine names. Tap an empty slot to SCAN a region — deeper space, stranger talent, worse trips home.\n\nTap a prospect and you have two moves: SCOUT him (the cloud on his compass sharpens into his true shape) or RECRUIT him (the commitment climbs). You never have energy for both. That's the job.\n\nOh — and ignored prospects drift. Kids notice silence.",
   matchup:
-    "Read their shape on the compass, then pick the plan that eats it: POUND beats CLOCKWORK beats SWARM beats BLITZ beats POUND.\n\nThe big number is your chance of winning — it moves LIVE when you swap starters or change the plan. Scout them once to sharpen it from a guess to a fact.",
+    "Four tactics, one per attribute — each one bets the game on one of your four numbers. And each beats one other: SHOWTIME beats LOCKDOWN beats CLOCKWORK beats RUN & GUN beats SHOWTIME.\n\nYour team number under each tactic moves LIVE as you swap players. But the game has two sides — SCOUT them (1⚡) to see THEIR tactic and THEIR number, and sometimes your second-best shape is the right call, because it counters theirs.",
   signing:
     "Signing day math, coach: sign ONE letter and you keep his full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.",
   bag:

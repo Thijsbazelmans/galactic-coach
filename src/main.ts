@@ -4,10 +4,11 @@
 // Popups take over the middle; the bag stays reachable, items drag right in.
 
 import {
+  ATTR_LABEL,
+  ATTR_SHORT,
   CLASS_ABBR,
   DRILLS,
   PLANS,
-  POLE_LABEL,
   PROSPECT_ACTS,
   SCAN_REGIONS,
   itemById,
@@ -15,7 +16,7 @@ import {
   speciesById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, ROSTER_SIZE, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, planFit, slotMult, slotPlayer } from './engine/sim';
+import { COL_LABELS, slotMult, slotPlayer, teamKite, teamRating, wheel } from './engine/sim';
 import {
   actionDropProspect,
   actionProspect,
@@ -61,11 +62,12 @@ import {
   winMeter,
   wipeSave,
 } from './engine/state';
-import type { Fx, GameState, PlanId, Player, Pole, Prospect, Team } from './engine/types';
-import { clamp, effLean, lean, star, starStr } from './engine/util';
+import type { AttrRec, GameState, PlanId, Player, Prospect, Team } from './engine/types';
+import type { Fx } from './engine/types';
+import { ATTRS, SIZE_LABELS, attrEff, clamp, copyAttrs, ovr, perGame, sizeIndex } from './engine/util';
 import { PRACTICE_KIT, faceUrl, iconUrl, spriteUrl, type Kit } from './rig';
 
-const VERSION = 'v1.1';
+const VERSION = 'v2.0';
 
 let state: GameState = load() ?? freshGame();
 
@@ -193,8 +195,7 @@ function floatCard(pid: number, msgs: { text: string; up?: boolean }[], startDel
 // ---- the impact reveal: snapshot → resolve → diff → animate -----------------------
 
 interface PlayerSnap {
-  skill: number; level: number; energy: number; mood: number;
-  potential: number; build: number; head: number; outWeeks: number;
+  attrs: AttrRec; pots: AttrRec; level: number; energy: number; mood: number; outWeeks: number;
 }
 interface Snap {
   energy: number; heatS: number; heatB: number; legacy: number;
@@ -206,8 +207,8 @@ function snapState(): Snap {
   return {
     energy: state.energy, heatS: state.heatS, heatB: state.heatB, legacy: state.legacy,
     players: new Map(t.players.map((p) => [p.id, {
-      skill: p.skill, level: p.level, energy: p.energy, mood: p.mood,
-      potential: p.potential, build: p.build, head: p.head, outWeeks: p.outWeeks,
+      attrs: copyAttrs(p.attrs), pots: copyAttrs(p.pots),
+      level: p.level, energy: p.energy, mood: p.mood, outWeeks: p.outWeeks,
     }])),
   };
 }
@@ -220,15 +221,19 @@ function buildImpact(snap: Snap, fxList: Fx[], pid: number | null): { pid: numbe
   const p = pid !== null ? t.players.find((x) => x.id === pid) : undefined;
   if (was && !p) rows.push({ label: '', text: 'GONE', up: false });
   if (was && p) {
-    if (p.skill !== was.skill) rows.push({ label: 'SKILL', from: was.skill, to: p.skill, up: p.skill > was.skill, color: vc(p.skill) });
+    for (const a of ATTRS) {
+      if (p.attrs[a] !== was.attrs[a]) {
+        rows.push({ label: ATTR_LABEL[a], from: was.attrs[a], to: p.attrs[a], up: p.attrs[a] > was.attrs[a], color: vc(p.attrs[a] * 4) });
+      }
+    }
+    if (ovr(p.attrs) !== ovr(was.attrs)) rows.push({ label: 'OVERALL', from: ovr(was.attrs), to: ovr(p.attrs), up: ovr(p.attrs) > ovr(was.attrs), color: vc(ovr(p.attrs) * 1.6) });
     if (p.level !== was.level) rows.push({ label: 'LEVEL', from: was.level, to: p.level, up: p.level > was.level });
     const xpGain = fxList.reduce((a, f) => a + ((f.playerId ?? pid) === pid ? f.xp ?? 0 : 0), 0);
     if (xpGain > 0 && p.level === was.level) rows.push({ label: 'XP', text: `+${xpGain}`, up: true });
-    if (star(p.potential) !== star(was.potential)) rows.push({ label: 'POTENTIAL', text: starStr(star(p.potential)), up: p.potential > was.potential });
+    const potD = ovr(p.pots) - ovr(was.pots);
+    if (potD !== 0) rows.push({ label: 'POTENTIAL', text: `${potD > 0 ? '+' : ''}${potD} CEILING`, up: potD > 0 });
     if (p.energy !== was.energy) rows.push({ label: 'ENERGY ⚡', from: was.energy, to: p.energy, up: p.energy > was.energy, color: vc(p.energy) });
     if (p.mood !== was.mood) rows.push({ label: 'MOOD', from: was.mood, to: p.mood, up: p.mood > was.mood, color: vc(p.mood) });
-    if (Math.abs(p.build - was.build) >= 2) rows.push({ label: 'BUILD', text: p.build < was.build ? '◀ STRONGER' : 'QUICKER ▶', up: true });
-    if (Math.abs(p.head - was.head) >= 2) rows.push({ label: 'HEAD', text: p.head < was.head ? '▲ FIERCER' : 'SAVVIER ▼', up: true });
     if (p.outWeeks > 0 && p.outWeeks !== was.outWeeks) rows.push({ label: 'OUT', text: `${p.outWeeks} WEEK${p.outWeeks > 1 ? 'S' : ''}`, up: false });
     if (p.outWeeks === 0 && was.outWeeks > 0) rows.push({ label: 'BACK', text: 'READY TO PLAY', up: true });
   }
@@ -369,46 +374,40 @@ function oddsLine(up?: { pct: number; cls: string; note?: string }, down?: { pct
   return parts.length ? `<span class="odds">${parts.join(' ')}</span>` : '';
 }
 
-// ---- the compass card ---------------------------------------------------------------------------
+// ---- the kite compass ----------------------------------------------------------
+// One shape says everything: SKL up, ATH right, FRC down, BRN left. The solid
+// kite is who he is, the outline is his potential, the faint dashes are where
+// the season started. Prospects render as a cloud that scouting sharpens.
 
-// Every compass reads the same: FRC top, SVY bottom, STR left, QCK right.
-// The light box is the species' hard limit. Dot, ghost and box all live in
-// an inset plot area so even the most extreme species stops short of the
-// letters — CT maps a 0–100 axis value into that area.
-const CT = (v: number): number => 15 + v * 0.7;
-
-function speciesBox(caps: Record<Pole, number>): string {
-  const l = CT(50 - caps.strong / 2);
-  const t = CT(50 - caps.fierce / 2);
-  const w = ((caps.strong + caps.quick) / 2) * 0.7;
-  const h = ((caps.fierce + caps.savvy) / 2) * 0.7;
-  return `<span class="cbox" style="left:${l}%;top:${t}%;width:${w}%;height:${h}%"></span>`;
+function kitePoints(v: AttrRec): string {
+  const R = (x: number): number => 6 + (clamp(x, 0, 25) / 25) * 40;
+  return `50,${(50 - R(v.skl)).toFixed(1)} ${(50 + R(v.ath)).toFixed(1)},50 50,${(50 + R(v.frc)).toFixed(1)} ${(50 - R(v.brn)).toFixed(1)},50`;
 }
 
-function compass(
-  p: { build: number; head: number },
-  eff: { build: number; head: number } | null,
-  size: 'mini' | 'full',
-  caps?: Record<Pole, number>,
-  fuzz = ''
-): string {
-  const dotX = eff ? eff.build : p.build;
-  const dotY = eff ? eff.head : p.head;
-  const muted = eff && (Math.abs(eff.build - p.build) >= 4 || Math.abs(eff.head - p.head) >= 4);
-  return `<div class="compass ${size} ${fuzz}">
-    <span class="clabel n">FRC</span><span class="clabel s">SVY</span>
-    <span class="clabel w">STR</span><span class="clabel e">QCK</span>
-    ${caps ? speciesBox(caps) : ''}
-    <span class="axis h"></span><span class="axis v"></span>
-    ${muted ? `<span class="ghost" style="left:${CT(p.build)}%;top:${CT(p.head)}%"></span>` : ''}
-    <span class="dot ${muted ? 'muted' : ''}" style="left:${CT(dotX)}%;top:${CT(dotY)}%"></span>
+interface KiteOpts {
+  pot?: AttrRec | null;
+  start?: AttrRec | null;
+  caps?: AttrRec | null;
+  ovrText?: string;
+  fuzz?: 0 | 1 | 2; // scouting cloud: 2 = rumor, 1 = one look, 0 = truth
+  cls?: string; // 'mini' | 'grow' | 'full'
+}
+
+function kite(cur: AttrRec, opts: KiteOpts = {}): string {
+  const fuzz = opts.fuzz ?? 0;
+  return `<div class="kite ${opts.cls ?? 'mini'} ${fuzz ? `fuzzy${fuzz}` : ''}">
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <line class="k-axis" x1="50" y1="4" x2="50" y2="96"/>
+      <line class="k-axis" x1="4" y1="50" x2="96" y2="50"/>
+      ${opts.caps ? `<polygon class="k-caps" points="${kitePoints(opts.caps)}"/>` : ''}
+      ${opts.pot ? `<polygon class="k-pot" points="${kitePoints(opts.pot)}"/>` : ''}
+      ${opts.start ? `<polygon class="k-start" points="${kitePoints(opts.start)}"/>` : ''}
+      <polygon class="k-cur" points="${kitePoints(cur)}"/>
+    </svg>
+    <span class="klabel n">SKL</span><span class="klabel e">ATH</span>
+    <span class="klabel s">FRC</span><span class="klabel w">BRN</span>
+    ${opts.ovrText !== undefined ? `<span class="k-ovr">${opts.ovrText}</span>` : ''}
   </div>`;
-}
-
-function effDot(p: Player): { build: number; head: number } {
-  const be = Math.max(0.3, p.energy / 100);
-  const hm = Math.max(0.3, p.mood / 100);
-  return { build: 50 + (p.build - 50) * be, head: 50 + (p.head - 50) * hm };
 }
 
 /** Vertical LED strip, 5 cells, lit bottom-up. The card's meter language. */
@@ -420,15 +419,36 @@ function vled(v: number): string {
   return `<span class="vled ${v <= 20 ? 'blink' : ''}">${cells}</span>`;
 }
 
-/** Vertical star column (5 cells, filled bottom-up, same read as the LEDs). */
-function vstars(n: number): string {
-  return `<span class="vstars">${Array.from({ length: 5 }, (_, i) =>
-    `<span class="${4 - i < n ? 'on' : ''}">${4 - i < n ? '★' : '☆'}</span>`
-  ).join('')}</span>`;
+// ---- the three lenses -----------------------------------------------------------
+// One squad, three questions: SKILLS (who is he), STATS (what has he done),
+// GROWTH (where did he start, how far can he go). Same faces, same places.
+
+type Lens = 0 | 1 | 2;
+const LENS_NAMES = ['SKILLS', 'STATS', 'GROWTH'];
+let lens: Lens = 0;
+
+type CrownKey = 'pts' | 'reb' | 'stl' | 'ast';
+const STAT_KEYS: CrownKey[] = ['pts', 'reb', 'stl', 'ast'];
+const STAT_LABEL: Record<CrownKey, string> = { pts: 'PTS', reb: 'REB', stl: 'STL', ast: 'AST' };
+
+/** Who leads the roster in each per-game stat (season lens crowns). */
+function crownMap(players: Player[]): Map<CrownKey, number> {
+  const m = new Map<CrownKey, number>();
+  for (const k of STAT_KEYS) {
+    let best: Player | null = null;
+    let bestV = 0;
+    for (const p of players) {
+      if (p.stats.gp === 0) continue;
+      const v = p.stats[k] / p.stats.gp;
+      if (v > bestV) { bestV = v; best = p; }
+    }
+    if (best && bestV > 0) m.set(k, best.id);
+  }
+  return m;
 }
 
 interface CardOpts {
-  full?: boolean;
+  lens?: Lens;
   kit?: Kit;
   tag?: string;
   inert?: boolean;
@@ -436,28 +456,48 @@ interface CardOpts {
   sitout?: boolean;
   miscast?: number; // % penalty to print
   pick?: boolean; // selection screens
+  crowns?: Map<CrownKey, number>;
 }
 
-// The card, phone-first. Importance top-down: RATING · NAME · YEAR head
-// (the underlined name is the door to the detail view — the rest of the
-// card is for dragging), meters flanking the sprite (⚡ left, mood right),
-// then XP twin bars | compass (species limit drawn in) | POT stars.
+function cardHead(p: Player, opts: CardOpts): string {
+  return `<div class="pc-head">
+      <span class="pc-lvl">L${p.level}</span>
+      <span class="pc-name" ${opts.inert ? '' : `data-action="detail" data-id="${p.id}"`}>${esc(p.name)}</span>
+      <span class="pc-year">${CLASS_ABBR[Math.min(p.classYear, 3)].toUpperCase()}</span>
+    </div>`;
+}
+
+// The card, phone-first, one lens at a time. SKILLS: meters flank the sprite,
+// the kite (OVR in its center) sits in the foot. STATS: the season box score.
+// GROWTH: the layered kite — dashes where he started, outline where he can go.
 function playerCard(p: Player, opts: CardOpts = {}): string {
   const t = myTeam(state);
   const kit = opts.kit ?? { bg: t.bg, fg: t.fg };
   const out = p.outWeeks > 0;
   const img = spriteUrl(p, kit, p.jersey);
+  const l = opts.lens ?? 0;
   const xpPct = p.level >= LEVEL_CAP ? 100 : Math.min(100, Math.round((p.xp / xpNeed(p.level)) * 100));
-  const lvlSegs = Array.from({ length: LEVEL_CAP }, (_, i) =>
-    `<span class="lvlseg ${LEVEL_CAP - 1 - i < p.level ? 'on' : ''}"></span>`).join('');
-  return `<div class="pcard ${opts.full ? 'big' : ''} ${out ? 'pout' : ''} ${opts.draggable && !out ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
-      ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
-    <div class="pc-head">
-      <span class="pc-rating" style="color:${vc(p.skill)}">${p.skill}</span>
-      <span class="pc-name" ${opts.inert ? '' : `data-action="detail" data-id="${p.id}"`}>${esc(p.name)}</span>
-      <span class="pc-year">${CLASS_ABBR[Math.min(p.classYear, 3)].toUpperCase()}</span>
-    </div>
-    <div class="pc-body">
+  let body: string;
+  if (l === 1) {
+    const cells = STAT_KEYS.map((k) => {
+      const crown = opts.crowns?.get(k) === p.id;
+      return `<div class="strow ${crown ? 'lead' : ''}"><i>${STAT_LABEL[k]}</i><b>${perGame(p.stats, k)}</b>${crown ? '<span class="crown">♛</span>' : ''}</div>`;
+    }).join('');
+    body = `<div class="pc-stats">
+        <img class="sprite tiny" src="${img}" alt="" draggable="false"/>
+        <div class="stgrid">${cells}</div>
+      </div>
+      <div class="pc-gp">GP ${p.stats.gp}${p.career.gp ? ` · CAREER ${p.career.gp}` : ''}</div>`;
+  } else if (l === 2) {
+    body = `<div class="pc-grow">
+        ${kite(p.attrs, { pot: p.pots, start: p.startAttrs, ovrText: String(ovr(p.attrs)), cls: 'grow' })}
+        <span class="pc-side"><b class="potnum" style="color:${vc(ovr(p.pots))}">${ovr(p.pots)}</b><i class="pc-lab">POT</i></span>
+        <span class="pc-side"><span class="pc-bars"><span class="vbar"><span class="vfill" style="height:${xpPct}%"></span></span></span><i class="pc-lab">XP</i></span>
+      </div>`;
+  } else {
+    const lvlSegs = Array.from({ length: LEVEL_CAP }, (_, i) =>
+      `<span class="lvlseg ${LEVEL_CAP - 1 - i < p.level ? 'on' : ''}"></span>`).join('');
+    body = `<div class="pc-body">
       <span class="pc-meter" title="energy ${p.energy}">${vled(p.energy)}<img class="micon" src="${iconUrl('bolt', vc(p.energy))}" alt=""/></span>
       <img class="sprite" src="${img}" alt="" draggable="false"/>
       <span class="pc-meter" title="mood ${p.mood}">${vled(p.mood)}<img class="micon" src="${faceUrl(p.mood, vc(p.mood))}" alt=""/></span>
@@ -466,36 +506,37 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       <span class="pc-side" title="level ${p.level}/${LEVEL_CAP}">
         <span class="pc-bars"><span class="vbar"><span class="vfill" style="height:${xpPct}%"></span></span><span class="vseglvl">${lvlSegs}</span></span>
         <i class="pc-lab">XP</i></span>
-      ${compass(p, out ? null : effDot(p), 'mini', speciesById(p.speciesId).poleCaps)}
-      <span class="pc-side">${vstars(star(p.potential))}<i class="pc-lab">POT</i></span>
-    </div>
+      ${kite(p.attrs, { pot: p.pots, ovrText: String(ovr(p.attrs)) })}
+      <span class="pc-side"><b class="sizelab">${SIZE_LABELS[sizeIndex(p)]}</b><i class="pc-lab">SIZE</i></span>
+    </div>`;
+  }
+  return `<div class="pcard lens${l} ${out ? 'pout' : ''} ${opts.draggable && !out && l === 0 ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
+      ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
+    ${cardHead(p, opts)}
+    ${body}
     ${out ? `<div class="ptag blink">OUT ${p.outWeeks}w</div>` : ''}
-    ${opts.sitout ? '<div class="ptag dimtag">SITS OUT</div>' : ''}
-    ${opts.miscast && opts.miscast >= 8 && !out ? `<div class="ptag">MISCAST −${opts.miscast}%</div>` : ''}
+    ${opts.sitout && l === 0 ? '<div class="ptag dimtag">SITS OUT</div>' : ''}
+    ${opts.miscast && opts.miscast >= 8 && !out && l === 0 ? `<div class="ptag">MISCAST −${opts.miscast}%</div>` : ''}
     ${opts.pick !== undefined ? `<div class="picktag ${opts.pick ? 'on' : ''}">${opts.pick ? '☑ ON THE SQUAD' : '☐ TAP TO PICK'}</div>` : ''}
     ${opts.tag ? `<div class="cardtag">${opts.tag}</div>` : ''}
   </div>`;
 }
 
-// Prospects wear the same frame: commit% where the rating sits, then
-// SKL stars | compass (species limit drawn in) | POT stars. A ? marks
-// star ratings that are still a scout's guess.
+// Prospects wear the same frame: commit% up top, and the kite as a CLOUD —
+// solid guess inside a hazy potential outline — that scouting sharpens.
 function prospectCard(pr: Prospect): string {
   const img = spriteUrl(pr, PRACTICE_KIT, null);
   const known = pr.scoutLevel;
-  const sp = speciesById(pr.speciesId);
   const q = known < 2 ? '?' : '';
   return `<div class="pcard prospect" data-action="pcell" data-id="${pr.id}" data-pid="p${pr.id}">
     <div class="pc-head">
-      <span class="pc-rating" style="color:${vc(pr.commitPct)}">${pr.commitPct}%</span>
+      <span class="pc-lvl" style="color:${vc(pr.commitPct)}">${pr.commitPct}%</span>
       <span class="pc-name">${esc(pr.name)}</span>
-      <span class="pc-year"></span>
+      <span class="pc-year">${SIZE_LABELS[sizeIndex(pr)]}</span>
     </div>
     <div class="pc-body">
       <img class="sprite" src="${img}" alt="" draggable="false"/>
-      <span class="pc-side">${vstars(pr.seenSkillStar)}<i class="pc-lab">SKL${q}</i></span>
-      ${compass({ build: pr.seenBuild, head: pr.seenHead }, null, 'mini', sp.poleCaps, known === 0 ? 'fuzzy2' : known === 1 ? 'fuzzy1' : '')}
-      <span class="pc-side">${vstars(pr.seenPotStar)}<i class="pc-lab">POT${q}</i></span>
+      ${kite(pr.seenAttrs, { pot: pr.seenPots, ovrText: `${ovr(pr.seenAttrs)}${q}`, fuzz: known >= 2 ? 0 : known === 1 ? 1 : 2 })}
     </div>
     ${pr.bannedWeeks > 0 ? `<div class="ptag blink">BANNED ${pr.bannedWeeks}w</div>` : ''}
   </div>`;
@@ -562,9 +603,10 @@ function bagBar(s: GameState): string {
 
 const ROW_LABELS = ['START', 'BENCH', 'RES'];
 
-function gridHtml(s: GameState, draggable: boolean): string {
+function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0): string {
   const t = myTeam(s);
   const isPractice = s.phase === 'practice';
+  const crowns = gridLens === 1 ? crownMap(t.players) : undefined;
   const colHead = `<div class="colhead"><span class="rowlabel"></span>${COL_LABELS.map((c) => `<span>${c}</span>`).join('')}</div>`;
   const rows: string[] = [];
   for (let r = 0; r < 3; r++) {
@@ -574,7 +616,7 @@ function gridHtml(s: GameState, draggable: boolean): string {
       const mult = p && r < 2 ? slotMult(p, c) : 1;
       return `<div class="gcell dropzone" data-zone="${idx}">
         ${p
-          ? playerCard(p, { draggable, sitout: isPractice && s.sitouts.includes(p.id), miscast: Math.round((1 - mult) * 100) })
+          ? playerCard(p, { lens: gridLens, crowns, draggable, sitout: isPractice && s.sitouts.includes(p.id), miscast: Math.round((1 - mult) * 100) })
           : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');
@@ -655,13 +697,31 @@ function storyPanel(s: GameState): string {
 
 // ---- stages (middle content per phase) -----------------------------------------------------------------
 
+function lensBar(): string {
+  const tabs = LENS_NAMES.map((n, i) =>
+    `<button class="lenstab ${lens === i ? 'sel' : ''}" data-action="lens-set" data-id="${i}">${n}</button>`).join('');
+  return `<div class="lensbar">
+    <button class="lensarrow" data-action="lens-prev">‹</button>${tabs}<button class="lensarrow" data-action="lens-next">›</button>
+  </div>`;
+}
+
 function stagePractice(s: GameState): string {
-  const fourth = drillPickOne
-    ? `<div class="fourthrow"><button class="bigctl blink" data-action="drill-cancel">TAP THE PLAYER — or tap here to cancel</button></div>`
-    : s.trainedThisWeek
-      ? `<div class="fourthrow"><div class="report">${esc(s.drillReport ?? 'Practice is done.')}</div><button class="bigctl again" data-action="drill-sheet">⬆ AGAIN</button></div>`
-      : `<div class="fourthrow"><button class="bigctl" data-action="drill-sheet">⬆ CHOOSE THE DRILL</button></div>`;
-  return `<h2>TRAINING</h2>${gridHtml(s, true)}${fourth}`;
+  const t = myTeam(s);
+  let fourth: string;
+  if (lens === 1) {
+    const top = [...t.players].filter((p) => p.stats.gp > 0).sort((a, b) => b.stats.pts / b.stats.gp - a.stats.pts / a.stats.gp)[0];
+    fourth = `<div class="fourthrow"><div class="report">SEASON ${t.wins}–${t.losses} · ${t.pointsFor} PF / ${t.pointsAgainst} PA${top ? ` · ${esc(top.name)} leads at ${perGame(top.stats, 'pts')} ppg` : ''}</div></div>`;
+  } else if (lens === 2) {
+    const fresh = t.players.filter((p) => p.classYear >= 3).length;
+    fourth = `<div class="fourthrow"><div class="report dim">dashes = season start · outline = potential${fresh ? ` · ${fresh} senior${fresh > 1 ? 's' : ''} in the final year` : ''}</div></div>`;
+  } else {
+    fourth = drillPickOne
+      ? `<div class="fourthrow"><button class="bigctl blink" data-action="drill-cancel">TAP THE PLAYER — or tap here to cancel</button></div>`
+      : s.trainedThisWeek
+        ? `<div class="fourthrow"><div class="report">${esc(s.drillReport ?? 'Practice is done.')}</div><button class="bigctl again" data-action="drill-sheet">⬆ AGAIN</button></div>`
+        : `<div class="fourthrow"><button class="bigctl" data-action="drill-sheet">⬆ CHOOSE THE DRILL</button></div>`;
+  }
+  return `${lensBar()}${gridHtml(s, lens === 0, lens)}${fourth}`;
 }
 
 function stageGalaxy(s: GameState): string {
@@ -676,26 +736,32 @@ function stageMatchup(s: GameState): string {
   let oppBit: string;
   if (isUtWeek(s)) {
     const c = utOpponent(s)!;
-    oppBit = `${chip(c.name, c.bg, c.fg, true)} <span class="dim">${esc(c.gimmick)}</span> · they live in <b>${planById(c.plan).name}</b>`;
+    oppBit = `<span class="oppkite">${kite(c.kite, { fuzz: 0 })}</span>
+      ${chip(c.name, c.bg, c.fg, true)} <span class="dim">${esc(c.gimmick)}</span> · they live in <b>${planById(c.plan).name}</b>`;
   } else {
     const mu = myMatchup(s)!;
-    oppBit = `${chip(mu.opponent.name, mu.opponent.bg, mu.opponent.fg, true)} <b>${mu.opponent.wins}–${mu.opponent.losses}</b> ${mu.home ? 'HOME' : 'AWAY'}
-      ${s.scoutedOpp
-        ? `· they'll come out in <b>${hint ? planById(hint).name : '?'}</b>`
+    oppBit = `${s.scoutedOpp ? `<span class="oppkite">${kite(teamKite(mu.opponent), { fuzz: 0 })}</span>` : ''}
+      ${chip(mu.opponent.name, mu.opponent.bg, mu.opponent.fg, true)} <b>${mu.opponent.wins}–${mu.opponent.losses}</b> ${mu.home ? 'HOME' : 'AWAY'}
+      ${s.scoutedOpp && hint
+        ? `· they'll come out in <b>${planById(hint).name}</b> at <b>${teamRating(mu.opponent, hint)}</b>`
         : `<button class="hold scoutbtn" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT 1⚡</button>`}`;
   }
   const meter = m
     ? `<span class="bigval" style="color:${vc(m.exact ? m.lo : (m.lo + m.hi) / 2)}">${m.exact ? `${m.lo}%` : `${m.lo}–${m.hi}%`}</span>`
     : '';
   const plans = PLANS.map((pl) => {
-    const fit = planFit(myTeam(s), pl.id);
+    const known = s.knownPlans.includes(pl.id);
+    if (!known) {
+      return `<button class="planchip locked" disabled><b>▓▓▓</b><br/><span class="dim">unlearned</span></button>`;
+    }
+    const rating = teamRating(myTeam(s), pl.id);
     let vs = '';
     if (hint) {
-      if (pl.beats === hint) vs = ' ▲';
-      else if (planById(hint).beats === pl.id) vs = ' ▼';
+      const w = wheel(pl.id, hint);
+      vs = w === 'win' ? ' ▲' : w === 'lose' ? ' ▼' : '';
     }
     return `<button class="planchip ${s.plan === pl.id ? 'sel' : ''}" data-action="plan" data-id="${pl.id}">
-      <b>${pl.name}</b>${vs}<br/><span style="color:${vc(fit)}">${fit}</span></button>`;
+      <b>${pl.name}</b>${vs}<br/><span style="color:${vc(rating * 1.6)}">${rating}</span></button>`;
   }).join('');
   return `<div class="mustrip"><span class="muq">MATCHUP</span> ${meter}<div class="oppbit">${oppBit}</div></div>
     ${gridHtml(s, true)}
@@ -740,12 +806,12 @@ function stageGamenight(s: GameState): string {
 function stageTeamSelect(s: GameState): string {
   if (poolSelected === null) {
     poolSelected = new Set(
-      [...s.selectPool].filter((p) => !p.walkOn).sort((a, b) => b.skill - a.skill).slice(0, ROSTER_SIZE).map((p) => p.id)
+      [...s.selectPool].filter((p) => !p.walkOn).sort((a, b) => ovr(b.attrs) - ovr(a.attrs)).slice(0, ROSTER_SIZE).map((p) => p.id)
     );
   }
   const returning = new Set(myTeam(s).players.map((p) => p.id));
   const commits = new Set(s.commits.map((p) => p.id));
-  const sorted = [...s.selectPool].sort((a, b) => b.skill - a.skill);
+  const sorted = [...s.selectPool].sort((a, b) => ovr(b.attrs) - ovr(a.attrs));
   const rows: string[] = [];
   for (let r = 0; r < Math.ceil(sorted.length / 3); r++) {
     const cells = sorted.slice(r * 3, r * 3 + 3).map((p) => {
@@ -787,10 +853,11 @@ function stageSigning(s: GameState): string {
     .sort((a, b) => b.commitPct - a.commitPct)
     .map((pr) => {
       const eff = chances.find((c) => c.prospect.id === pr.id);
+      const q = pr.scoutLevel < 2 ? '?' : '';
       return `<tr>
         <td><button class="signbtn" data-action="pursue" data-id="${pr.id}">${pr.selected ? '☑' : '☐'}</button></td>
         <td>${esc(pr.name)}</td>
-        <td class="starcell">${starStr(pr.seenSkillStar)}<br/><span class="dim">${starStr(pr.seenPotStar)}</span></td>
+        <td class="num"><b style="color:${vc(ovr(pr.seenAttrs) * 1.6)}">${ovr(pr.seenAttrs)}${q}</b><span class="dim">/${ovr(pr.seenPots)}${q}</span></td>
         <td class="num" style="color:${vc(pr.commitPct)}">${pr.commitPct}%</td>
         <td class="num">${pr.selected && eff ? `<b style="color:${vc(eff.pct)}">→${eff.pct}%</b>` : ''}</td>
       </tr>`;
@@ -820,9 +887,9 @@ function stageGameover(s: GameState): string {
 
 function stagePickTeam(s: GameState): string {
   const cards = s.teams.map((t) => {
-    const avg = Math.round(t.players.reduce((a, p) => a + p.skill, 0) / t.players.length);
+    const avg = Math.round(t.players.reduce((a, p) => a + ovr(p.attrs), 0) / t.players.length);
     return `<button class="teampickbtn" data-action="pick-team" data-id="${t.id}" style="background:${t.bg};color:${t.fg}">
-      <b>${esc(teamLabel(t))}</b><br/><span>${esc(t.region)} · avg skill ${avg}</span></button>`;
+      <b>${esc(teamLabel(t))}</b><br/><span>${esc(t.region)} · avg overall ${avg}</span></button>`;
   }).join('');
   return `<h1>GALACTIC COACH</h1>
     <p class="sub">3-on-3. Every choice has two tails.</p>
@@ -875,8 +942,14 @@ function drillSheetHtml(s: GameState): string {
     const unlocked = s.unlockedDrills.includes(d.id);
     if (!unlocked) return `<div class="drill locked">▓▓▓▓ <span class="dim">undiscovered method</span></div>`;
     const cant = s.energy < d.cost;
+    const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
+    const what = gains
+      ? `<span class="xpg gaintag">${gains}${d.target === 'one' ? ' · ONE PLAYER' : ''}</span>`
+      : d.xp[1] > 0
+        ? `<span class="xpg">+${d.xp[0]}–${d.xp[1]} XP${d.target === 'one' ? ' · ONE PLAYER' : ''}</span>`
+        : '<span class="xpg">squad ⚡ up</span>';
     return `<button class="drill hold" data-action="drill" data-id="${d.id}" ${cant ? 'disabled' : ''}>
-      <b>${d.name}</b> ${d.xp[1] > 0 ? `<span class="xpg">+${d.xp[0]}–${d.xp[1]} XP${d.target === 'one' ? ' · ONE PLAYER' : ''}</span>` : '<span class="xpg">squad ⚡ up</span>'}
+      <b>${d.name}</b> ${what}
       ${oddsLine(d.up, d.down, d.cost)}<br/><span class="ddesc">${esc(d.desc)}</span>
     </button>`;
   }).join('');
@@ -914,11 +987,14 @@ function coachModalHtml(s: GameState): string {
   const regions = SCAN_REGIONS.map((r) =>
     s.unlockedRegions.includes(r.id) ? `<div>✓ ${r.name}</div>` : `<div class="dim">▓▓▓ uncharted</div>`
   ).join('');
+  const tactics = PLANS.map((pl) =>
+    s.knownPlans.includes(pl.id) ? `<div>✓ ${pl.name} <span class="dim">(${ATTR_LABEL[pl.attr]})</span></div>` : `<div class="dim">▓▓▓ unlearned tactic</div>`
+  ).join('');
   return `<div class="modalback"><div class="modal">
     <span class="tag">THE COACH</span>
     <div class="report">LEGACY <b style="color:${vc(clamp(s.legacy, 0, 100))}">${s.legacy}</b>
       · ${s.trophies}🏆 · ${s.utTitles} UT · ${s.totalWins}W · season ${s.season}${s.season >= 20 ? ' <span class="blink">— you feel the years</span>' : ''}</div>
-    <div class="report"><b>KNOWLEDGE</b>${drills}${regions}</div>
+    <div class="report"><b>KNOWLEDGE</b>${tactics}${drills}${regions}</div>
     <button class="wide" data-action="toggle-tips">ASSISTANT AUTO-TIPS: ${s.tipsAuto ? 'ON' : 'OFF'}</button>
     <p class="dim">GALACTIC COACH ${VERSION}</p>
     <button class="wide danger hold" data-action="new-game">NEW GAME (wipes this save)</button>
@@ -992,16 +1068,29 @@ function detailModalHtml(s: GameState): string {
   const p = myTeam(s).players.find((x) => x.id === detailPlayerId) ?? s.selectPool.find((x) => x.id === detailPlayerId);
   if (!p) return '';
   const sp = speciesById(p.speciesId);
+  const t = myTeam(s);
+  const attrRows = ATTRS.map((a) => {
+    const eff = Math.round(attrEff(p, a));
+    return `<div class="arow">
+      <span class="alab">${ATTR_LABEL[a]}</span>
+      <b style="color:${vc(p.attrs[a] * 4)}">${p.attrs[a]}</b><span class="dim">/${p.pots[a]}${eff < p.attrs[a] ? ` · now ${eff}` : ''}</span>
+    </div>`;
+  }).join('');
+  const season = p.stats;
+  const career = { ...p.career };
   return `<div class="modalback" data-action="close-detail"><div class="modal">
-    <span class="tag">#${p.jersey} ${esc(p.name)}</span>
-    <div class="modalcard">${playerCard(p, { full: true, inert: true })}</div>
-    <div class="detailcompass">${compass(p, p.outWeeks > 0 ? null : effDot(p), 'full', sp.poleCaps)}</div>
-    <div>POTENTIAL <span class="potline">${starStr(star(p.potential))}</span></div>
+    <span class="tag">#${p.jersey} ${esc(p.name)} · ${CLASS_ABBR[Math.min(p.classYear, 3)].toUpperCase()}</span>
+    <div class="detailtop">
+      <img class="sprite big" src="${spriteUrl(p, { bg: t.bg, fg: t.fg }, p.jersey)}" alt=""/>
+      ${kite(p.attrs, { pot: p.pots, start: p.startAttrs, caps: sp.attrCaps, ovrText: String(ovr(p.attrs)), cls: 'full' })}
+      <div class="arows">${attrRows}
+        <div class="arow"><span class="alab">OVERALL</span><b style="color:${vc(ovr(p.attrs) * 1.6)}">${ovr(p.attrs)}</b><span class="dim">/${ovr(p.pots)}</span></div>
+      </div>
+    </div>
+    <div class="dim">${SIZE_LABELS[sizeIndex(p)]} · ${p.heightCm}cm ${p.weightKg}kg — size is position: small runs the backcourt, big holds the frontcourt</div>
     <div class="dim">${esc(sp.name)} (tier ${sp.tier}) — ${esc(sp.desc)}</div>
-    <div>${(['strong', 'quick', 'fierce', 'savvy'] as const)
-      .filter((pl) => lean(p, pl) > 5)
-      .map((pl) => `${POLE_LABEL[pl]} <b style="color:${vc(lean(p, pl))}">${Math.round(lean(p, pl))}</b>${effLean(p, pl) < lean(p, pl) - 4 ? ` <span class="dim">(now ${Math.round(effLean(p, pl))})</span>` : ''}`)
-      .join(' · ') || 'dead center — a blank slate'}</div>
+    <div class="report">SEASON · GP ${season.gp} · ${perGame(season, 'pts')} pts · ${perGame(season, 'reb')} reb · ${perGame(season, 'stl')} stl · ${perGame(season, 'ast')} ast
+      ${career.gp ? `<br/><span class="dim">CAREER · GP ${career.gp} · ${career.pts} pts · ${career.reb} reb · ${career.stl} stl · ${career.ast} ast</span>` : ''}</div>
     <div class="dim">Level ${p.level}/${LEVEL_CAP} · XP ${p.xp}/${p.level >= LEVEL_CAP ? '—' : xpNeed(p.level)}${p.outWeeks > 0 ? ` · <b>OUT ${p.outWeeks}w — ${esc(p.outReason)}</b>` : ''}</div>
     <button class="wide" data-action="close-detail">CLOSE</button>
   </div></div>`;
@@ -1121,7 +1210,7 @@ function animateProgress(): void {
       if (msgs.length) floatCard(d.playerId, msgs, 300 + i * 260);
     });
     lastLevelUps.forEach((lu, i) => {
-      floatCard(lu.playerId, [{ text: `★ LEVEL UP +${lu.skillGain}`, up: true }, ...(lu.bonus ? [{ text: lu.bonus.toUpperCase(), up: true }] : [])], 1400 + i * 400);
+      floatCard(lu.playerId, [{ text: `★ LEVEL ${lu.level}`, up: true }], 1400 + i * 400);
     });
   };
   progressTimer = window.setInterval(() => {
@@ -1313,6 +1402,31 @@ document.addEventListener('pointerup', (e) => {
   if (ptr && e.pointerId === ptr.pointerId) endDrag(true);
 });
 document.addEventListener('pointercancel', () => endDrag(false));
+
+// ---- the lens swipe: a horizontal fling on the training grid changes lenses ----
+
+let swipe: { id: number; x: number; y: number } | null = null;
+
+app.addEventListener('pointerdown', (e) => {
+  const modalOpen = drillSheet || coachOpen || itemUi !== null || toast !== null || prospectUi !== null || scanUi !== null || detailPlayerId !== null;
+  if (state.phase === 'practice' && !currentStory(state) && !modalOpen) {
+    swipe = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  }
+});
+document.addEventListener('pointerup', (e) => {
+  if (!swipe || e.pointerId !== swipe.id) return;
+  const dx = e.clientX - swipe.x;
+  const dy = e.clientY - swipe.y;
+  swipe = null;
+  if (suppressClick) return; // that was a card drag, not a fling
+  if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 2) {
+    lens = ((lens + (dx < 0 ? 1 : 2)) % 3) as Lens;
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 60);
+    render();
+  }
+});
+document.addEventListener('pointercancel', () => { swipe = null; });
 document.addEventListener('touchmove', (e) => { if (ptr?.active) e.preventDefault(); }, { passive: false });
 
 // ---- actions ----------------------------------------------------------------------------------------------------
@@ -1348,7 +1462,8 @@ function executeAction(action: string, id: string): void {
       const out = runDrill(state, id);
       if (out) {
         out.xpByPlayer.forEach((xp, pid) => floatCard(pid, [{ text: `+${xp} XP` }], 200));
-        out.levelUps.forEach((lu, i) => floatCard(lu.playerId, [{ text: `★ LEVEL UP +${lu.skillGain}`, up: true }], 900 + i * 300));
+        out.gainByPlayer.forEach((g, pid) => floatCard(pid, [{ text: g, up: true }], 600));
+        out.levelUps.forEach((lu, i) => floatCard(lu.playerId, [{ text: `★ LEVEL ${lu.level}`, up: true }], 900 + i * 300));
       }
       break;
     }
@@ -1401,6 +1516,7 @@ function executeAction(action: string, id: string): void {
     case 'new-game-direct':
       wipeSave();
       state = freshGame();
+      lens = 0;
       coachOpen = false;
       itemUi = null;
       toast = null;
@@ -1461,12 +1577,14 @@ app.addEventListener('click', (e) => {
       const pid = Number(id);
       if (currentStory(state)) break;
       if (state.phase === 'practice') {
+        if (lens !== 0 && !drillPickOne) { detailPlayerId = detailPlayerId === pid ? null : pid; break; }
         if (drillPickOne) {
           const out = runDrill(state, drillPickOne, pid);
           drillPickOne = null;
           if (out) {
             out.xpByPlayer.forEach((xp, pid2) => floatCard(pid2, [{ text: `+${xp} XP` }], 200));
-            out.levelUps.forEach((lu, i) => floatCard(lu.playerId, [{ text: `★ LEVEL UP +${lu.skillGain}`, up: true }], 900 + i * 300));
+            out.gainByPlayer.forEach((g, pid2) => floatCard(pid2, [{ text: g, up: true }], 600));
+            out.levelUps.forEach((lu, i) => floatCard(lu.playerId, [{ text: `★ LEVEL ${lu.level}`, up: true }], 900 + i * 300));
           }
         } else {
           toggleSitout(state, pid);
@@ -1489,7 +1607,8 @@ app.addEventListener('click', (e) => {
         drillPickOne = null;
         if (out) {
           out.xpByPlayer.forEach((xp, pid2) => floatCard(pid2, [{ text: `+${xp} XP` }], 200));
-          out.levelUps.forEach((lu, i) => floatCard(lu.playerId, [{ text: `★ LEVEL UP +${lu.skillGain}`, up: true }], 900 + i * 300));
+          out.gainByPlayer.forEach((g, pid2) => floatCard(pid2, [{ text: g, up: true }], 600));
+          out.levelUps.forEach((lu, i) => floatCard(lu.playerId, [{ text: `★ LEVEL ${lu.level}`, up: true }], 900 + i * 300));
         }
       } else {
         detailPlayerId = detailPlayerId === pid ? null : pid;
@@ -1517,6 +1636,10 @@ app.addEventListener('click', (e) => {
 
     case 'plan': setPlan(state, id as PlanId); break;
 
+    case 'lens-set': lens = (Number(id) % 3) as Lens; break;
+    case 'lens-prev': lens = ((lens + 2) % 3) as Lens; break;
+    case 'lens-next': lens = ((lens + 1) % 3) as Lens; break;
+
     case 'drill-sheet': drillSheet = true; break;
     case 'drill-sheet-close': if (e.target === el) drillSheet = false; break;
     case 'drill-cancel': drillPickOne = null; break;
@@ -1541,7 +1664,11 @@ app.addEventListener('click', (e) => {
   render();
 });
 
-// dev handle
+// dev handles (gcAction also powers the headless UI smoke test)
+(window as unknown as { gcAction: (a: string, id: string) => void }).gcAction = (a, id) => {
+  executeAction(a, id);
+  render();
+};
 (window as unknown as { gc: unknown }).gc = {
   state: () => state,
   starters,

@@ -1,6 +1,6 @@
-// Core data model for v1.0 (see SPEC.md). Everything here must stay
-// plain-JSON-serializable — saves depend on it. All story/behavior functions
-// live in data.ts and are looked up by id.
+// Core data model for v2.0 (the four-attribute rework). Everything here must
+// stay plain-JSON-serializable — saves depend on it. All story/behavior
+// functions live in data.ts and are looked up by id.
 
 // ---- the odds line ----------------------------------------------------------
 
@@ -16,12 +16,25 @@ export interface OddsTail {
   note?: string; // printed cause of a modifier ("Raijinn ⚡ low")
 }
 
-// ---- axes & poles -----------------------------------------------------------
+// ---- the four attributes ----------------------------------------------------
+// Each runs 0–25. OVERALL = the sum (theoretical max 100; species caps keep
+// every real player below it). Position is NOT an attribute — it's body size.
 
-/** BUILD: 0 = pure Strong, 100 = pure Quick. HEAD: 0 = pure Fierce, 100 = pure Savvy. */
-export type Pole = 'strong' | 'quick' | 'fierce' | 'savvy';
+export type Attr = 'skl' | 'ath' | 'frc' | 'brn';
+export type AttrRec = Record<Attr, number>;
 
-export type PlanId = 'pound' | 'blitz' | 'swarm' | 'clockwork';
+export type PlanId = 'showtime' | 'rungun' | 'lockdown' | 'clockwork';
+
+// ---- the box score ----------------------------------------------------------
+// One stat per attribute: points=SKL, rebounds=ATH, steals=FRC, assists=BRN.
+
+export interface StatLine {
+  gp: number;
+  pts: number;
+  reb: number;
+  stl: number;
+  ast: number;
+}
 
 // ---- species (interface only — real species design is its own session) ------
 
@@ -29,8 +42,8 @@ export interface SpeciesDef {
   id: string;
   name: string;
   tier: 1 | 2 | 3;
-  /** max lean per pole (0–100): how far from center a member can ever sit */
-  poleCaps: Record<Pole, number>;
+  /** hard per-attribute ceiling (0–25) — no member ever exceeds these */
+  attrCaps: AttrRec;
   heightRange: [number, number];
   weightRange: [number, number];
   desc: string;
@@ -48,17 +61,20 @@ export interface Player {
   jersey: number;
   heightCm: number;
   weightKg: number;
-  /** the two axes, 0–100, 50 = dead center */
-  build: number;
-  head: number;
-  /** the ONLY big number: 0–99 */
-  skill: number;
-  /** hidden personal cap on SKILL — the UI only ever shows stars */
-  potential: number;
-  /** 0–10 hard cap; how much growth is left in the tank */
+  /** the four attributes, 0–25 each */
+  attrs: AttrRec;
+  /** per-attribute personal ceiling: attrs ≤ pots ≤ species caps */
+  pots: AttrRec;
+  /** season-start snapshot (the GROWTH lens shows the journey) */
+  startAttrs: AttrRec;
+  /** this season's box-score totals */
+  stats: StatLine;
+  /** past seasons, folded in at each season end */
+  career: StatLine;
+  /** 0–10 hard cap; each level banks +2 points the coach assigns */
   level: number;
   xp: number;
-  /** live meters 0–100; energy mutes BUILD, mood mutes HEAD */
+  /** live meters 0–100; energy mutes ATH+FRC, mood mutes SKL+BRN */
   energy: number;
   mood: number;
   outWeeks: number;
@@ -101,16 +117,13 @@ export interface Prospect {
   heightCm: number;
   weightKg: number;
   /** the truth (hidden until scouted) */
-  build: number;
-  head: number;
-  skill: number;
-  potential: number;
-  /** 0 = a rumor, 1 = one look (±1 star), 2 = locked truth */
+  attrs: AttrRec;
+  pots: AttrRec;
+  /** 0 = a rumor (cloud), 1 = one look (haze), 2 = locked truth */
   scoutLevel: number;
-  seenSkillStar: number;
-  seenPotStar: number;
-  seenBuild: number;
-  seenHead: number;
+  /** the coach's observation, error shrinking with scoutLevel */
+  seenAttrs: AttrRec;
+  seenPots: AttrRec;
   blurb: string;
   commitPct: number;
   bannedWeeks: number;
@@ -153,12 +166,16 @@ export interface FutureBeat {
 /** Anything a resolved choice can do. Applied by the engine, floated by the UI. */
 export interface Fx {
   playerId?: number; // override target (defaults to the event's player)
-  skill?: number;
+  /** direct attribute deltas (positive clamps at the player's pots) */
+  attr?: Partial<AttrRec>;
+  /** per-attribute potential deltas (clamped between attrs and species caps) */
+  potAttr?: Partial<AttrRec>;
+  /** n points sprinkled onto random attributes below their pots (negative removes) */
+  anyAttr?: number;
+  /** n potential points sprinkled onto random attributes below species caps */
+  anyPot?: number;
   xp?: number;
   levelDelta?: number;
-  potential?: number;
-  build?: number;
-  head?: number;
   energyP?: number;
   mood?: number;
   teamMood?: number;
@@ -173,6 +190,7 @@ export interface Fx {
   loseItemIdx?: number;
   unlockDrill?: string;
   unlockRegion?: string;
+  unlockPlan?: PlanId;
   commit?: number; // recruiting context: prospect commitment delta
   intel?: boolean; // recruiting context: sharpen the prospect
   takePlayer?: boolean; // remove target from roster → alumnus of the void
@@ -186,13 +204,24 @@ export interface Fx {
 export interface Alumnus {
   name: string;
   speciesId: string;
-  skill: number;
+  ovr: number;
   /** how he left: 'pro' | 'grad' | 'void' */
   exit: 'pro' | 'grad' | 'void';
   season: number;
+  /** full career box-score totals — the statistical ghost he leaves behind */
+  career: StatLine;
 }
 
 // ---- game results ---------------------------------------------------------------
+
+export interface BoxRow {
+  playerId: number;
+  name: string;
+  pts: number;
+  reb: number;
+  stl: number;
+  ast: number;
+}
 
 export interface MyGameResult {
   win: boolean;
@@ -205,6 +234,7 @@ export interface MyGameResult {
   wheelLine: string;
   heroLine: string;
   boxLine: string;
+  box: BoxRow[];
 }
 
 export interface PlayerDeltas {
@@ -223,8 +253,8 @@ export interface ChampTeam {
   fg: string;
   plan: PlanId;
   power: number;
-  /** three dots for the scout-report blob */
-  dots: { build: number; head: number }[];
+  /** the scout-report shape: a representative team kite */
+  kite: AttrRec;
 }
 
 export interface UtState {
@@ -298,6 +328,8 @@ export interface GameState {
 
   unlockedDrills: string[];
   unlockedRegions: string[];
+  /** the tactics the coach has learned — the others wait in stories */
+  knownPlans: PlanId[];
   /** one-time assistant-coach explainers, by key */
   tipsSeen: string[];
   /** auto-show tips (the ? button always works) */

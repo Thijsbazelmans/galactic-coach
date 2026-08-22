@@ -25,9 +25,9 @@ import {
   MAX_PROSPECTS,
   REGULAR_WEEKS,
   ROSTER_SIZE,
+  PRO_OVR,
   SAVE_VERSION,
   SELECT_POOL_SIZE,
-  clampAxes,
   ensureUniqueJerseys,
   genChamps,
   genProspect,
@@ -38,7 +38,6 @@ import {
   observe,
   prospectToPlayer,
   stipendFor,
-  teamPole,
   xpNeed,
 } from './gen';
 import {
@@ -55,6 +54,7 @@ import {
   teamPower,
 } from './sim';
 import type {
+  Alumnus,
   ChampTeam,
   Fx,
   GameState,
@@ -64,7 +64,7 @@ import type {
   StoryEvent,
   Team,
 } from './types';
-import { clamp, pick, rand, roll } from './util';
+import { ATTRS, addStats, bumpAny, bumpAnyPot, clamp, copyAttrs, bestAttr, ovr, pick, rand, roll, zeroStats } from './util';
 
 const SAVE_KEY = 'galactic-coach-save';
 const COMMIT_DECAY = 2;
@@ -178,41 +178,34 @@ export function wipeSave(): void {
 export interface LevelUp {
   playerId: number;
   name: string;
-  skillGain: number;
-  bonus: string | null;
+  level: number;
+  points: number;
 }
 
-/** XP → levels → SKILL (+2–4 each, clamped at potential). 10% breakthroughs. */
-export function addXp(_s: GameState, p: Player, amount: number): LevelUp[] {
+/** XP → levels. Each level banks points the COACH places (a blocking choice
+    popup queues up). 10% of levels are breakthroughs: +3 instead of +2. */
+export function addXp(s: GameState, p: Player, amount: number): LevelUp[] {
   const ups: LevelUp[] = [];
   p.xp += amount;
   while (p.level < LEVEL_CAP && p.xp >= xpNeed(p.level)) {
     p.xp -= xpNeed(p.level);
     p.level++;
-    const gain = Math.min(2 + rand(3), Math.max(0, p.potential - p.skill));
-    p.skill = clamp(p.skill + gain, 0, p.potential);
-    let bonus: string | null = null;
-    if (roll(10)) {
-      if (Math.random() < 0.5 && p.potential < 97) {
-        p.potential = clamp(p.potential + 3, 0, 99);
-        bonus = 'his ceiling moved';
-      } else {
-        const pole = teamPole([p]);
-        if (pole === 'strong') p.build -= 4;
-        else if (pole === 'quick') p.build += 4;
-        else if (pole === 'fierce') p.head -= 4;
-        else p.head += 4;
-        clampAxes(p);
-        bonus = 'his whole body leaned into it';
-      }
-    }
-    ups.push({ playerId: p.id, name: p.name, skillGain: gain, bonus });
+    const points = roll(10) ? 3 : 2;
+    queueStory(s, 'levelup', 'start', p.id, { points });
+    ups.push({ playerId: p.id, name: p.name, level: p.level, points });
   }
   if (p.level >= LEVEL_CAP) p.xp = 0;
   return ups;
 }
 
 export let lastLevelUps: LevelUp[] = [];
+
+/** A player leaves → a statistical ghost: overall + full career box score. */
+function toAlum(p: Player, exit: Alumnus['exit'], season: number): Alumnus {
+  const career = { ...p.career };
+  addStats(career, p.stats);
+  return { name: p.name, speciesId: p.speciesId, ovr: ovr(p.attrs), exit, season, career };
+}
 
 // ---- Fx: the one place consequences land --------------------------------------------
 
@@ -235,6 +228,10 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
       s.careerLog.push(`Learned ${drillById(fx.unlockDrill).name} (season ${s.season}).`);
     }
     if (fx.unlockRegion && !s.unlockedRegions.includes(fx.unlockRegion)) s.unlockedRegions.push(fx.unlockRegion);
+    if (fx.unlockPlan && !s.knownPlans.includes(fx.unlockPlan)) {
+      s.knownPlans.push(fx.unlockPlan);
+      s.careerLog.push(`Learned ${planById(fx.unlockPlan).name} (season ${s.season}).`);
+    }
     if (fx.intel && s.prospects.length < MAX_PROSPECTS) {
       const counter = { nextId: s.nextId };
       const pr = genProspect(counter, s.season, 'nebula');
@@ -254,25 +251,38 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
     if (fx.gameover) endCareer(s, fx.gameover === 'void' ? 'LOST TO THE VOID' : 'FIRED');
     if (!p) continue;
     if (fx.takePlayer) {
-      s.alumni.push({ name: p.name, speciesId: p.speciesId, skill: p.skill, exit: 'void', season: s.season });
+      s.alumni.push(toAlum(p, 'void', s.season));
       t.players = t.players.filter((x) => x.id !== p.id);
       normalizeLineup(t);
       continue;
     }
-    if (fx.skill) p.skill = clamp(p.skill + fx.skill, 0, Math.max(p.potential, p.skill + Math.min(0, fx.skill)));
+    const caps = speciesById(p.speciesId).attrCaps;
+    if (fx.attr) {
+      for (const a of ATTRS) {
+        const d = fx.attr[a];
+        if (!d) continue;
+        p.attrs[a] = d > 0 ? clamp(p.attrs[a] + d, 0, Math.max(p.attrs[a], p.pots[a])) : clamp(p.attrs[a] + d, 0, caps[a]);
+      }
+    }
+    if (fx.potAttr) {
+      for (const a of ATTRS) {
+        const d = fx.potAttr[a];
+        if (!d) continue;
+        p.pots[a] = clamp(p.pots[a] + d, p.attrs[a], caps[a]);
+      }
+    }
+    if (fx.anyAttr) bumpAny(p, fx.anyAttr);
+    if (fx.anyPot) bumpAnyPot(p, caps, fx.anyPot);
     if (fx.levelDelta) {
       if (fx.levelDelta > 0) {
         for (let i = 0; i < fx.levelDelta && p.level < LEVEL_CAP; i++) {
           p.level++;
-          p.skill = clamp(p.skill + 2 + rand(3), 0, p.potential);
+          queueStory(s, 'levelup', 'start', p.id, { points: 2 });
         }
       } else {
         p.level = Math.max(0, p.level + fx.levelDelta);
       }
     }
-    if (fx.potential) p.potential = clamp(p.potential + fx.potential, p.skill, 99);
-    if (fx.build) { p.build += fx.build; clampAxes(p); }
-    if (fx.head) { p.head += fx.head; clampAxes(p); }
     if (fx.xp) lastLevelUps.push(...addXp(s, p, fx.xp));
     if (fx.energyP) p.energy = clamp(p.energy + fx.energyP, 0, 100);
     if (fx.mood) p.mood = clamp(p.mood + fx.mood, 0, 100);
@@ -307,7 +317,7 @@ function storyCtx(s: GameState, playerId: number | null, data: Record<string, un
     player: playerId !== null ? t.players.find((p) => p.id === playerId) ?? null : null,
     data,
     team: () => t.players,
-    bestPlayer: () => [...t.players].sort((a, b) => b.skill - a.skill)[0] ?? null,
+    bestPlayer: () => [...t.players].sort((a, b) => ovr(b.attrs) - ovr(a.attrs))[0] ?? null,
   };
 }
 
@@ -536,6 +546,8 @@ export function toggleSitout(s: GameState, playerId: number): void {
 export interface DrillOutcome {
   report: string;
   xpByPlayer: Map<number, number>;
+  /** direct attribute points landed, per player, e.g. "+1 ATH +1 SKL" */
+  gainByPlayer: Map<number, string>;
   levelUps: LevelUp[];
 }
 
@@ -563,6 +575,8 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
   s.trainedThisWeek = true;
 
   const ups: LevelUp[] = [];
+  const gainByPlayer = new Map<number, string>();
+  const gainNotes: string[] = [];
   if (d.target === 'rest') {
     for (const p of t.players.filter((x) => x.outWeeks === 0)) {
       p.energy = clamp(p.energy + 18, 0, 100);
@@ -570,23 +584,43 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
     }
   } else {
     for (const p of participants) {
-      const gained = d.xp[0] + rand(d.xp[1] - d.xp[0] + 1);
-      xpByPlayer.set(p.id, gained);
+      let gained = d.xp[0] + rand(d.xp[1] - d.xp[0] + 1);
       p.energy = clamp(p.energy - d.energyCost, 0, 100);
+      // the fast fixed track: the drill hammers points into exact attributes
+      if (d.gain) {
+        const landedBits: string[] = [];
+        for (const a of ATTRS) {
+          const n = d.gain[a];
+          if (!n) continue;
+          const before = p.attrs[a];
+          p.attrs[a] = Math.min(p.pots[a], p.attrs[a] + n);
+          if (p.attrs[a] > before) landedBits.push(`+${p.attrs[a] - before} ${a.toUpperCase()}`);
+        }
+        if (landedBits.length) {
+          gainByPlayer.set(p.id, landedBits.join(' '));
+          gainNotes.push(`${p.name} ${landedBits.join(' ')}`);
+        } else {
+          gained += 8; // at his ceiling there — the reps bank as XP instead
+          gainNotes.push(`${p.name} is at his ceiling there — the reps banked as XP`);
+        }
+      }
+      xpByPlayer.set(p.id, gained);
       ups.push(...addXp(s, p, gained));
     }
   }
 
   let report = d.target === 'rest'
     ? 'The facility echoes with the sound of absolutely nothing happening. Everyone comes back looser.'
-    : `${d.name}: the squad puts the work in.`;
+    : gainNotes.length
+      ? `${d.name}: ${gainNotes.join(' · ')}.`
+      : `${d.name}: the squad puts the work in.`;
 
   // the odds line rolls once for the session — sit-outs are how you protect people
   const r = Math.random() * 100;
   if (r < d.down.pct) {
     const pool = d.target === 'rest' ? t.players.filter((p) => p.outWeeks === 0) : participants;
     if (pool.length) {
-      const weight = (p: Player): number => (p.energy <= 30 ? 2 : 1) * (p.head < 40 ? 1.5 : 1) * fragility(p.speciesId);
+      const weight = (p: Player): number => (p.energy <= 30 ? 2 : 1) * (p.attrs.frc >= 14 ? 1.5 : 1) * fragility(p.speciesId);
       const total = pool.reduce((a, p) => a + weight(p), 0);
       let rr = Math.random() * total;
       let victim = pool[0];
@@ -614,7 +648,7 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
 
   s.drillReport = report;
   save(s);
-  return { report, xpByPlayer, levelUps: ups };
+  return { report, xpByPlayer, gainByPlayer, levelUps: ups };
 }
 
 // ---- galaxy: scan / scout / recruit -----------------------------------------------------
@@ -681,8 +715,8 @@ export function actionProspect(s: GameState, prospectId: number, actId: string):
       }
     } else {
       text = pr.scoutLevel >= 2
-        ? `You watch ${pr.name} play a full game. The picture is sharp now: the dot is TRUE, the stars are locked.`
-        : `You watch ${pr.name} warm up and play a half. The picture sharpens.`;
+        ? `You watch ${pr.name} play a full game. The cloud burns off: his shape is TRUE, current and ceiling both.`
+        : `You watch ${pr.name} warm up and play a half. The cloud thins.`;
       if (r >= act.down.pct && r < act.down.pct + act.up.pct) {
         pr.scoutLevel = 2;
         observe(pr);
@@ -721,6 +755,7 @@ export function actionDropProspect(s: GameState, prospectId: number): void {
 // ---- matchup ---------------------------------------------------------------------------
 
 export function setPlan(s: GameState, plan: PlanId): void {
+  if (!s.knownPlans.includes(plan)) return; // unlearned tactics live in stories
   s.plan = plan;
   save(s);
 }
@@ -867,7 +902,7 @@ function simWeek(s: GameState): void {
       // AI squads drift forward
       for (const p of [...g.winner.players, ...g.loser.players]) {
         p.energy = clamp(p.energy - 14, 0, 100);
-        if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; p.skill = clamp(p.skill + 2, 0, p.potential); }
+        if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
       }
     }
   }
@@ -980,17 +1015,18 @@ function endSeason(s: GameState, utNote: string | null): void {
   if (!s.ut && place > 1) s.careerLog.push(`Season ${s.season}: finished ${place}.`);
   s.ut = null;
 
-  // pro departures: 85+ may declare, any class year
+  // pro departures: elite overalls may declare, any class year
   s.proDeparts = t.players
-    .filter((p) => p.skill >= 85)
+    .filter((p) => ovr(p.attrs) >= PRO_OVR)
     .map((p) => ({ playerId: p.id, name: p.name, resolved: false, staying: false, note: '' }));
 
   // seniors graduate now (into the alumni pool)
   const seniors = t.players.filter((p) => p.classYear >= 3 && !s.proDeparts.some((d) => d.playerId === p.id));
   for (const p of seniors) {
-    s.alumni.push({ name: p.name, speciesId: p.speciesId, skill: p.skill, exit: 'grad', season: s.season });
+    const alum = toAlum(p, 'grad', s.season);
+    s.alumni.push(alum);
     s.legacy += 1;
-    s.seasonNotes.push(`${p.name} graduates. The banner says THANK YOU in four languages.`);
+    s.seasonNotes.push(`${p.name} graduates with ${alum.career.pts} career points. The banner says THANK YOU in four languages.`);
   }
   t.players = t.players.filter((p) => p.classYear < 3 || s.proDeparts.some((d) => d.playerId === p.id));
 
@@ -1005,10 +1041,10 @@ function endSeason(s: GameState, utNote: string | null): void {
   // AI teams roll over
   for (const team of s.teams) {
     if (team.id === s.myTeamId) continue;
-    team.players = team.players.filter((p) => p.classYear < 3 && p.skill < 85);
+    team.players = team.players.filter((p) => p.classYear < 3 && ovr(p.attrs) < PRO_OVR);
     for (const p of team.players) {
       p.classYear++;
-      p.skill = clamp(p.skill + 1 + rand(3), 0, p.potential);
+      bumpAny(p, 1 + rand(3));
       p.energy = 80 + rand(15);
       p.mood = clamp(p.mood + 10, 30, 90);
       p.outWeeks = 0; p.outReason = '';
@@ -1060,7 +1096,7 @@ export function letGoPro(s: GameState, playerId: number): void {
 }
 
 function departPro(s: GameState, p: Player): void {
-  s.alumni.push({ name: p.name, speciesId: p.speciesId, skill: p.skill, exit: 'pro', season: s.season });
+  s.alumni.push(toAlum(p, 'pro', s.season));
   s.legacy += 2;
   myTeam(s).players = myTeam(s).players.filter((x) => x.id !== p.id);
 }
@@ -1135,28 +1171,25 @@ export function finalizeRoster(s: GameState, chosenIds: number[]): boolean {
     return true;
   }
 
-  // GROWTH: the one scheduled axis movement per year
+  // GROWTH: the summer finds everyone
   s.seasonNotes = [];
   for (const p of t.players) {
     const wasRet = !s.commits.some((c) => c.id === p.id) && !p.walkOn;
     p.classYear = Math.min(3, p.classYear + (wasRet ? 1 : 0));
-    const skillBump = Math.min(1 + rand(3), Math.max(0, p.potential - p.skill));
-    p.skill += skillBump;
+    const bump = bumpAny(p, 1 + rand(3));
     let driftNote = '';
     if (roll(25)) {
+      // his body keeps leaning into what his species is
       const sp = speciesById(p.speciesId);
-      const poles = [
-        ['strong', sp.poleCaps.strong], ['quick', sp.poleCaps.quick],
-      ].sort((a, b) => (b[1] as number) - (a[1] as number));
-      const drift = 3 + rand(4);
-      if (poles[0][0] === 'strong') p.build -= drift; else p.build += drift;
-      clampAxes(p);
-      driftNote = ' — and his body kept leaning into what it is';
+      const a = bestAttr(sp.attrCaps);
+      const before = p.attrs[a];
+      p.attrs[a] = Math.min(p.pots[a], p.attrs[a] + 2);
+      if (p.attrs[a] > before) driftNote = ` — and his body kept leaning into what it is (+${p.attrs[a] - before} ${a.toUpperCase()})`;
     }
     p.energy = 85 + rand(15);
     p.mood = clamp(p.mood + 10, 40, 95);
     p.outWeeks = 0; p.outReason = ''; p.dnp = 0;
-    s.seasonNotes.push(`${p.name}: +${skillBump} SKILL over the summer${driftNote}.`);
+    s.seasonNotes.push(`${p.name}: +${bump} over the summer${driftNote}.`);
   }
   s.phase = 'growth';
   save(s);
@@ -1166,6 +1199,12 @@ export function finalizeRoster(s: GameState, chosenIds: number[]): boolean {
 export function startNewSeason(s: GameState): void {
   s.season++;
   s.week = 1;
+  // last season's box scores fold into careers; the GROWTH lens re-baselines
+  for (const p of myTeam(s).players) {
+    addStats(p.career, p.stats);
+    p.stats = zeroStats();
+    p.startAttrs = copyAttrs(p.attrs);
+  }
   for (const t of s.teams) { t.wins = 0; t.losses = 0; t.pointsFor = 0; t.pointsAgainst = 0; }
   s.schedule = genSchedule(s.teams.length);
   s.prospects = [];

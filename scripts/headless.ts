@@ -3,9 +3,10 @@
 // Definition of done (SPEC §16): survives full careers without error and
 // reports skill curves, UT reach, ending causes, and energy starvation.
 
-import { PLANS } from '../src/engine/data';
+import { PLANS, speciesById } from '../src/engine/data';
 import { LEVEL_CAP, ROSTER_SIZE, newGameState } from '../src/engine/gen';
-import { planFit } from '../src/engine/sim';
+import { teamPower } from '../src/engine/sim';
+import { ATTRS, ovr } from '../src/engine/util';
 import {
   actionProspect,
   actionScan,
@@ -58,10 +59,15 @@ function checkInvariants(s: GameState): void {
   if (s.heatS < 0 || s.heatB < 0 || s.heatS + s.heatB > 100) throw new Error(`hot seat broken: ${s.heatS}/${s.heatB}`);
   if (s.bag.length > 5) throw new Error(`bag overflow: ${s.bag.length}`);
   for (const p of t.players) {
-    if (p.skill > p.potential || p.skill > 99 || p.skill < 0) throw new Error(`skill broken for ${p.name}: ${p.skill}/${p.potential}`);
+    const caps = speciesById(p.speciesId).attrCaps;
+    for (const a of ATTRS) {
+      if (p.attrs[a] < 0 || p.attrs[a] > 25 || p.attrs[a] > caps[a]) throw new Error(`attr ${a} broken for ${p.name}: ${p.attrs[a]} (cap ${caps[a]})`);
+      if (p.pots[a] < p.attrs[a] || p.pots[a] > caps[a]) throw new Error(`pot ${a} broken for ${p.name}: ${p.attrs[a]}/${p.pots[a]} (cap ${caps[a]})`);
+    }
+    if (ovr(p.attrs) > 99) throw new Error(`overall broken for ${p.name}: ${ovr(p.attrs)}`);
+    if (p.stats.gp < 0 || p.stats.pts < 0) throw new Error(`stats broken for ${p.name}`);
     if (p.level > LEVEL_CAP) throw new Error(`level overflow ${p.name}`);
     if (p.energy < 0 || p.energy > 100 || p.mood < 0 || p.mood > 100) throw new Error(`meters broken for ${p.name}`);
-    if (p.build < 0 || p.build > 100 || p.head < 0 || p.head > 100) throw new Error(`axes broken for ${p.name}`);
   }
 }
 
@@ -87,7 +93,7 @@ function playCareer(idx: number): CareerStats {
     checkInvariants(s);
     switch (s.phase) {
       case 'teamSelect': {
-        const ids = [...s.selectPool].sort((a, b) => b.skill + b.potential - (a.skill + a.potential)).slice(0, ROSTER_SIZE).map((p) => p.id);
+        const ids = [...s.selectPool].sort((a, b) => ovr(b.attrs) + ovr(b.pots) - (ovr(a.attrs) + ovr(a.pots))).slice(0, ROSTER_SIZE).map((p) => p.id);
         if (!finalizeRoster(s, ids)) throw new Error('finalizeRoster failed');
         break;
       }
@@ -105,8 +111,12 @@ function playCareer(idx: number): CareerStats {
           const t = myTeam(s);
           const tired = t.players.filter((p) => p.energy < 40).length;
           for (const p of t.players) if (p.energy < 25 && Math.random() < 0.7) toggleSitout(s, p.id);
-          const drill = tired >= 4 ? 'rest' : s.energy >= 3 && s.unlockedDrills.includes('blaster') && Math.random() < 0.3 ? 'blaster' : s.energy >= 1 && Math.random() < 0.7 ? 'asteroid' : 'shootaround';
-          runDrill(s, drill);
+          const adv = ['meteor', 'asteroid', 'sparring', 'filmroom'].filter((d) => s.unlockedDrills.includes(d));
+          const pupil = [...t.players].filter((p) => p.outWeeks === 0).sort((a, b) => ovr(b.pots) - ovr(a.pots))[0];
+          if (tired >= 4) runDrill(s, 'rest');
+          else if (adv.length && s.energy >= 3 && Math.random() < 0.4 && pupil) runDrill(s, adv[Math.floor(Math.random() * adv.length)], pupil.id);
+          else if (s.energy >= 1 && Math.random() < 0.5 && pupil) runDrill(s, 'personal', pupil.id);
+          else runDrill(s, 'shootaround');
           drainQueue(s);
         }
         if (s.phase === 'practice') toGalaxy(s);
@@ -119,7 +129,7 @@ function playCareer(idx: number): CareerStats {
           actionScan(s, s.groundedWeeks > 0 ? 'home' : Math.random() < 0.5 ? 'nebula' : 'home');
           drainQueue(s);
         } else if (s.prospects.length && s.energy >= 1) {
-          const target = [...s.prospects].sort((a, b) => b.seenPotStar - a.seenPotStar)[0];
+          const target = [...s.prospects].sort((a, b) => ovr(b.seenPots) - ovr(a.seenPots))[0];
           actionProspect(s, target.id, target.scoutLevel < 1 ? 'attend' : 'tour');
           drainQueue(s);
         }
@@ -130,7 +140,8 @@ function playCareer(idx: number): CareerStats {
         drainQueue(s);
         if (s.phase !== 'matchup') break;
         const t = myTeam(s);
-        const best = PLANS.reduce((b, pl) => (planFit(t, pl.id) > planFit(t, b) ? pl.id : b), PLANS[0].id);
+        const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id));
+        const best = known.reduce((b, pl) => (teamPower(t, pl.id) > teamPower(t, b) ? pl.id : b), known[0].id);
         setPlan(s, best);
         if (isUtWeek(s)) utReached = Math.max(utReached, 1);
         playGame(s);

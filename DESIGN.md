@@ -240,21 +240,82 @@ phone:
   Dev handles for testing: `gc.story(defId, beat, playerId, data)`,
   `gc.ui()`, `gc.state()`.
 
+## v2.0 — THE FOUR ATTRIBUTES (Aug 22, 2026)
+
+The big rework, designed with Thijs from his v1.5 playtest notes (scouting
+was pointless, tactics unreadable, compass hard to read, no season stats,
+cards too dense) and shipped in one session. **Old saves die (SAVE_VERSION
+13); fresh season 1.**
+
+- **Four attributes, everything in fours.** SKILL / ATHLETICISM /
+  FIERCENESS / BRAINS, each 0–25. OVERALL = the sum (theoretical 100;
+  species caps keep every real player below it — humans sum to ~60, and a
+  lopsided human can still spike ONE attribute). The old opposed axes die;
+  the contradiction law now lives in the BUDGET + per-attribute species
+  caps. Each attribute maps 1:1 to a tactic, a box-score stat, and a drill:
+  SKL→SHOWTIME→points, ATH→RUN & GUN→rebounds, FRC→LOCKDOWN→steals,
+  BRN→CLOCKWORK→assists. Counter loop: SHOWTIME > LOCKDOWN > CLOCKWORK >
+  RUN & GUN > SHOWTIME. Meters mute: energy suppresses ATH+FRC, mood
+  suppresses SKL+BRN (floor 60%).
+- **Position is body size, not a stat.** sizeIndex (XS–XL) from
+  height/weight (mirrors the rig's sprite classes). Miscast is a size
+  lookup table (wall in the backcourt / waterbug in the frontcourt, −25%
+  max). Species have size identities (Dodecapedes small, Lithoids bruiser-L).
+- **The kite compass.** SKL up / ATH right / FRC down / BRN left; solid
+  kite = current, outline = per-attribute potential (stars are DEAD),
+  dashes = season start (growth lens), dotted = species caps (detail view).
+  OVERALL sits in the kite's center. Prospects render the kite as a CLOUD
+  (blur 3.5px → 1.5px → truth) that scouting sharpens.
+- **Scouting matters now.** The matchup has two sides: each tactic chip
+  shows YOUR live team rating under that tactic (starters 75% / bench 25%,
+  moves when you swap players), but their side is hidden until you SCOUT
+  (1⚡): their tactic, their rating, their team kite, and the counter
+  arrows. Unscouted keeps the ±15 win band. Sometimes your second-best
+  shape is right because it counters theirs.
+- **Real box scores + season/career stats.** dealBox() deals my team's
+  final score into pts/reb/stl/ast by attribute-weighted shares (starters
+  ×3, bench ×1); accumulates into p.stats (season) and folds into p.career
+  each offseason. Alumni carry their full career line (graduation note
+  prints career points). Verdict boxLine is now true numbers.
+- **The three-lens main screen.** TRAINING grid swipes (or tabs) through
+  SKILLS (meters + kite + size), STATS (per-game 2×2 with ♛ crowns for
+  team leaders, GP/career), GROWTH (layered kite + POT sum + XP). Same
+  nine faces in the same nine places. Swipe = horizontal fling >56px
+  (card drag wins on the SKILLS lens; other lenses aren't draggable so
+  swipe works anywhere). New 'lenses' tip.
+- **Two-track training.** Basic drills (SHOOTAROUND squad XP, PERSONAL
+  SESSION one-player XP, TEAM REST) are known from day one. XP → level
+  (cap 10) → a blocking LEVEL UP story: the coach places +2 points (10%
+  breakthrough: +3) into any attribute under its pot. Discovered methods
+  hammer DIRECT points into fixed attributes, one player at a time:
+  ASTEROID PUSHES +1 ATH, METEOR DODGING +1 SKL +1 ATH, GRAVITY CAGE
+  +1 FRC, THE FILM CRYPT +1 BRN — with real injury odds. At his ceiling,
+  the reps bank as XP instead.
+- **Tactics are knowledge.** You start knowing SHOWTIME + RUN & GUN;
+  LOCKDOWN and CLOCKWORK come from the seminar/oracle knowledge pool
+  (which now teaches drills OR tactics). Unlearned chips render locked.
+- **Fx rework**: skill/build/head/potential → attr / potAttr / anyAttr /
+  anyPot / unlockPlan; every story swept. PRO_OVR = 52 replaces skill≥85.
+- **Testing**: `npx tsx scripts/headless.ts N` (engine careers, ~59% win
+  rate, invariants on attrs/pots/caps) and NEW `npx tsx scripts/uismoke.ts`
+  (boots the real UI in happy-dom, clicks pick-team → tryouts → lenses →
+  drill → galaxy → matchup → game night; uses the `gcAction` dev handle
+  because hold-buttons ignore clicks).
+- Also in this session: **v1.5.1** — text selection + iOS long-press
+  callout disabled app-wide (`user-select: none` on `*`).
+
 ## NEXT SESSION (pick up here)
 
-1. **Thijs playtests v1.5 on phone.** Two open questions he should answer
-   from feel: (a) no-choice stories now take 3 taps (antic → verdict →
-   impact) — too slow for minor beats? If yes: auto-advance the
-   anticipation beat after ~1.5s instead of requiring the tap. (b) Does
-   the 11px scholar-cap icon in the job bar read as a cap?
-2. Known state of Thijs's live save (mutated by this session's testing,
-   with apologies): week 2 of season 1, 0–1, SHOOTAROUND run twice, Enkii
-   genuinely leveled up via a test breakthrough, Svarogg −20 energy from a
-   test injury he tape-and-played through, Freyr-X OUT 3w from the
-   academic-exchange story I answered during testing. Eshuu's test injury
-   was reverted.
-3. Parked as before: species design session, story-writing session,
-   SPEC §17 ideas.
+1. **Thijs playtests v2.0 on phone.** Feel questions: (a) do the kite
+   shapes read at card size? (b) does the lens swipe fight the card drag
+   on the SKILLS lens? (c) are direct-point drills too strong vs XP?
+   (d) OVERALL numbers now live around 20–40 (species caps) — does that
+   feel right or do the numbers want a bigger scale?
+2. Balance watch: counter bonus is ±12% power (≈70/30 at equal strength);
+   level cap 10 × 2pts + drills + offseason growth vs pot ceilings.
+3. Parked as before: species design session (caps are provisional),
+   story-writing session, SPEC §17 ideas. SPEC.md still describes the
+   v1.0 axis model — rewrite when the v2.0 design settles in playtest.
 
 Workflow reminders: pushing needs `gh auth switch -u Thijsbazelmans`
 (default active account is thijs-miketeevee and lacks repo access) — switch

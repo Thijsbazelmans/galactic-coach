@@ -97,7 +97,6 @@ td.num, th.num { text-align: right; }
 tr.me td { color: var(--r95); font-weight: bold; }
 .standings td { font-size: 17px; padding: 7px 8px 7px 0; }
 tr.utline td { color: var(--r95); font-size: 11px; letter-spacing: 2px; border-bottom: 2px solid var(--r95); padding: 0 0 3px; }
-.starcell { font-size: 11px; line-height: 1.2; }
 .signbtn { font-size: 18px; padding: 6px 10px; }
 
 button {
@@ -329,9 +328,9 @@ button.hold.wiggle::after {
   padding: 4px 6px;
 }
 
-/* head: RATING · NAME · YEAR */
+/* head: LVL · NAME · YEAR */
 .pc-head { display: flex; align-items: baseline; gap: 3px; flex: none; }
-.pc-rating { font-size: 16px; font-weight: bold; line-height: 1; flex: none; color: var(--r75); }
+.pc-lvl { font-size: 10px; font-weight: bold; line-height: 1; flex: none; color: var(--r55); letter-spacing: 0.5px; }
 .pc-name { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .pc-year { font-size: 10px; color: var(--r35); flex: none; letter-spacing: 1px; }
 
@@ -341,13 +340,15 @@ button.hold.wiggle::after {
 .vled { display: flex; flex-direction: column; gap: 1px; }
 .lseg { width: 7px; height: 4px; background: var(--r20); }
 .micon { width: 10px; height: 10px; image-rendering: pixelated; }
-.sprite { width: 44px; height: 44px; image-rendering: pixelated; flex: none; }
+.sprite { width: 38px; height: 38px; image-rendering: pixelated; flex: none; }
+.sprite.tiny { width: 30px; height: 30px; }
+.sprite.big { width: 72px; height: 72px; }
 
-/* prospects have no foot — the body takes the room and centers */
-.pcard.prospect .pc-body { flex: 1 1 auto; padding: 0 1px; }
-.pcard.prospect .sprite { width: 40px; height: 40px; }
+/* prospects have no foot — sprite + cloud kite share the body */
+.pcard.prospect .pc-body { flex: 1 1 auto; padding: 0 1px; justify-content: space-evenly; }
+.pcard.prospect .sprite { width: 34px; height: 34px; }
 
-/* foot: XP/LVL twin bars | 2×2 pole box | compass */
+/* foot: XP/LVL twin bars | kite (OVR in the center) | SIZE */
 .pc-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 3px; flex: none; }
 .pc-side { display: flex; flex-direction: column; align-items: center; gap: 1px; flex: none; }
 .pc-lab { font-style: normal; font-size: 7px; letter-spacing: 1px; color: var(--r35); }
@@ -357,60 +358,76 @@ button.hold.wiggle::after {
 .vseglvl { display: flex; flex-direction: column; gap: 1px; width: 5px; }
 .lvlseg { flex: 1; background: var(--r20); }
 .lvlseg.on { background: var(--r75); }
-.vstars { display: flex; flex-direction: column; font-size: 7px; line-height: 1; color: var(--r20); text-align: center; }
-.vstars .on { color: var(--r95); }
-/* the big (modal) variant — same anatomy, scaled up */
-.pcard.big { padding: 6px 8px; }
-.pcard.big .sprite { width: 72px; height: 72px; }
-.pcard.big .pc-rating { font-size: 26px; }
-.pcard.big .pc-name { font-size: 15px; }
-.pcard.big .pc-year { font-size: 12px; }
-.pcard.big .lseg { width: 10px; height: 8px; }
-.pcard.big .micon { width: 16px; height: 16px; }
-.pcard.big .pc-bars { height: 44px; }
-.pcard.big .vbar, .pcard.big .vseglvl { width: 8px; }
-.pcard.big .vstars { font-size: 12px; }
-.pcard.big .pc-lab { font-size: 9px; }
-.pcard.big .compass.mini { width: 64px; height: 64px; }
+.sizelab { font-size: 12px; color: var(--r75); letter-spacing: 1px; }
 
-.compass { position: relative; background: #000; border: 1px solid var(--rline); flex: none; overflow: hidden; }
-.compass.mini { width: 42px; height: 42px; }
-.compass.full { width: 120px; height: 120px; }
-/* the four poles, same on every compass: FRC N, SVY S, STR W, QCK E */
-.clabel { position: absolute; font-size: 6px; letter-spacing: 1px; color: var(--r35); line-height: 1; }
-.clabel.n { top: 1px; left: 50%; transform: translateX(-50%); }
-.clabel.s { bottom: 1px; left: 50%; transform: translateX(-50%); }
-.clabel.w { left: 1px; top: 50%; transform: translateY(-50%); writing-mode: vertical-lr; }
-.clabel.e { right: 1px; top: 50%; transform: translateY(-50%); writing-mode: vertical-lr; }
-.compass.full .clabel { font-size: 10px; letter-spacing: 2px; }
-.compass.full .clabel.n { top: 3px; }
-.compass.full .clabel.s { bottom: 3px; }
-.compass.full .clabel.w { left: 3px; }
-.compass.full .clabel.e { right: 3px; }
-/* how far this species can ever stretch */
-.cbox { position: absolute; border: 1px solid var(--r35); opacity: 0.55; }
-.compass .axis { position: absolute; background: var(--r20); }
-.compass .axis.h { left: 4%; right: 4%; top: 50%; height: 1px; }
-.compass .axis.v { top: 4%; bottom: 4%; left: 50%; width: 1px; }
-.compass .dot {
+/* ---- the kite: SKL up · ATH right · FRC down · BRN left ------------------------ */
+
+.kite { position: relative; background: #000; border: 1px solid var(--rline); flex: none; overflow: hidden; }
+.kite.mini { width: 44px; height: 44px; }
+.kite.grow { width: 62px; height: 62px; }
+.kite.full { width: 130px; height: 130px; }
+.kite svg { display: block; width: 100%; height: 100%; }
+.k-axis { stroke: var(--r20); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.k-caps { fill: none; stroke: var(--r35); stroke-width: 1; stroke-dasharray: 2 2; opacity: 0.5; vector-effect: non-scaling-stroke; }
+.k-pot { fill: var(--r35); fill-opacity: 0.16; stroke: var(--r55); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.k-start { fill: none; stroke: var(--r35); stroke-width: 1; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
+.k-cur { fill: var(--r75); fill-opacity: 0.45; stroke: var(--r95); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.klabel { position: absolute; font-size: 6px; letter-spacing: 0.5px; color: var(--r35); line-height: 1; pointer-events: none; }
+.klabel.n { top: 1px; left: 50%; transform: translateX(-50%); }
+.klabel.s { bottom: 1px; left: 50%; transform: translateX(-50%); }
+.klabel.w { left: 1px; top: 50%; transform: translateY(-50%); }
+.klabel.e { right: 1px; top: 50%; transform: translateY(-50%); }
+.kite.full .klabel { font-size: 9px; letter-spacing: 1px; }
+.k-ovr {
   position: absolute;
-  width: 7px; height: 7px;
-  background: var(--r95);
-  border-radius: 50%;
+  left: 50%; top: 50%;
   transform: translate(-50%, -50%);
-  transition: left 0.5s, top 0.5s;
+  font-size: 11px; font-weight: bold; color: var(--r95);
+  background: rgba(0, 0, 0, 0.72);
+  padding: 0 3px; line-height: 1.3;
+  pointer-events: none;
 }
-.compass.mini .dot { width: 5px; height: 5px; }
-.compass .dot.muted { opacity: 0.75; }
-.compass .ghost {
-  position: absolute;
-  width: 7px; height: 7px;
-  border: 1px solid var(--r35);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
+.kite.grow .k-ovr { font-size: 13px; }
+.kite.full .k-ovr { font-size: 18px; padding: 1px 5px; }
+/* the scouting cloud: the shape is there, the truth is not */
+.kite.fuzzy1 polygon { filter: blur(1.5px); }
+.kite.fuzzy2 polygon { filter: blur(3.5px); }
+.kite.fuzzy1 .k-ovr, .kite.fuzzy2 .k-ovr { color: var(--r55); }
+
+/* ---- the STATS lens ------------------------------------------------------------- */
+
+.pc-stats { display: flex; align-items: center; gap: 4px; flex: 1 1 auto; min-height: 0; }
+.stgrid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 1px 4px; }
+.strow { display: flex; align-items: baseline; gap: 3px; font-size: 9px; }
+.strow i { font-style: normal; color: var(--r35); font-size: 7px; letter-spacing: 0.5px; }
+.strow b { color: var(--r75); font-size: 12px; }
+.strow.lead b { color: var(--r95); }
+.crown { color: var(--r95); font-size: 9px; }
+.pc-gp { font-size: 8px; color: var(--r35); letter-spacing: 0.5px; flex: none; }
+
+/* ---- the GROWTH lens -------------------------------------------------------------- */
+
+.pc-grow { display: flex; align-items: center; justify-content: space-evenly; gap: 3px; flex: 1 1 auto; min-height: 0; }
+.potnum { font-size: 14px; }
+
+/* ---- the lens bar ------------------------------------------------------------------ */
+
+.lensbar { display: flex; align-items: center; gap: 4px; flex: none; margin: 2px 0 4px; }
+.lensbar .lenstab {
+  flex: 1; margin: 0; padding: 5px 2px;
+  font-size: 12px; letter-spacing: 1.5px; font-weight: bold;
+  border-color: var(--rline); color: var(--r35);
 }
-.compass.fuzzy1 .dot { filter: blur(2px); }
-.compass.fuzzy2 .dot { filter: blur(4px); }
+.lensbar .lenstab.sel { border-color: var(--r95); color: var(--r95); }
+.lensbar .lensarrow { flex: none; margin: 0; padding: 5px 10px; font-size: 14px; border-color: var(--rline); color: var(--r55); }
+
+/* ---- the detail view ---------------------------------------------------------------- */
+
+.detailtop { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.arows { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.arow { display: flex; align-items: baseline; gap: 4px; font-size: 12px; }
+.arow .alab { color: var(--r35); font-size: 9px; letter-spacing: 1px; flex: 1; }
+.arow b { font-size: 15px; }
 
 /* status tags float over the sprite — every card keeps the same height */
 .ptag {
@@ -443,8 +460,6 @@ button.hold.wiggle::after {
 .picktag { width: 100%; text-align: center; padding: 4px 2px; border: 1px solid var(--rline); background: transparent; color: var(--r55); align-self: stretch; }
 .picktag.on { color: var(--r95); border-color: var(--r95); }
 
-.detailcompass { display: flex; justify-content: center; margin: 6px 0; flex: none; }
-.potline { color: var(--r95); letter-spacing: 1px; }
 
 /* change = a floater on a black tag */
 .floater {
@@ -482,6 +497,10 @@ button.hold.wiggle::after {
 .planchip { flex: 1; margin: 0; padding: 6px 2px; text-align: center; font-size: 12px; line-height: 1.25; }
 .planchip b { color: var(--r95); font-size: 13px; letter-spacing: 0.5px; }
 .planchip.sel { border: 2px solid var(--r95); }
+.planchip.locked { border-style: dashed; border-color: var(--r20); }
+.oppkite { float: right; margin-left: 6px; }
+.oppkite .kite.mini { width: 38px; height: 38px; }
+.gaintag { font-weight: bold; letter-spacing: 0.5px; }
 
 .mustrip { flex: none; margin-bottom: 2px; }
 .muq { font-size: 15px; letter-spacing: 1px; color: var(--r95); font-weight: bold; }
