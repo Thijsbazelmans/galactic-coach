@@ -339,8 +339,10 @@ export function genChamps(myPower: number, _season: number): ChampTeam[] {
       bg: colors[0],
       fg: colors[1],
       plan,
-      // champions are your equal on a good day — and the rounds get harder
-      power: Math.round(myPower * (1.02 + rand(18) / 100 + i * 0.02)),
+      // sized against your RESTED strength — but you arrive tired, streaks
+      // stacked, with no practice week between rounds. Champions are your
+      // equal on a good day; the rounds get harder.
+      power: Math.round(myPower * (0.88 + rand(18) / 100 + i * 0.02)),
       kite,
     });
   }

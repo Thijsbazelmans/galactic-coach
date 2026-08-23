@@ -45,11 +45,11 @@ import {
   benchPlayers,
   normalizeLineup,
   reserves,
+  restedPower,
   simAiGame,
   simMyGameH1,
   simMyGameH2,
   starters,
-  teamPower,
 } from './sim';
 import type {
   Alumnus,
@@ -61,6 +61,7 @@ import type {
   Prospect,
   SpeechFx,
   StoryEvent,
+  StoryReq,
   Team,
 } from './types';
 import { ATTRS, addStats, bumpAny, bumpAnyPot, clamp, copyAttrs, bestAttr, genderize, ovr, pick, rand, roll, zeroStats } from './util';
@@ -420,7 +421,6 @@ export function resolveStory(s: GameState, choiceKey: string): { resolved: Story
 export function dismissStory(s: GameState): void {
   s.queue.shift();
   if (!s.queue.length && s.phase === 'stories') {
-    if (isUtWeek(s)) rollTravel(s);
     s.phase = isUtWeek(s) ? 'matchup' : 'practice';
     maybeTip(s, isUtWeek(s) ? 'matchup' : 'practice');
   }
@@ -430,26 +430,33 @@ export function dismissStory(s: GameState): void {
 
 // ---- week start ---------------------------------------------------------------------
 
-function checkHotSeat(s: GameState): void {
+type StoryDefer = (defId: string, beat: string, playerId: number | null, data?: Record<string, unknown>) => void;
+
+function checkHotSeat(s: GameState, defer: StoryDefer): void {
   if (s.heatS < 40) s.interferedS = false;
   if (s.heatB < 40) s.interferedB = false;
   if (s.heatS + s.heatB >= 75 && roll(50)) {
     const side = s.heatS > s.heatB + 10 ? 'school' : s.heatB > s.heatS + 10 ? 'boost' : 'joint';
-    queueStory(s, 'summons', 'start', null, { side });
+    defer('summons', 'start', null, { side });
     return;
   }
   if (s.heatS >= 50 && !s.interferedS) {
     s.interferedS = true;
-    queueStory(s, 'interfere_school', 'start', null);
+    defer('interfere_school', 'start', null);
   }
   if (s.heatB >= 50 && !s.interferedB) {
     s.interferedB = true;
-    queueStory(s, 'interfere_boost', 'start', null);
+    defer('interfere_boost', 'start', null);
   }
 }
 
 function startWeek(s: GameState): void {
   const t = myTeam(s);
+  // what the weekend left behind (before the flags reset wipe it)
+  const lastGame = new Map(s.postGame.map((r) => [r.playerId, r]));
+  const hadGame = s.postGame.length > 0;
+  const wasAway = !!s.lastResult && (!s.lastResult.home || (s.ut !== null && s.week - 1 > REGULAR_WEEKS));
+
   s.energy = clamp(s.energy + stipendFor(s.season), 0, CACHE_MAX);
   s.trainedThisWeek = false;
   s.galaxyActWk = false;
@@ -469,27 +476,44 @@ function startWeek(s: GameState): void {
   s.resultsLog = [];
   if (s.groundedWeeks > 0) s.groundedWeeks--;
 
+  // the week's stories are HELD until the coach walks into the building —
+  // WEEK START (the Monday report) comes first
+  const later: StoryReq[] = [];
+  const defer: StoryDefer = (defId, beat, playerId, data = {}) => later.push({ defId, beat, playerId, data });
+
+  s.weekRecap = [];
   for (const team of s.teams) {
     for (const p of team.players) {
       if (p.outWeeks > 0 && --p.outWeeks === 0) {
         if (team.id === s.myTeamId) {
-          queueStory(s, 'notice', 'start', p.id, {
+          defer('notice', 'start', p.id, {
             tag: 'CLEARED TO PLAY',
             text: `${p.name} is back from ${p.outReason || 'the long absence'} and cleared to play. The first dunk back is always the loudest.`,
           });
         }
         p.outReason = '';
       }
-      // meters drift HOME to the 75 baseline — natural recovery never passes
-      // it; the extremes (elated/angry, pumped/sleeping) belong to stories.
-      // A starter burns ~−12/week net, so three straight starts land him in
-      // the 30s: bench him, rest him, or watch him break.
+      // THE WEEKEND BUMP: everyone recovers hard toward the 75 baseline —
+      // but the bump SHRINKS with every consecutive start (streak 1 → +40,
+      // 2 → +28, 3 → +16 …). Stack your starters and the tank stops filling.
+      const preE = p.energy;
+      const preM = p.mood;
+      const streak = p.startStreak ?? 0;
+      const rec = Math.max(8, 40 - 12 * Math.max(0, streak - 1));
       p.energy = p.energy < METER_BASELINE
-        ? Math.min(METER_BASELINE, p.energy + 14)
+        ? Math.min(METER_BASELINE, p.energy + rec)
         : Math.max(METER_BASELINE, p.energy - 2);
       p.mood = p.mood < METER_BASELINE
         ? Math.min(METER_BASELINE, p.mood + 5)
         : Math.max(METER_BASELINE, p.mood - 3);
+      if (team.id === s.myTeamId) {
+        s.weekRecap.push({
+          playerId: p.id,
+          energyP: p.energy - preE,
+          mood: p.mood - preM,
+          xpGain: lastGame.get(p.id)?.xpGain ?? 0,
+        });
+      }
     }
     // AI campus life, abstracted: the other programs have festivals, dramas
     // and frozen-out benches too — we just never see them. Without this tax
@@ -518,16 +542,16 @@ function startWeek(s: GameState): void {
     if (fb.weeksLeft <= 0) {
       s.futureBeats.splice(s.futureBeats.indexOf(fb), 1);
       const stillHere = fb.playerId === null || t.players.some((p) => p.id === fb.playerId);
-      if (stillHere) queueStory(s, fb.defId, fb.beat, fb.playerId, fb.data ?? {});
+      if (stillHere) defer(fb.defId, fb.beat, fb.playerId, fb.data ?? {});
     }
   }
 
-  checkHotSeat(s);
+  checkHotSeat(s, defer);
 
   if (isUtWeek(s)) {
     const champ = utOpponent(s);
     if (champ) {
-      queueStory(s, 'notice', 'start', null, {
+      defer('notice', 'start', null, {
         tag: 'SCOUTING REPORT',
         text: `${champ.name.toUpperCase()}\n\n"${champ.gimmick}" — that's the word from three systems over. The scout's read: they live in ${planById(champ.plan).name}. ${weekLabel(s)}. Win or go home.`,
       });
@@ -552,16 +576,42 @@ function startWeek(s: GameState): void {
         if (!candidates.length) continue;
         const p = pick(candidates);
         used.add(p.id);
-        queueStory(s, def.id, 'start', p.id, def.id === 'festival' ? {} : {});
+        defer(def.id, 'start', p.id);
       } else {
-        queueStory(s, def.id, 'start', null);
+        defer(def.id, 'start', null);
       }
     }
   }
 
   normalizeLineup(t);
-  s.phase = 'stories';
-  if (!s.queue.length) s.phase = isUtWeek(s) ? 'matchup' : 'practice';
+  if (hadGame) {
+    // the weekend rhythm: (the ride home →) WEEK START → the building
+    s.storedStories = later;
+    s.phase = 'weekstart';
+    if (wasAway) rollTravelHome(s);
+  } else {
+    for (const req of later) queueStory(s, req.defId, req.beat, req.playerId, req.data ?? {});
+    s.storedStories = [];
+    s.phase = s.queue.length ? 'stories' : isUtWeek(s) ? 'matchup' : 'practice';
+  }
+  save(s);
+}
+
+/** WEEK START → the building: bank the weekend's XP (level-ups knock first),
+    then the week's stories fire, then the week proper. */
+export function beginWeek(s: GameState): void {
+  if (s.phase !== 'weekstart' || s.queue.length) return;
+  const t = myTeam(s);
+  for (const row of s.weekRecap ?? []) {
+    if (row.xpGain <= 0) continue;
+    const p = t.players.find((x) => x.id === row.playerId);
+    if (p) lastLevelUps.push(...addXp(s, p, row.xpGain));
+  }
+  for (const req of s.storedStories ?? []) queueStory(s, req.defId, req.beat, req.playerId, req.data ?? {});
+  s.storedStories = [];
+  s.phase = s.queue.length ? 'stories' : isUtWeek(s) ? 'matchup' : 'practice';
+  if (s.phase === 'practice') maybeTip(s, 'practice');
+  if (s.phase === 'matchup') maybeTip(s, 'matchup');
   save(s);
 }
 
@@ -1006,12 +1056,10 @@ export function useItem(s: GameState, itemId: string, ctxData: Record<string, un
 
 // ---- game night ----------------------------------------------------------------------------
 
-/** Away weeks open with the bus: a voyage story, a debt snare, or plain void. */
-export function rollTravel(s: GameState): void {
+/** THE RIDE HOME: an away weekend ends on the bus — a voyage story, a debt
+    snare, or plain uneventful void. Fires before the WEEK START report. */
+export function rollTravelHome(s: GameState): void {
   if (s.voyageRolled) return;
-  const m = myMatchup(s);
-  const away = isUtWeek(s) || (m ? !m.home : false);
-  if (!away) return;
   s.voyageRolled = true;
   if (s.energy === 0 && roll(10)) {
     queueStory(s, 'debt', 'start', null);
@@ -1034,7 +1082,6 @@ export function toMatchup(s: GameState): void {
   // recruiting is mandatory: no matchup before the board-wide move lands
   if (s.phase === 'galaxy' && (!s.galaxyActWk || s.pendingRecruits.length)) return;
   normalizeLineup(myTeam(s));
-  rollTravel(s);
   s.phase = 'matchup';
   maybeTip(s, 'matchup');
   save(s);
@@ -1065,16 +1112,25 @@ export function playGame(s: GameState): void {
 }
 
 /** An AI roster living a game night the way mine does: floor players spend
-    by row, reserves get their night off (back toward the baseline only). */
+    by row (a full game runs starters near empty), streaks stack, and the
+    role-weighted mood verdict lands the same way. */
 function aiPostGame(t: Team, won: boolean, halfAlreadySpent: boolean): void {
   const st = new Set(starters(t).map((p) => p.id));
   const bn = new Set(benchPlayers(t).map((p) => p.id));
   for (const p of t.players) {
     if (p.outWeeks > 0) continue;
-    if (st.has(p.id)) p.energy = clamp(p.energy - (8 + rand(3)) - (halfAlreadySpent ? 0 : 8 + rand(3)), 0, 100);
-    else if (bn.has(p.id)) p.energy = clamp(p.energy - (5 + rand(3)) - (halfAlreadySpent ? 0 : 4 + rand(2)), 0, 100);
-    else if (p.energy < METER_BASELINE) p.energy = Math.min(METER_BASELINE, p.energy + 8);
-    p.mood = clamp(p.mood + (won ? 4 : -5), 0, 100);
+    if (st.has(p.id)) {
+      p.energy = clamp(p.energy - (15 + rand(15)) - (halfAlreadySpent ? 0 : 15 + rand(15)), 0, 100);
+      p.mood = clamp(p.mood + (won ? 8 : -3), 0, 100);
+      p.startStreak = (p.startStreak ?? 0) + 1;
+    } else if (bn.has(p.id)) {
+      p.energy = clamp(p.energy - (8 + rand(8)) - (halfAlreadySpent ? 0 : 8 + rand(8)), 0, 100);
+      p.mood = clamp(p.mood + (won ? 5 : -5), 0, 100);
+      p.startStreak = 0;
+    } else {
+      p.mood = clamp(p.mood + (won ? 2 : -8), 0, 100);
+      p.startStreak = 0;
+    }
     if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
   }
 }
@@ -1177,7 +1233,11 @@ export function playSecondHalf(s: GameState): void {
 
 /** The whole night lands here ONCE, after H2 — the second half of the energy
     drain (the first half went at halftime, `halfDrains` folds it into the
-    stickers), full-game XP, injuries, and ON FIRE on full-game totals. */
+    stickers), injuries, and ON FIRE on full-game totals. A full game runs a
+    starter close to EMPTY; the big recovery bump waits for WEEK START, and
+    it shrinks with every consecutive start. XP is banked here and paid out
+    at WEEK START too. The mood verdict is role-weighted: a win lifts the
+    ones who fought for it, a loss stings hardest in street clothes. */
 function applyGameEffects(s: GameState, won: boolean, halfDrains: Record<number, number> = {}): void {
   const me = myTeam(s);
   const st = new Set(starters(me).map((p) => p.id));
@@ -1190,10 +1250,11 @@ function applyGameEffects(s: GameState, won: boolean, halfDrains: Record<number,
     let xpGain = 0;
     if (st.has(p.id)) {
       const lowEnergy = p.energy <= 30;
-      p.energy = clamp(p.energy - (8 + rand(3)), 0, 100);
-      p.mood = clamp(p.mood + 2, 0, 100);
-      xpGain = 8 + rand(5);
+      p.energy = clamp(p.energy - (15 + rand(15)), 0, 100);
+      p.mood = clamp(p.mood + (won ? 8 : -3), 0, 100);
+      xpGain = 10 + rand(5);
       p.dnp = 0;
+      p.startStreak = (p.startStreak ?? 0) + 1;
       if (roll(lowEnergy ? 25 : 2)) {
         const inj = rollInjury(lowEnergy ? 1 : 0, fragility(p.speciesId));
         queueStory(s, 'injury', 'start', p.id, {
@@ -1205,21 +1266,21 @@ function applyGameEffects(s: GameState, won: boolean, halfDrains: Record<number,
       }
     } else if (bn.has(p.id) || played.has(p.id)) {
       // the bench — or an H1 body parked in the reserves at the half
-      p.energy = clamp(p.energy - (5 + rand(3)), 0, 100);
-      xpGain = 4 + rand(3);
+      p.energy = clamp(p.energy - (8 + rand(8)), 0, 100);
+      p.mood = clamp(p.mood + (won ? 5 : -5), 0, 100);
+      xpGain = 5 + rand(4);
       p.dnp = 0;
+      p.startStreak = 0;
     } else {
-      // a night off recovers — but only back toward the baseline
-      if (p.energy < METER_BASELINE) p.energy = Math.min(METER_BASELINE, p.energy + 8);
+      // street clothes: a win barely reaches them, a loss festers
       p.dnp++;
-      p.mood = clamp(p.mood - (p.dnp >= 3 ? 8 : 4), 0, 100);
+      p.startStreak = 0;
+      p.mood = clamp(p.mood + (won ? 2 : -8) - (p.dnp >= 3 ? 6 : 3), 0, 100);
       // a long freeze becomes a STORY: the frozen-out talk, then worse
       if ((p.dnp === 4 && roll(50)) || (p.dnp >= 6 && p.dnp % 3 === 0)) {
         queueStory(s, 'frozen', 'start', p.id, { games: p.dnp });
       }
     }
-    p.mood = clamp(p.mood + (won ? 4 : -5), 0, 100);
-    if (xpGain > 0) lastLevelUps.push(...addXp(s, p, xpGain));
     s.postGame.push({ playerId: p.id, energyP: p.energy - pre.e + (halfDrains[p.id] ?? 0), mood: p.mood - pre.m, xpGain });
   }
 
@@ -1273,13 +1334,21 @@ export function continueFromResult(s: GameState): void {
     return;
   }
   if (s.week >= REGULAR_WEEKS) {
+    // the TOP TWO board the shuttle to the Universal Tournament — the crown
+    // still belongs to first place alone
     const table = sortedStandings(s);
-    if (table[0].id === s.myTeamId) {
+    const place = table.findIndex((x) => x.id === s.myTeamId) + 1;
+    if (place <= 2) {
       const me = myTeam(s);
-      s.legacy += 3;
-      s.trophies++;
-      s.careerLog.push(`Season ${s.season}: won the conference (${me.wins}–${me.losses}).`);
-      s.ut = { round: 0, champs: genChamps(teamPower(me), s.season), myNextOpp: 0, log: [] };
+      if (place === 1) {
+        s.legacy += 3;
+        s.trophies++;
+        s.careerLog.push(`Season ${s.season}: won the conference (${me.wins}–${me.losses}).`);
+      } else {
+        s.legacy += 1;
+        s.careerLog.push(`Season ${s.season}: runner-up (${me.wins}–${me.losses}) — took the second shuttle to the Universal Tournament.`);
+      }
+      s.ut = { round: 0, champs: genChamps(restedPower(me), s.season), myNextOpp: 0, log: [] };
       s.week++;
       startWeek(s);
       return;
@@ -1295,6 +1364,12 @@ export function continueFromResult(s: GameState): void {
 
 function endSeason(s: GameState, utNote: string | null): void {
   const t = myTeam(s);
+  // the last game's XP still banks — there is no next Monday to pay it out
+  for (const row of s.postGame) {
+    const p = t.players.find((x) => x.id === row.playerId);
+    if (p && row.xpGain > 0) lastLevelUps.push(...addXp(s, p, row.xpGain));
+  }
+  s.postGame = [];
   const table = sortedStandings(s);
   const place = table.findIndex((x) => x.id === s.myTeamId) + 1;
   s.seasonChampion = `${table[0].planet} ${table[0].name}`;
@@ -1307,7 +1382,7 @@ function endSeason(s: GameState, utNote: string | null): void {
   s.seasonNotes.push(
     place === 1
       ? `You finished FIRST (${t.wins}–${t.losses}).`
-      : `You finished ${place}${['','st','nd','rd'][place] ?? 'th'} (${t.wins}–${t.losses}). Only first place goes to the Universal Tournament. The boosters know that too.`
+      : `You finished ${place}${['','st','nd','rd'][place] ?? 'th'} (${t.wins}–${t.losses}). Only the top two board the shuttle to the Universal Tournament. The boosters know that too.`
   );
   if (!s.ut && place > 1) s.careerLog.push(`Season ${s.season}: finished ${place}.`);
   s.ut = null;
@@ -1465,7 +1540,7 @@ export function resolveSigning(s: GameState): void {
     }
     p.energy = METER_BASELINE - 3 + rand(9);
     p.mood = clamp(p.mood + 15, 60, 85);
-    p.outWeeks = 0; p.outReason = ''; p.dnp = 0;
+    p.outWeeks = 0; p.outReason = ''; p.dnp = 0; p.startStreak = 0;
     notes.push(genderize(`${p.name}: +${bump} over the summer${driftNote}.`, p.form));
   }
   if (notes.length) queueStory(s, 'notice', 'start', null, { tag: 'THE SUMMER', text: notes.join('\n') });

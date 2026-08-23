@@ -148,6 +148,21 @@ export function teamPower(t: Team, fx: SpeechFx | null = null): number {
   return ovr(matchAttrs(t, fx));
 }
 
+/** Meter-neutral strength: the same rope with everyone standing at the
+    baseline — for sizing opponents (the UT bracket) without catching the
+    roster on a gassed night. */
+export function restedPower(t: Team): number {
+  let sum = 0;
+  for (let c = 0; c < 3; c++) {
+    for (const [row, w] of [[0, 0.75], [1, 0.25]] as [number, number][]) {
+      const p = slotPlayer(t, row * 3 + c);
+      if (!p || !available(p)) continue;
+      sum += ovr(p.attrs) * slotMult(p, c) * w;
+    }
+  }
+  return Math.round(sum * 10) / 10;
+}
+
 /** The rope split IS the win chance: a sharpened ratio of the two totals. */
 const SHARP = 6;
 export function winShare(mine: number, theirs: number): number {
@@ -340,24 +355,25 @@ export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: Cha
   const u = Math.random();
   const sc = halfScores(share, u);
   const box = dealHalfBox(me, sc.my, s.plan);
-  // the half: on-floor players catch their breath having spent half the night
+  // a half BURNS: 15–29⚡ for a starter (a bad night runs anyone empty), 8–15
+  // for the bench — the locker room is where you notice who has nothing left
   const drains: Record<number, number> = {};
   for (const p of starters(me)) {
     if (!available(p)) continue;
-    const d = 8 + rand(3);
+    const d = 15 + rand(15);
     p.energy = clamp(p.energy - d, 0, 100);
     drains[p.id] = -d;
   }
   for (const p of benchPlayers(me)) {
     if (!available(p)) continue;
-    const d = 4 + rand(2);
+    const d = 8 + rand(8);
     p.energy = clamp(p.energy - d, 0, 100);
     drains[p.id] = -d;
   }
   // their locker room spends the same half ours does — by lineup row
   if (opp) {
-    for (const p of starters(opp)) if (available(p)) p.energy = clamp(p.energy - (8 + rand(3)), 0, 100);
-    for (const p of benchPlayers(opp)) if (available(p)) p.energy = clamp(p.energy - (4 + rand(2)), 0, 100);
+    for (const p of starters(opp)) if (available(p)) p.energy = clamp(p.energy - (15 + rand(15)), 0, 100);
+    for (const p of benchPlayers(opp)) if (available(p)) p.energy = clamp(p.energy - (8 + rand(8)), 0, 100);
   }
   s.halftime = {
     myH1: sc.my,

@@ -9,6 +9,7 @@ import { meterMult, normalizeLineup } from '../src/engine/sim';
 import { ATTRS, bestAttr, ovr, sizeIndex } from '../src/engine/util';
 import {
   actionGalaxy,
+  beginWeek,
   chooseTeam,
   confirmBoard,
   continueFromResult,
@@ -102,6 +103,12 @@ function playCareer(idx: number): CareerStats {
           ids.push(...trio.map((p) => p.id));
         }
         if (!finalizeRoster(s, ids)) throw new Error('finalizeRoster failed');
+        break;
+      }
+      case 'weekstart': {
+        drainQueue(s); // the ride home, if any
+        if (s.phase === 'weekstart') beginWeek(s);
+        if (s.phase === 'weekstart') throw new Error('stuck at week start');
         break;
       }
       case 'stories':

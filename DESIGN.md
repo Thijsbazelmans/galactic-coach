@@ -727,10 +727,48 @@ belong to stories.
 - Headless (harness now re-sorts its lineup by condition each week):
   **~57% win rate, ~1.75 titles/career**.
 
+## v3.1 — THE WEEKEND RHYTHM (same day, from Thijs's follow-up)
+
+The week now has a heartbeat: game → the ride home → the Monday report →
+the building. **Top two make the tournament.**
+
+- **A half BURNS.** Starters spend 15–29⚡ per half (bench 8–15) — random
+  enough that a bad night empties anyone, so the HALFTIME swap is
+  sometimes forced. A full game runs a starter close to depleted (~30–58⚡
+  total). The halftime cards now show the full H1 line (`13P·2R·2A·0S`)
+  AND the ⚡ already burned; the final horn shows the full-game line, the
+  tank, and a role-weighted mood verdict (win: starters +8 / bench +5 /
+  reserves +2; loss: starters −3 / bench −5 / reserves −8 — losses fester
+  in street clothes).
+- **WEEK START (the Monday report).** New phase between NEXT WEEK and the
+  building: the grid shows each player's banked XP (starters 10–14, bench
+  5–8 — XP moved out of the post-game moment) and the weekend recovery.
+  THE BUMP IS THE MECHANIC: recovery = 40⚡ toward the baseline, minus 12
+  per consecutive start beyond the first (streak 1 → +40, 2 → +28, 3 →
+  +16, floor 8; `p.startStreak`). Stack a starter three weekends and his
+  tank stops refilling — the small sticker says so. XP pays out (and
+  level-ups knock) when you press TO PRACTICE, which is also when the
+  week's stories fire (they're HELD in `storedStories` until then; the
+  whole story pipeline in startWeek now defers through a sink).
+- **THE RIDE HOME.** Travel/voyage/alumni/debt-snare beats moved from
+  before an away game to AFTER it — an away weekend ends on the bus,
+  before the Monday report. (`rollTravelHome`; the pregame bus is gone.)
+- **TOP TWO board the shuttle.** 1st AND 2nd place enter the Universal
+  Tournament (1st keeps the trophy + legacy 3; the runner-up gets legacy 1
+  and a careerLog line). The standings divider moved under 2nd. The UT
+  bracket is now sized off `restedPower` (meter-neutral strength) — sizing
+  off live `teamPower` right after the depleted season finale made the
+  bracket trivially weak (a 93-titles-in-8-careers bug in testing) — and
+  champion multipliers rebased to 0.88–1.06+ of rested, because you arrive
+  tired, streak-stacked, and without practice weeks between rounds.
+- Level-up stories are null-safe (banked XP can level a player who then
+  graduates/goes pro before the popup resolves).
+- Headless: **~61% win rate, ~1.3 titles/career**, 8/10 retire at the cap.
+
 ## NEXT SESSION (pick up here)
 
-Fresh-session state: the game is **v3.0.1** (THE POLISH PASS + THE
-BASELINE) — see the entries above. Engine `src/engine/` (types/data/gen/sim/state/util), UI
+Fresh-session state: the game is **v3.1** (THE POLISH PASS + THE
+BASELINE + THE WEEKEND RHYTHM) — see the entries above. Engine `src/engine/` (types/data/gen/sim/state/util), UI
 `src/main.ts` + `src/rig.ts` + `src/style.css`. SAVE_VERSION 15.
 Tests: `npx tsx scripts/headless.ts N` (full careers; ~58% baseline) and
 `npx tsx scripts/uismoke.ts` (boots the real UI in happy-dom; nav and
@@ -760,12 +798,13 @@ exports into `fromDesign/<date>/` — read them from there.
   rewritten for v3.0 but the real onboarding is still undesigned.
 - **SPEC.md rewrite**: it still describes the dead v1.0 axis model (and
   now also a dead tactics wheel).
-- **Balance watch**: post-v3.0.1 baseline ~57% win rate / ~1.75 titles per
-  career (titles a touch rich). Knobs: meter economy (baseline 75, recovery
-  14/5 drift, starter ~−12/wk net, AI campus-life tax), story mood scale
-  (×1.5 / ×1.25 team), recruit gain ranges + decay 1, signing letter
-  penalties, speech odds (10/5, +2, backfire −25), SHARP 6, ON FIRE
-  25/12/×1.2, dream-lab 50% ceiling chance, rec-center offense odds (5%).
+- **Balance watch**: post-v3.1 baseline ~61% win rate / ~1.3 titles per
+  career. Knobs: meter economy (baseline 75, half-drain 15–29 starters,
+  weekend bump 40−12×streak, mood drift +5/−3, AI campus-life tax), story
+  mood scale (×1.5 / ×1.25 team), role-weighted game moods, recruit gain
+  ranges + decay 1, signing letter penalties, speech odds (10/5, +2,
+  backfire −25), SHARP 6, ON FIRE 25/12/×1.2, UT champ base 0.88 of
+  restedPower, dream-lab 50% ceiling chance, rec-center offense odds (5%).
 - **Alumni/career surfacing**: careers + MVP counts accumulate but only
   the STATS lens shows them; a legacy/records screen is unbuilt.
 

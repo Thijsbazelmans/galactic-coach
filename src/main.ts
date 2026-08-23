@@ -21,6 +21,7 @@ import {
   type LevelUp,
   actionDropProspect,
   actionGalaxy,
+  beginWeek,
   chooseTeam,
   confirmBoard,
   continueFromResult,
@@ -748,6 +749,8 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0): string 
   const showGame = s.phase === 'gamenight' && !!s.lastResult && gnStage !== 'beat';
   const showDrill = isPractice && s.trainedThisWeek && drillStickers !== null;
   const colHead = `<div class="colhead"><span class="rowlabel"></span>${COL_LABELS.map((c) => `<span>${c}</span>`).join('')}</div>`;
+  const statLine = (row: { pts: number; reb: number; ast: number; stl: number }): string =>
+    `${row.pts}P·${row.reb}R·${row.ast}A·${row.stl}S`;
   const rows: string[] = [];
   let sweep = 0;
   for (let r = 0; r < 3; r++) {
@@ -759,24 +762,43 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0): string 
       let stickerDelay = 0;
       let tag: string | undefined;
       if (p && showGame) {
+        // THE FINAL HORN: the night's line, the tank, the mood — XP waits
+        // for the WEEK START report
         if (s.lastResult?.mvpId === p.id) tag = '★ GAME MVP';
         const d = s.postGame.find((x) => x.playerId === p.id);
-        if (d) {
+        const row = s.lastResult?.box.find((x) => x.playerId === p.id);
+        if (d || row) {
           stickers = [];
-          if (d.fire === 'lit') stickers.push({ text: '🔥 ON FIRE', up: true });
-          if (d.fire === 'out') stickers.push({ text: '🔥 out', up: false });
-          if (d.xpGain > 0) stickers.push({ text: `+${d.xpGain} XP` });
-          if (d.energyP !== 0) stickers.push({ text: `${d.energyP > 0 ? '+' : ''}${d.energyP}⚡`, up: d.energyP > 0 });
-          if (d.mood !== 0) stickers.push({ text: `${d.mood > 0 ? '+' : ''}${d.mood} MOOD`, up: d.mood > 0 });
+          if (d?.fire === 'lit') stickers.push({ text: '🔥 ON FIRE', up: true });
+          if (d?.fire === 'out') stickers.push({ text: '🔥 out', up: false });
+          if (row) stickers.push({ text: statLine(row), up: row.pts >= 20 ? true : undefined });
+          if (d && d.energyP !== 0) stickers.push({ text: `${d.energyP > 0 ? '+' : ''}${d.energyP}⚡`, up: d.energyP > 0 });
+          if (d && d.mood !== 0) stickers.push({ text: `${d.mood > 0 ? '+' : ''}${d.mood} MOOD`, up: d.mood > 0 });
           stickerDelay = 300 + sweep * 260;
           sweep++;
         }
       } else if (p && s.phase === 'gamenight' && gnStage === 'half' && s.halftime) {
-        // the H1 line sticks to every card — hot hands and empty tanks visible
+        // the H1 line + the burn stick to every card — hot hands and empty
+        // tanks decide who plays the second half
         const row = s.halftime.box.find((x) => x.playerId === p.id);
-        if (row) {
-          stickers = [{ text: `${row.pts} PTS · ${row.reb} REB`, up: row.pts >= 10 ? true : undefined }];
+        const drain = s.halftime.drains[p.id];
+        if (row || drain) {
+          stickers = [];
+          if (row) stickers.push({ text: statLine(row), up: row.pts >= 10 ? true : undefined });
+          if (drain) stickers.push({ text: `${drain}⚡`, up: false });
           stickerDelay = 250 + sweep * 180;
+          sweep++;
+        }
+      } else if (p && s.phase === 'weekstart') {
+        // THE MONDAY REPORT: banked XP + the weekend's recovery — a small
+        // ⚡ bump means stacked starts
+        const wk = s.weekRecap?.find((x) => x.playerId === p.id);
+        if (wk && (wk.xpGain > 0 || wk.energyP !== 0 || wk.mood !== 0)) {
+          stickers = [];
+          if (wk.xpGain > 0) stickers.push({ text: `+${wk.xpGain} XP`, up: true });
+          if (wk.energyP !== 0) stickers.push({ text: `${wk.energyP > 0 ? '+' : ''}${wk.energyP}⚡`, up: wk.energyP > 0 });
+          if (wk.mood !== 0) stickers.push({ text: `${wk.mood > 0 ? '+' : ''}${wk.mood} MOOD`, up: wk.mood > 0 });
+          stickerDelay = 250 + sweep * 200;
           sweep++;
         }
       } else if (p && showDrill) {
@@ -1049,6 +1071,14 @@ function drillRecap(d: (typeof DRILLS)[number]): string {
   return `${[gains, pot].filter(Boolean).join(' · ') || `+${d.xp[0]}–${d.xp[1]} XP`} · SQUAD · ${d.cost}⚡`;
 }
 
+/** WEEK START: the Monday report — the weekend's recovery and banked XP per
+    player, before the building (and the week's stories) opens. */
+function stageWeekstart(s: GameState): string {
+  return `<h2 class="gridhead">${weekLabel(s)} <span class="venuetag" style="background:var(--r35);color:var(--rbg)">WEEK START</span></h2>
+    ${gridHtml(s, false, 0)}
+    <div class="botstack"><div class="fourthrow slim"><div class="report">The weekend, settled. A small ⚡ bump means <b>stacked starts</b> — XP banks as you walk in.</div></div></div>`;
+}
+
 function stagePractice(s: GameState): string {
   let fourth: string;
   const d = DRILLS.find((x) => x.id === selectedDrill)!;
@@ -1260,7 +1290,7 @@ function stageGamenight(s: GameState): string {
     ? `<table class="standings">${sortedStandings(s)
         .map((t, i) => `<tr class="${t.id === s.myTeamId ? 'me' : ''}">
           <td>${i + 1}. ${chip(t.name, t.bg, t.fg, true)}</td><td class="num">${t.wins}–${t.losses}</td></tr>
-          ${i === 0 ? '<tr class="utline"><td colspan="2">▲ THE UNIVERSAL TOURNAMENT ▲</td></tr>' : ''}`)
+          ${i === 1 ? '<tr class="utline"><td colspan="2">▲ THE UNIVERSAL TOURNAMENT ▲</td></tr>' : ''}`)
         .join('')}</table>`
     : `<div class="report">${(s.ut?.log ?? []).map((l) => `<div>${esc(l)}</div>`).join('')}</div>`;
   const others = s.resultsLog.length
@@ -1394,6 +1424,8 @@ function nav(s: GameState): string {
       return navMain('CHOOSE YOUR PROGRAM', 'noop', true);
     case 'teamSelect':
       return navMain('CONFIRM SQUAD', 'cut-confirm-open');
+    case 'weekstart':
+      return navMain(isUtWeek(s) ? 'TO MATCHUP' : 'TO PRACTICE', 'begin-week');
     case 'practice':
       return navMain(s.trainedThisWeek ? 'TO RECRUITING' : 'PRACTICE FIRST', 'to-galaxy', !s.trainedThisWeek);
     case 'galaxy':
@@ -1612,6 +1644,7 @@ function render(): void {
   else {
     switch (state.phase) {
       case 'teamSelect': middle = stageTeamSelect(state); break;
+      case 'weekstart': middle = stageWeekstart(state); break;
       case 'practice': middle = stagePractice(state); break;
       case 'galaxy': middle = stageGalaxy(state); break;
       case 'matchup': middle = stageMatchup(state); break;
@@ -1999,6 +2032,7 @@ function executeAction(action: string, id: string): void {
       break;
     }
 
+    case 'begin-week': beginWeek(state); break;
     case 'to-galaxy': drillSheet = false; drillStickers = null; toGalaxy(state); break;
     case 'to-matchup': galaxySheet = false; dropConfirm = null; gxStickers = null; toMatchup(state); break;
     case 'to-signing': toSigning(state); break;

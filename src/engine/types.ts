@@ -94,6 +94,8 @@ export interface Player {
   outReason: string;
   /** consecutive games without minutes */
   dnp: number;
+  /** consecutive games STARTED — the weekend recovery shrinks as it stacks */
+  startStreak?: number;
   walkOn?: boolean;
   gem?: boolean;
   special?: 'daughter' | 'droid';
@@ -332,6 +334,7 @@ export interface CareerEnd {
 export type Phase =
   | 'pickTeam'
   | 'teamSelect'
+  | 'weekstart'
   | 'stories'
   | 'practice'
   | 'galaxy'
@@ -340,6 +343,14 @@ export type Phase =
   | 'departures'
   | 'signing'
   | 'gameover';
+
+/** A story waiting for the week to properly begin (they knock after WEEK START). */
+export interface StoryReq {
+  defId: string;
+  beat: string;
+  playerId: number | null;
+  data?: Record<string, unknown>;
+}
 
 export interface ProDepart {
   playerId: number;
@@ -417,6 +428,10 @@ export interface GameState {
   halftime?: HalftimeState | null;
   lastResult: MyGameResult | null;
   postGame: PlayerDeltas[];
+  /** WEEK START: the Monday report — banked XP + the weekend's recovery per player */
+  weekRecap?: PlayerDeltas[];
+  /** the week's stories, held until the coach walks into the building */
+  storedStories?: StoryReq[];
   resultsLog: string[]; // other games this week, one line each
 
   ut: UtState | null;

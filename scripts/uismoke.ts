@@ -186,7 +186,17 @@ async function main(): Promise<void> {
   if (!/VICTORY|DEFEAT/.test(app.innerHTML)) throw new Error('verdict missing after H2 needle');
   if (!app.innerHTML.includes('GAME MVP')) throw new Error('MVP tag missing on the verdict grid');
 
-  console.log('UI SMOKE OK — pick team → tryouts → lenses → drill → galaxy → matchup → H1 → halftime → H2 → verdict, box score present');
+  // NEXT WEEK → (the ride home →) WEEK START → the building
+  anyWin.gcAction('gn-table', '');
+  anyWin.gcAction('continue-result', '');
+  drain(); // travel-home story, if the game was away
+  if (state().phase !== 'weekstart') throw new Error(`expected weekstart, got ${state().phase}`);
+  if (!app.innerHTML.includes('WEEK START')) throw new Error('WEEK START screen missing');
+  anyWin.gcAction('begin-week', '');
+  drain();
+  if (state().phase !== 'practice') throw new Error(`expected practice after week start, got ${state().phase}`);
+
+  console.log('UI SMOKE OK — pick team → tryouts → lenses → drill → galaxy → matchup → H1 → halftime → H2 → verdict → WEEK START → practice');
 }
 
 main().catch((e) => {
