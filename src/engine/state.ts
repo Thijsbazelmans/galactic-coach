@@ -451,6 +451,9 @@ function startWeek(s: GameState): void {
   planCache.clear();
   s.energy = clamp(s.energy + stipendFor(s.season), 0, CACHE_MAX);
   s.trainedThisWeek = false;
+  s.discoveredWk = false;
+  s.scoutActWk = false;
+  s.recruitActWk = false;
   s.sitouts = [];
   s.scoutedOpp = false;
   s.drillReport = null;
@@ -555,6 +558,7 @@ export interface DrillOutcome {
 /** Whole squad (minus sit-outs). Train as often as your ⚡ allows — the
     odds line rolls fresh every time. */
 export function runDrill(s: GameState, drillId: string, onePlayerId?: number): DrillOutcome | null {
+  if (s.trainedThisWeek) return null; // one practice per week — choose well
   if (!s.unlockedDrills.includes(drillId)) return null;
   const d = drillById(drillId);
   if (s.energy < d.cost) return null;
@@ -656,15 +660,14 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
 
 export function actionScan(s: GameState, regionId: string): string | null {
   const def = scanById(regionId);
+  if (s.discoveredWk) return null; // one discovery per week
   if (!s.unlockedRegions.includes(def.id)) return null;
   if (s.groundedWeeks > 0 && !def.local) return null;
   if (s.energy < def.cost || s.prospects.length >= MAX_PROSPECTS) return null;
   s.energy -= def.cost;
+  s.discoveredWk = true;
   const counter = { nextId: s.nextId };
-  const found: Prospect[] = [];
-  for (let i = 0; i < def.count && s.prospects.length + found.length < MAX_PROSPECTS; i++) {
-    found.push(genProspect(counter, s.season, def.id));
-  }
+  const found: Prospect[] = [genProspect(counter, s.season, def.id)];
   s.nextId = counter.nextId;
   s.prospects.push(...found);
   let text = found.length
@@ -698,8 +701,11 @@ export function actionProspect(s: GameState, prospectId: number, actId: string):
   const pr = s.prospects.find((x) => x.id === prospectId);
   const act = prospectActById(actId);
   if (!pr || s.energy < act.cost) return null;
-  if (act.kind === 'recruit' && pr.bannedWeeks > 0) return null;
+  if (act.kind === 'scout' && (s.scoutActWk || pr.scoutLevel >= 2)) return null;
+  if (act.kind === 'recruit' && (s.recruitActWk || pr.bannedWeeks > 0)) return null;
   s.energy -= act.cost;
+  if (act.kind === 'scout') s.scoutActWk = true;
+  else s.recruitActWk = true;
   let text: string;
   const r = Math.random() * 100;
 

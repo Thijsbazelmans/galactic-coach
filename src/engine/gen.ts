@@ -181,10 +181,13 @@ export function genSpecial(counter: { nextId: number }, kind: 'walkon' | 'gem' |
     Unscouted = a cloud (±4 per attribute); one look = a haze (±2); known = truth. */
 export function observe(pr: Prospect): void {
   const fuzz = pr.scoutLevel >= 2 ? 0 : pr.scoutLevel === 1 ? 2 : 4;
+  // ABILITY becomes truth at full scout; POTENTIAL stays a projection until
+  // he actually signs — you never fully know a kid's ceiling from the stands
+  const potFuzz = Math.max(1, fuzz);
   const caps = speciesById(pr.speciesId).attrCaps;
   for (const a of ATTRS) {
     pr.seenAttrs[a] = fuzz ? clamp(pr.attrs[a] + rand(fuzz * 2 + 1) - fuzz, 0, caps[a]) : pr.attrs[a];
-    pr.seenPots[a] = fuzz ? clamp(pr.pots[a] + rand(fuzz * 2 + 1) - fuzz, pr.seenAttrs[a], caps[a]) : pr.pots[a];
+    pr.seenPots[a] = clamp(pr.pots[a] + rand(potFuzz * 2 + 1) - potFuzz, pr.seenAttrs[a], caps[a]);
   }
 }
 

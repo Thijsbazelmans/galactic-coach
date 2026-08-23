@@ -387,6 +387,32 @@ right (center chip gone). SKILLS lens renamed ABILITIES. Lens arrows
 removed AND the swipe gesture removed (it fought the card drag) — the
 three tabs are the only lens control.
 
+**v2.3 — RUN & the recruiting rework (Aug 22, evening):**
+- PRACTICE: back to ONE practice per week (TEAM REST is no longer a free
+  well). New flow: a big hold-to-commit **RUN** button with the selected
+  practice + a one-line recap (default SHOOTAROUND), ▾ opens the picker
+  sheet (tap to select). On run: the spent ⚡ pops away over the energy
+  bar, then results sweep the grid top-left → starters → bench → reserves
+  — the standard pattern for every team-wide change (post-game too).
+- RECRUITING: the prospect modal is DEAD. Tap a card to highlight it;
+  under the grid sit three two-part buttons — DISCOVER / SCOUT / RECRUIT
+  — each with a selected variant (▾ picker: region / scout act / woo act)
+  and each usable ONCE PER WEEK (energy still applies). Discover finds
+  ONE prospect per week. Outcomes are floaters on the card, not text
+  modals. Prospect cards use the same three lenses: ABILITY (cloud kite
+  sharpening ?? → two-row range → exact number at scout 2), STATS (the
+  scout's one-line blurb), POTENTIAL (pots as a cloud + a 2-over-3
+  star stack, bottom-left; NEVER exact until he signs — observe() keeps
+  ±1/attr fuzz on pots even at full scout). Commit ring on ability +
+  potential views. ✕ in the top strip = forget forever (confirm dialog).
+  S/M/L chip and the name-tag modal trimmings are gone.
+- Cards: POTENTIAL labels back to short BRN/SKL/ATH/FRC; label and
+  number sizes match everywhere; STATS numbers same size as labels with
+  zebra brightness (every other row brighter); no decimals anywhere;
+  PRACTICE header added and both grid headers align with the leftmost
+  card; prospect grid got a blank col-header row so cards never shift
+  between screens; CONTINUE is lens-tab width.
+
 ## NEXT SESSION (pick up here)
 
 1. **Femme players:** the renderer supports masc/femme (terran has its own

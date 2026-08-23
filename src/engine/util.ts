@@ -101,8 +101,13 @@ export function addStats(into: StatLine, from: StatLine): void {
   into.mvp = (into.mvp ?? 0) + (from.mvp ?? 0);
 }
 
-/** Per-game average, one decimal, '—' when he hasn't played. */
+/** Per-game average, whole numbers, '—' when he hasn't played. */
 export function perGame(line: StatLine, key: 'pts' | 'reb' | 'stl' | 'ast'): string {
   if (line.gp === 0) return '—';
-  return (line[key] / line.gp).toFixed(1);
+  return String(Math.round(line[key] / line.gp));
+}
+
+/** A ceiling as a scout sees it: 1–5 stars over the potential sum. */
+export function potStars(potOvr: number): number {
+  return Math.max(1, Math.min(5, 1 + Math.floor((potOvr - 15) / 10)));
 }

@@ -90,7 +90,7 @@ async function main(): Promise<void> {
   (app.querySelectorAll('[data-action="lens-set"]')[1] as unknown as { click: () => void }).click();
   if (!app.innerHTML.includes('stcol')) throw new Error('stats lens did not render');
   (app.querySelectorAll('[data-action="lens-set"]')[2] as unknown as { click: () => void }).click();
-  if (!app.innerHTML.includes('BRAIN')) throw new Error('potential lens did not render');
+  if (!app.innerHTML.includes('kpot')) throw new Error('potential lens did not render');
   must('[data-action="lens-set"]', 'lens set 0');
 
   // the square card: kite, OVR bottom-left, XP ring bottom-right
@@ -99,15 +99,23 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('k-pot')) throw new Error('potential outline missing');
   if (!app.innerHTML.includes('ksprite')) throw new Error('centered sprite missing');
 
-  // drill: open sheet, run shootaround (hold → gcAction)
-  must('[data-action="drill-sheet"]', 'drill sheet');
-  anyWin.gcAction('drill', 'shootaround');
+  // practice: hold RUN (default SHOOTAROUND) via the action handle
+  if (!app.querySelector('[data-action="drill-run"]')) throw new Error('RUN button missing');
+  anyWin.gcAction('drill-run', '');
   drain();
+  if (!gc.state().trainedThisWeek) throw new Error('practice did not run');
+  if (app.querySelector('[data-action="drill-run"]:not([disabled])')) throw new Error('practice should be once per week');
 
   // galaxy (a regular nav button — clickable)
   must('[data-action="to-galaxy"]', 'continue to galaxy');
   drain();
   if (state().phase !== 'galaxy') throw new Error(`expected galaxy, got ${state().phase}`);
+  // recruiting: the three-button row renders; DISCOVER fills a slot
+  if (app.querySelectorAll('[data-action="gx-run"]').length !== 3) throw new Error('discover/scout/recruit buttons missing');
+  const nBefore = (gc.state() as any).prospects.length;
+  anyWin.gcAction('gx-run', 'discover');
+  drain();
+  if ((gc.state() as any).prospects.length !== nBefore + 1) throw new Error('discover did not add a prospect');
 
   // matchup: plan chips render, unlearned chips locked
   must('[data-action="to-matchup"]', 'continue to matchup');

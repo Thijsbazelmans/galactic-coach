@@ -344,6 +344,10 @@ export interface GameState {
 
   /** weekly flags */
   trainedThisWeek: boolean;
+  /** recruiting rations: one DISCOVER, one SCOUT, one RECRUIT per week */
+  discoveredWk?: boolean;
+  scoutActWk?: boolean;
+  recruitActWk?: boolean;
   sitouts: number[];
   scoutedOpp: boolean;
   drillReport: string | null;
