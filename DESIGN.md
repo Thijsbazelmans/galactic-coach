@@ -555,33 +555,77 @@ live the same post-game meter swings we do (the mood-snowball fix), and
 UT champion power rescaled (≈1.02–1.2× yours, +2%/round). Headless: ~62%
 league win rate, ~1.7 titles/career (harness plays optimally).
 
-## NEXT SESSION (pick up here)
+## NEXT SESSION (pick up here): BUILD HALFTIME
 
-0. **HALFTIME (agreed direction):** split the sim into two halves — after
-   H1 show the score and who's hot/gassed, allow ONE halftime speech +
-   free lineup swaps, then H2. Box score dealt per half. This is the next
-   engine swing; today's speech system was shaped so it slots in.
+Fresh-session state: the game is **v2.7** live on Pages, all of it logged
+in the version entries above (v2.0 four attributes → v2.7 THE NEEDLE).
+Engine `src/engine/` (types/data/gen/sim/state/util), UI `src/main.ts` +
+`src/rig.ts` + `src/style.css`. SAVE_VERSION 14. Tests:
+`npx tsx scripts/headless.ts N` (full careers; ~62% win rate baseline)
+and `npx tsx scripts/uismoke.ts` (boots the real UI in happy-dom; nav and
+choices are hold-buttons that ignore clicks — drive them via the
+`window.gcAction(action, id)` dev handle). Thijs drops Claude-Designer
+exports into `fromDesign/<date>/` — read them from there.
 
-1. **Genderless 'x' form** (they/them — see v2.6 note) during the
-   story-writing session.
+### THE HALFTIME SPEC (agreed with Thijs, build this)
 
-2. **Thijs playtests v2.2 on phone.** Feel questions: (a) do the animated
-   sprites read at card size / does the fire ring pop? (b) mood/energy
-   bucket thresholds (20/40/65/85 mood, 15/40/70/90 energy) feel right?
-   (c) ON FIRE tuning: 20 to light, 15 to keep, ×1.2 — too strong?
-   (d) lens swipe vs card drag on SKILLS; drills-vs-XP balance;
-   OVERALL scale (20–40 real range).
-2. Balance watch: counter bonus is ±12% power (≈70/30 at equal strength);
-   level cap 10 × 2pts + drills + offseason growth vs pot ceilings.
-3. Parked as before: species design session (caps are provisional),
-   story-writing session, SPEC §17 ideas. SPEC.md still describes the
-   v1.0 axis model — rewrite when the v2.0 design settles in playtest.
+The game splits into two halves with one course-correction moment between:
+
+1. **H1**: compute the rope (matchAttrs/winShare as today, wheel + venue
+   in), needle sweeps and lands → H1 score (roughly half-scale: base
+   ~26–34 per side, margin from |needle − share|). Deal HALF a box score
+   (dealBox with the H1 score; reb/stl/ast pools halved).
+2. **HALFTIME screen** (new gnStage between the H1 needle and H2):
+   scoreboard `AWAY 31 @ 28 HOME`, the grid DRAGGABLE (swap bench ↔
+   starters freely — this is the payoff), each card stickered with its H1
+   line (pts/reb) so hot and gassed players are visible, and ONE
+   **halftime speech**: the speech lock reopens (`s.speechWk` stays but a
+   half-2 plan override field, e.g. `s.planH2`), same picker UI. The
+   opponent AI re-rolls its plan for H2 (aiPlan again; keep the 15%
+   surprise). Energy: starters drop ~half the game drain at the half so
+   the halftime rope is honest.
+3. **H2**: recompute the rope from the NEW lineup/speeches/meters, second
+   needle, H2 score. Final = H1 + H2 per side; win = final comparison
+   (needle margins already encode closeness).
+4. Then the existing verdict → stickers → standings flow. ON FIRE
+   ignition/cooling and postGame deltas evaluate ONCE on full-game totals.
+   `MyGameResult` grows: h1/h2 scores + two share/needle pairs.
+5. Update BOTH sim paths (league + champ; champ has no roster — reuse its
+   power split for both halves) and simAiGame stays single-roll. Update
+   the headless harness (new stage needs auto-play: swap nothing, re-speech
+   best plan) and the smoke test.
+6. Design law check: warn before the H2 needle if a gassed starter is
+   still on the floor (his energy multiplier is the visible rope hit).
+
+### Backlog (in rough priority)
+
+- **Away kits**: the sprite lab defines an away kit (light jersey) —
+  dress the visiting roster in it (sprites + chips); replaces the
+  hue-clash inversion hack on the matchup vs-row.
+- **Premium speeches**: energy-costing dual-attribute speeches
+  (+BRN & +FRC etc.) discovered via stories; halftime-only speeches.
+- **Genderless 'x' form** (they/them) — during the story-writing session;
+  verb agreement makes it a writing pass. Candidates: Nimbus/Gelid/Robota.
+- **Story-writing session** (more stories, femme-specific arcs beyond the
+  pregnancy variant, pregnancy long-arc consequences).
+- **Species design session**: attr caps are provisional; two-cap tier-3
+  consequences (fragility) barely expressed.
+- **Succinct tutorial**: auto-tips are OFF by default; design the real
+  onboarding later. The ? button still serves the old tips.
+- **SPEC.md rewrite**: it still describes the dead v1.0 axis model.
+- **Balance watch**: meter curve economy (recovery 18/wk, drill drains),
+  ON FIRE (20 to light / 15 to keep / ×1.2), UT title rate (~1.7/career
+  in the optimal-play harness), squad-wide direct-point drills, one-look
+  scout bias (×0.6–1.5).
+- **Alumni/career surfacing**: careers + MVP counts accumulate but only
+  the STATS lens shows them; a legacy/records screen is unbuilt (aging
+  high-scores hook exists in spec).
 
 Workflow reminders: pushing needs `gh auth switch -u Thijsbazelmans`
 (default active account is thijs-miketeevee and lacks repo access) — switch
 back after. Pages deploys via Actions on every push (~40s); the HTML is
 cached 10 min and the phone home-screen shortcut needs a full close/reopen
-to pick up a deploy.
+to pick up a deploy. Thijs directs, Claude writes all the code.
 
 ## NEXT SESSION: redesign the main screen (v1.2) — DONE, see v1.2–v1.5 above
 
