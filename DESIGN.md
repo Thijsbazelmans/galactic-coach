@@ -824,6 +824,17 @@ exports into `fromDesign/<date>/` — read them from there.
 
 ### Backlog (in rough priority)
 
+- **Thijs's playtest notes (Aug 23, marked for the next overhaul — he's
+  mid-playthrough, don't ship these until then):**
+  - ABILITIES view: dim the compass kite AND its corner labels a bit on
+    every roster card (they compete with the sprite/numbers).
+  - The practice / recruiting ▾ pickers should DEFAULT to the free option
+    (TEAM REST, LOCAL REC CENTER) every week — spending energy should
+    always require going into the menu deliberately.
+  - Stop listing every undiscovered method as a ▓▓▓▓ row in the picker
+    sheets — hide them (or one collapsed hint at most).
+  - Picker sheets that overflow must clearly SHOW they scroll (visible
+    affordance — fade edge / scrollbar / peeking half-row).
 - **Away kits**: the sprite lab defines an away kit (light jersey) —
   dress the visiting roster in it (sprites + chips); replaces the
   hue-clash inversion hack on the matchup vs-row.
