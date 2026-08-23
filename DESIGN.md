@@ -878,6 +878,30 @@ exports into `fromDesign/<date>/` — read them from there.
     (stories fire when you walk into the building). Fix: move the
     `outWeeks` decrement + un-sinking out of startWeek into beginWeek,
     so WEEK START still shows them absent and the return NEWS is news.
+  - **KILL THE OPPONENT SCOUT (1⚡).** H1 reveals everything anyway; the
+    counter-pick payoff died with the tactics wheel. Direction (Claude's
+    rec, Thijs to veto): opponent bars ALWAYS visible for free — the
+    matchup screen is a lineup-tuning screen and tuning needs a visible
+    opponent. Scout button + `scoutedOpp` plumbing die; the UT SCOUTING
+    REPORT beat stays as flavor; the omen story needs a new reward
+    (story session).
+  - **Lineup changes must move the stats BOLDLY**: on every drag-swap in
+    matchup/halftime the affected bars + OVERALL visibly animate (count,
+    flash — part of THE NUMBER CASCADE). Right now the shift is a silent
+    width transition you have to squint at.
+  - **The ropes need a CENTER MARK**: a tick at the 50/50 point on every
+    tug-of-war rope (matchup rows, OVERALL, the big game dial) so a tight
+    rope instantly reads as "slightly better" or "slightly worse" instead
+    of a coin-flip guess.
+  - **TEAM MOOD + TEAM ENERGY readout** (open: where exactly — Thijs is
+    still deciding; candidates were header / action button / continue
+    button). Claude's rec: (1) two extra colored rows in the team-bars
+    block (TEAM ⚡ / TEAM MOOD) on the practice screen — the "is practice
+    a good idea" decision happens right there, and REST/BONFIRE animating
+    those bars up is cascade feedback; (2) prototype two tiny always-on
+    chips in the header's second row (⚡ 64 · ☺ 71) and keep them only if
+    they don't crowd the phone header. NOT inside buttons — a number in a
+    button reads as a cost, not a status.
   - **NO EXPLANATION TEXT ON SCREENS** (law, partially applied Aug 23:
     the WEEK START strip is already gone, as were the drag-instruction
     strips). The stories carry plenty of reading; screens stay clean —
