@@ -280,7 +280,7 @@ function buildImpact(snap: Snap, fxList: Fx[], pid: number | null): { pid: numbe
     rows.push({ label, text: `${key.toUpperCase()} ${d > 0 ? '+' : ''}${d}`, up: d > 0 });
   }
   // the coach's world
-  if (state.energy !== snap.energy) rows.push({ label: '⚡ CELLS', from: snap.energy, to: state.energy, up: state.energy > snap.energy });
+  if (state.energy !== snap.energy) rows.push({ label: '⚡ ENERGY', from: snap.energy, to: state.energy, up: state.energy > snap.energy });
   const sec0 = 100 - snap.heatS - snap.heatB;
   const sec1 = 100 - state.heatS - state.heatB;
   if (sec1 !== sec0) rows.push({ label: 'JOB SECURITY', from: sec0, to: sec1, up: sec1 > sec0 });
@@ -713,7 +713,7 @@ function headerHtml(s: GameState): string {
       ${chip(t.name, t.bg, t.fg)}
       ${jobBar(s)}
       <span class="weeklab">S<b>${Math.max(1, s.season)}</b> · <b>${weekLabel(s)}</b> · ${t.wins}–${t.losses}</span>
-      <div class="ebar" title="power cells ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">
+      <div class="ebar" title="energy ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">
         <img class="jicon ${s.energy < 4 ? 'blink' : 'ghost'}" src="${iconUrl('alert', ramp(0.9))}" alt=""/>
         <div class="etrack ${s.energy === 0 ? 'blink' : ''}">${cells}</div>
         <img class="jicon" src="${iconUrl('bolt', ramp(0.75))}" alt=""/>
