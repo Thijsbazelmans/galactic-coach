@@ -898,6 +898,13 @@ exports into `fromDesign/<date>/` — read them from there.
     vs expectation → sticker) or a real hidden per-game form roll the
     sticker reveals? The roll version gives halftime swaps another
     honest reason to exist.
+  - **…and the mirror: «STANDOUT!»** — a player playing way above his
+    level at the half gets the sticker WITH a real ability bump attached
+    (the hot night teaches him something). Together with OFF DAY this
+    makes per-game form a two-tailed roll: ride the hot hand / bench the
+    cold one, both visible on the cards at halftime. (Note ON FIRE
+    already exists at 25+ pts across the full game — STANDOUT is the
+    half-time read and should feed it, not duplicate it.)
   - **The ropes need a CENTER MARK**: a tick at the 50/50 point on every
     tug-of-war rope (matchup rows, OVERALL, the big game dial) so a tight
     rope instantly reads as "slightly better" or "slightly worse" instead
