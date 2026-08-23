@@ -932,13 +932,15 @@ exports into `fromDesign/<date>/` — read them from there.
     attribute AT its potential can still take exactly **+1 per level-up**
     (never more) — nothing is ever completely un-elevatable. Example
     (+3 to place): SKL has room → can take all 3; BRN has 2 of room →
-    max 2; FRC/ATH are at potential → max 1 each. (Open: does the +1
-    past potential drag the potential up with it, and do species caps
-    also yield +1 or stay hard? Decide in-session.)
+    max 2; FRC/ATH are at potential → max 1 each. DECIDED: the +1 past
+    potential DRAGS the potential up with it (overall potential rises
+    too), and species caps are similarly soft — they yield the same way.
+    The only hard wall is level 10.
   - **Starting levels.** Scouted freshman recruits ALWAYS join at level
-    0. Walk-ons roll by class: So 2–6 · Jr 4–8 · Sr 6–10 (Fr walk-on:
-    decide, presumably 0–2). EVERY new addition starts at 0 XP.
-    Returners keep their level + XP (summer growth as-is).
+    0. Walk-ons roll by class: Fr 0 · So 2–6 · Jr 4–8 · Sr 6–10. EVERY
+    new addition starts at 0 XP. Returners keep their level + XP (summer
+    growth as-is). LEVEL 10 stays the hard max — a level-10 player stops
+    gaining XP entirely.
   - **Potential tiers per species.** Every player's potential OVR lands
     in one of five bands: 0–19 / 20–39 / 40–59 / 60–79 / 80–99. Each
     species gets a band distribution — e.g. terran 38/30/20/10/2 and
@@ -953,6 +955,10 @@ exports into `fromDesign/<date>/` — read them from there.
     odds; OUTER RIM → the only place nimbus appear + best rare odds.
     Region shifts WHO you find, never how good they are (the band roll
     is the species').
+  - **The season-opening board (the 9 strangers)** rolls its own species
+    distribution: heavily skewed terran, a slim chance per slot of a
+    quadran/hexid/petran, a minimal chance of an oculid/robota/gelid,
+    and a **1/1000** shot at a nimbus just sitting on your opening board.
   - **Compass shape profiles**: terran and nimbus are balanced in all
     four directions; the other six species each get one of six distinct
     1–2-axis biases built from the opposing pairs — e.g. profile 1:
