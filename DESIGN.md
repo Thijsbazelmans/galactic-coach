@@ -889,6 +889,15 @@ exports into `fromDesign/<date>/` — read them from there.
     matchup/halftime the affected bars + OVERALL visibly animate (count,
     flash — part of THE NUMBER CASCADE). Right now the shift is a silent
     width transition you have to squint at.
+  - **Halftime warnings become CARD STICKERS**: the gassed-starters strip
+    is good info in the wrong place (it costs a row and risks scroll) —
+    replace it with a blinking «TIRED» sticker on the gassed player's own
+    card. And add an «OFF DAY» sticker for a player shooting way below
+    his level at the half (today that's just a quiet low stat line).
+    Open design question: is OFF DAY purely presentational (low H1 line
+    vs expectation → sticker) or a real hidden per-game form roll the
+    sticker reveals? The roll version gives halftime swaps another
+    honest reason to exist.
   - **The ropes need a CENTER MARK**: a tick at the 50/50 point on every
     tug-of-war rope (matchup rows, OVERALL, the big game dial) so a tight
     rope instantly reads as "slightly better" or "slightly worse" instead
