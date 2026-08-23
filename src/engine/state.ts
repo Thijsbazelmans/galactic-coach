@@ -502,7 +502,7 @@ function startWeek(s: GameState): void {
         }
         p.outReason = '';
       }
-      p.energy = clamp(p.energy + 14, 0, 100);
+      p.energy = clamp(p.energy + 18, 0, 100);
       p.mood = clamp(p.mood + (p.mood < 55 ? 3 : -1), 0, 100);
     }
   }
@@ -946,15 +946,27 @@ function simWeek(s: GameState): void {
       if (out.won) { s.totalWins++; s.heatB = clamp(s.heatB - 4, 0, 100); }
       else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
       applyGameEffects(s, out.won);
+      // the other locker room lives the same night we do
+      for (const p of m.opponent.players) {
+        p.energy = clamp(p.energy - 14, 0, 100);
+        p.mood = clamp(p.mood + (out.won ? -5 : 5), 0, 100);
+        if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
+      }
     } else {
       const g = simAiGame(s.teams[h], s.teams[a]);
       g.winner.wins++; g.loser.losses++;
       g.winner.pointsFor += g.scoreW; g.winner.pointsAgainst += g.scoreL;
       g.loser.pointsFor += g.scoreL; g.loser.pointsAgainst += g.scoreW;
       s.resultsLog.push(`${g.winner.name} ${g.scoreW} — ${g.scoreL} ${g.loser.name}`);
-      // AI squads drift forward
-      for (const p of [...g.winner.players, ...g.loser.players]) {
+      // AI squads drift forward — and feel their results like we do
+      for (const p of g.winner.players) {
         p.energy = clamp(p.energy - 14, 0, 100);
+        p.mood = clamp(p.mood + 5, 0, 100);
+        if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
+      }
+      for (const p of g.loser.players) {
+        p.energy = clamp(p.energy - 14, 0, 100);
+        p.mood = clamp(p.mood - 5, 0, 100);
         if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
       }
     }

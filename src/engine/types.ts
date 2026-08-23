@@ -243,6 +243,10 @@ export interface MyGameResult {
   heroLine: string;
   boxLine: string;
   box: BoxRow[];
+  /** THE NEEDLE: my win share of the rope (0–1) and where the needle landed */
+  share: number;
+  needle: number;
+  home: boolean;
 }
 
 export interface PlayerDeltas {

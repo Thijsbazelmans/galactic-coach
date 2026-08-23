@@ -539,6 +539,22 @@ specials) draws against the set of names in active use; alumni names
 recycle so long careers can't exhaust the 201-name pool. Verified: 0
 duplicates across 300 fresh tryouts and full leagues.
 
+**v2.7 — THE NEEDLE (Aug 23, 2026):** The matchup and the match itself now
+run on ONE number system. matchAttrs(): starters ×0.75 + bench ×0.25
+(reserves out), each player's contribution ×energy-mult ×mood-mult on
+Thijs's curve (0%→0.40 · 25%→0.60 · 50%→0.80 · 75%→1.00 · 100%→1.20),
+×miscast ×fire, speech attr ×2.5 — identical for both sides. The OVERALL
+rope's split IS the win chance: winShare = mine⁶/(mine⁶+theirs⁶) (wheel
+counter ±12% and venue ×1.03 folded in). GAME NIGHT: the progress bar is
+dead — the overall rope renders big, a needle sweeps full-width, slows,
+wobbles, and LANDS (uniformly ⇒ honest odds); your segment = you win,
+distance from the border = the margin. Tap to skip. Matchup header shows
+HOME GAME / AWAY GAME in the host's colors. Balancing for the new meter
+economy: weekly recovery 14→18, drill energy costs ~−30%, opponents now
+live the same post-game meter swings we do (the mood-snowball fix), and
+UT champion power rescaled (≈1.02–1.2× yours, +2%/round). Headless: ~62%
+league win rate, ~1.7 titles/career (harness plays optimally).
+
 ## NEXT SESSION (pick up here)
 
 0. **HALFTIME (agreed direction):** split the sim into two halves — after

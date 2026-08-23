@@ -6,7 +6,7 @@
 
 import { ATTR_STAT, PLANS, planById } from './data';
 import type { AttrRec, BoxRow, ChampTeam, GameState, MyGameResult, PlanId, Player, Team } from './types';
-import { ATTRS, attrEff, clamp, effOvr, ovr, pick, rand, sizeIndex, zeroAttrs } from './util';
+import { ATTRS, attrEff, clamp, ovr, pick, rand, sizeIndex, zeroAttrs } from './util';
 
 export const COL_LABELS = ['BACKCOURT', 'WING', 'FRONTCOURT'];
 
@@ -111,40 +111,52 @@ export function autoLineup(t: Team): void {
   normalizeLineup(t);
 }
 
-// ---- power ---------------------------------------------------------------------------
-// A tactic bets the game on ONE attribute: it counts 2.5× while the other
-// three count 1×. Meters mute (energy → body, mood → head), size miscasts tax.
+// ---- the match value: what the ropes (and the needle) run on ------------------
+// Starters count 75%, bench 25%, reserves nothing. Every player's contribution
+// is multiplied by ENERGY and MOOD on the same curve — 0%→×0.40, 25%→×0.60,
+// 50%→×0.80, 75%→×1.00, 100%→×1.20 — plus miscast tax, fire, and the speech
+// (its attribute counts 2.5×). Identical math for both sides of the rope.
 
-export function playerPower(p: Player, plan: PlanId, col: number): number {
-  return (effOvr(p) + 1.5 * attrEff(p, planById(plan).attr)) * slotMult(p, col);
+export function meterMult(v: number): number {
+  return 0.4 + 0.8 * (clamp(v, 0, 100) / 100);
 }
 
-/** The sim's team strength: starters full, bench at 30%. */
+function playerCond(p: Player, col: number): number {
+  return meterMult(p.energy) * meterMult(p.mood) * slotMult(p, col) * (p.onFire ? 1.2 : 1);
+}
+
+/** Per-attribute weighted team values (the four rope rows). plan null = no speech yet. */
+export function matchAttrs(t: Team, plan: PlanId | null): AttrRec {
+  const boost = plan ? planById(plan).attr : null;
+  const out = zeroAttrs();
+  for (let c = 0; c < 3; c++) {
+    for (const [row, w] of [[0, 0.75], [1, 0.25]] as [number, number][]) {
+      const p = slotPlayer(t, row * 3 + c);
+      if (!p || !available(p)) continue;
+      const cond = playerCond(p, c) * w;
+      for (const a of ATTRS) out[a] += p.attrs[a] * (a === boost ? 2.5 : 1) * cond;
+    }
+  }
+  for (const a of ATTRS) out[a] = Math.round(out[a] * 10) / 10;
+  return out;
+}
+
+/** The whole rope: the four rows added up. */
 export function teamPower(t: Team, plan: PlanId): number {
-  let sum = 0;
-  for (let c = 0; c < 3; c++) {
-    const st = slotPlayer(t, c);
-    if (st) sum += playerPower(st, plan, c);
-    const bn = slotPlayer(t, 3 + c);
-    if (bn) sum += playerPower(bn, plan, c) * 0.3;
-  }
-  return sum;
+  return ovr(matchAttrs(t, plan));
 }
 
-/** The DISPLAY number: one team rating on the player-OVR scale.
-    Starters weigh 75%, bench 25%, reserves nothing. */
+/** One display number on the player-OVR scale (the speech sheet). */
 export function teamRating(t: Team, plan: PlanId): number {
-  const rate = (p: Player, c: number): number => playerPower(p, plan, c) / 1.5;
-  const st: number[] = [];
-  const bn: number[] = [];
-  for (let c = 0; c < 3; c++) {
-    const s = slotPlayer(t, c);
-    if (s && available(s)) st.push(rate(s, c));
-    const b = slotPlayer(t, 3 + c);
-    if (b && available(b)) bn.push(rate(b, c));
-  }
-  const avg = (xs: number[]): number => (xs.length ? xs.reduce((a, x) => a + x, 0) / xs.length : 0);
-  return Math.round(0.75 * avg(st) + 0.25 * avg(bn));
+  return Math.round(teamPower(t, plan) / 3);
+}
+
+/** The rope split IS the win chance: a sharpened ratio of the two totals. */
+const SHARP = 6;
+export function winShare(mine: number, theirs: number): number {
+  const a = Math.pow(Math.max(1, mine), SHARP);
+  const b = Math.pow(Math.max(1, theirs), SHARP);
+  return a / (a + b);
 }
 
 /** The average kite of a team's starters — the scouting-report shape. */
@@ -174,11 +186,15 @@ export function logistic(diff: number): number {
 }
 
 // ---- the game itself --------------------------------------------------------------------
+// THE NEEDLE: the rope split is the win chance; a needle lands uniformly on the
+// rope. Inside your segment = you win. Near the border = a squeaker; deep in
+// anyone's territory = a blowout.
 
-function scoreLines(pWin: number, won: boolean): { my: number; opp: number } {
-  const margin = 1 + rand(5) + Math.round(Math.abs(pWin - 0.5) * 24);
+function needleScores(share: number, u: number): { won: boolean; my: number; opp: number } {
+  const won = u < share;
+  const margin = 1 + Math.min(34, Math.round(Math.abs(u - share) * 34)) + rand(3);
   const base = 52 + rand(16);
-  return won ? { my: base + margin, opp: base } : { my: base, opp: base + margin };
+  return won ? { won, my: base + margin, opp: base } : { won, my: base, opp: base + margin };
 }
 
 export interface SimOutcome {
@@ -289,9 +305,10 @@ export function simMyLeagueGame(s: GameState, me: Team, opp: Team, home: boolean
   if (s.pregameFlags.wallet && w === 'tie') w = 'win';
   const mine = teamPower(me, s.plan) * WHEEL_F[w] * (home ? 1.03 : 1);
   const theirs = teamPower(opp, oppPlan) * (home ? 1 : 1.03);
-  const p = logistic(mine - theirs);
-  const won = Math.random() < p;
-  const sc = scoreLines(p, won);
+  const share = winShare(mine, theirs);
+  const u = Math.random();
+  const sc = needleScores(share, u);
+  const won = sc.won;
   const { wheelLine, heroLine } = verdictLines(me, s.plan, oppPlan, w, won);
   const box = dealBox(me, sc.my, s.plan);
   return {
@@ -308,6 +325,9 @@ export function simMyLeagueGame(s: GameState, me: Team, opp: Team, home: boolean
       heroLine,
       boxLine: boxLineFrom(box),
       box,
+      share,
+      needle: u,
+      home,
     },
   };
 }
@@ -317,9 +337,10 @@ export function simMyChampGame(s: GameState, me: Team, champ: ChampTeam): SimOut
   let w = wheel(s.plan, oppPlan);
   if (s.pregameFlags.wallet && w === 'tie') w = 'win';
   const mine = teamPower(me, s.plan) * WHEEL_F[w];
-  const p = logistic(mine - champ.power);
-  const won = Math.random() < p;
-  const sc = scoreLines(p, won);
+  const share = winShare(mine, champ.power);
+  const u = Math.random();
+  const sc = needleScores(share, u);
+  const won = sc.won;
   const { wheelLine, heroLine } = verdictLines(me, s.plan, oppPlan, w, won);
   const box = dealBox(me, sc.my, s.plan);
   return {
@@ -336,15 +357,18 @@ export function simMyChampGame(s: GameState, me: Team, champ: ChampTeam): SimOut
       heroLine,
       boxLine: boxLineFrom(box),
       box,
+      share,
+      needle: u,
+      home: true,
     },
   };
 }
 
-/** AI vs AI league game: plans auto, straight power roll. */
+/** AI vs AI league game: plans auto, same needle math. */
 export function simAiGame(a: Team, b: Team): { winner: Team; loser: Team; scoreW: number; scoreL: number } {
   const pa = teamPower(a, aiPlan(a)) * 1.03;
   const pb = teamPower(b, aiPlan(b));
-  const aWins = Math.random() < logistic(pa - pb);
+  const aWins = Math.random() < winShare(pa, pb);
   const margin = 1 + rand(9);
   const base = 52 + rand(16);
   return aWins

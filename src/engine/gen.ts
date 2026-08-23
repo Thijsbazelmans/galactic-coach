@@ -331,8 +331,8 @@ export function genChamps(myPower: number, season: number): ChampTeam[] {
       bg: colors[0],
       fg: colors[1],
       plan,
-      // rounds get harder; the final scales hardest
-      power: Math.round(myPower * (0.9 + rand(15) / 100) + season * 1.5 + i * 2),
+      // champions are your equal on a good day — and the rounds get harder
+      power: Math.round(myPower * (1.02 + rand(18) / 100 + i * 0.02)),
       kite,
     });
   }

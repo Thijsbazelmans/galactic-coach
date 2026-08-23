@@ -15,7 +15,7 @@ import {
   planById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, ROSTER_SIZE, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, slotMult, slotPlayer, teamRating, wheel } from './engine/sim';
+import { COL_LABELS, matchAttrs, slotMult, slotPlayer, teamRating, wheel, winShare } from './engine/sim';
 import {
   type LevelUp,
   actionDropProspect,
@@ -904,8 +904,9 @@ function teamBarsPractice(s: GameState): string {
   return `<div class="tbars">${rows}</div>`;
 }
 
-/** MATCHUP: away on the left, home on the right — a tug-of-war once scouted.
-    Numbers sit on their team's side; the speech (once given) weights your rope. */
+/** MATCHUP: away on the left, home on the right — the ropes run on the real
+    match values (75/25 lineup, energy×mood curve, miscast, fire, the speech).
+    The OVERALL rope's split IS the win chance the needle will land on. */
 function teamBarsMatchup(s: GameState): string {
   const t = myTeam(s);
   const m = myMatchup(s);
@@ -932,42 +933,55 @@ function teamBarsMatchup(s: GameState): string {
   const scoutBtn = s.scoutedOpp
     ? ''
     : `<button class="hold scoutbtn ${home ? 'l' : 'r'}" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT<br/>1⚡</button>`;
-  const mineRaw = teamAttrSums(t.players);
-  const myAttr = s.speechWk ? planById(s.plan).attr : null;
-  let theirsRaw: AttrRec | null = null;
-  let theirAttr: Attr | null = null;
+
+  const myPlan = s.speechWk ? s.plan : null;
+  const mine = matchAttrs(t, myPlan);
+  const mineTotal = ovr(mine);
+  let theirs: AttrRec | null = null;
+  let theirsTotal = 0;
   let oppBg = '#666';
   if (s.scoutedOpp) {
-    if (isUtWeek(s)) {
-      const c = utOpponent(s);
-      if (c) {
-        theirsRaw = { skl: c.kite.skl * 9, ath: c.kite.ath * 9, frc: c.kite.frc * 9, brn: c.kite.brn * 9 };
-        theirAttr = planById(c.plan).attr;
-        oppBg = c.bg;
-      }
-    } else {
+    if (champ) {
+      // distribute the champion's power along their plan-weighted kite
+      const boost = planById(champ.plan).attr;
+      const w = ATTRS.map((a) => champ.kite[a] * (a === boost ? 2.5 : 1));
+      const tw = w.reduce((x, y) => x + y, 0) || 1;
+      theirs = { skl: 0, ath: 0, frc: 0, brn: 0 };
+      ATTRS.forEach((a, i) => { theirs![a] = (champ.power * w[i]) / tw; });
+      theirsTotal = champ.power;
+      oppBg = champ.bg;
+    } else if (m) {
       const hint = oppPlanHint(s);
-      if (m && hint) {
-        theirsRaw = teamAttrSums(m.opponent.players);
-        theirAttr = planById(hint).attr;
-        oppBg = m.opponent.bg;
-      }
+      theirs = matchAttrs(m.opponent, hint);
+      theirsTotal = ovr(theirs);
+      oppBg = m.opponent.bg;
     }
   }
-  const w = (x: AttrRec, boost: Attr | null, a: Attr): number => Math.round(x[a] * (a === boost ? 2.5 : 1));
   const rows = BAR_ROWS.map(({ a, label }) => {
     const big = a === 'all';
-    const mv = big ? ATTRS.reduce((acc, k) => acc + w(mineRaw, myAttr, k), 0) : w(mineRaw, myAttr, a);
-    const tv = theirsRaw ? (big ? ATTRS.reduce((acc, k) => acc + w(theirsRaw!, theirAttr, k), 0) : w(theirsRaw, theirAttr, a)) : null;
-    const myPct = tv !== null ? (mv / Math.max(1, mv + tv)) * 100 : Math.min(100, (mv / ((big ? 900 : 225) * 1.6)) * 100);
-    // away fills from the LEFT, home from the RIGHT
-    const myFill = `<span class="tbfill" style="width:${tv !== null ? myPct : myPct}%;background:${t.bg}"></span>`;
+    const mv = big ? mineTotal : mine[a];
+    const tv = theirs ? (big ? theirsTotal : theirs[a]) : null;
+    let myPct: number;
+    if (tv !== null) {
+      // the OVERALL rope shows the true win chance (wheel + venue folded in)
+      if (big) {
+        const hint = champ ? champ.plan : oppPlanHint(s);
+        const w = myPlan && hint ? wheel(myPlan, hint) : 'tie';
+        const wf = w === 'win' ? 1.12 : w === 'lose' ? 0.89 : 1;
+        myPct = winShare(mv * wf * (home ? 1.03 : 1), tv * (home ? 1 : 1.03)) * 100;
+      } else {
+        myPct = (mv / Math.max(1, mv + tv)) * 100;
+      }
+    } else {
+      myPct = Math.min(100, (mv / ((big ? 460 : 130) * (myPlan ? 1.25 : 1))) * 100);
+    }
+    const myFill = `<span class="tbfill" style="width:${myPct}%;background:${t.bg}"></span>`;
     const oppFill = tv !== null ? `<span class="tbopp" style="width:${100 - myPct}%;background:${oppBg}"></span>` : '';
     const track = home
       ? `<span class="tbtrack ${tv !== null ? 'tug' : ''} rtl">${oppFill}${myFill}</span>`
       : `<span class="tbtrack ${tv !== null ? 'tug' : ''}">${myFill}${oppFill}</span>`;
-    const myNum = `<b class="tbv">${mv}</b>`;
-    const oppNum = tv !== null ? `<b class="tbv opp">${tv}</b>` : `<b class="tbv opp dim">??</b>`;
+    const myNum = `<b class="tbv">${Math.round(mv)}</b>`;
+    const oppNum = tv !== null ? `<b class="tbv opp">${Math.round(tv)}</b>` : `<b class="tbv opp dim">??</b>`;
     const left = home ? oppNum : myNum;
     const right = home ? myNum : oppNum;
     return `<div class="tbar ${big ? 'big' : ''}">
@@ -1076,7 +1090,14 @@ function stageMatchup(s: GameState): string {
       </button>
       <button class="actarrow" data-action="speech-sheet" ${spoken ? 'disabled' : ''}>▾</button>
     </span></div>`;
-  return `<h2 class="gridhead">MATCHUP</h2>
+  const m0 = myMatchup(s);
+  const homeGame = isUtWeek(s) ? true : m0?.home ?? true;
+  const host = homeGame
+    ? { bg: myTeam(s).bg, fg: myTeam(s).fg }
+    : m0
+      ? { bg: m0.opponent.bg, fg: m0.opponent.fg }
+      : { bg: '#333', fg: '#ccc' };
+  return `<h2 class="gridhead">MATCHUP <span class="venuetag" style="background:${host.bg};color:${host.fg}">${homeGame ? 'HOME GAME' : 'AWAY GAME'}</span></h2>
     ${gridHtml(s, true)}
     ${teamBarsMatchup(s)}
     ${speech}`;
@@ -1111,9 +1132,21 @@ function stageGamenight(s: GameState): string {
   }
   const r = s.lastResult;
   if (gnStage === 'beat') {
-    return `<div id="progress-wrap">
-      <div id="progress-label">Tip-off...</div>
-      <div class="bar"><div class="fill" id="progress-fill"></div></div>
+    // THE NEEDLE: the overall rope, big, and a needle that decides the night
+    const awayShare = r.home ? 1 - r.share : r.share;
+    const t = myTeam(s);
+    const m = myMatchup(s);
+    const champ = isUtWeek(s) ? utOpponent(s) : null;
+    const oppBg = champ ? champ.bg : m ? m.opponent.bg : '#888';
+    return `<div class="needle-stage" id="needle-stage">
+      <div class="ns-title">TIP-OFF</div>
+      <div class="ns-vs">${esc(r.home ? r.oppName : teamLabel(t))} <span class="dim">@</span> ${esc(r.home ? teamLabel(t) : r.oppName)}</div>
+      <div class="bigrope">
+        <span class="brfill" style="width:${awayShare * 100}%;background:${r.home ? oppBg : t.bg}"></span>
+        <span class="brfill r" style="width:${(1 - awayShare) * 100}%;background:${r.home ? t.bg : oppBg}"></span>
+        <span class="brsplit" style="left:${awayShare * 100}%"></span>
+        <div class="needle" id="needle"></div>
+      </div>
     </div>`;
   }
   if (gnStage === 'verdict') {
@@ -1508,16 +1541,19 @@ function postRender(): void {
   }
 
   if (state.phase === 'gamenight' && state.lastResult && gnStage === 'beat' && !state.queue.length) {
-    animateProgress();
+    animateNeedle();
   }
 }
 
-function animateProgress(): void {
-  const stages = ['Tip-off!', 'First half...', 'Halftime. You point at the whiteboard.', 'Second half...', 'Crunch time...', 'Final horn.'];
-  const TICKS = 24;
-  let tick = 0;
-  const fill = document.getElementById('progress-fill');
-  const label = document.getElementById('progress-label');
+function animateNeedle(): void {
+  const r = state.lastResult;
+  const el = document.getElementById('needle');
+  if (!r || !el) return;
+  const target = (r.home ? 1 - r.needle : r.needle) * 100; // away-left display
+  const SWEEP_MS = 1500;
+  const LAND_MS = 900;
+  const start = performance.now();
+  let landFrom = 50;
   const finish = (): void => {
     if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
     gnStage = 'verdict';
@@ -1525,12 +1561,31 @@ function animateProgress(): void {
     // deltas land as STICKERS on the cards (rendered by gridHtml) and stay
   };
   progressTimer = window.setInterval(() => {
-    tick++;
-    if (tick > TICKS) { finish(); return; }
-    if (fill) fill.style.width = `${Math.round((tick / TICKS) * 100)}%`;
-    if (label) label.textContent = stages[Math.min(stages.length - 1, Math.floor((tick / TICKS) * stages.length))];
-  }, 90);
-  document.getElementById('progress-wrap')?.addEventListener('click', finish);
+    const t = performance.now() - start;
+    if (t < SWEEP_MS) {
+      // full-width ping-pong sweeps, slowing down
+      const phase = (t / SWEEP_MS) * 2.4;
+      const tri = Math.abs(((phase * 2) % 2) - 1); // 0..1..0
+      landFrom = tri * 100;
+      el.style.left = `${landFrom}%`;
+    } else if (t < SWEEP_MS + LAND_MS) {
+      // decelerate into the landing spot with a damped wobble
+      const x = (t - SWEEP_MS) / LAND_MS;
+      const ease = 1 - Math.pow(1 - x, 3);
+      const wobble = Math.exp(-4 * x) * Math.sin(x * 14) * 6;
+      el.style.left = `${landFrom + (target - landFrom) * ease + wobble * (1 - x)}%`;
+    } else {
+      el.style.left = `${target}%`;
+      el.classList.add('landed');
+      if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
+      window.setTimeout(finish, 550);
+    }
+  }, 16);
+  document.getElementById('needle-stage')?.addEventListener('click', () => {
+    el.style.left = `${target}%`;
+    el.classList.add('landed');
+    finish();
+  });
 }
 
 // ---- hold-to-commit -----------------------------------------------------------------------------------------
