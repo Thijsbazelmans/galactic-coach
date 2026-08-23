@@ -25,6 +25,7 @@ import {
   continueFromResult,
   convincePro,
   currentStory,
+  deliverHalftimeSpeech,
   deliverSpeech,
   dismissStory,
   effectiveChances,
@@ -37,6 +38,7 @@ import {
   myTeam,
   oppPlanHint,
   playGame,
+  playSecondHalf,
   queueStory,
   resolveSigning,
   resolveStory,
@@ -153,7 +155,8 @@ let selEmpty = false;
 let dropConfirm: number | null = null;
 let gxResult: { text: string; cost: number; played: boolean } | null = null;
 let poolSelected: Set<number> | null = null;
-let gnStage: 'beat' | 'verdict' | 'table' = 'beat';
+// game night: H1 needle → the locker room → H2 needle → verdict → standings
+let gnStage: 'beat' | 'half' | 'beat2' | 'verdict' | 'table' = 'beat';
 let progressTimer: number | null = null;
 let floatTimers: number[] = [];
 
@@ -747,6 +750,14 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0): string 
           stickerDelay = 300 + sweep * 260;
           sweep++;
         }
+      } else if (p && s.phase === 'gamenight' && gnStage === 'half' && s.halftime) {
+        // the H1 line sticks to every card — hot hands and empty tanks visible
+        const row = s.halftime.box.find((x) => x.playerId === p.id);
+        if (row) {
+          stickers = [{ text: `${row.pts} PTS · ${row.reb} REB`, up: row.pts >= 10 ? true : undefined }];
+          stickerDelay = 250 + sweep * 180;
+          sweep++;
+        }
       } else if (p && showDrill) {
         const msgs = drillStickers!.get(p.id);
         if (msgs?.length) {
@@ -907,7 +918,7 @@ function teamBarsPractice(s: GameState): string {
 /** MATCHUP: away on the left, home on the right — the ropes run on the real
     match values (75/25 lineup, energy×mood curve, miscast, fire, the speech).
     The OVERALL rope's split IS the win chance the needle will land on. */
-function teamBarsMatchup(s: GameState): string {
+function teamBarsMatchup(s: GameState, opts: { plan?: PlanId | null; noVs?: boolean; noScout?: boolean } = {}): string {
   const t = myTeam(s);
   const m = myMatchup(s);
   const champ = isUtWeek(s) ? utOpponent(s) : null;
@@ -930,11 +941,11 @@ function teamBarsMatchup(s: GameState): string {
     </span>
     <b class="tbv"></b>
   </div>`;
-  const scoutBtn = s.scoutedOpp
+  const scoutBtn = s.scoutedOpp || opts.noScout
     ? ''
     : `<button class="hold scoutbtn ${home ? 'l' : 'r'}" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT<br/>1⚡</button>`;
 
-  const myPlan = s.speechWk ? s.plan : null;
+  const myPlan = opts.plan !== undefined ? opts.plan : s.speechWk ? s.plan : null;
   const mine = matchAttrs(t, myPlan);
   const mineTotal = ovr(mine);
   let theirs: AttrRec | null = null;
@@ -991,7 +1002,7 @@ function teamBarsMatchup(s: GameState): string {
       ${right}
     </div>`;
   }).join('');
-  return `<div class="mu-bars"><div class="tbars mu">${vsRow}${rows}</div>${scoutBtn}</div>`;
+  return `<div class="mu-bars"><div class="tbars mu">${opts.noVs ? '' : vsRow}${rows}</div>${scoutBtn}</div>`;
 }
 
 function lensBar(): string {
@@ -1062,7 +1073,7 @@ function stageGalaxy(s: GameState): string {
   }
   return `<h2 class="gridhead">RECRUITING</h2>
     ${prospectGridHtml(s)}
-    ${s.groundedWeeks > 0 ? `<div class="fourthrow"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — home scans only</div></div>` : ''}
+    ${s.groundedWeeks > 0 ? `<div class="fourthrow slim"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — home scans only</div></div>` : ''}
     <div class="fourthrow actcol">${buttons}</div>`;
 }
 
@@ -1079,17 +1090,28 @@ function hue(hex: string): number {
   return h * 360;
 }
 
-function stageMatchup(s: GameState): string {
-  const sel = selSpeech && s.knownPlans.includes(selSpeech) ? selSpeech : s.knownPlans.includes(s.plan) ? s.plan : s.knownPlans[0];
+/** The speech picker's current selection (falls back to the committed plan). */
+function speechSel(s: GameState): PlanId {
+  return selSpeech && s.knownPlans.includes(selSpeech) ? selSpeech : s.knownPlans.includes(s.plan) ? s.plan : s.knownPlans[0];
+}
+
+/** «▶ SPEECH — …» + ▾ — pregame commits the week's plan; halftime reopens it. */
+function speechRow(s: GameState, half: boolean): string {
+  const sel = speechSel(s);
   const pl = planById(sel);
-  const spoken = !!s.speechWk;
-  const speech = `<div class="fourthrow actrow"><span class="actwrap runwrap">
+  const spoken = half ? !!s.speechH2 : !!s.speechWk;
+  const committed = half ? s.planH2 ?? s.plan : s.plan;
+  return `<div class="fourthrow actrow"><span class="actwrap runwrap">
       <button class="actmain hold" data-action="speech-run" ${spoken ? 'disabled' : ''}>
-        <b>▶ SPEECH — ${spoken ? planById(s.plan).speech : pl.speech}</b>
-        <span class="actsub">${spoken ? '✓ THIS WEEK' : `+${ATTR_LABEL[pl.attr]} · FREE`}</span>
+        <b>▶ ${half ? 'HALFTIME SPEECH' : 'SPEECH'} — ${spoken ? planById(committed).speech : pl.speech}</b>
+        <span class="actsub">${spoken ? (half ? '✓ THE ROOM HEARD IT' : '✓ THIS WEEK') : `+${ATTR_LABEL[pl.attr]} · FREE`}</span>
       </button>
       <button class="actarrow" data-action="speech-sheet" ${spoken ? 'disabled' : ''}>▾</button>
     </span></div>`;
+}
+
+function stageMatchup(s: GameState): string {
+  const speech = speechRow(s, false);
   const m0 = myMatchup(s);
   const homeGame = isUtWeek(s) ? true : m0?.home ?? true;
   const host = homeGame
@@ -1126,32 +1148,86 @@ function speechSheetHtml(s: GameState): string {
   </div></div>`;
 }
 
+/** The big rope + needle, shared by both halves (away on the left, always). */
+function needleStage(s: GameState, title: string, subLine: string, share: number, home: boolean, oppName: string): string {
+  const t = myTeam(s);
+  const m = myMatchup(s);
+  const champ = isUtWeek(s) ? utOpponent(s) : null;
+  const oppBg = champ ? champ.bg : m ? m.opponent.bg : '#888';
+  const awayShare = home ? 1 - share : share;
+  return `<div class="needle-stage" id="needle-stage">
+    <div class="ns-title">${title}</div>
+    <div class="ns-vs">${esc(home ? oppName : teamLabel(t))} <span class="dim">@</span> ${esc(home ? teamLabel(t) : oppName)}</div>
+    ${subLine}
+    <div class="bigrope">
+      <span class="brfill" style="width:${awayShare * 100}%;background:${home ? oppBg : t.bg}"></span>
+      <span class="brfill r" style="width:${(1 - awayShare) * 100}%;background:${home ? t.bg : oppBg}"></span>
+      <span class="brsplit" style="left:${awayShare * 100}%"></span>
+      <div class="needle" id="needle"></div>
+    </div>
+  </div>`;
+}
+
+/** HALFTIME: the scoreboard, the grid wide open (swap anyone), each card's H1
+    line stuck on, the honest post-drain ropes, and the second speech. */
+function stageHalftime(s: GameState): string {
+  const ht = s.halftime!;
+  const t = myTeam(s);
+  const m = myMatchup(s);
+  const champ = isUtWeek(s) ? utOpponent(s) : null;
+  const opp = champ
+    ? { name: champ.name, bg: champ.bg, fg: champ.fg }
+    : m
+      ? { name: m.opponent.name, bg: m.opponent.bg, fg: m.opponent.fg }
+      : { name: '?', bg: '#333', fg: '#ccc' };
+  const mineChip = { name: t.name, bg: t.bg, fg: t.fg, score: ht.myH1 };
+  const oppChip = { ...opp, score: ht.oppH1 };
+  const away = ht.home ? oppChip : mineChip;
+  const homeT = ht.home ? mineChip : oppChip;
+  const clash = Math.min(Math.abs(hue(away.bg) - hue(homeT.bg)), 360 - Math.abs(hue(away.bg) - hue(homeT.bg))) < 40;
+  const scoreline = `<div class="halfline">
+    ${clash ? chip(away.name, away.fg, away.bg, true) : chip(away.name, away.bg, away.fg, true)}
+    <b>${away.score}</b><span class="dim">@</span><b>${homeT.score}</b>
+    ${chip(homeT.name, homeT.bg, homeT.fg, true)}
+  </div>`;
+  // design law: a gassed starter still on the floor gets called out before H2
+  const gassed = starters(t).filter((p) => p.outWeeks === 0 && p.energy <= 30);
+  const warn = gassed.length
+    ? `<div class="fourthrow slim"><div class="report blink">⚠ ${esc(gassed.map((p) => p.name).join(' + '))} — running on empty, the rope feels it</div></div>`
+    : '';
+  return `<h2 class="gridhead">HALFTIME</h2>
+    ${scoreline}
+    ${gridHtml(s, true)}
+    ${teamBarsMatchup(s, { plan: s.speechH2 ? s.planH2 : null, noVs: true, noScout: true })}
+    ${warn}
+    ${speechRow(s, true)}`;
+}
+
 function stageGamenight(s: GameState): string {
-  if (!s.lastResult) {
+  const ht = s.halftime;
+  const r = s.lastResult;
+  if (!r && !ht) {
     return `<h2>GAME NIGHT</h2><div class="report dim">The shuttle hums...</div>`;
   }
-  const r = s.lastResult;
-  if (gnStage === 'beat') {
-    // THE NEEDLE: the overall rope, big, and a needle that decides the night
-    const awayShare = r.home ? 1 - r.share : r.share;
-    const t = myTeam(s);
-    const m = myMatchup(s);
-    const champ = isUtWeek(s) ? utOpponent(s) : null;
-    const oppBg = champ ? champ.bg : m ? m.opponent.bg : '#888';
-    return `<div class="needle-stage" id="needle-stage">
-      <div class="ns-title">TIP-OFF</div>
-      <div class="ns-vs">${esc(r.home ? r.oppName : teamLabel(t))} <span class="dim">@</span> ${esc(r.home ? teamLabel(t) : r.oppName)}</div>
-      <div class="bigrope">
-        <span class="brfill" style="width:${awayShare * 100}%;background:${r.home ? oppBg : t.bg}"></span>
-        <span class="brfill r" style="width:${(1 - awayShare) * 100}%;background:${r.home ? t.bg : oppBg}"></span>
-        <span class="brsplit" style="left:${awayShare * 100}%"></span>
-        <div class="needle" id="needle"></div>
-      </div>
-    </div>`;
+  if (gnStage === 'beat' && ht && !r) {
+    return needleStage(s, 'FIRST HALF', '', ht.share, ht.home, ht.oppName);
+  }
+  if (gnStage === 'half' && ht && !r) {
+    return stageHalftime(s);
+  }
+  if (!r) return `<h2>GAME NIGHT</h2><div class="report dim">The shuttle hums...</div>`;
+  if (gnStage === 'beat' || gnStage === 'beat2') {
+    // the H2 needle (or the whole night for a pre-halftime save)
+    const sub = r.h1
+      ? `<div class="ns-vs dim">FIRST HALF · ${r.home ? r.h1.opp : r.h1.my} @ ${r.home ? r.h1.my : r.h1.opp}</div>`
+      : '';
+    return needleStage(s, r.h1 ? 'SECOND HALF' : 'TIP-OFF', sub, (r.h2 ?? r).share, r.home, r.oppName);
   }
   if (gnStage === 'verdict') {
+    const halves = r.h1 && r.h2 ? `<div class="vline dim">H1 ${r.h1.my}–${r.h1.opp} · H2 ${r.h2.my}–${r.h2.opp}</div>` : '';
     return `<h2 class="${r.win ? 'won' : 'lost'}">${r.win ? 'VICTORY' : 'DEFEAT'} ${r.myScore}–${r.oppScore}</h2>
       <div class="verdict">
+        ${halves}
         <div class="vline">${esc(r.wheelLine)}</div>
         <div class="vline">${esc(r.heroLine)}</div>
         <div class="vline dim">${esc(r.boxLine)}</div>
@@ -1294,7 +1370,9 @@ function nav(s: GameState): string {
     case 'matchup':
       return `<span></span>${navMain(s.speechWk ? 'PLAY' : 'SPEECH FIRST', 'play-game', !s.speechWk)}`;
     case 'gamenight': {
-      if (!s.lastResult || gnStage === 'beat') return `<span class="navnote dim">…</span>`;
+      if (gnStage === 'half' && s.halftime && !s.lastResult)
+        return `<span></span>${navMain(s.speechH2 ? 'SECOND HALF' : 'SPEECH FIRST', 'play-h2', !s.speechH2)}`;
+      if (!s.lastResult || gnStage === 'beat' || gnStage === 'beat2') return `<span class="navnote dim">…</span>`;
       if (gnStage === 'verdict') return `<span></span>${navMain('STANDINGS', 'gn-table')}`;
       return `<span></span>${navMain('NEXT WEEK', 'continue-result')}`;
     }
@@ -1540,24 +1618,28 @@ function postRender(): void {
     if (storyMode === 'impact' && !impactPlayed) animateImpact();
   }
 
-  if (state.phase === 'gamenight' && state.lastResult && gnStage === 'beat' && !state.queue.length) {
-    animateNeedle();
+  if (state.phase === 'gamenight' && !state.queue.length) {
+    const ht = state.halftime;
+    const r = state.lastResult;
+    if (gnStage === 'beat' && ht && !r) {
+      animateNeedle(ht.needle, ht.home, () => { gnStage = 'half'; render(); });
+    } else if ((gnStage === 'beat' || gnStage === 'beat2') && r) {
+      animateNeedle((r.h2 ?? r).needle, r.home, () => { gnStage = 'verdict'; render(); });
+    }
   }
 }
 
-function animateNeedle(): void {
-  const r = state.lastResult;
+function animateNeedle(needlePos: number, home: boolean, onDone: () => void): void {
   const el = document.getElementById('needle');
-  if (!r || !el) return;
-  const target = (r.home ? 1 - r.needle : r.needle) * 100; // away-left display
+  if (!el) return;
+  const target = (home ? 1 - needlePos : needlePos) * 100; // away-left display
   const SWEEP_MS = 1500;
   const LAND_MS = 900;
   const start = performance.now();
   let landFrom = 50;
   const finish = (): void => {
     if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
-    gnStage = 'verdict';
-    render();
+    onDone();
     // deltas land as STICKERS on the cards (rendered by gridHtml) and stay
   };
   progressTimer = window.setInterval(() => {
@@ -1851,11 +1933,13 @@ function executeAction(action: string, id: string): void {
 
     case 'scout-opp': if (scoutOpponent(state)) floatEnergyBig(1); break;
     case 'speech-run': {
-      const sel = selSpeech && state.knownPlans.includes(selSpeech) ? selSpeech : state.knownPlans.includes(state.plan) ? state.plan : state.knownPlans[0];
-      deliverSpeech(state, sel);
+      const sel = speechSel(state);
+      if (state.phase === 'gamenight') deliverHalftimeSpeech(state, sel);
+      else deliverSpeech(state, sel);
       break;
     }
     case 'play-game': gnStage = 'beat'; clearFloatTimers(); playGame(state); break;
+    case 'play-h2': gnStage = 'beat2'; clearFloatTimers(); playSecondHalf(state); break;
 
     case 'convince-pro': convincePro(state, Number(id)); break;
     case 'letgo-pro': letGoPro(state, Number(id)); break;

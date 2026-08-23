@@ -231,6 +231,14 @@ export interface BoxRow {
   ast: number;
 }
 
+/** One half's needle: my score, their score, my rope share, where it landed. */
+export interface HalfScore {
+  my: number;
+  opp: number;
+  share: number;
+  needle: number;
+}
+
 export interface MyGameResult {
   win: boolean;
   myScore: number;
@@ -243,10 +251,33 @@ export interface MyGameResult {
   heroLine: string;
   boxLine: string;
   box: BoxRow[];
-  /** THE NEEDLE: my win share of the rope (0–1) and where the needle landed */
+  /** THE NEEDLE: my win share of the rope (0–1) and where the needle landed
+      (the second half's pair; kept top-level for old saves mid-game-night) */
   share: number;
   needle: number;
   home: boolean;
+  /** HALFTIME: the two halves (absent only on pre-halftime saves) */
+  h1?: HalfScore;
+  h2?: HalfScore;
+}
+
+/** The game paused between halves: everything H2 needs to pick it back up. */
+export interface HalftimeState {
+  myH1: number;
+  oppH1: number;
+  share: number;
+  needle: number;
+  /** the first-half plans (mine = the pregame speech) */
+  planMine: PlanId;
+  planOpp: PlanId;
+  /** the opponent's re-rolled second-half plan (secret until the needle) */
+  oppPlanH2: PlanId;
+  /** H1 box rows — stickers at the half; season stats commit after H2 */
+  box: BoxRow[];
+  home: boolean;
+  oppName: string;
+  /** halftime energy drains by player id (negative), folded into postGame */
+  drains: Record<number, number>;
 }
 
 export interface PlayerDeltas {
@@ -358,6 +389,9 @@ export interface GameState {
   recruitActWk?: boolean;
   /** the coach's speech: commits the game plan, once, before tip-off */
   speechWk?: boolean;
+  /** HALFTIME: the second speech (reopens the lock) and the H2 plan override */
+  speechH2?: boolean;
+  planH2?: PlanId | null;
   sitouts: number[];
   scoutedOpp: boolean;
   drillReport: string | null;
@@ -365,6 +399,8 @@ export interface GameState {
 
   plan: PlanId;
   pregameFlags: { wallet?: boolean; cloak?: boolean };
+  /** set when H1 is in the books and the locker room is waiting */
+  halftime?: HalftimeState | null;
   lastResult: MyGameResult | null;
   postGame: PlayerDeltas[];
   resultsLog: string[]; // other games this week, one line each

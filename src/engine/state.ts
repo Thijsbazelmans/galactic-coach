@@ -48,8 +48,8 @@ import {
   normalizeLineup,
   reserves,
   simAiGame,
-  simMyChampGame,
-  simMyLeagueGame,
+  simMyGameH1,
+  simMyGameH2,
   starters,
   teamPower,
 } from './sim';
@@ -448,7 +448,7 @@ export function dismissStory(s: GameState): void {
     s.phase = isUtWeek(s) ? 'matchup' : 'practice';
     maybeTip(s, isUtWeek(s) ? 'matchup' : 'practice');
   }
-  if (!s.queue.length && s.phase === 'gamenight' && !s.lastResult && !s.end) simWeek(s);
+  if (!s.queue.length && s.phase === 'gamenight' && !s.lastResult && !s.halftime && !s.end) simWeek(s);
   save(s);
 }
 
@@ -481,6 +481,9 @@ function startWeek(s: GameState): void {
   s.scoutActWk = false;
   s.recruitActWk = false;
   s.speechWk = false;
+  s.speechH2 = false;
+  s.planH2 = null;
+  s.halftime = null;
   s.sitouts = [];
   s.scoutedOpp = false;
   s.drillReport = null;
@@ -898,15 +901,18 @@ export function toGalaxy(s: GameState): void {
   save(s);
 }
 
-/** PLAY (held). Away weeks voyage first; the sim runs when the queue clears. */
+/** PLAY (held). Away weeks voyage first; H1 sims when the queue clears. */
 export function playGame(s: GameState): void {
   if (!s.speechWk) return; // no tip-off before the speech
   s.phase = 'gamenight';
   s.lastResult = null;
+  s.halftime = null;
   if (!s.queue.length && !s.end) simWeek(s);
   save(s);
 }
 
+/** The week's games: everyone else's whole night, but MY game stops at the
+    half — s.halftime holds it open until the locker room lets it back out. */
 function simWeek(s: GameState): void {
   const me = myTeam(s);
   normalizeLineup(me);
@@ -915,15 +921,7 @@ function simWeek(s: GameState): void {
   if (isUtWeek(s) && s.ut) {
     const champ = utOpponent(s);
     if (!champ) return;
-    const out = simMyChampGame(s, me, champ);
-    s.lastResult = out.result;
-    applyGameEffects(s, out.won);
-    s.ut.log.push(`${weekLabel(s)}: ${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}`);
-    if (out.won) {
-      s.heatB = clamp(s.heatB - 6, 0, 100);
-    } else {
-      s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
-    }
+    simMyGameH1(s, me, null, champ, true);
     save(s);
     return;
   }
@@ -934,24 +932,7 @@ function simWeek(s: GameState): void {
   for (const [h, a] of games) {
     if (h === s.myTeamId || a === s.myTeamId) {
       if (!m) continue;
-      const out = simMyLeagueGame(s, me, m.opponent, m.home);
-      s.lastResult = out.result;
-      const winner = out.won ? me : m.opponent;
-      const loser = out.won ? m.opponent : me;
-      winner.wins++; loser.losses++;
-      winner.pointsFor += Math.max(out.result.myScore, out.result.oppScore);
-      winner.pointsAgainst += Math.min(out.result.myScore, out.result.oppScore);
-      loser.pointsFor += Math.min(out.result.myScore, out.result.oppScore);
-      loser.pointsAgainst += Math.max(out.result.myScore, out.result.oppScore);
-      if (out.won) { s.totalWins++; s.heatB = clamp(s.heatB - 4, 0, 100); }
-      else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
-      applyGameEffects(s, out.won);
-      // the other locker room lives the same night we do
-      for (const p of m.opponent.players) {
-        p.energy = clamp(p.energy - 14, 0, 100);
-        p.mood = clamp(p.mood + (out.won ? -5 : 5), 0, 100);
-        if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
-      }
+      simMyGameH1(s, me, m.opponent, null, m.home);
     } else {
       const g = simAiGame(s.teams[h], s.teams[a]);
       g.winner.wins++; g.loser.losses++;
@@ -971,15 +952,79 @@ function simWeek(s: GameState): void {
       }
     }
   }
+  save(s);
+}
+
+/** HALFTIME SPEECH: reopens the lock once — the H2 plan can change or double
+    down, but either way the room hears something before the second half. */
+export function deliverHalftimeSpeech(s: GameState, plan: PlanId): boolean {
+  if (!s.halftime || s.speechH2 || !s.knownPlans.includes(plan)) return false;
+  s.planH2 = plan;
+  s.speechH2 = true;
+  save(s);
+  return true;
+}
+
+/** THE SECOND HALF: sim H2 from the new lineup/speeches/meters, then land the
+    whole night — standings, heat, meters, ON FIRE — once, on full-game totals. */
+export function playSecondHalf(s: GameState): void {
+  if (!s.halftime || !s.speechH2 || s.lastResult) return;
+  const me = myTeam(s);
+  normalizeLineup(me);
+  lastLevelUps = [];
+  const drains = s.halftime.drains;
+
+  if (isUtWeek(s) && s.ut) {
+    const champ = utOpponent(s);
+    if (!champ) return;
+    const out = simMyGameH2(s, me, null, champ);
+    s.lastResult = out.result;
+    s.halftime = null;
+    applyGameEffects(s, out.won, drains);
+    s.ut.log.push(`${weekLabel(s)}: ${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}`);
+    if (out.won) {
+      s.heatB = clamp(s.heatB - 6, 0, 100);
+    } else {
+      s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
+    }
+    save(s);
+    return;
+  }
+
+  const m = myMatchup(s);
+  if (!m) return;
+  const out = simMyGameH2(s, me, m.opponent, null);
+  s.lastResult = out.result;
+  s.halftime = null;
+  const winner = out.won ? me : m.opponent;
+  const loser = out.won ? m.opponent : me;
+  winner.wins++; loser.losses++;
+  winner.pointsFor += Math.max(out.result.myScore, out.result.oppScore);
+  winner.pointsAgainst += Math.min(out.result.myScore, out.result.oppScore);
+  loser.pointsFor += Math.min(out.result.myScore, out.result.oppScore);
+  loser.pointsAgainst += Math.max(out.result.myScore, out.result.oppScore);
+  if (out.won) { s.totalWins++; s.heatB = clamp(s.heatB - 4, 0, 100); }
+  else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
+  applyGameEffects(s, out.won, drains);
+  // the other locker room lives the same night we do (half already spent)
+  for (const p of m.opponent.players) {
+    p.energy = clamp(p.energy - 7, 0, 100);
+    p.mood = clamp(p.mood + (out.won ? -5 : 5), 0, 100);
+    if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
+  }
   // clean weeks slowly cool the school
   s.heatS = clamp(s.heatS - 1, 0, 100);
   save(s);
 }
 
-function applyGameEffects(s: GameState, won: boolean): void {
+/** The whole night lands here ONCE, after H2 — the second half of the energy
+    drain (the first half went at halftime, `halfDrains` folds it into the
+    stickers), full-game XP, injuries, and ON FIRE on full-game totals. */
+function applyGameEffects(s: GameState, won: boolean, halfDrains: Record<number, number> = {}): void {
   const me = myTeam(s);
   const st = new Set(starters(me).map((p) => p.id));
   const bn = new Set(benchPlayers(me).map((p) => p.id));
+  const played = new Set((s.lastResult?.box ?? []).map((r) => r.playerId));
   s.postGame = [];
   for (const p of me.players) {
     if (p.outWeeks > 0) continue;
@@ -987,7 +1032,7 @@ function applyGameEffects(s: GameState, won: boolean): void {
     let xpGain = 0;
     if (st.has(p.id)) {
       const lowEnergy = p.energy <= 30;
-      p.energy = clamp(p.energy - (14 + rand(6)), 0, 100);
+      p.energy = clamp(p.energy - (7 + rand(3)), 0, 100);
       p.mood = clamp(p.mood + 2, 0, 100);
       xpGain = 8 + rand(5);
       p.dnp = 0;
@@ -1000,8 +1045,9 @@ function applyGameEffects(s: GameState, won: boolean): void {
             : `${p.name} landed wrong on a routine drive. The arena goes quiet.`,
         });
       }
-    } else if (bn.has(p.id)) {
-      p.energy = clamp(p.energy - (8 + rand(5)), 0, 100);
+    } else if (bn.has(p.id) || played.has(p.id)) {
+      // the bench — or an H1 body parked in the reserves at the half
+      p.energy = clamp(p.energy - (4 + rand(3)), 0, 100);
       xpGain = 4 + rand(3);
       p.dnp = 0;
     } else {
@@ -1011,7 +1057,7 @@ function applyGameEffects(s: GameState, won: boolean): void {
     }
     p.mood = clamp(p.mood + (won ? 5 : -5), 0, 100);
     if (xpGain > 0) lastLevelUps.push(...addXp(s, p, xpGain));
-    s.postGame.push({ playerId: p.id, energyP: p.energy - pre.e, mood: p.mood - pre.m, xpGain });
+    s.postGame.push({ playerId: p.id, energyP: p.energy - pre.e + (halfDrains[p.id] ?? 0), mood: p.mood - pre.m, xpGain });
   }
 
   // ON FIRE (printed rule): 20+ points lights a man up — everything he has

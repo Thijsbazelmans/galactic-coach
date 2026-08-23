@@ -136,17 +136,50 @@ async function main(): Promise<void> {
   if (!(gc.state() as any).speechWk) throw new Error('speech did not commit');
   if (!app.innerHTML.includes('tbars mu')) throw new Error('matchup bars missing');
 
-  // play the game
+  // play the game → FIRST HALF needle, then HALFTIME
   anyWin.gcAction('play-game', '');
   drain();
-  // sim may wait on queue; drain again then check result
+  // sim may wait on queue; drain again then check the half is open
   drain();
-  const st = state() as unknown as { lastResult: { box: unknown[] } | null; phase: string };
+  type GnState = {
+    phase: string;
+    halftime: { box: unknown[]; myH1: number; oppH1: number } | null;
+    speechH2?: boolean;
+    lastResult: { box: unknown[]; h1?: object; h2?: object; myScore: number; oppScore: number } | null;
+  };
+  let st = state() as unknown as GnState;
   if (st.phase !== 'gamenight') throw new Error(`expected gamenight, got ${st.phase}`);
-  if (!st.lastResult) throw new Error('no game result after play');
-  if (!Array.isArray(st.lastResult.box) || !st.lastResult.box.length) throw new Error('box score missing from result');
+  if (!st.halftime) throw new Error('no halftime after play — H1 did not sim');
+  if (st.lastResult) throw new Error('game finished without a halftime');
+  if (!Array.isArray(st.halftime.box) || !st.halftime.box.length) throw new Error('H1 box missing');
 
-  console.log('UI SMOKE OK — pick team → tryouts → lenses → drill → galaxy → matchup → game night, box score present');
+  // skip the H1 needle (tap) → the locker room
+  const ns1 = app.querySelector('#needle-stage') as unknown as { click?: () => void } | null;
+  if (!ns1?.click) throw new Error('H1 needle stage missing');
+  ns1.click();
+  if (!app.innerHTML.includes('HALFTIME')) throw new Error('halftime screen missing after H1 needle');
+  if (!app.innerHTML.includes('HALFTIME SPEECH')) throw new Error('halftime speech row missing');
+
+  // no second half before the halftime speech
+  anyWin.gcAction('play-h2', '');
+  if ((state() as unknown as GnState).lastResult) throw new Error('H2 played without a halftime speech');
+  anyWin.gcAction('speech-run', '');
+  if (!(state() as unknown as GnState).speechH2) throw new Error('halftime speech did not commit');
+
+  // SECOND HALF → the final
+  anyWin.gcAction('play-h2', '');
+  drain();
+  st = state() as unknown as GnState;
+  if (!st.lastResult) throw new Error('no game result after the second half');
+  if (st.halftime) throw new Error('halftime never closed');
+  if (!st.lastResult.h1 || !st.lastResult.h2) throw new Error('halves missing from result');
+  if (!Array.isArray(st.lastResult.box) || !st.lastResult.box.length) throw new Error('box score missing from result');
+  // skip the H2 needle → the verdict
+  const ns2 = app.querySelector('#needle-stage') as unknown as { click?: () => void } | null;
+  ns2?.click?.();
+  if (!/VICTORY|DEFEAT/.test(app.innerHTML)) throw new Error('verdict missing after H2 needle');
+
+  console.log('UI SMOKE OK — pick team → tryouts → lenses → drill → galaxy → matchup → H1 → halftime → H2 → verdict, box score present');
 }
 
 main().catch((e) => {

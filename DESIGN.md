@@ -555,47 +555,50 @@ live the same post-game meter swings we do (the mood-snowball fix), and
 UT champion power rescaled (≈1.02–1.2× yours, +2%/round). Headless: ~62%
 league win rate, ~1.7 titles/career (harness plays optimally).
 
-## NEXT SESSION (pick up here): BUILD HALFTIME
+**v2.8 — HALFTIME (Aug 23, 2026):** The game is two halves with one
+course-correction moment between. H1: the rope as before (matchAttrs /
+winShare, wheel + venue in), the needle lands → a half-scale score (base
+26–33, margin ≤ ~18 from |needle − share|) and HALF a box score
+(`dealHalfBox`, reb/stl/ast pools halved; season stats commit ONCE on the
+merged full-game rows via `commitBox`, gp/MVP once). Then the LOCKER ROOM
+(`gnStage 'half'`): scoreboard `AWAY 31 @ 28 HOME` in kit chips, the grid
+fully draggable (bench ↔ starters — the payoff), every card stickered with
+its H1 line (`12 PTS · 3 REB`, hot hands ≥10 highlighted), the post-drain
+ropes (no vs-row — the scoreboard covers it; no scout button), and ONE
+**HALFTIME SPEECH** (`deliverHalftimeSpeech` → `s.planH2`/`s.speechH2`,
+same picker; SECOND HALF is locked behind it like PLAY behind the pregame
+speech). At the half both rosters shed ~half the game drain (my starters
+−7±, bench −4±, their whole squad −7) so the halftime rope is honest, and
+the opponent AI re-rolls its H2 plan (aiPlan again, 15% surprise kept;
+champ reuses its scouted power + plan for both halves — no roster). H2:
+the rope recomputes from the NEW lineup/speech/meters, a second needle,
+final = H1 + H2 (an exact tie gives the last possession to the H2 winner).
+ON FIRE, injuries, XP and postGame stickers evaluate ONCE on full-game
+totals (halftime drains folded into the ⚡ stickers; an H1 body parked in
+the reserves at the half still gets bench drain/XP, not a DNP).
+`MyGameResult` grew `h1`/`h2` (score + share/needle pairs — the verdict
+shows `H1 31–28 · H2 30–30`); `s.halftime` holds the open game; old
+pre-halftime saves still animate their single needle. Design law: gassed
+starters (⚡ ≤ 30) still on the floor get a blinking call-out strip before
+the second half. Headless auto-coach re-speeches the best plan and swaps
+nothing: ~67% league win rate (up from 62% — two independent needles favor
+the stronger rope; titles ~1.55/career — balance-watch item). Also from a
+phone screenshot: the under-grid space is a fixed budget now — action rows
+are 46px slots, info strips (SHIP GROUNDED, the gassed warning) are slim
+24px ones, so strip + SCOUT + RECRUIT can't clip into THE BAG anymore.
 
-Fresh-session state: the game is **v2.7** live on Pages, all of it logged
-in the version entries above (v2.0 four attributes → v2.7 THE NEEDLE).
+## NEXT SESSION (pick up here)
+
+Fresh-session state: the game is **v2.8** (HALFTIME) — all of it logged in
+the version entries above (v2.0 four attributes → v2.8 HALFTIME).
 Engine `src/engine/` (types/data/gen/sim/state/util), UI `src/main.ts` +
-`src/rig.ts` + `src/style.css`. SAVE_VERSION 14. Tests:
-`npx tsx scripts/headless.ts N` (full careers; ~62% win rate baseline)
-and `npx tsx scripts/uismoke.ts` (boots the real UI in happy-dom; nav and
+`src/rig.ts` + `src/style.css`. SAVE_VERSION 14 (halftime fields are
+optional — no bump needed). Tests: `npx tsx scripts/headless.ts N`
+(full careers; ~67% win rate baseline post-halftime) and
+`npx tsx scripts/uismoke.ts` (boots the real UI in happy-dom; nav and
 choices are hold-buttons that ignore clicks — drive them via the
 `window.gcAction(action, id)` dev handle). Thijs drops Claude-Designer
 exports into `fromDesign/<date>/` — read them from there.
-
-### THE HALFTIME SPEC (agreed with Thijs, build this)
-
-The game splits into two halves with one course-correction moment between:
-
-1. **H1**: compute the rope (matchAttrs/winShare as today, wheel + venue
-   in), needle sweeps and lands → H1 score (roughly half-scale: base
-   ~26–34 per side, margin from |needle − share|). Deal HALF a box score
-   (dealBox with the H1 score; reb/stl/ast pools halved).
-2. **HALFTIME screen** (new gnStage between the H1 needle and H2):
-   scoreboard `AWAY 31 @ 28 HOME`, the grid DRAGGABLE (swap bench ↔
-   starters freely — this is the payoff), each card stickered with its H1
-   line (pts/reb) so hot and gassed players are visible, and ONE
-   **halftime speech**: the speech lock reopens (`s.speechWk` stays but a
-   half-2 plan override field, e.g. `s.planH2`), same picker UI. The
-   opponent AI re-rolls its plan for H2 (aiPlan again; keep the 15%
-   surprise). Energy: starters drop ~half the game drain at the half so
-   the halftime rope is honest.
-3. **H2**: recompute the rope from the NEW lineup/speeches/meters, second
-   needle, H2 score. Final = H1 + H2 per side; win = final comparison
-   (needle margins already encode closeness).
-4. Then the existing verdict → stickers → standings flow. ON FIRE
-   ignition/cooling and postGame deltas evaluate ONCE on full-game totals.
-   `MyGameResult` grows: h1/h2 scores + two share/needle pairs.
-5. Update BOTH sim paths (league + champ; champ has no roster — reuse its
-   power split for both halves) and simAiGame stays single-roll. Update
-   the headless harness (new stage needs auto-play: swap nothing, re-speech
-   best plan) and the smoke test.
-6. Design law check: warn before the H2 needle if a gassed starter is
-   still on the floor (his energy multiplier is the visible rope hit).
 
 ### Backlog (in rough priority)
 
@@ -603,7 +606,8 @@ The game splits into two halves with one course-correction moment between:
   dress the visiting roster in it (sprites + chips); replaces the
   hue-clash inversion hack on the matchup vs-row.
 - **Premium speeches**: energy-costing dual-attribute speeches
-  (+BRN & +FRC etc.) discovered via stories; halftime-only speeches.
+  (+BRN & +FRC etc.) discovered via stories; halftime-only speeches
+  (the hook exists now — `deliverHalftimeSpeech` is its own path).
 - **Genderless 'x' form** (they/them) — during the story-writing session;
   verb agreement makes it a writing pass. Candidates: Nimbus/Gelid/Robota.
 - **Story-writing session** (more stories, femme-specific arcs beyond the
@@ -613,10 +617,11 @@ The game splits into two halves with one course-correction moment between:
 - **Succinct tutorial**: auto-tips are OFF by default; design the real
   onboarding later. The ? button still serves the old tips.
 - **SPEC.md rewrite**: it still describes the dead v1.0 axis model.
-- **Balance watch**: meter curve economy (recovery 18/wk, drill drains),
-  ON FIRE (20 to light / 15 to keep / ×1.2), UT title rate (~1.7/career
-  in the optimal-play harness), squad-wide direct-point drills, one-look
-  scout bias (×0.6–1.5).
+- **Balance watch**: two-needle favorite boost (league win rate 62→67%
+  post-halftime — consider a softer SHARP if it feels too safe), meter
+  curve economy (recovery 18/wk, drill drains), ON FIRE (20 to light / 15
+  to keep / ×1.2), UT title rate (~1.55/career in the optimal-play
+  harness), squad-wide direct-point drills, one-look scout bias (×0.6–1.5).
 - **Alumni/career surfacing**: careers + MVP counts accumulate but only
   the STATS lens shows them; a legacy/records screen is unbuilt (aging
   high-scores hook exists in spec).

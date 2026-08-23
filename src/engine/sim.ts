@@ -186,14 +186,14 @@ export function logistic(diff: number): number {
 }
 
 // ---- the game itself --------------------------------------------------------------------
-// THE NEEDLE: the rope split is the win chance; a needle lands uniformly on the
-// rope. Inside your segment = you win. Near the border = a squeaker; deep in
-// anyone's territory = a blowout.
+// THE NEEDLE, twice: each half's rope split is that half's win chance; a needle
+// lands uniformly on it. Half scores are roughly half-scale; the final is the
+// sum, so the two needles' margins can cancel into a squeaker either way.
 
-function needleScores(share: number, u: number): { won: boolean; my: number; opp: number } {
+function halfScores(share: number, u: number): { won: boolean; my: number; opp: number } {
   const won = u < share;
-  const margin = 1 + Math.min(34, Math.round(Math.abs(u - share) * 34)) + rand(3);
-  const base = 52 + rand(16);
+  const margin = 1 + Math.min(17, Math.round(Math.abs(u - share) * 17)) + rand(2);
+  const base = 26 + rand(8);
   return won ? { won, my: base + margin, opp: base } : { won, my: base, opp: base + margin };
 }
 
@@ -222,41 +222,56 @@ function dealStat(pool: { p: Player; w: number }[], total: number, weigh: (p: Pl
   return out;
 }
 
-/** Deal my team's box score from the final score, write season stats, return rows. */
-export function dealBox(me: Team, myScore: number, plan: PlanId): BoxRow[] {
+/** Deal ONE HALF of my box score (reb/stl/ast pools halved). Season stats are
+    NOT written here — they commit once, on the merged full-game rows. */
+export function dealHalfBox(me: Team, myScore: number, plan: PlanId): BoxRow[] {
   const pool = [
     ...starters(me).filter(available).map((p) => ({ p, w: 3 })),
     ...benchPlayers(me).filter(available).map((p) => ({ p, w: 1 })),
   ];
   if (!pool.length) return [];
   const pts = dealStat(pool, myScore, (p) => attrEff(p, 'skl') + attrEff(p, 'ath') * 0.3);
-  const reb = dealStat(pool, 16 + rand(12), (p) => attrEff(p, 'ath') + sizeIndex(p) * 2);
-  const stl = dealStat(pool, 3 + rand(6) + (plan === 'lockdown' ? 3 : 0), (p) => attrEff(p, 'frc'));
-  const ast = dealStat(pool, 6 + rand(8) + (plan === 'clockwork' ? 3 : 0), (p) => attrEff(p, 'brn'));
-  const rows: BoxRow[] = pool.map(({ p }) => {
-    const row: BoxRow = {
-      playerId: p.id,
-      name: p.name,
-      pts: pts.get(p.id) ?? 0,
-      reb: reb.get(p.id) ?? 0,
-      stl: stl.get(p.id) ?? 0,
-      ast: ast.get(p.id) ?? 0,
-    };
+  const reb = dealStat(pool, 8 + rand(6), (p) => attrEff(p, 'ath') + sizeIndex(p) * 2);
+  const stl = dealStat(pool, 1 + rand(4) + (plan === 'lockdown' ? 2 : 0), (p) => attrEff(p, 'frc'));
+  const ast = dealStat(pool, 3 + rand(4) + (plan === 'clockwork' ? 2 : 0), (p) => attrEff(p, 'brn'));
+  return pool.map(({ p }) => ({
+    playerId: p.id,
+    name: p.name,
+    pts: pts.get(p.id) ?? 0,
+    reb: reb.get(p.id) ?? 0,
+    stl: stl.get(p.id) ?? 0,
+    ast: ast.get(p.id) ?? 0,
+  }));
+}
+
+/** Merge two half box scores by player (halftime swaps change the pool). */
+function mergeBox(h1: BoxRow[], h2: BoxRow[]): BoxRow[] {
+  const byId = new Map<number, BoxRow>();
+  for (const r of [...h1, ...h2]) {
+    const m = byId.get(r.playerId);
+    if (m) { m.pts += r.pts; m.reb += r.reb; m.stl += r.stl; m.ast += r.ast; }
+    else byId.set(r.playerId, { ...r });
+  }
+  return [...byId.values()].sort((a, b) => b.pts - a.pts);
+}
+
+/** Write season stats + the in-game MVP once, from the full-game rows. */
+function commitBox(me: Team, rows: BoxRow[]): void {
+  for (const row of rows) {
+    const p = me.players.find((x) => x.id === row.playerId);
+    if (!p) continue;
     p.stats.gp++;
     p.stats.pts += row.pts;
     p.stats.reb += row.reb;
     p.stats.stl += row.stl;
     p.stats.ast += row.ast;
-    return row;
-  });
-  // the in-game MVP: best combined line on the floor tonight
+  }
   if (rows.length) {
     const line = (r: BoxRow): number => r.pts + r.reb + r.stl + r.ast;
     const star = rows.reduce((b, r) => (line(r) > line(b) ? r : b), rows[0]);
     const mp = me.players.find((p) => p.id === star.playerId);
     if (mp) mp.stats.mvp = (mp.stats.mvp ?? 0) + 1;
   }
-  return rows.sort((a, b) => b.pts - a.pts);
 }
 
 function boxLineFrom(rows: BoxRow[]): string {
@@ -299,59 +314,92 @@ function verdictLines(
   return { wheelLine, heroLine };
 }
 
-export function simMyLeagueGame(s: GameState, me: Team, opp: Team, home: boolean): SimOutcome {
-  const oppPlan = s.pregameFlags.cloak ? pick(PLANS).id : aiPlan(opp);
-  let w = wheel(s.plan, oppPlan);
+/** One half's rope: my weighted power (wheel + venue in) vs theirs. The champ
+    has no roster — their scouted power number holds for both halves. */
+function halfRope(
+  s: GameState,
+  me: Team,
+  opp: Team | null,
+  champ: ChampTeam | null,
+  home: boolean,
+  myPlan: PlanId,
+  oppPlan: PlanId
+): { mine: number; theirs: number; w: 'win' | 'lose' | 'tie' } {
+  let w = wheel(myPlan, oppPlan);
   if (s.pregameFlags.wallet && w === 'tie') w = 'win';
-  const mine = teamPower(me, s.plan) * WHEEL_F[w] * (home ? 1.03 : 1);
-  const theirs = teamPower(opp, oppPlan) * (home ? 1 : 1.03);
+  const [vm, vt] = champ ? [1, 1] : home ? [1.03, 1] : [1, 1.03];
+  const mine = teamPower(me, myPlan) * WHEEL_F[w] * vm;
+  const theirs = (champ ? champ.power : teamPower(opp!, oppPlan)) * vt;
+  return { mine, theirs, w };
+}
+
+/** THE FIRST HALF: rope → needle → half score + half box, then the locker room
+    — starters shed half the game drain (both benches too) so the halftime rope
+    is honest, and the other coach re-rolls a plan for the second half. */
+export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null, home: boolean): void {
+  const oppPlan = s.pregameFlags.cloak ? pick(PLANS).id : champ ? champ.plan : aiPlan(opp!);
+  const { mine, theirs } = halfRope(s, me, opp, champ, home, s.plan, oppPlan);
   const share = winShare(mine, theirs);
   const u = Math.random();
-  const sc = needleScores(share, u);
-  const won = sc.won;
-  const { wheelLine, heroLine } = verdictLines(me, s.plan, oppPlan, w, won);
-  const box = dealBox(me, sc.my, s.plan);
-  return {
-    won,
-    result: {
-      win: won,
-      myScore: sc.my,
-      oppScore: sc.opp,
-      oppName: `${opp.planet} ${opp.name}`,
-      planMine: s.plan,
-      planOpp: oppPlan,
-      wheel: w,
-      wheelLine,
-      heroLine,
-      boxLine: boxLineFrom(box),
-      box,
-      share,
-      needle: u,
-      home,
-    },
+  const sc = halfScores(share, u);
+  const box = dealHalfBox(me, sc.my, s.plan);
+  // the half: on-floor players catch their breath having spent half the night
+  const drains: Record<number, number> = {};
+  for (const p of starters(me)) {
+    if (!available(p)) continue;
+    const d = 7 + rand(3);
+    p.energy = clamp(p.energy - d, 0, 100);
+    drains[p.id] = -d;
+  }
+  for (const p of benchPlayers(me)) {
+    if (!available(p)) continue;
+    const d = 4 + rand(2);
+    p.energy = clamp(p.energy - d, 0, 100);
+    drains[p.id] = -d;
+  }
+  if (opp) for (const p of opp.players) p.energy = clamp(p.energy - 7, 0, 100);
+  const oppPlanH2 = champ ? champ.plan : s.pregameFlags.cloak ? pick(PLANS).id : aiPlan(opp!);
+  s.halftime = {
+    myH1: sc.my,
+    oppH1: sc.opp,
+    share,
+    needle: u,
+    planMine: s.plan,
+    planOpp: oppPlan,
+    oppPlanH2,
+    box,
+    home,
+    oppName: champ ? champ.name : `${opp!.planet} ${opp!.name}`,
+    drains,
   };
 }
 
-export function simMyChampGame(s: GameState, me: Team, champ: ChampTeam): SimOutcome {
-  const oppPlan = s.pregameFlags.cloak ? pick(PLANS).id : champ.plan;
-  let w = wheel(s.plan, oppPlan);
-  if (s.pregameFlags.wallet && w === 'tie') w = 'win';
-  const mine = teamPower(me, s.plan) * WHEEL_F[w];
-  const share = winShare(mine, champ.power);
+/** THE SECOND HALF: the rope recomputes from the NEW lineup, speeches and
+    meters; a second needle lands; the final is the sum of the halves. */
+export function simMyGameH2(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null): SimOutcome {
+  const ht = s.halftime!;
+  const myPlan = s.planH2 ?? s.plan;
+  const { mine, theirs, w } = halfRope(s, me, opp, champ, ht.home, myPlan, ht.oppPlanH2);
+  const share = winShare(mine, theirs);
   const u = Math.random();
-  const sc = needleScores(share, u);
-  const won = sc.won;
-  const { wheelLine, heroLine } = verdictLines(me, s.plan, oppPlan, w, won);
-  const box = dealBox(me, sc.my, s.plan);
+  const sc = halfScores(share, u);
+  let myTot = ht.myH1 + sc.my;
+  let oppTot = ht.oppH1 + sc.opp;
+  // the halves can cancel exactly — the last possession goes to the H2 winner
+  if (myTot === oppTot) { if (sc.won) myTot += 1; else oppTot += 1; }
+  const won = myTot > oppTot;
+  const box = mergeBox(ht.box, dealHalfBox(me, sc.my, myPlan));
+  commitBox(me, box);
+  const { wheelLine, heroLine } = verdictLines(me, myPlan, ht.oppPlanH2, w, won);
   return {
     won,
     result: {
       win: won,
-      myScore: sc.my,
-      oppScore: sc.opp,
-      oppName: champ.name,
-      planMine: s.plan,
-      planOpp: oppPlan,
+      myScore: myTot,
+      oppScore: oppTot,
+      oppName: ht.oppName,
+      planMine: myPlan,
+      planOpp: ht.oppPlanH2,
       wheel: w,
       wheelLine,
       heroLine,
@@ -359,7 +407,9 @@ export function simMyChampGame(s: GameState, me: Team, champ: ChampTeam): SimOut
       box,
       share,
       needle: u,
-      home: true,
+      home: ht.home,
+      h1: { my: ht.myH1, opp: ht.oppH1, share: ht.share, needle: ht.needle },
+      h2: { my: sc.my, opp: sc.opp, share, needle: u },
     },
   };
 }
