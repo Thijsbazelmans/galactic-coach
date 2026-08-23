@@ -128,10 +128,13 @@ async function main(): Promise<void> {
   anyWin.gcAction('to-matchup', '');
   drain();
   if (state().phase !== 'matchup') throw new Error(`expected matchup, got ${state().phase}`);
-  const chips = app.querySelectorAll('.planchip');
-  if (chips.length !== 4) throw new Error(`expected 4 plan chips, got ${chips.length}`);
-  const locked = app.querySelectorAll('.planchip.locked');
-  if (locked.length !== 2) throw new Error(`expected 2 locked tactics at game start, got ${locked.length}`);
+  // no game before the speech
+  if (!app.querySelector('[data-action="speech-run"]')) throw new Error('SPEECH button missing');
+  anyWin.gcAction('play-game', '');
+  if (state().phase !== 'matchup') throw new Error('game started without a speech');
+  anyWin.gcAction('speech-run', '');
+  if (!(gc.state() as any).speechWk) throw new Error('speech did not commit');
+  if (!app.innerHTML.includes('tbars mu')) throw new Error('matchup bars missing');
 
   // play the game
   anyWin.gcAction('play-game', '');

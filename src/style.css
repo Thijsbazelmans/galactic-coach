@@ -634,6 +634,26 @@ button.hold.wiggle::after {
 .tbtrack.tug .tbopp { height: 100%; margin-left: auto; transition: width 0.4s; opacity: 0.85; }
 .tbv { flex: 0 0 30px; text-align: right; font-size: 10px; color: var(--r95); }
 .tbr { flex: 0 0 34px; font-size: 9px; letter-spacing: 0.5px; color: var(--r75); text-align: right; }
+/* OVERALL out-shouts the four */
+.tbar.big { height: 18px; margin-top: 3px; }
+.tbar.big .tbl { color: var(--r95); font-size: 10px; }
+.tbar.big .tbtrack { height: 12px; }
+.tbar.big .tbv { font-size: 13px; }
+.tbar.big .tbr { font-size: 10px; color: var(--r95); }
+
+/* matchup: AWAY @ HOME + bars with side numbers + the scout column */
+.mu-vs { flex: none; margin: 4px 0 2px 17px; font-size: 12px; letter-spacing: 1px; }
+.mu-vs b { color: var(--r95); }
+.mu-bars { flex: none; display: flex; align-items: stretch; gap: 6px; }
+.mu-bars .tbars { flex: 1; min-width: 0; margin-right: 0; }
+.mu-bars .scoutbtn { flex: 0 0 56px; margin: 3px 8px 2px 0; font-size: 11px; font-weight: bold; line-height: 1.3; padding: 4px 2px; }
+.tbars.mu .tblc { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.tbars.mu .tbl { flex: none; font-size: 8px; }
+.tbars.mu .tbar { height: auto; padding: 1px 0; }
+.tbars.mu .tbar.big .tbl { font-size: 9px; }
+.tbars.mu .tbv { flex: 0 0 32px; }
+.tbars.mu .tbv.opp { text-align: left; }
+.tbtrack.rtl { justify-content: flex-end; }
 .actcol { display: flex; flex-direction: column; gap: 5px; }
 .actcol .actwrap { width: 100%; }
 .k-cloud polygon { fill: var(--r75); fill-opacity: 0.2; stroke: none; }

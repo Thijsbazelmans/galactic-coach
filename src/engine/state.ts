@@ -459,6 +459,7 @@ function startWeek(s: GameState): void {
   s.discoveredWk = false;
   s.scoutActWk = false;
   s.recruitActWk = false;
+  s.speechWk = false;
   s.sitouts = [];
   s.scoutedOpp = false;
   s.drillReport = null;
@@ -773,6 +774,15 @@ export function setPlan(s: GameState, plan: PlanId): void {
   save(s);
 }
 
+/** THE SPEECH: commits the game plan for the week. One speech, no take-backs. */
+export function deliverSpeech(s: GameState, plan: PlanId): boolean {
+  if (s.speechWk || !s.knownPlans.includes(plan)) return false;
+  s.plan = plan;
+  s.speechWk = true;
+  save(s);
+  return true;
+}
+
 export function scoutOpponent(s: GameState): boolean {
   if (s.scoutedOpp || s.energy < 1) return false;
   s.energy--;
@@ -842,6 +852,7 @@ export function toGalaxy(s: GameState): void {
 
 /** PLAY (held). Away weeks voyage first; the sim runs when the queue clears. */
 export function playGame(s: GameState): void {
+  if (!s.speechWk) return; // no tip-off before the speech
   s.phase = 'gamenight';
   s.lastResult = null;
   if (!s.voyageRolled) {

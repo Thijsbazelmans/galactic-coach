@@ -15,7 +15,7 @@ import {
   planById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, ROSTER_SIZE, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, slotMult, slotPlayer, teamKite, teamRating, wheel } from './engine/sim';
+import { COL_LABELS, slotMult, slotPlayer, teamRating, wheel } from './engine/sim';
 import {
   type LevelUp,
   actionDropProspect,
@@ -25,6 +25,7 @@ import {
   continueFromResult,
   convincePro,
   currentStory,
+  deliverSpeech,
   dismissStory,
   effectiveChances,
   finalizeRoster,
@@ -43,7 +44,6 @@ import {
   runDrill,
   save,
   scoutOpponent,
-  setPlan,
   showTip,
   sortedStandings,
   startNewSeason,
@@ -57,7 +57,6 @@ import {
   useItem,
   utOpponent,
   weekLabel,
-  winMeter,
   wipeSave,
 } from './engine/state';
 import type { Attr, AttrRec, GameState, PlanId, Player, Prospect, Team } from './engine/types';
@@ -149,6 +148,8 @@ let selDiscover = 'home';
 let selScout = 'attend';
 let selRecruit = 'tour';
 let selProspect: number | null = null;
+let selSpeech: PlanId | null = null;
+let speechSheet = false;
 let selEmpty = false;
 let dropConfirm: number | null = null;
 let gxResult: { text: string; cost: number; played: boolean } | null = null;
@@ -433,32 +434,6 @@ function oddsLine(up?: { pct: number; cls: string; note?: string }, down?: { pct
 function kitePoints(v: AttrRec): string {
   const R = (x: number): number => 6 + (clamp(x, 0, 25) / 25) * 40;
   return `50,${(50 - R(v.skl)).toFixed(1)} ${(50 + R(v.ath)).toFixed(1)},50 50,${(50 + R(v.frc)).toFixed(1)} ${(50 - R(v.brn)).toFixed(1)},50`;
-}
-
-interface KiteOpts {
-  pot?: AttrRec | null;
-  start?: AttrRec | null;
-  caps?: AttrRec | null;
-  ovrText?: string;
-  fuzz?: 0 | 1 | 2; // scouting cloud: 2 = rumor, 1 = one look, 0 = truth
-  cls?: string; // 'mini' | 'grow' | 'full'
-}
-
-function kite(cur: AttrRec, opts: KiteOpts = {}): string {
-  const fuzz = opts.fuzz ?? 0;
-  return `<div class="kite ${opts.cls ?? 'mini'} ${fuzz ? `fuzzy${fuzz}` : ''}">
-    <svg viewBox="0 0 100 100" aria-hidden="true">
-      <line class="k-axis" x1="50" y1="4" x2="50" y2="96"/>
-      <line class="k-axis" x1="4" y1="50" x2="96" y2="50"/>
-      ${opts.caps ? `<polygon class="k-caps" points="${kitePoints(opts.caps)}"/>` : ''}
-      ${opts.pot ? `<polygon class="k-pot" points="${kitePoints(opts.pot)}"/>` : ''}
-      ${opts.start ? `<polygon class="k-start" points="${kitePoints(opts.start)}"/>` : ''}
-      <polygon class="k-cur" points="${kitePoints(cur)}"/>
-    </svg>
-    <span class="klabel n">SKL</span><span class="klabel e">ATH</span>
-    <span class="klabel s">FRC</span><span class="klabel w">BRN</span>
-    ${opts.ovrText !== undefined ? `<span class="k-ovr">${opts.ovrText}</span>` : ''}
-  </div>`;
 }
 
 // ---- the full-bleed square card -------------------------------------------------
@@ -898,7 +873,7 @@ function teamBarsPractice(s: GameState): string {
     const val = (x: AttrRec): number => (a === 'all' ? ovr(x) : x[a]);
     const max = a === 'all' ? 900 : 225;
     const rank = 1 + all.filter((x) => x.id !== t.id && val(x.sums) > val(mine)).length;
-    return `<div class="tbar">
+    return `<div class="tbar ${a === 'all' ? 'big' : ''}">
       <span class="tbl">${label}</span>
       <span class="tbtrack"><span class="tbfill" style="width:${Math.min(100, (val(mine) / max) * 100)}%;background:${t.bg}"></span></span>
       <b class="tbv">${val(mine)}</b>
@@ -908,12 +883,14 @@ function teamBarsPractice(s: GameState): string {
   return `<div class="tbars">${rows}</div>`;
 }
 
-/** MATCHUP: the tug-of-war. Your weighted total pushes from the left in your
-    color, theirs from the right in theirs (once SCOUTED). Tactics move the rope. */
+/** MATCHUP: away on the left, home on the right — a tug-of-war once scouted.
+    Numbers sit on their team's side; the speech (once given) weights your rope. */
 function teamBarsMatchup(s: GameState): string {
   const t = myTeam(s);
+  const m = myMatchup(s);
+  const home = isUtWeek(s) ? true : m?.home ?? true;
   const mineRaw = teamAttrSums(t.players);
-  const myAttr = planById(s.plan).attr;
+  const myAttr = s.speechWk ? planById(s.plan).attr : null;
   let theirsRaw: AttrRec | null = null;
   let theirAttr: Attr | null = null;
   let oppBg = '#666';
@@ -926,7 +903,6 @@ function teamBarsMatchup(s: GameState): string {
         oppBg = c.bg;
       }
     } else {
-      const m = myMatchup(s);
       const hint = oppPlanHint(s);
       if (m && hint) {
         theirsRaw = teamAttrSums(m.opponent.players);
@@ -937,24 +913,27 @@ function teamBarsMatchup(s: GameState): string {
   }
   const w = (x: AttrRec, boost: Attr | null, a: Attr): number => Math.round(x[a] * (a === boost ? 2.5 : 1));
   const rows = BAR_ROWS.map(({ a, label }) => {
-    const mv = a === 'all' ? ATTRS.reduce((acc, k) => acc + w(mineRaw, myAttr, k), 0) : w(mineRaw, myAttr, a);
-    if (!theirsRaw) {
-      const max = (a === 'all' ? 900 : 225) * 1.6;
-      return `<div class="tbar">
-        <span class="tbl">${label}</span>
-        <span class="tbtrack"><span class="tbfill" style="width:${Math.min(100, (mv / max) * 100)}%;background:${t.bg}"></span></span>
-        <b class="tbv">${mv}</b><span class="tbr dim">?</span>
-      </div>`;
-    }
-    const tv = a === 'all' ? ATTRS.reduce((acc, k) => acc + w(theirsRaw!, theirAttr, k), 0) : w(theirsRaw, theirAttr, a);
-    const myPct = (mv / Math.max(1, mv + tv)) * 100;
-    return `<div class="tbar">
-      <span class="tbl">${label}</span>
-      <span class="tbtrack tug"><span class="tbfill" style="width:${myPct}%;background:${t.bg}"></span><span class="tbopp" style="width:${100 - myPct}%;background:${oppBg}"></span></span>
-      <b class="tbv">${mv}</b><span class="tbr">v ${tv}</span>
+    const big = a === 'all';
+    const mv = big ? ATTRS.reduce((acc, k) => acc + w(mineRaw, myAttr, k), 0) : w(mineRaw, myAttr, a);
+    const tv = theirsRaw ? (big ? ATTRS.reduce((acc, k) => acc + w(theirsRaw!, theirAttr, k), 0) : w(theirsRaw, theirAttr, a)) : null;
+    const myPct = tv !== null ? (mv / Math.max(1, mv + tv)) * 100 : Math.min(100, (mv / ((big ? 900 : 225) * 1.6)) * 100);
+    // away fills from the LEFT, home from the RIGHT
+    const myFill = `<span class="tbfill" style="width:${tv !== null ? myPct : myPct}%;background:${t.bg}"></span>`;
+    const oppFill = tv !== null ? `<span class="tbopp" style="width:${100 - myPct}%;background:${oppBg}"></span>` : '';
+    const track = home
+      ? `<span class="tbtrack ${tv !== null ? 'tug' : ''} rtl">${oppFill}${myFill}</span>`
+      : `<span class="tbtrack ${tv !== null ? 'tug' : ''}">${myFill}${oppFill}</span>`;
+    const myNum = `<b class="tbv">${mv}</b>`;
+    const oppNum = tv !== null ? `<b class="tbv opp">${tv}</b>` : `<b class="tbv opp dim">??</b>`;
+    const left = home ? oppNum : myNum;
+    const right = home ? myNum : oppNum;
+    return `<div class="tbar ${big ? 'big' : ''}">
+      ${left}
+      <span class="tblc"><span class="tbl">${label}</span>${track}</span>
+      ${right}
     </div>`;
   }).join('');
-  return `<div class="tbars">${rows}</div>`;
+  return `<div class="tbars mu">${rows}</div>`;
 }
 
 function lensBar(): string {
@@ -1030,42 +1009,54 @@ function stageGalaxy(s: GameState): string {
 }
 
 function stageMatchup(s: GameState): string {
-  const m = winMeter(s);
-  const hint = oppPlanHint(s);
-  let oppBit: string;
-  if (isUtWeek(s)) {
-    const c = utOpponent(s)!;
-    oppBit = `<span class="oppkite">${kite(c.kite, { fuzz: 0 })}</span>
-      ${chip(c.name, c.bg, c.fg, true)} <span class="dim">${esc(c.gimmick)}</span> · they live in <b>${planById(c.plan).name}</b>`;
-  } else {
-    const mu = myMatchup(s)!;
-    oppBit = `${s.scoutedOpp ? `<span class="oppkite">${kite(teamKite(mu.opponent), { fuzz: 0 })}</span>` : ''}
-      ${chip(mu.opponent.name, mu.opponent.bg, mu.opponent.fg, true)} <b>${mu.opponent.wins}–${mu.opponent.losses}</b> ${mu.home ? 'HOME' : 'AWAY'}
-      ${s.scoutedOpp && hint
-        ? `· they'll come out in <b>${planById(hint).name}</b> at <b>${teamRating(mu.opponent, hint)}</b>`
-        : `<button class="hold scoutbtn" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT 1⚡</button>`}`;
-  }
-  const meter = m
-    ? `<span class="bigval" style="color:${vc(m.exact ? m.lo : (m.lo + m.hi) / 2)}">${m.exact ? `${m.lo}%` : `${m.lo}–${m.hi}%`}</span>`
-    : '';
-  const plans = PLANS.map((pl) => {
-    const known = s.knownPlans.includes(pl.id);
-    if (!known) {
-      return `<button class="planchip locked" disabled><b>▓▓▓</b><br/><span class="dim">unlearned</span></button>`;
-    }
-    const rating = teamRating(myTeam(s), pl.id);
+  const m = myMatchup(s);
+  const t = myTeam(s);
+  const champ = isUtWeek(s) ? utOpponent(s) : null;
+  const oppName = champ ? champ.name : m ? `${m.opponent.planet} ${m.opponent.name}` : '?';
+  const home = champ ? true : m?.home ?? true;
+  const awayName = home ? oppName : teamLabel(t);
+  const homeName = home ? teamLabel(t) : oppName;
+  const scoutBtn = s.scoutedOpp
+    ? ''
+    : `<button class="hold scoutbtn" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT<br/>1⚡</button>`;
+  const sel = selSpeech && s.knownPlans.includes(selSpeech) ? selSpeech : s.knownPlans.includes(s.plan) ? s.plan : s.knownPlans[0];
+  const pl = planById(sel);
+  const spoken = !!s.speechWk;
+  const speech = `<div class="fourthrow actrow"><span class="actwrap runwrap">
+      <button class="actmain hold" data-action="speech-run" ${spoken ? 'disabled' : ''}>
+        <b>▶ SPEECH — ${spoken ? planById(s.plan).speech : pl.speech}</b>
+        <span class="actsub">${spoken ? '✓ THIS WEEK' : `+${ATTR_LABEL[pl.attr]} · FREE`}</span>
+      </button>
+      <button class="actarrow" data-action="speech-sheet" ${spoken ? 'disabled' : ''}>▾</button>
+    </span></div>`;
+  return `<h2 class="gridhead">MATCHUP</h2>
+    ${gridHtml(s, true)}
+    <div class="mu-vs"><b>${esc(awayName)}</b> <span class="dim">@</span> <b>${esc(homeName)}</b></div>
+    <div class="mu-bars">${teamBarsMatchup(s)}${scoutBtn}</div>
+    ${speech}`;
+}
+
+// the speech picker: which truth does the room hear tonight?
+function speechSheetHtml(s: GameState): string {
+  if (!speechSheet) return '';
+  const hint = s.scoutedOpp ? oppPlanHint(s) : null;
+  const sel = selSpeech ?? s.plan;
+  const items = PLANS.map((pl) => {
+    if (!s.knownPlans.includes(pl.id)) return `<div class="drill locked">▓▓▓▓ <span class="dim">undiscovered speech</span></div>`;
     let vs = '';
     if (hint) {
-      const w = wheel(pl.id, hint);
-      vs = w === 'win' ? ' ▲' : w === 'lose' ? ' ▼' : '';
+      const wl = wheel(pl.id, hint);
+      vs = wl === 'win' ? ' ▲' : wl === 'lose' ? ' ▼' : '';
     }
-    return `<button class="planchip ${s.plan === pl.id ? 'sel' : ''}" data-action="plan" data-id="${pl.id}">
-      <b>${pl.name}</b>${vs}<br/><span style="color:${vc(rating * 1.6)}">${rating}</span></button>`;
+    return `<button class="drill ${sel === pl.id ? 'sel' : ''}" data-action="speech-pick" data-id="${pl.id}">
+      <b>${pl.speech}</b>${vs} <span class="xpg">+${ATTR_LABEL[pl.attr]} · ${teamRating(myTeam(s), pl.id)}</span><br/>
+      <span class="ddesc">${esc(pl.fantasy)}</span>
+    </button>`;
   }).join('');
-  return `<div class="mustrip"><span class="muq">MATCHUP</span> ${meter}<div class="oppbit">${oppBit}</div></div>
-    ${gridHtml(s, true)}
-    ${teamBarsMatchup(s)}
-    <div class="fourthrow planrow">${plans}</div>`;
+  return `<div class="modalback sheet" data-action="speech-sheet-close"><div class="modal sheetup">
+    <span class="tag">THE SPEECH</span>
+    ${items}
+  </div></div>`;
 }
 
 function stageGamenight(s: GameState): string {
@@ -1226,7 +1217,7 @@ function nav(s: GameState): string {
     case 'galaxy':
       return `${navBack('to-practice')}${navMain('TO MATCHUP', 'to-matchup')}`;
     case 'matchup':
-      return `${isUtWeek(s) ? '<span></span>' : navBack('to-galaxy')}${navMain('PLAY', 'play-game')}`;
+      return `${isUtWeek(s) ? '<span></span>' : navBack('to-galaxy')}${navMain(s.speechWk ? 'PLAY' : 'SPEECH FIRST', 'play-game', !s.speechWk)}`;
     case 'gamenight': {
       if (!s.lastResult || gnStage === 'beat') return `<span class="navnote dim">…</span>`;
       if (gnStage === 'verdict') return `<span></span>${navMain('STANDINGS', 'gn-table')}`;
@@ -1413,8 +1404,8 @@ function render(): void {
 
   // popups live INSIDE the middle: the stats bar, THE BAG and the nav stay
   // visible (⚡ readable while a story asks you to spend it) — the nav just dims.
-  const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + gxResultHtml() + dropConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
-  const modalOpen = drillSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet !== null || dropConfirm !== null || gxResult !== null;
+  const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + speechSheetHtml(state) + gxResultHtml() + dropConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
+  const modalOpen = drillSheet || speechSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet !== null || dropConfirm !== null || gxResult !== null;
   const navHtml = `<div class="navbar ${modalOpen ? 'dimmed' : ''}">${nav(state)}</div>`;
   const lensHtml = (state.phase === 'practice' || state.phase === 'galaxy') && !ev ? lensBar() : '';
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
@@ -1748,6 +1739,11 @@ function executeAction(action: string, id: string): void {
     }
 
     case 'scout-opp': if (scoutOpponent(state)) floatEnergyBig(1); break;
+    case 'speech-run': {
+      const sel = selSpeech && state.knownPlans.includes(selSpeech) ? selSpeech : state.knownPlans.includes(state.plan) ? state.plan : state.knownPlans[0];
+      deliverSpeech(state, sel);
+      break;
+    }
     case 'play-game': gnStage = 'beat'; clearFloatTimers(); playGame(state); break;
 
     case 'convince-pro': convincePro(state, Number(id)); break;
@@ -1858,12 +1854,13 @@ app.addEventListener('click', (e) => {
       galaxySheet = null;
       break;
     case 'drill-pick': selectedDrill = id; drillSheet = false; break;
+    case 'speech-sheet': speechSheet = true; break;
+    case 'speech-sheet-close': if (e.target === el) speechSheet = false; break;
+    case 'speech-pick': selSpeech = id as PlanId; speechSheet = false; break;
     case 'toast-tap':
       if (finishTypeNow()) return;
       toast = null;
       break;
-
-    case 'plan': setPlan(state, id as PlanId); break;
 
     case 'lens-set': lens = (Number(id) % 3) as Lens; break;
 

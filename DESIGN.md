@@ -458,7 +458,29 @@ line (SKL 12/16), sides vertical baseline-in, numbers letter-sized.
   the rope. Unscouted shows only your side.
 - Headless win rate settled back to ~56% with the pricier basics.
 
+**v2.4 — THE SPEECH (Aug 23, 2026):** The matchup screen was stripped to
+the bone: header MATCHUP, the grid in its usual pixels, then «AWAY @
+HOME», the five team bars, and the coach's SPEECH. The win-meter strip,
+opp chip/gimmick/kite are all gone — the bars ARE the read. Bars sit in
+venue order: away's numbers on the left, home's on the right, each side
+filling from its own end in team colors; unscouted, the far side reads ??
+and your bars sit uncontested (the SCOUT 1⚡ hold-button rides to their
+right). The OVERALL row out-shouts the four singles on both screens.
+Tactics became SPEECHES with the standard action anatomy: «▶ SPEECH —
+USE YOUR BRAINS» (+BRAINS · FREE) with a ▾ picker (SHOOTERS SHOOT /
+RUN THEM RAGGED / MAKE THEM HATE THE BALL / USE YOUR BRAINS — undiscovered
+speeches render locked). One speech per week, committed — the arrow locks,
+and PLAY is disabled («SPEECH FIRST») until it's given. The bars are
+unweighted until the speech lands, then your rope visibly shifts (plan
+attr ×2.5); premium energy-costing dual-attribute speeches (+BRN & +FRC)
+are design space for the story/knowledge pool.
+
 ## NEXT SESSION (pick up here)
+
+0. **HALFTIME (agreed direction):** split the sim into two halves — after
+   H1 show the score and who's hot/gassed, allow ONE halftime speech +
+   free lineup swaps, then H2. Box score dealt per half. This is the next
+   engine swing; today's speech system was shaped so it slots in.
 
 1. **Femme players:** the renderer supports masc/femme (terran has its own
    map + hairstyles; other species have femme edits) but all players

@@ -131,6 +131,8 @@ export const DEITY_NAMES = [
 export interface PlanDef {
   id: PlanId;
   name: string;
+  /** the coach's speech that commits this plan */
+  speech: string;
   attr: Attr;
   beats: PlanId;
   fantasy: string;
@@ -138,10 +140,10 @@ export interface PlanDef {
 }
 
 export const PLANS: PlanDef[] = [
-  { id: 'showtime', name: 'SHOWTIME', attr: 'skl', beats: 'lockdown', fantasy: 'Shooters shoot. Rise over anything they pack in.', beatLine: 'Pure touch rose over the muggers.' },
-  { id: 'rungun', name: 'RUN & GUN', attr: 'ath', beats: 'showtime', fantasy: 'Outrun everything. Seven seconds or less.', beatLine: 'Their shooters never got a clean look at full sprint.' },
-  { id: 'lockdown', name: 'LOCKDOWN', attr: 'frc', beats: 'clockwork', fantasy: 'Full-court terror. Make them hate the ball.', beatLine: 'The press tore their script to pieces.' },
-  { id: 'clockwork', name: 'CLOCKWORK', attr: 'brn', beats: 'rungun', fantasy: 'The system. Every cut scripted.', beatLine: 'Poise picked the sprinters apart.' },
+  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', attr: 'skl', beats: 'lockdown', fantasy: 'Shooters shoot. Rise over anything they pack in.', beatLine: 'Pure touch rose over the muggers.' },
+  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', attr: 'ath', beats: 'showtime', fantasy: 'Outrun everything. Seven seconds or less.', beatLine: 'Their shooters never got a clean look at full sprint.' },
+  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', attr: 'frc', beats: 'clockwork', fantasy: 'Full-court terror. Make them hate the ball.', beatLine: 'The press tore their script to pieces.' },
+  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', attr: 'brn', beats: 'rungun', fantasy: 'The system. Every cut scripted.', beatLine: 'Poise picked the sprinters apart.' },
 ];
 
 export function planById(id: PlanId): PlanDef {

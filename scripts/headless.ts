@@ -13,6 +13,7 @@ import {
   chooseTeam,
   continueFromResult,
   currentStory,
+  deliverSpeech,
   dismissStory,
   finalizeRoster,
   isUtWeek,
@@ -23,7 +24,6 @@ import {
   resolveStory,
   retire,
   runDrill,
-  setPlan,
   startNewSeason,
   toGalaxy,
   toMatchup,
@@ -138,7 +138,7 @@ function playCareer(idx: number): CareerStats {
         const t = myTeam(s);
         const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id));
         const best = known.reduce((b, pl) => (teamPower(t, pl.id) > teamPower(t, b) ? pl.id : b), known[0].id);
-        setPlan(s, best);
+        deliverSpeech(s, best);
         if (isUtWeek(s)) utReached = Math.max(utReached, 1);
         playGame(s);
         break;

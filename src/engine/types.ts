@@ -348,6 +348,8 @@ export interface GameState {
   discoveredWk?: boolean;
   scoutActWk?: boolean;
   recruitActWk?: boolean;
+  /** the coach's speech: commits the game plan, once, before tip-off */
+  speechWk?: boolean;
   sitouts: number[];
   scoutedOpp: boolean;
   drillReport: string | null;
