@@ -626,10 +626,10 @@ button.hold.wiggle::after {
 
 /* ---- the team bars: five totals, ranks, and the matchup tug-of-war ---------- */
 
-.tbars { flex: none; margin: 5px 0 3px 17px; display: flex; flex-direction: column; gap: 3px; }
-.tbar { display: flex; align-items: center; gap: 6px; }
+.tbars { flex: none; margin: 3px 0 2px 17px; display: flex; flex-direction: column; gap: 0; }
+.tbar { display: flex; align-items: center; gap: 6px; height: 13px; }
 .tbl { flex: 0 0 88px; font-size: 9px; letter-spacing: 1px; color: var(--r55); font-weight: bold; }
-.tbtrack { flex: 1; min-width: 0; height: 9px; background: var(--r20); position: relative; overflow: hidden; display: flex; }
+.tbtrack { flex: 1; min-width: 0; height: 8px; background: var(--r20); position: relative; overflow: hidden; display: flex; }
 .tbfill { height: 100%; transition: width 0.4s; }
 .tbtrack.tug .tbopp { height: 100%; margin-left: auto; transition: width 0.4s; opacity: 0.85; }
 .tbv { flex: 0 0 30px; text-align: right; font-size: 10px; color: var(--r95); }
