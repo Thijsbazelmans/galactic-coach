@@ -617,15 +617,11 @@ function headerHtml(s: GameState): string {
     `<span class="ecell ${i < s.energy ? 'on' : ''}" style="${i < s.energy ? `background:${ramp(0.35 + 0.55 * (i / CACHE_MAX))}` : ''}"></span>`
   ).join('');
   return `<div class="topbar">
-    <div class="topmain">
-      <div class="hrow hrow1">
-        ${chip(t.name, t.bg, t.fg)}
-        <span class="ecache ${s.energy === 0 ? 'blink' : ''}" title="power cells ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">${cells}⚡</span>
-        ${jobBar(s)}
-      </div>
-      <div class="hrow hrow2">
-        <span class="weeklab">S<b>${Math.max(1, s.season)}</b> · <b>${weekLabel(s)}</b> · ${t.wins}–${t.losses}</span>
-      </div>
+    <div class="hgrid">
+      ${chip(t.name, t.bg, t.fg)}
+      ${jobBar(s)}
+      <span class="weeklab">S<b>${Math.max(1, s.season)}</b> · <b>${weekLabel(s)}</b> · ${t.wins}–${t.losses}</span>
+      <span class="ecache ${s.energy === 0 ? 'blink' : ''}" title="power cells ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">${cells}<span class="ebolt">⚡</span></span>
     </div>
     <div class="hbtns-col">
       <button class="hbtn" data-action="help">?</button>

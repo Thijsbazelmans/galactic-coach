@@ -161,10 +161,14 @@ button.hold.wiggle::after {
   border-bottom: 1px solid var(--rline);
   padding: calc(6px + env(safe-area-inset-top)) 10px 6px;
 }
-.topmain { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 5px; }
-.hrow { display: flex; align-items: center; gap: 8px; }
-.hrow1 { font-size: 15px; }
-.hrow2 { font-size: 12px; gap: 8px; }
+.hgrid {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: center;
+}
 .hbtns-col { flex: none; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
 .hbtn { font-size: 14px; padding: 2px 9px; margin: 0; border-color: var(--rline); }
 
@@ -174,23 +178,20 @@ button.hold.wiggle::after {
   letter-spacing: 1px;
   font-size: 14px;
   white-space: nowrap;
-  max-width: 40vw;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  justify-self: start;
+  max-width: 100%;
 }
 .chip.small { font-size: 12px; padding: 1px 6px; }
 
-.ecache { white-space: nowrap; flex: none; }
-.ecell {
-  display: inline-block;
-  width: 8px; height: 13px;
-  margin-right: 2px;
-  background: var(--r20);
-  vertical-align: middle;
-}
+.ecache { display: flex; align-items: center; gap: 2px; width: 100%; }
+.ecell { flex: 1; height: 13px; background: var(--r20); }
+.ebolt { flex: none; font-size: 12px; margin-left: 2px; }
 
 /* JOB SECURITY: bright bar, darkness eats in from both sides */
-.jobbar { display: flex; align-items: center; gap: 4px; flex: 1 1 auto; min-width: 76px; max-width: 46%; margin-left: auto; }
+.jobbar { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 132px; }
 .jicon { width: 11px; height: 11px; image-rendering: pixelated; flex: none; }
 .jtrack { position: relative; flex: 1; min-width: 56px; height: 14px; background: var(--r75); overflow: hidden; }
 .jdark { position: absolute; top: 0; bottom: 0; background: var(--rbg); }
@@ -208,7 +209,7 @@ button.hold.wiggle::after {
   color: var(--rbg);
 }
 
-.weeklab { white-space: nowrap; }
+.weeklab { white-space: nowrap; font-size: 12px; overflow: hidden; text-overflow: ellipsis; min-width: 0; justify-self: start; max-width: 100%; }
 .weeklab b { color: var(--r95); }
 .miniwin { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .miniwin b { color: var(--r95); font-size: 15px; }
