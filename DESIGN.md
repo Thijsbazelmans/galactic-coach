@@ -360,6 +360,21 @@ A+ (school) and $ (boosters); tryouts lost the TAP-TO-PICK bar (the lit
 card edge + the PICK 9 button carry it); compass corner labels grew to
 9px bold with the side pair (ATH/BRN) turned vertical.
 
+**v2.2.5 (Thijs's second polish list, same day):** STATS lens is now the
+same square card — sprite in its usual center spot, the four per-game
+stats in the corners (♛ on leaders), GP bottom-center. GROWTH renamed
+POTENTIAL: labels spelled out as BRAIN · SKILL · BODY · FIRE with white
+numbers inline (side pairs run vertical with their labels), and one
+center chip shows total/potential (e.g. 31/55). Story popups: the card
+stays normal card size with the compass/numbers muted — attention on the
+sprite, which now ACTS THE STORY instead of showing its meters: neutral
+→ angry + sweat on bad news, neutral → elated on good (tag-based), and
+no ball in stories; the impact panel sprite plays the verdict. The WING
+column has no size penalty at all now. Header: more air before the ?/⚙
+column. Text purge: assistant auto-tips OFF by default (the ? button
+remains), lens info rows / galaxy hint / bag item-hint removed — a
+proper succinct tutorial is future work.
+
 ## NEXT SESSION (pick up here)
 
 1. **Femme players:** the renderer supports masc/femme (terran has its own

@@ -351,7 +351,7 @@ export function newGameState(): GameState {
     unlockedRegions: ['home', 'nebula', 'outerrim'],
     knownPlans: [...STARTING_PLANS],
     tipsSeen: [],
-    tipsAuto: true,
+    tipsAuto: false, // instinct first — a proper succinct tutorial comes later (? still works)
     groundedWeeks: 0,
     trainedThisWeek: false,
     sitouts: [],

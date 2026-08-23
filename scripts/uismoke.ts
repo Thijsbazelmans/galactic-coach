@@ -88,9 +88,9 @@ async function main(): Promise<void> {
   // the three lenses render
   if (!app.innerHTML.includes('lensbar')) throw new Error('lens bar missing');
   must('[data-action="lens-next"]', 'lens next');
-  if (!app.innerHTML.includes('GP ')) throw new Error('stats lens did not render');
+  if (!app.innerHTML.includes('statc')) throw new Error('stats lens did not render');
   must('[data-action="lens-next"]', 'lens next 2');
-  if (!app.innerHTML.includes('POT')) throw new Error('growth lens did not render');
+  if (!app.innerHTML.includes('BRAIN')) throw new Error('potential lens did not render');
   must('[data-action="lens-set"]', 'lens set 0');
 
   // the square card: kite, OVR bottom-left, XP ring bottom-right

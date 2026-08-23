@@ -156,7 +156,7 @@ button.hold.wiggle::after {
   flex: none;
   display: flex;
   align-items: stretch;
-  gap: 8px;
+  gap: 16px;
   background: var(--rpanel);
   border-bottom: 1px solid var(--rline);
   padding: calc(6px + env(safe-area-inset-top)) 10px 6px;
@@ -330,12 +330,6 @@ button.hold.wiggle::after {
   padding: 4px 6px;
 }
 
-/* head (STATS lens only): LVL · NAME · YEAR */
-.pc-head { display: flex; align-items: baseline; gap: 3px; flex: none; }
-.pc-lvl { font-size: 10px; font-weight: bold; line-height: 1; flex: none; color: var(--r55); letter-spacing: 0.5px; }
-.pc-name { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pc-year { font-size: 10px; color: var(--r35); flex: none; letter-spacing: 1px; }
-
 /* the animated rig: a 24-frame sprite sheet on a CSS steps() loop */
 .rig {
   display: block;
@@ -416,6 +410,23 @@ button.hold.wiggle::after {
 .ksq .klabel.e i { writing-mode: vertical-rl; }
 .ksq .klabel.w { left: 2px; top: 50%; transform: translateY(-50%); }
 .ksq .klabel.w i { writing-mode: vertical-rl; transform: rotate(180deg); }
+/* spelled-out labels (POTENTIAL lens): word + number flow together, and the
+   side pairs run vertically as one piece */
+.ksq .klabel.word { display: block; white-space: nowrap; font-size: 8px; letter-spacing: 1px; }
+.ksq .klabel.word i { writing-mode: initial; }
+.ksq .klabel.word b { display: inline; font-size: 9px; color: var(--r95); background: none; padding: 0; margin: 0; }
+.ksq .klabel.word.e { writing-mode: vertical-rl; }
+.ksq .klabel.word.w { writing-mode: vertical-rl; transform: translateY(-50%) rotate(180deg); }
+.kcenter {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  font-size: 15px; font-weight: bold;
+  background: rgba(0, 0, 0, 0.72);
+  padding: 2px 6px;
+}
+.kcenter .kcdim { color: var(--r35); font-weight: bold; }
 .klabel.n { top: 1px; left: 50%; transform: translateX(-50%); }
 .klabel.s { bottom: 1px; left: 50%; transform: translateX(-50%); }
 .klabel.w { left: 1px; top: 50%; transform: translateY(-50%); }
@@ -437,16 +448,18 @@ button.hold.wiggle::after {
 .kite.fuzzy2 polygon { filter: blur(3.5px); }
 .kite.fuzzy1 .k-ovr, .kite.fuzzy2 .k-ovr { color: var(--r55); }
 
-/* ---- the STATS lens ------------------------------------------------------------- */
+/* ---- the STATS lens: same square, stats in the corners --------------------------- */
 
-.pc-stats { display: flex; align-items: center; gap: 4px; flex: 1 1 auto; min-height: 0; }
-.stgrid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 1px 4px; }
-.strow { display: flex; align-items: baseline; gap: 3px; font-size: 9px; }
-.strow i { font-style: normal; color: var(--r35); font-size: 7px; letter-spacing: 0.5px; }
-.strow b { color: var(--r75); font-size: 12px; }
-.strow.lead b { color: var(--r95); }
+.statc { position: absolute; z-index: 3; display: flex; align-items: baseline; gap: 3px; background: rgba(0, 0, 0, 0.72); padding: 1px 4px; }
+.statc i { font-style: normal; color: var(--r35); font-size: 7px; letter-spacing: 1px; }
+.statc b { color: var(--r75); font-size: 12px; }
+.statc.lead b { color: var(--r95); }
+.statc.tl { top: 17px; left: 3px; }
+.statc.tr { top: 17px; right: 3px; }
+.statc.bl { bottom: 3px; left: 3px; }
+.statc.br { bottom: 3px; right: 3px; }
+.statc.bc { bottom: 3px; left: 50%; transform: translateX(-50%); }
 .crown { color: var(--r95); font-size: 9px; }
-.pc-gp { font-size: 8px; color: var(--r35); letter-spacing: 0.5px; flex: none; }
 
 /* ---- the lens bar ------------------------------------------------------------------ */
 
@@ -600,7 +613,8 @@ button.hold.wiggle::after {
 }
 .storypanel.dragover { outline: 3px dashed var(--r95); outline-offset: -4px; }
 .storypanel .tag { color: var(--r95); letter-spacing: 2px; font-size: 13px; flex: none; }
-.modalcard { max-width: 250px; margin: 8px auto; width: 100%; flex: none; display: flex; }
+.modalcard { width: 34%; max-width: 140px; margin: 8px auto; flex: none; display: flex; }
+.modalcard .ksvg, .modalcard .klabel, .modalcard .kbl, .modalcard .kbr { opacity: 0.35; }
 .typebox { white-space: pre-wrap; min-height: 36px; margin: 8px 0; color: var(--r95); font-size: 16px; line-height: 1.45; flex: none; }
 .tw-line { display: block; width: 100%; }
 .tw-rest { visibility: hidden; }

@@ -433,22 +433,30 @@ function ringCounter(pct: number, label: string, val: string, title = ''): strin
   </span>`;
 }
 
+/** The POTENTIAL lens spells the four out — Thijs's words. */
+const ATTR_WORD: Record<Attr, string> = { skl: 'SKILL', ath: 'BODY', frc: 'FIRE', brn: 'BRAIN' };
+
 interface SqOpts {
   pot?: AttrRec | null;
   start?: AttrRec | null;
   fuzz?: 0 | 1 | 2;
   /** pre-rendered sprite HTML (the animated rig), centered in the kite */
   sprite?: string | null;
-  /** per-attribute cur/pot numbers under the corner labels (growth lens) */
+  /** per-attribute numbers printed right after the labels */
   nums?: Record<Attr, string> | null;
+  /** spell the labels out (BRAIN · SKILL · BODY · FIRE), numbers inline */
+  words?: boolean;
   nameHtml: string; // the top strip
-  blHtml: string; // bottom-left (the big number)
-  brHtml: string; // bottom-right (a ring or a chip)
+  blHtml?: string; // bottom-left (the big number)
+  brHtml?: string; // bottom-right (a ring or a chip)
+  centerHtml?: string; // dead center (total/potential)
 }
 
 function squareKite(cur: AttrRec, o: SqOpts): string {
   const lab = (a: Attr, cls: string): string =>
-    `<span class="klabel ${cls}"><i>${ATTR_SHORT[a]}</i>${o.nums ? `<b>${o.nums[a]}</b>` : ''}</span>`;
+    o.words
+      ? `<span class="klabel word ${cls}"><i>${ATTR_WORD[a]}</i>${o.nums ? ` <b>${o.nums[a]}</b>` : ''}</span>`
+      : `<span class="klabel ${cls}"><i>${ATTR_SHORT[a]}</i>${o.nums ? `<b>${o.nums[a]}</b>` : ''}</span>`;
   return `<div class="ksq ${o.fuzz ? `fuzzy${o.fuzz}` : ''}">
     <svg class="ksvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       <line class="k-axis" x1="50" y1="4" x2="50" y2="96"/>
@@ -460,8 +468,9 @@ function squareKite(cur: AttrRec, o: SqOpts): string {
     ${lab('skl', 'n')}${lab('ath', 'e')}${lab('frc', 's')}${lab('brn', 'w')}
     ${o.sprite ?? ''}
     <div class="ktop">${o.nameHtml}</div>
-    <span class="kbl">${o.blHtml}</span>
-    <span class="kbr">${o.brHtml}</span>
+    ${o.blHtml ? `<span class="kbl">${o.blHtml}</span>` : ''}
+    ${o.brHtml ? `<span class="kbr">${o.brHtml}</span>` : ''}
+    ${o.centerHtml ? `<span class="kcenter">${o.centerHtml}</span>` : ''}
   </div>`;
 }
 
@@ -470,7 +479,7 @@ function squareKite(cur: AttrRec, o: SqOpts): string {
 // GROWTH (where did he start, how far can he go). Same faces, same places.
 
 type Lens = 0 | 1 | 2;
-const LENS_NAMES = ['SKILLS', 'STATS', 'GROWTH'];
+const LENS_NAMES = ['SKILLS', 'STATS', 'POTENTIAL'];
 let lens: Lens = 0;
 
 type CrownKey = 'pts' | 'reb' | 'stl' | 'ast';
@@ -494,7 +503,15 @@ function crownMap(players: Player[]): Map<CrownKey, number> {
 }
 
 /** The sprite tells the truth: mood, energy, size and fire, straight from the rig. */
-function rigView(p: Player): RigView {
+function rigView(p: Player, story?: 'good' | 'bad'): RigView {
+  if (story) {
+    // in a story the STATE is the story's: neutral → the emotion, no ball
+    return {
+      id: p.id, speciesId: p.speciesId, heightCm: p.heightCm, weightKg: p.weightKg,
+      jersey: p.jersey, mood: 'neutral', energy: 'normal',
+      fire: !!p.onFire && p.outWeeks === 0, story,
+    };
+  }
   return {
     id: p.id,
     speciesId: p.speciesId,
@@ -510,6 +527,8 @@ function rigView(p: Player): RigView {
 interface CardOpts {
   lens?: Lens;
   kit?: Kit;
+  /** story acting: sprite state comes from the news, not the meters */
+  story?: 'good' | 'bad';
   tag?: string;
   inert?: boolean;
   draggable?: boolean;
@@ -517,14 +536,6 @@ interface CardOpts {
   miscast?: number; // % penalty to print
   pick?: boolean; // selection screens
   crowns?: Map<CrownKey, number>;
-}
-
-function cardHead(p: Player): string {
-  return `<div class="pc-head">
-      <span class="pc-lvl">L${p.level}</span>
-      <span class="pc-name">${p.onFire ? '🔥 ' : ''}${esc(p.name)}</span>
-      <span class="pc-year">${CLASS_ABBR[Math.min(p.classYear, 3)].toUpperCase()}</span>
-    </div>`;
 }
 
 // The card, phone-first, one lens at a time. SKILLS: the full-bleed square
@@ -535,7 +546,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   const t = myTeam(state);
   const kit = opts.kit ?? { bg: t.bg, fg: t.fg };
   const out = p.outWeeks > 0;
-  const sprite = (scale: number, cls: string): string => rigSpriteHtml(rigView(p), kit, scale, cls);
+  const sprite = (scale: number, cls: string): string => rigSpriteHtml(rigView(p, opts.story), kit, scale, cls);
   const l = opts.lens ?? 0;
   const xpPct = p.level >= LEVEL_CAP ? 100 : Math.min(100, Math.round((p.xp / xpNeed(p.level)) * 100));
   const nameHtml = `<span class="kname">${p.onFire ? '🔥 ' : ''}${esc(p.name)}</span>
@@ -543,24 +554,26 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   const ovrHtml = `<b class="kovr" style="color:${vc(ovr(p.attrs) * 1.6)}">${ovr(p.attrs)}</b>`;
   let body: string;
   if (l === 1) {
-    const cells = STAT_KEYS.map((k) => {
+    // the same square, sprite in the same spot — stats take the corners
+    const cell = (k: CrownKey, cls: string): string => {
       const crown = opts.crowns?.get(k) === p.id;
-      return `<div class="strow ${crown ? 'lead' : ''}"><i>${STAT_LABEL[k]}</i><b>${perGame(p.stats, k)}</b>${crown ? '<span class="crown">♛</span>' : ''}</div>`;
-    }).join('');
-    body = `${cardHead(p)}<div class="pc-stats">
-        ${sprite(1, 'rigtiny')}
-        <div class="stgrid">${cells}</div>
-      </div>
-      <div class="pc-gp">GP ${p.stats.gp}${p.career.gp ? ` · CAREER ${p.career.pts}p ${p.career.reb}r ${p.career.stl}s ${p.career.ast}a` : ''}</div>`;
+      return `<span class="statc ${cls} ${crown ? 'lead' : ''}"><i>${STAT_LABEL[k]}</i><b>${perGame(p.stats, k)}</b>${crown ? '<span class="crown">♛</span>' : ''}</span>`;
+    };
+    body = `<div class="ksq">
+      ${sprite(1.75, 'ksprite')}
+      <div class="ktop">${nameHtml}</div>
+      ${cell('pts', 'tl')}${cell('reb', 'tr')}${cell('stl', 'bl')}${cell('ast', 'br')}
+      <span class="statc bc"><i>GP</i><b>${p.stats.gp}</b></span>
+    </div>`;
   } else if (l === 2) {
     const nums = Object.fromEntries(ATTRS.map((a) => [a, `${p.attrs[a]}/${p.pots[a]}`])) as Record<Attr, string>;
     body = squareKite(p.attrs, {
       pot: p.pots,
       start: p.startAttrs,
       nums,
+      words: true,
       nameHtml,
-      blHtml: ovrHtml,
-      brHtml: `<span class="kpot"><i>POT</i><b style="color:${vc(ovr(p.pots))}">${ovr(p.pots)}</b></span>`,
+      centerHtml: `<b style="color:${vc(ovr(p.attrs) * 1.6)}">${ovr(p.attrs)}</b><span class="kcdim">/${ovr(p.pots)}</span>`,
     });
   } else {
     body = squareKite(p.attrs, {
@@ -571,7 +584,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       brHtml: ringCounter(xpPct, 'LVL', String(p.level), `level ${p.level}/${LEVEL_CAP} · xp ${p.xp}/${p.level >= LEVEL_CAP ? '—' : xpNeed(p.level)}`),
     });
   }
-  return `<div class="pcard lens${l} ${l !== 1 ? 'sq' : ''} ${out ? 'pout' : ''} ${opts.draggable && !out && l === 0 ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
+  return `<div class="pcard lens${l} sq ${out ? 'pout' : ''} ${opts.draggable && !out && l === 0 ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
       ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
     ${body}
     ${out ? `<div class="ptag blink">OUT ${p.outWeeks}w</div>` : ''}
@@ -713,12 +726,17 @@ function impactHtml(s: GameState): string {
     <span class="imp-arrow">${r.up ? '▲' : '▼'}</span>
   </div>`).join('');
   return `<div class="impactpanel">
-    ${p ? `<span class="imp-sprite">${rigSpriteHtml(rigView(p), { bg: t.bg, fg: t.fg }, 2)}</span><div class="imp-name">${esc(p.name)}</div>` : ''}
+    ${p ? `<span class="imp-sprite">${rigSpriteHtml(rigView(p, imp.rows.some((r) => !r.up) ? 'bad' : 'good'), { bg: t.bg, fg: t.fg }, 2)}</span><div class="imp-name">${esc(p.name)}</div>` : ''}
     <div class="imp-rows">${rows}</div>
   </div>`;
 }
 
 // One thing at a time: a typed beat, OR the decision, OR the impact.
+/** Good news lights the sprite up; everything else makes it sweat. */
+function storySentiment(tag: string): 'good' | 'bad' {
+  return /BREAKTHROUGH|LEVEL UP|ON FIRE|CLEARED/.test(tag) ? 'good' : 'bad';
+}
+
 function storyPanel(s: GameState): string {
   const ev = currentStory(s)!;
   const p = ev.playerId !== null ? myTeam(s).players.find((x) => x.id === ev.playerId) : undefined;
@@ -744,15 +762,12 @@ function storyPanel(s: GameState): string {
           return `<button class="wide hold" data-action="story-choice" data-id="${esc(c.key)}" ${cant || c.disabled ? 'disabled' : ''}>
             ${esc(c.label)}${cant ? ' — NOT ENOUGH ⚡' : ''}<br/>${oddsLine(c.up, c.down, c.cost)}</button>`;
         }).join('');
-      if (ev.choices!.some((c) => c.itemId)) {
-        actions += `<div class="itemhint blink">◆ something in THE BAG could help — tap it below</div>`;
-      }
     } else {
       actions = '<div class="taphint">▸ tap</div>';
     }
     return `<div class="storypanel" data-action="story-tap" id="storypanel">
       <span class="tag">${esc(ev.tag)}</span>
-      ${p ? `<div class="modalcard">${playerCard(p, { inert: true })}</div>` : ''}
+      ${p ? `<div class="modalcard">${playerCard(p, { inert: true, story: storySentiment(ev.tag) })}</div>` : ''}
       ${inChoices
         ? `<div class="typebox">${esc(beats[beats.length - 1])}</div>`
         : `<div class="typebox" id="typebox"></div>`}
@@ -778,14 +793,9 @@ function lensBar(): string {
 }
 
 function stagePractice(s: GameState): string {
-  const t = myTeam(s);
   let fourth: string;
-  if (lens === 1) {
-    const top = [...t.players].filter((p) => p.stats.gp > 0).sort((a, b) => b.stats.pts / b.stats.gp - a.stats.pts / a.stats.gp)[0];
-    fourth = `<div class="fourthrow"><div class="report">SEASON ${t.wins}–${t.losses} · ${t.pointsFor} PF / ${t.pointsAgainst} PA${top ? ` · ${esc(top.name)} leads at ${perGame(top.stats, 'pts')} ppg` : ''}</div></div>`;
-  } else if (lens === 2) {
-    const fresh = t.players.filter((p) => p.classYear >= 3).length;
-    fourth = `<div class="fourthrow"><div class="report dim">dashes = season start · outline = potential${fresh ? ` · ${fresh} senior${fresh > 1 ? 's' : ''} in the final year` : ''}</div></div>`;
+  if (lens !== 0) {
+    fourth = '';
   } else {
     fourth = drillPickOne
       ? `<div class="fourthrow"><button class="bigctl blink" data-action="drill-cancel">TAP THE PLAYER — or tap here to cancel</button></div>`
@@ -799,7 +809,7 @@ function stagePractice(s: GameState): string {
 function stageGalaxy(s: GameState): string {
   return `<h2>RECRUITING</h2>
     ${prospectGridHtml(s)}
-    <div class="fourthrow">${s.groundedWeeks > 0 ? `<div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — home scans only</div>` : `<div class="report dim">tap a prospect · tap an empty slot to scan</div>`}</div>`;
+    ${s.groundedWeeks > 0 ? `<div class="fourthrow"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — home scans only</div></div>` : ''}`;
 }
 
 function stageMatchup(s: GameState): string {

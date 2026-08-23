@@ -452,6 +452,10 @@ export interface RigView {
   energy: RigEnergy;
   fire: boolean;
   form?: 'masc' | 'femme';
+  /** story acting: the STATE comes from the news, not the meters — the player
+      walks in neutral and breaks into the emotion (bad = angry + sweat,
+      good = elated). No ball in a story. */
+  story?: 'good' | 'bad';
 }
 
 interface Look { tintIx: number; hairIx: number; styleIx: number; socks: 'none' | 'knee' | 'striped'; wrist: boolean; }
@@ -502,12 +506,14 @@ function buildMap(
   look: Look,
   jersey: number | null,
   fire: boolean,
-  f: number
+  f: number,
+  story?: 'good' | 'bad'
 ): { map: string[][]; up: number } {
   const cfg = getCfg(species, form);
   const SZ = RIG_SIZES[Math.max(0, Math.min(4, sizeIx))];
-  const E = ENERGIES[energy];
-  const M = MOODS[mood];
+  const E = story ? ENERGIES.normal : ENERGIES[energy];
+  // story acting: neutral for a beat, then the emotion takes over
+  const M = MOODS[story ? (f < 8 ? 'neutral' : story === 'bad' ? 'angry' : 'elated') : mood];
   const def = RIG[species] ?? RIG.terran;
   let map = cfg.map.map((r) => r.split(''));
   if (species === 'terran') {
@@ -556,7 +562,8 @@ function buildMap(
     } else ball = [bx, H - patH];
   };
 
-  if (E.tuck) ball = [RA[0] - 1, armEnd - 4];
+  if (story) { /* stands and feels — no ball in a story */ }
+  else if (E.tuck) ball = [RA[0] - 1, armEnd - 4];
   else if (energy === 'normal') { const p = Math.floor(f / 3) % 8; dribble(p < 4 ? 'R' : 'L', p % 2); }
   else if (energy === 'fit') {
     const p = f % 6;
@@ -642,7 +649,7 @@ function buildMap(
     }
   }
 
-  if (E.sweat) {
+  if (E.sweat || (story === 'bad' && f >= 8)) {
     const ph = Math.floor(f / 2) % 6;
     if (ph < 4) { const x = cfg.sweatR + PADL, y2 = PADT + 3 + ph * 2; if (map[y2] && map[y2][x] === '.') map[y2][x] = 'c'; }
   }
@@ -686,7 +693,7 @@ function buildSheet(v: RigView, kit: Kit): { url: string; w: number; h: number }
   const look = lookFor(v.id, v.speciesId, form);
   const P = pal(v.speciesId, look, kit);
   const sizeIx = sizeIndex(v);
-  const first = buildMap(v.speciesId, form, sizeIx, v.mood, v.energy, look, v.jersey, v.fire, 0);
+  const first = buildMap(v.speciesId, form, sizeIx, v.mood, v.energy, look, v.jersey, v.fire, 0, v.story);
   const W = first.map[0].length;
   const H = first.map.length + 2;
   const canvas = document.createElement('canvas');
@@ -694,7 +701,7 @@ function buildSheet(v: RigView, kit: Kit): { url: string; w: number; h: number }
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
   for (let f = 0; f < FRAMES; f++) {
-    const { map, up } = f === 0 ? first : buildMap(v.speciesId, form, sizeIx, v.mood, v.energy, look, v.jersey, v.fire, f);
+    const { map, up } = f === 0 ? first : buildMap(v.speciesId, form, sizeIx, v.mood, v.energy, look, v.jersey, v.fire, f, v.story);
     const ox = f * W;
     for (let y = 0; y < map.length; y++) for (let x = 0; x < W; x++) {
       const ch = map[y][x];
@@ -708,7 +715,7 @@ function buildSheet(v: RigView, kit: Kit): { url: string; w: number; h: number }
 
 /** The animated sprite as an HTML element (background sprite sheet + CSS loop). */
 export function rigSpriteHtml(v: RigView, kit: Kit, scale: number, cls = ''): string {
-  const key = `${v.id}|${v.speciesId}|${v.form ?? 'masc'}|${sizeIndex(v)}|${v.mood}|${v.energy}|${v.fire ? 1 : 0}|${kit.bg}|${kit.fg}|${v.jersey ?? 'x'}`;
+  const key = `${v.id}|${v.speciesId}|${v.form ?? 'masc'}|${sizeIndex(v)}|${v.mood}|${v.energy}|${v.fire ? 1 : 0}|${v.story ?? '-'}|${kit.bg}|${kit.fg}|${v.jersey ?? 'x'}`;
   let sheet = sheetCache.get(key);
   if (!sheet) {
     sheet = buildSheet(v, kit);

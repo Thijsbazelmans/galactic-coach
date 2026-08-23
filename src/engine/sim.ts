@@ -25,7 +25,7 @@ function byId(t: Team, id: number | null): Player | null {
 const MISCAST: number[][] = [
   // sizeIdx:      XS    S     M     L     XL
   /* backcourt */ [0, 0, 8, 16, 25],
-  /* wing      */ [8, 4, 0, 4, 8],
+  /* wing      */ [0, 0, 0, 0, 0], // the wing forgives everything
   /* frontcourt*/ [25, 16, 8, 0, 0],
 ];
 
