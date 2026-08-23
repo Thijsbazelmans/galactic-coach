@@ -976,10 +976,6 @@ export function confirmBoard(s: GameState): string[] {
   return dropped;
 }
 
-export function actionDropProspect(s: GameState, prospectId: number): void {
-  s.prospects = s.prospects.filter((x) => x.id !== prospectId);
-  save(s);
-}
 
 // ---- matchup ---------------------------------------------------------------------------
 

@@ -20,7 +20,6 @@ import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, stipendFor, xpNeed } from './engine/gen
 import { COL_LABELS, matchAttrs, slotMult, slotPlayer, winShare } from './engine/sim';
 import {
   type LevelUp,
-  actionDropProspect,
   actionGalaxy,
   beginWeek,
   chooseTeam,
@@ -151,7 +150,6 @@ let galaxySheet = false;
 let selGalaxy = 'filmnight';
 let selSpeech: PlanId | null = null;
 let speechSheet = false;
-let dropConfirm: number | null = null;
 let gxResult: { text: string; cost: number; played: boolean; art?: string } | null = null;
 /** how the story's resolution moved the hot seat (drives the dean/booster verdict + the job-bar flash) */
 let heatShift: { dS: number; dB: number } | null = null;
@@ -636,7 +634,7 @@ function prospectCard(pr: Prospect, l: Lens, opts: { draggable?: boolean; dim?: 
     { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, form: pr.form, mood: 'neutral', energy: 'normal', fire: false },
     PRACTICE_KIT, 1.75, 'ksprite');
   const fuzz: 0 | 1 | 2 = pr.scoutLevel >= 4 ? 0 : pr.scoutLevel >= 2 ? 1 : 2;
-  const nameHtml = `<span class="kname">${esc(pr.name)}</span><button class="kx" data-action="pr-forget" data-id="${pr.id}">✕</button>`;
+  const nameHtml = `<span class="kname">${esc(pr.name)}</span>`;
   const ring = ringCounter(pr.commitPct, 'COM', `${pr.commitPct}`, `commitment ${pr.commitPct}%`);
   const imgDim = rigSpriteHtml(
     { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, form: pr.form, mood: 'neutral', energy: 'normal', fire: false },
@@ -1603,19 +1601,6 @@ function gxResultHtml(s: GameState): string {
   </div></div>`;
 }
 
-// forgetting a prospect is forever — say so once
-function dropConfirmHtml(s: GameState): string {
-  if (dropConfirm === null) return '';
-  const pr = s.prospects.find((x) => x.id === dropConfirm);
-  if (!pr) return '';
-  return `<div class="modalback"><div class="modal">
-    <span class="tag">${genderize('FORGET HIM?', pr.form)}</span>
-    <p>${genderize(`Are you sure you want to forget about ${esc(pr.name)}? You won't be able to find him again.`, pr.form)}</p>
-    <button class="wide hold danger" data-action="pr-drop" data-id="${pr.id}">✕ FORGET ${esc(pr.name.toUpperCase())}</button>
-    <button class="wide" data-action="pr-drop-cancel">${genderize('KEEP HIM', pr.form)}</button>
-  </div></div>`;
-}
-
 function itemModalHtml(s: GameState): string {
   if (!itemUi) return '';
   const item = itemById(itemUi);
@@ -1712,8 +1697,8 @@ function render(): void {
 
   // popups live INSIDE the middle: the stats bar, THE BAG and the nav stay
   // visible (⚡ readable while a story asks you to spend it) — the nav just dims.
-  const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + speechSheetHtml(state) + gxResultHtml(state) + dropConfirmHtml(state) + cutConfirmHtml(state) + boardConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
-  const modalOpen = drillSheet || speechSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet || dropConfirm !== null || gxResult !== null || cutConfirm || boardConfirm;
+  const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + speechSheetHtml(state) + gxResultHtml(state) + cutConfirmHtml(state) + boardConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
+  const modalOpen = drillSheet || speechSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet || gxResult !== null || cutConfirm || boardConfirm;
   const navHtml = `<div class="navbar ${modalOpen ? 'dimmed' : ''}">${nav(state)}</div>`;
   const lensHtml = (state.phase === 'practice' || state.phase === 'galaxy' || state.phase === 'teamSelect') && !ev ? lensBar() : '';
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
@@ -2117,16 +2102,10 @@ function executeAction(action: string, id: string): void {
 
     case 'begin-week': beginWeek(state); break;
     case 'to-galaxy': drillSheet = false; drillStickers = null; toGalaxy(state); break;
-    case 'to-matchup': galaxySheet = false; dropConfirm = null; gxStickers = null; toMatchup(state); break;
+    case 'to-matchup': galaxySheet = false; gxStickers = null; toMatchup(state); break;
     case 'to-signing': toSigning(state); break;
     case 'gn-table': gnStage = 'table'; clearFloatTimers(); break;
     case 'continue-result': gnStage = 'beat'; clearFloatTimers(); drillStickers = null; gxStickers = null; continueFromResult(state); break;
-
-    case 'pr-drop': {
-      actionDropProspect(state, Number(id));
-      dropConfirm = null;
-      break;
-    }
 
     case 'gx-run': {
       const act = galaxyActById(selGalaxy);
@@ -2191,7 +2170,6 @@ function executeAction(action: string, id: string): void {
       itemUi = null;
       toast = null;
       galaxySheet = false;
-      dropConfirm = null;
       selGalaxy = 'filmnight';
       selectedDrill = 'shootaround';
       selSlots = null;
@@ -2246,8 +2224,6 @@ app.addEventListener('click', (e) => {
       clearFloatTimers();
       gxResult = null;
       break;
-    case 'pr-forget': dropConfirm = Number(id); break;
-    case 'pr-drop-cancel': dropConfirm = null; break;
     case 'gx-sheet': galaxySheet = true; break;
     case 'gx-sheet-close': if (e.target === el) galaxySheet = false; break;
     case 'gx-pick':
