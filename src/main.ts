@@ -344,7 +344,9 @@ function typewrite(el: HTMLElement | null, text: string, done: () => void): void
   const chars = Array.from(text); // code points — emoji never get cut in half
   let i = 0;
   const paint = (): void => {
-    el.innerHTML = `${esc(chars.slice(0, i).join(''))}<span class="tw-rest">${esc(chars.slice(i).join(''))}</span>`;
+    // a single wrapper child: flex parents see ONE item whose size is the
+    // final text from tick zero — the reveal boundary never moves anything
+    el.innerHTML = `<span class="tw-line">${esc(chars.slice(0, i).join(''))}<span class="tw-rest">${esc(chars.slice(i).join(''))}</span></span>`;
   };
   paint();
   typeTimer = window.setInterval(() => {
@@ -603,17 +605,17 @@ function prospectCard(pr: Prospect): string {
 // ---- header (always there) ---------------------------------------------------------------------
 
 // JOB SECURITY: a bright bar the darkness eats from both ends —
-// A+ = the school's heat (left), $ = the boosters' (right).
+// A+ = the school's heat (left), $ = the boosters' (right); an icon blinks
+// once that side's approval drops under 25% (heat ≥ 75).
 function jobBar(s: GameState): string {
-  const danger = s.heatS + s.heatB >= 75;
-  return `<div class="jobbar ${danger ? 'blink' : ''}" title="job security — school heat ${s.heatS} · booster heat ${s.heatB}">
-    <img class="jicon" src="${iconUrl('aplus', ramp(0.75))}" alt=""/>
+  return `<div class="jobbar" title="job security — school heat ${s.heatS} · booster heat ${s.heatB}">
+    <img class="jicon ${s.heatS >= 75 ? 'blink' : ''}" src="${iconUrl('aplus', ramp(0.75))}" alt=""/>
     <div class="jtrack">
       <div class="jdark l" style="width:${s.heatS}%"></div>
       <div class="jdark r" style="width:${s.heatB}%"></div>
       <span class="jlabel">JOB SECURITY</span>
     </div>
-    <img class="jicon" src="${iconUrl('dollar', ramp(0.75))}" alt=""/>
+    <img class="jicon ${s.heatB >= 75 ? 'blink' : ''}" src="${iconUrl('dollar', ramp(0.75))}" alt=""/>
   </div>`;
 }
 
@@ -627,7 +629,11 @@ function headerHtml(s: GameState): string {
       ${chip(t.name, t.bg, t.fg)}
       ${jobBar(s)}
       <span class="weeklab">S<b>${Math.max(1, s.season)}</b> · <b>${weekLabel(s)}</b> · ${t.wins}–${t.losses}</span>
-      <span class="ecache ${s.energy === 0 ? 'blink' : ''}" title="power cells ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">${cells}<span class="ebolt">⚡</span></span>
+      <div class="ebar" title="power cells ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">
+        <img class="jicon ${s.energy < 4 ? 'blink' : 'ghost'}" src="${iconUrl('alert', ramp(0.9))}" alt=""/>
+        <div class="etrack ${s.energy === 0 ? 'blink' : ''}">${cells}</div>
+        <img class="jicon" src="${iconUrl('bolt', ramp(0.75))}" alt=""/>
+      </div>
     </div>
     <div class="hbtns-col">
       <button class="hbtn" data-action="help">?</button>
@@ -787,7 +793,7 @@ function stagePractice(s: GameState): string {
         ? `<div class="fourthrow"><div class="report">${esc(s.drillReport ?? 'Practice is done.')}</div><button class="bigctl again" data-action="drill-sheet">⬆ AGAIN</button></div>`
         : `<div class="fourthrow"><button class="bigctl" data-action="drill-sheet">⬆ CHOOSE THE DRILL</button></div>`;
   }
-  return `${lensBar()}${gridHtml(s, lens === 0, lens)}${fourth}`;
+  return `${gridHtml(s, lens === 0, lens)}${fourth}`;
 }
 
 function stageGalaxy(s: GameState): string {
@@ -1173,9 +1179,10 @@ function render(): void {
   const overlays = drillSheetHtml(state) + prospectModalHtml(state) + scanModalHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
   const modalOpen = drillSheet || coachOpen || itemUi !== null || toast !== null || prospectUi !== null || scanUi !== null;
   const navHtml = `<div class="navbar ${modalOpen ? 'dimmed' : ''}">${nav(state)}</div>`;
+  const lensHtml = state.phase === 'practice' && !ev ? lensBar() : '';
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
     ? `<div class="midwrap"><div class="middle solo">${middle}</div>${overlays}</div>${navHtml}`
-    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${overlays}</div>${bagBar(state)}${navHtml}`;
+    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${overlays}</div>${bagBar(state)}${lensHtml}${navHtml}`;
 
   app.innerHTML = frame;
   postRender();

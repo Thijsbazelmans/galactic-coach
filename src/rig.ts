@@ -721,9 +721,21 @@ export function rigSpriteHtml(v: RigView, kit: Kit, scale: number, cls = ''): st
 
 // ---- single-color pixel stat icons (unchanged) --------------------------------
 
-type IconKind = 'bolt' | 'aplus' | 'dollar';
+type IconKind = 'bolt' | 'aplus' | 'dollar' | 'alert';
 
 const ICON_PIXELS: Record<IconKind, string[]> = {
+  // low-cells warning
+  alert: [
+    '...XXX...',
+    '...XXX...',
+    '...XXX...',
+    '...XXX...',
+    '....X....',
+    '.........',
+    '...XXX...',
+    '...XXX...',
+    '.........',
+  ],
   // thunderbolt
   bolt: [
     '....XXXX.',

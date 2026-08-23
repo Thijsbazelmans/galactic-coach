@@ -186,9 +186,9 @@ button.hold.wiggle::after {
 }
 .chip.small { font-size: 12px; padding: 1px 6px; }
 
-.ecache { display: flex; align-items: center; gap: 2px; width: 100%; }
+.ebar { display: flex; align-items: center; gap: 4px; width: 100%; }
+.etrack { flex: 1; min-width: 0; display: flex; gap: 2px; }
 .ecell { flex: 1; height: 13px; background: var(--r20); }
-.ebolt { flex: none; font-size: 12px; margin-left: 2px; }
 
 /* JOB SECURITY: bright bar, darkness eats in from both sides */
 .jobbar { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 132px; }
@@ -273,12 +273,10 @@ button.hold.wiggle::after {
 .colhead { display: flex; gap: 5px; flex: none; }
 .colhead span { flex: 1; text-align: center; font-size: 10px; letter-spacing: 2px; color: var(--r35); }
 .colhead .rowlabel { flex: none; transform: none; writing-mode: horizontal-tb; }
-/* rows split the space evenly, but never squeeze below the card's content —
-   if a screen is too tight the middle scrolls instead of cards clipping */
-.gridrow { display: flex; gap: 5px; margin: 3px 0; flex: 1 1 0; min-height: max-content; align-items: stretch; }
-/* pool screens (tryouts) have more than 3 rows: natural height, middle scrolls */
+/* rows take their natural height and pack to the top — the slack collects
+   at the bottom where the buttons live; too-tall screens scroll (safety net) */
+.gridrow { display: flex; gap: 5px; margin: 2px 0; flex: none; align-items: stretch; }
 .grid.scroll { flex: none; }
-.grid.scroll .gridrow { flex: none; min-height: auto; }
 .rowlabel {
   writing-mode: vertical-lr;
   transform: rotate(180deg);
@@ -295,6 +293,7 @@ button.hold.wiggle::after {
   border: 1px dashed var(--rline);
   color: var(--r35);
   flex: 1;
+  aspect-ratio: 1 / 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -451,7 +450,15 @@ button.hold.wiggle::after {
 
 /* ---- the lens bar ------------------------------------------------------------------ */
 
-.lensbar { display: flex; align-items: center; gap: 4px; flex: none; margin: 2px 0 4px; }
+.lensbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 5px 8px 0;
+  background: var(--rpanel);
+}
 .lensbar .lenstab {
   flex: 1; margin: 0; padding: 5px 2px;
   font-size: 12px; letter-spacing: 1.5px; font-weight: bold;
@@ -486,15 +493,17 @@ button.hold.wiggle::after {
 .ptag.dimtag { color: var(--r35); border-style: dashed; border-color: var(--r35); }
 
 .cardtag {
-  font-size: 10px;
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  font-size: 9px;
   letter-spacing: 1px;
-  margin-top: 2px;
   color: var(--r55);
   background: #000;
   padding: 1px 4px;
-  display: inline-block;
-  align-self: flex-start;
-  flex: none;
+  white-space: nowrap;
 }
 
 
@@ -593,7 +602,9 @@ button.hold.wiggle::after {
 .storypanel .tag { color: var(--r95); letter-spacing: 2px; font-size: 13px; flex: none; }
 .modalcard { max-width: 250px; margin: 8px auto; width: 100%; flex: none; display: flex; }
 .typebox { white-space: pre-wrap; min-height: 36px; margin: 8px 0; color: var(--r95); font-size: 16px; line-height: 1.45; flex: none; }
+.tw-line { display: block; width: 100%; }
 .tw-rest { visibility: hidden; }
+.ghost { visibility: hidden; }
 /* a lone beat gets center stage */
 .typebox.beatbox { flex: 1 1 auto; display: flex; align-items: center; font-size: 19px; line-height: 1.55; }
 
