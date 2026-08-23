@@ -179,6 +179,7 @@ async function main(): Promise<void> {
   const ns2 = app.querySelector('#needle-stage') as unknown as { click?: () => void } | null;
   ns2?.click?.();
   if (!/VICTORY|DEFEAT/.test(app.innerHTML)) throw new Error('verdict missing after H2 needle');
+  if (!app.innerHTML.includes('GAME MVP')) throw new Error('MVP tag missing on the verdict grid');
 
   console.log('UI SMOKE OK — pick team → tryouts → lenses → drill → galaxy → matchup → H1 → halftime → H2 → verdict, box score present');
 }

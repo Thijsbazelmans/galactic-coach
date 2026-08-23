@@ -259,6 +259,8 @@ export interface MyGameResult {
   /** HALFTIME: the two halves (absent only on pre-halftime saves) */
   h1?: HalfScore;
   h2?: HalfScore;
+  /** tonight's MVP — best combined line; his card wears the tag */
+  mvpId?: number;
 }
 
 /** The game paused between halves: everything H2 needs to pick it back up. */

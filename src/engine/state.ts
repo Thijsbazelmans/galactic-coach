@@ -505,7 +505,7 @@ function startWeek(s: GameState): void {
         }
         p.outReason = '';
       }
-      p.energy = clamp(p.energy + 18, 0, 100);
+      p.energy = clamp(p.energy + 21, 0, 100);
       p.mood = clamp(p.mood + (p.mood < 55 ? 3 : -1), 0, 100);
     }
   }
@@ -615,7 +615,7 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
   const gainNotes: string[] = [];
   if (d.target === 'rest') {
     for (const p of t.players.filter((x) => x.outWeeks === 0)) {
-      p.energy = clamp(p.energy + 18, 0, 100);
+      p.energy = clamp(p.energy + 21, 0, 100);
       p.mood = clamp(p.mood + 4, 0, 100);
     }
   } else {
@@ -941,12 +941,12 @@ function simWeek(s: GameState): void {
       s.resultsLog.push(`${g.winner.name} ${g.scoreW} — ${g.scoreL} ${g.loser.name}`);
       // AI squads drift forward — and feel their results like we do
       for (const p of g.winner.players) {
-        p.energy = clamp(p.energy - 14, 0, 100);
+        p.energy = clamp(p.energy - 16, 0, 100);
         p.mood = clamp(p.mood + 5, 0, 100);
         if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
       }
       for (const p of g.loser.players) {
-        p.energy = clamp(p.energy - 14, 0, 100);
+        p.energy = clamp(p.energy - 16, 0, 100);
         p.mood = clamp(p.mood - 5, 0, 100);
         if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
       }
@@ -1008,7 +1008,7 @@ export function playSecondHalf(s: GameState): void {
   applyGameEffects(s, out.won, drains);
   // the other locker room lives the same night we do (half already spent)
   for (const p of m.opponent.players) {
-    p.energy = clamp(p.energy - 7, 0, 100);
+    p.energy = clamp(p.energy - 8, 0, 100);
     p.mood = clamp(p.mood + (out.won ? -5 : 5), 0, 100);
     if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
   }
@@ -1032,7 +1032,7 @@ function applyGameEffects(s: GameState, won: boolean, halfDrains: Record<number,
     let xpGain = 0;
     if (st.has(p.id)) {
       const lowEnergy = p.energy <= 30;
-      p.energy = clamp(p.energy - (7 + rand(3)), 0, 100);
+      p.energy = clamp(p.energy - (8 + rand(3)), 0, 100);
       p.mood = clamp(p.mood + 2, 0, 100);
       xpGain = 8 + rand(5);
       p.dnp = 0;
@@ -1047,23 +1047,24 @@ function applyGameEffects(s: GameState, won: boolean, halfDrains: Record<number,
       }
     } else if (bn.has(p.id) || played.has(p.id)) {
       // the bench — or an H1 body parked in the reserves at the half
-      p.energy = clamp(p.energy - (4 + rand(3)), 0, 100);
+      p.energy = clamp(p.energy - (5 + rand(3)), 0, 100);
       xpGain = 4 + rand(3);
       p.dnp = 0;
     } else {
+      // every night in street clothes stings; a long freeze stings harder
       p.energy = clamp(p.energy + 8, 0, 100);
       p.dnp++;
-      if (p.dnp >= 3) p.mood = clamp(p.mood - 5, 0, 100);
+      p.mood = clamp(p.mood - (p.dnp >= 3 ? 8 : 3), 0, 100);
     }
     p.mood = clamp(p.mood + (won ? 5 : -5), 0, 100);
     if (xpGain > 0) lastLevelUps.push(...addXp(s, p, xpGain));
     s.postGame.push({ playerId: p.id, energyP: p.energy - pre.e + (halfDrains[p.id] ?? 0), mood: p.mood - pre.m, xpGain });
   }
 
-  // ON FIRE (printed rule): 20+ points lights a man up — everything he has
-  // plays +20% until he cools off (under 15 points, or a night without minutes).
-  const FIRE_ON = 20;
-  const FIRE_KEEP = 15;
+  // ON FIRE (printed rule): 25+ points lights a man up — everything he has
+  // plays +20% until he cools off (under 12 points, or a night without minutes).
+  const FIRE_ON = 25;
+  const FIRE_KEEP = 12;
   const box = s.lastResult?.box ?? [];
   for (const p of me.players) {
     const row = box.find((r) => r.playerId === p.id);

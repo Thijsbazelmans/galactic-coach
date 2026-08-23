@@ -255,8 +255,9 @@ function mergeBox(h1: BoxRow[], h2: BoxRow[]): BoxRow[] {
   return [...byId.values()].sort((a, b) => b.pts - a.pts);
 }
 
-/** Write season stats + the in-game MVP once, from the full-game rows. */
-function commitBox(me: Team, rows: BoxRow[]): void {
+/** Write season stats + the in-game MVP once, from the full-game rows.
+    Returns the MVP's player id — the verdict marks his card. */
+function commitBox(me: Team, rows: BoxRow[]): number | null {
   for (const row of rows) {
     const p = me.players.find((x) => x.id === row.playerId);
     if (!p) continue;
@@ -266,12 +267,12 @@ function commitBox(me: Team, rows: BoxRow[]): void {
     p.stats.stl += row.stl;
     p.stats.ast += row.ast;
   }
-  if (rows.length) {
-    const line = (r: BoxRow): number => r.pts + r.reb + r.stl + r.ast;
-    const star = rows.reduce((b, r) => (line(r) > line(b) ? r : b), rows[0]);
-    const mp = me.players.find((p) => p.id === star.playerId);
-    if (mp) mp.stats.mvp = (mp.stats.mvp ?? 0) + 1;
-  }
+  if (!rows.length) return null;
+  const line = (r: BoxRow): number => r.pts + r.reb + r.stl + r.ast;
+  const star = rows.reduce((b, r) => (line(r) > line(b) ? r : b), rows[0]);
+  const mp = me.players.find((p) => p.id === star.playerId);
+  if (mp) mp.stats.mvp = (mp.stats.mvp ?? 0) + 1;
+  return mp?.id ?? null;
 }
 
 function boxLineFrom(rows: BoxRow[]): string {
@@ -288,16 +289,27 @@ function boxLineFrom(rows: BoxRow[]): string {
 function verdictLines(
   me: Team,
   myPlan: PlanId,
-  oppPlan: PlanId,
-  w: 'win' | 'lose' | 'tie',
-  won: boolean
+  won: boolean,
+  h1my: number,
+  h1opp: number
 ): { wheelLine: string; heroLine: string } {
   const mine = planById(myPlan);
-  const theirs = planById(oppPlan);
+  // the night's story is the two halves now — was the locker room the turn?
+  const d = h1my - h1opp;
   let wheelLine: string;
-  if (w === 'win') wheelLine = `Your ${mine.name} broke their ${theirs.name}. ${mine.beatLine}`;
-  else if (w === 'lose') wheelLine = `They saw ${mine.name} coming — their ${theirs.name} was built to beat it.`;
-  else wheelLine = `${mine.name} vs ${theirs.name}: no counter either way. It came down to the players.`;
+  if (d > 0) {
+    wheelLine = won
+      ? `Up ${d} at the half — and you never gave it back.`
+      : `Up ${d} at the half... and the second half took all of it away.`;
+  } else if (d < 0) {
+    wheelLine = won
+      ? `Down ${-d} at the half. Whatever happened in that locker room WORKED.`
+      : `Down ${-d} at the half, and the hole was too deep.`;
+  } else {
+    wheelLine = won
+      ? `Dead even at the half — the second half was yours.`
+      : `Dead even at the half — they took the second.`;
+  }
   const st = [0, 1, 2].map((c) => ({ p: slotPlayer(me, c), c })).filter((x): x is { p: Player; c: number } => !!x.p);
   if (!st.length) return { wheelLine, heroLine: 'You fielded nobody. The scoreboard noticed.' };
   const miscast = st.filter((x) => slotMult(x.p, x.c) < 0.88);
@@ -347,7 +359,7 @@ export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: Cha
   const drains: Record<number, number> = {};
   for (const p of starters(me)) {
     if (!available(p)) continue;
-    const d = 7 + rand(3);
+    const d = 8 + rand(3);
     p.energy = clamp(p.energy - d, 0, 100);
     drains[p.id] = -d;
   }
@@ -357,7 +369,7 @@ export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: Cha
     p.energy = clamp(p.energy - d, 0, 100);
     drains[p.id] = -d;
   }
-  if (opp) for (const p of opp.players) p.energy = clamp(p.energy - 7, 0, 100);
+  if (opp) for (const p of opp.players) p.energy = clamp(p.energy - 8, 0, 100);
   const oppPlanH2 = champ ? champ.plan : s.pregameFlags.cloak ? pick(PLANS).id : aiPlan(opp!);
   s.halftime = {
     myH1: sc.my,
@@ -389,8 +401,8 @@ export function simMyGameH2(s: GameState, me: Team, opp: Team | null, champ: Cha
   if (myTot === oppTot) { if (sc.won) myTot += 1; else oppTot += 1; }
   const won = myTot > oppTot;
   const box = mergeBox(ht.box, dealHalfBox(me, sc.my, myPlan));
-  commitBox(me, box);
-  const { wheelLine, heroLine } = verdictLines(me, myPlan, ht.oppPlanH2, w, won);
+  const mvpId = commitBox(me, box);
+  const { wheelLine, heroLine } = verdictLines(me, myPlan, won, ht.myH1, ht.oppH1);
   return {
     won,
     result: {
@@ -410,6 +422,7 @@ export function simMyGameH2(s: GameState, me: Team, opp: Team | null, champ: Cha
       home: ht.home,
       h1: { my: ht.myH1, opp: ht.oppH1, share: ht.share, needle: ht.needle },
       h2: { my: sc.my, opp: sc.opp, share, needle: u },
+      mvpId: mvpId ?? undefined,
     },
   };
 }

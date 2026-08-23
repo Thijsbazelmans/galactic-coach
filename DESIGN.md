@@ -592,6 +592,30 @@ are 46px slots, info strips (SHIP GROUNDED, the gassed warning) are slim
 target; swaps live strictly between starters and bench. (The rope never
 counted reserves anyway — this closes the free-fresh-legs loophole.)
 
+**v2.8.2 — the recap and the rebalance (from Thijs's first real session):**
+- THE VERDICT is useful again: the wheel narrative ("They saw Run and Gun
+  coming") died — with two speeches per night it related to nothing. The
+  recap line is now the story of the halves: "Up 5 at the half — and you
+  never gave it back" / "Down 8 at the half. Whatever happened in that
+  locker room WORKED" / the collapse and the too-deep-hole variants. Hero
+  and box lines stay.
+- The 3×3 grid holds its usual spot on the verdict (header → grid, like
+  every screen); the recap box reads BELOW the grid instead of shoving it
+  down.
+- The game MVP (best combined line, already counted in stats) is marked
+  on his card: a bright bordered «★ GAME MVP» cardtag (`mvpId` now rides
+  on MyGameResult).
+- ON FIRE: harder to light, burns longer — 25+ points to ignite (was 20;
+  it fired nearly every night for the star), under 12 to lose it (was 15).
+  Tips and the notice story updated.
+- Meters bite harder: starters ~19⚡/game (8+d3 per half, was ~16.5),
+  bench ~11.5, opponents/AI −16/game (was 14); reserves now lose 3 MOOD
+  every night in street clothes and 8 once the freeze hits 3+ games
+  (was: nothing until 3, then 5).
+- Compensation so the fire nerf (a player-only buff — AI never ignites)
+  didn't sink the game: weekly energy recovery 18→21. Headless landed at
+  **~61% win rate, ~1.2 titles/career** (uncompensated it cratered to 47%).
+
 ## NEXT SESSION (pick up here)
 
 Fresh-session state: the game is **v2.8** (HALFTIME) — all of it logged in
@@ -622,11 +646,12 @@ exports into `fromDesign/<date>/` — read them from there.
 - **Succinct tutorial**: auto-tips are OFF by default; design the real
   onboarding later. The ? button still serves the old tips.
 - **SPEC.md rewrite**: it still describes the dead v1.0 axis model.
-- **Balance watch**: two-needle favorite boost (league win rate 62→67%
-  post-halftime — consider a softer SHARP if it feels too safe), meter
-  curve economy (recovery 18/wk, drill drains), ON FIRE (20 to light / 15
-  to keep / ×1.2), UT title rate (~1.55/career in the optimal-play
-  harness), squad-wide direct-point drills, one-look scout bias (×0.6–1.5).
+- **Balance watch**: post-v2.8.2 baseline ~61% win rate / ~1.2 titles per
+  career (optimal-play harness). Knobs in play: two-needle favorite boost
+  (SHARP 6), meter economy (recovery 21/wk vs ~19⚡ starter game drain,
+  drill drains), ON FIRE (25 to light / 12 to keep / ×1.2 — a player-only
+  buff, so it doubles as a difficulty knob), squad-wide direct-point
+  drills, one-look scout bias (×0.6–1.5).
 - **Alumni/career surfacing**: careers + MVP counts accumulate but only
   the STATS lens shows them; a legacy/records screen is unbuilt (aging
   high-scores hook exists in spec).

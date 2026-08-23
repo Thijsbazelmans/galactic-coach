@@ -2022,7 +2022,7 @@ export const TIPS: Record<string, string> = {
   stories:
     "The week opens with whatever the galaxy throws at you. Every choice prints its two tails — the chance it goes wrong, the chance it goes wonderful. The numbers never lie. The people sometimes do.",
   gamenight:
-    "The verdict tells you if the PLAN worked, not just the score. Watch the cards: energy spent, mood swung, XP earned — then the table. First place is the only door to the Universal Tournament.\n\nOne more thing, coach: drop 20 points and a player catches FIRE — everything they have plays +20% until they cool off (under 15 points, or a night without minutes).",
+    "The verdict tells you if the PLAN worked, not just the score. Watch the cards: energy spent, mood swung, XP earned — then the table. First place is the only door to the Universal Tournament.\n\nOne more thing, coach: drop 25 points and a player catches FIRE — everything they have plays +20% until they cool off (under 12 points, or a night without minutes).",
   departures:
     "Season's over, coach. Seniors walk, stars flirt with the pros — one conversation each, odds printed as always. And every offseason the question waits at the bottom: walk away with your legacy, or go again.",
 };

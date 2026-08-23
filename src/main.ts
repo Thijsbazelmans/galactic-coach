@@ -530,6 +530,8 @@ interface CardOpts {
   stickers?: { text: string; up?: boolean }[];
   stickerDelay?: number;
   tag?: string;
+  /** extra class on the cardtag ('mvp' = bright, bordered) */
+  tagCls?: string;
   inert?: boolean;
   draggable?: boolean;
   /** halftime: the reserves stayed in the locker room — greyed, unswappable */
@@ -601,7 +603,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
     ${out ? `<div class="ptag">OUT ${p.outWeeks}w</div>` : ''}
     ${opts.sitout && l === 0 ? '<div class="ptag dimtag">SITS OUT</div>' : ''}
     ${opts.miscast && opts.miscast >= 8 && !out && l === 0 ? `<div class="ptag">MISCAST −${opts.miscast}%</div>` : ''}
-    ${opts.tag ? `<div class="cardtag">${opts.tag}</div>` : ''}
+    ${opts.tag ? `<div class="cardtag ${opts.tagCls ?? ''}">${opts.tag}</div>` : ''}
   </div>`;
 }
 
@@ -740,7 +742,9 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0): string 
       const mult = p && r < 2 ? slotMult(p, c) : 1;
       let stickers: { text: string; up?: boolean }[] | undefined;
       let stickerDelay = 0;
+      let tag: string | undefined;
       if (p && showGame) {
+        if (s.lastResult?.mvpId === p.id) tag = '★ GAME MVP';
         const d = s.postGame.find((x) => x.playerId === p.id);
         if (d) {
           stickers = [];
@@ -772,7 +776,7 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0): string 
       const halfLock = s.phase === 'gamenight' && gnStage === 'half' && r === 2;
       return `<div class="gcell dropzone" data-zone="${idx}">
         ${p
-          ? playerCard(p, { lens: gridLens, draggable: draggable && !halfLock, locked: halfLock, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, miscast: Math.round((1 - mult) * 100), stickers, stickerDelay })
+          ? playerCard(p, { lens: gridLens, draggable: draggable && !halfLock, locked: halfLock, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, miscast: Math.round((1 - mult) * 100), stickers, stickerDelay, tag, tagCls: tag ? 'mvp' : undefined })
           : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');
@@ -1228,15 +1232,17 @@ function stageGamenight(s: GameState): string {
     return needleStage(s, r.h1 ? 'SECOND HALF' : 'TIP-OFF', sub, (r.h2 ?? r).share, r.home, r.oppName);
   }
   if (gnStage === 'verdict') {
+    // the grid holds its usual spot (header → grid, like every screen);
+    // the recap reads below it
     const halves = r.h1 && r.h2 ? `<div class="vline dim">H1 ${r.h1.my}–${r.h1.opp} · H2 ${r.h2.my}–${r.h2.opp}</div>` : '';
-    return `<h2 class="${r.win ? 'won' : 'lost'}">${r.win ? 'VICTORY' : 'DEFEAT'} ${r.myScore}–${r.oppScore}</h2>
+    return `<h2 class="gridhead ${r.win ? 'won' : 'lost'}">${r.win ? 'VICTORY' : 'DEFEAT'} ${r.myScore}–${r.oppScore}</h2>
+      ${gridHtml(s, true)}
       <div class="verdict">
         ${halves}
         <div class="vline">${esc(r.wheelLine)}</div>
         <div class="vline">${esc(r.heroLine)}</div>
         <div class="vline dim">${esc(r.boxLine)}</div>
-      </div>
-      ${gridHtml(s, true)}`;
+      </div>`;
   }
   const table = !isUtWeek(s)
     ? `<table class="standings">${sortedStandings(s)
