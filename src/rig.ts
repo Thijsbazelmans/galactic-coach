@@ -838,7 +838,12 @@ export function rigSpriteHtml(v: RigView, kit: Kit, scale: number, cls = ''): st
   }
   const w = sheet.w * scale;
   const h = sheet.h * scale;
-  return `<span class="rig ${cls}" style="width:${w}px;height:${h}px;--rigshift:-${w * FRAMES}px;--rigdur:${FRAMES * FRAME_MS}ms;background-image:url(${sheet.url});background-size:${w * FRAMES}px ${h}px"></span>`;
+  // the loop is synced to the WALL CLOCK (negative delay), so a re-render
+  // resumes at the same frame — cards never jump or "dance" when the screen
+  // repaints (selection, stickers, swaps)
+  const dur = FRAMES * FRAME_MS;
+  const phase = Math.round(performance.now()) % dur;
+  return `<span class="rig ${cls}" style="width:${w}px;height:${h}px;--rigshift:-${w * FRAMES}px;--rigdur:${dur}ms;animation-delay:-${phase}ms;background-image:url(${sheet.url});background-size:${w * FRAMES}px ${h}px"></span>`;
 }
 
 // ---- the team bus: a spaceship with a jersey-stripe soul ----------------------

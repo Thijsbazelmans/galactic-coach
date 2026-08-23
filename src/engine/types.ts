@@ -23,7 +23,14 @@ export interface OddsTail {
 export type Attr = 'skl' | 'ath' | 'frc' | 'brn';
 export type AttrRec = Record<Attr, number>;
 
-export type PlanId = 'showtime' | 'rungun' | 'lockdown' | 'clockwork';
+/** Speech ids (the old tactics are speeches now; premium ones come from stories). */
+export type PlanId = 'showtime' | 'rungun' | 'lockdown' | 'clockwork' | 'warcry' | 'zenmind';
+
+/** A landed speech: the room ignited — every player plays +amt in that attribute. */
+export interface SpeechFx {
+  attr: Attr;
+  amt: number;
+}
 
 // ---- the box score ----------------------------------------------------------
 // One stat per attribute: points=SKL, rebounds=ATH, steals=FRC, assists=BRN.
@@ -115,6 +122,9 @@ export interface Team {
 }
 
 // ---- prospects (everything the coach knows is an observation) ---------------
+// A fresh name is a total stranger: no clouds, all ??'s. Scouting reveals
+// FACETS one by one — the ability cloud, the potential cloud, and the two
+// rating digits (?? → X? or ?X → XX).
 
 export interface Prospect {
   id: number;
@@ -126,11 +136,16 @@ export interface Prospect {
   /** the truth (hidden until scouted) */
   attrs: AttrRec;
   pots: AttrRec;
-  /** 0 = a rumor (cloud), 1 = one look (haze), 2 = locked truth */
+  /** scout actions absorbed — the observation fuzz tightens with each */
   scoutLevel: number;
   /** the coach's observation, error shrinking with scoutLevel */
   seenAttrs: AttrRec;
   seenPots: AttrRec;
+  /** revealed facets */
+  seenSkill: boolean; // the ability cloud shows
+  seenPot: boolean; // the potential cloud shows
+  digits: 0 | 1 | 2; // rating digits revealed: ?? → X?/?X → XX
+  digitFirst: 'tens' | 'ones'; // which digit the first reveal uncovered
   blurb: string;
   commitPct: number;
   bannedWeeks: number;
@@ -245,8 +260,6 @@ export interface MyGameResult {
   oppScore: number;
   oppName: string;
   planMine: PlanId;
-  planOpp: PlanId;
-  wheel: 'win' | 'lose' | 'tie';
   wheelLine: string;
   heroLine: string;
   boxLine: string;
@@ -269,11 +282,8 @@ export interface HalftimeState {
   oppH1: number;
   share: number;
   needle: number;
-  /** the first-half plans (mine = the pregame speech) */
+  /** the pregame speech (its attribute colors the box-score dealing) */
   planMine: PlanId;
-  planOpp: PlanId;
-  /** the opponent's re-rolled second-half plan (secret until the needle) */
-  oppPlanH2: PlanId;
   /** H1 box rows — stickers at the half; season stats commit after H2 */
   box: BoxRow[];
   home: boolean;
@@ -329,7 +339,6 @@ export type Phase =
   | 'gamenight'
   | 'departures'
   | 'signing'
-  | 'growth'
   | 'gameover';
 
 export interface ProDepart {
@@ -369,6 +378,8 @@ export interface GameState {
   futureBeats: FutureBeat[];
 
   prospects: Prospect[];
+  /** search results waiting in the 4th row — swap them onto the board or let them go */
+  pendingRecruits: Prospect[];
   bag: string[]; // item ids, max 5
   legendariesUsed: string[]; // reset each season
 
@@ -385,22 +396,23 @@ export interface GameState {
 
   /** weekly flags */
   trainedThisWeek: boolean;
-  /** recruiting rations: one DISCOVER, one SCOUT, one RECRUIT per week */
-  discoveredWk?: boolean;
-  scoutActWk?: boolean;
-  recruitActWk?: boolean;
-  /** the coach's speech: commits the game plan, once, before tip-off */
+  /** recruiting: ONE board-wide action per week (scout all / recruit all / search) */
+  galaxyActWk: boolean;
+  /** the coach's speech: mandatory, once, before tip-off */
   speechWk?: boolean;
-  /** HALFTIME: the second speech (reopens the lock) and the H2 plan override */
+  /** HALFTIME: the second speech (its own roll) */
   speechH2?: boolean;
   planH2?: PlanId | null;
+  /** rolled speech outcomes: the room ignited (or null) — one per half */
+  speechFx?: SpeechFx | null;
+  speechFxH2?: SpeechFx | null;
   sitouts: number[];
   scoutedOpp: boolean;
   drillReport: string | null;
   voyageRolled: boolean;
 
   plan: PlanId;
-  pregameFlags: { wallet?: boolean; cloak?: boolean };
+  pregameFlags: { wallet?: boolean; cloak?: boolean; alarm?: boolean };
   /** set when H1 is in the books and the locker room is waiting */
   halftime?: HalftimeState | null;
   lastResult: MyGameResult | null;

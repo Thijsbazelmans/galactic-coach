@@ -5,12 +5,11 @@
 
 import { PLANS, speciesById } from '../src/engine/data';
 import { LEVEL_CAP, ROSTER_SIZE, newGameState } from '../src/engine/gen';
-import { teamPower } from '../src/engine/sim';
-import { ATTRS, ovr } from '../src/engine/util';
+import { ATTRS, bestAttr, ovr, sizeIndex } from '../src/engine/util';
 import {
-  actionProspect,
-  actionScan,
+  actionGalaxy,
   chooseTeam,
+  confirmBoard,
   continueFromResult,
   currentStory,
   deliverHalftimeSpeech,
@@ -26,13 +25,12 @@ import {
   resolveStory,
   retire,
   runDrill,
-  startNewSeason,
   toGalaxy,
   toMatchup,
   toSigning,
   toggleProspect,
 } from '../src/engine/state';
-import type { GameState } from '../src/engine/types';
+import type { GameState, PlanId } from '../src/engine/types';
 
 const CAREERS = Number(process.argv[2] ?? 3);
 const MAX_SEASONS = Number(process.env.MAX_SEASONS ?? 26); // retire here if still alive (aging bites from 21)
@@ -94,7 +92,14 @@ function playCareer(idx: number): CareerStats {
     checkInvariants(s);
     switch (s.phase) {
       case 'teamSelect': {
-        const ids = [...s.selectPool].sort((a, b) => ovr(b.attrs) + ovr(b.pots) - (ovr(a.attrs) + ovr(a.pots))).slice(0, ROSTER_SIZE).map((p) => p.id);
+        // best nine — arranged like a coach: rows by rating, columns by size
+        // (the selection grid IS the opening lineup now)
+        const nine = [...s.selectPool].sort((a, b) => ovr(b.attrs) + ovr(b.pots) - (ovr(a.attrs) + ovr(a.pots))).slice(0, ROSTER_SIZE);
+        const ids: number[] = [];
+        for (let r = 0; r < 3; r++) {
+          const trio = nine.slice(r * 3, r * 3 + 3).sort((a, b) => sizeIndex(a) - sizeIndex(b)); // small→backcourt … big→frontcourt
+          ids.push(...trio.map((p) => p.id));
+        }
         if (!finalizeRoster(s, ids)) throw new Error('finalizeRoster failed');
         break;
       }
@@ -108,30 +113,39 @@ function playCareer(idx: number): CareerStats {
         if (key !== lastWeekKey) {
           lastWeekKey = key;
           if (s.energy === 0) starved++;
-          // rest tired squads, otherwise train by budget
+        }
+        if (!s.trainedThisWeek) {
+          // practice is mandatory: rest tired or broke squads, otherwise train
           const t = myTeam(s);
           const tired = t.players.filter((p) => p.energy < 40).length;
-          const adv = ['meteor', 'asteroid', 'sparring', 'filmroom'].filter((d) => s.unlockedDrills.includes(d));
-          if (tired >= 4) runDrill(s, 'rest');
+          const adv = ['meteor', 'asteroid', 'sparring', 'filmroom', 'dreamlab'].filter((d) => s.unlockedDrills.includes(d));
+          if (tired >= 4 || s.energy < 1) runDrill(s, 'rest');
           else if (adv.length && s.energy >= 4 && Math.random() < 0.5) runDrill(s, adv[Math.floor(Math.random() * adv.length)]);
           else runDrill(s, 'shootaround');
+          if (!s.trainedThisWeek) throw new Error('mandatory practice failed');
           drainQueue(s);
         }
         if (s.phase === 'practice') toGalaxy(s);
+        if (s.phase === 'practice' && !s.queue.length) throw new Error('stuck at practice');
         break;
       }
       case 'galaxy': {
         drainQueue(s);
         if (s.phase !== 'galaxy') break;
-        if (s.prospects.length < 4 && s.energy >= 2) {
-          actionScan(s, s.groundedWeeks > 0 ? 'home' : Math.random() < 0.5 ? 'nebula' : 'home');
-          drainQueue(s);
-        } else if (s.prospects.length && s.energy >= 1) {
-          const target = [...s.prospects].sort((a, b) => ovr(b.seenPots) - ovr(a.seenPots))[0];
-          actionProspect(s, target.id, target.scoutLevel < 1 ? 'attend' : 'tour');
+        if (!s.galaxyActWk) {
+          // one mandatory board-wide move: scout the first weeks, then work
+          // the board every week; rec center when broke
+          const actId = s.energy < 1
+            ? 'reccenter'
+            : s.week <= 2
+              ? s.energy >= 2 ? 'roadtrip' : 'filmnight'
+              : s.energy >= 2 ? 'openhouse' : 'letters';
+          if (!actionGalaxy(s, actId)) throw new Error(`galaxy action refused: ${actId} (⚡${s.energy})`);
+          if (s.pendingRecruits.length) confirmBoard(s);
           drainQueue(s);
         }
         if (s.phase === 'galaxy') toMatchup(s);
+        if (s.phase === 'galaxy' && !s.queue.length) throw new Error('stuck at galaxy');
         break;
       }
       case 'matchup': {
@@ -139,8 +153,12 @@ function playCareer(idx: number): CareerStats {
         if (s.phase !== 'matchup') break;
         const t = myTeam(s);
         const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id));
-        const best = known.reduce((b, pl) => (teamPower(t, pl.id) > teamPower(t, b) ? pl.id : b), known[0].id);
-        deliverSpeech(s, best);
+        // speak to the squad's strongest attribute (best odds of a useful ignition)
+        const sums = { skl: 0, ath: 0, frc: 0, brn: 0 };
+        for (const p of t.players) for (const a of ATTRS) sums[a] += p.attrs[a];
+        const targetAttr = bestAttr(sums);
+        const best: PlanId = (known.find((pl) => pl.attr === targetAttr) ?? known[0]).id;
+        if (deliverSpeech(s, best) === null) throw new Error('speech refused');
         if (isUtWeek(s)) utReached = Math.max(utReached, 1);
         playGame(s);
         break;
@@ -148,12 +166,11 @@ function playCareer(idx: number): CareerStats {
       case 'gamenight': {
         drainQueue(s);
         if ((s.phase as string) === 'gameover') break;
-        // HALFTIME: swap nothing, re-speech the best plan, play on
+        // HALFTIME: swap nothing, speech again, play on
         if (s.halftime && !s.lastResult) {
-          const t = myTeam(s);
           const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id));
-          const best = known.reduce((b, pl) => (teamPower(t, pl.id) > teamPower(t, b) ? pl.id : b), known[0].id);
-          if (!deliverHalftimeSpeech(s, best)) throw new Error('halftime speech refused');
+          const best = known[Math.floor(Math.random() * known.length)].id;
+          if (deliverHalftimeSpeech(s, best) === null) throw new Error('halftime speech refused');
           playSecondHalf(s);
           const r = s.lastResult as import('../src/engine/types').MyGameResult | null;
           if (!r || !r.h1 || !r.h2) throw new Error('halves missing from result');
@@ -179,13 +196,11 @@ function playCareer(idx: number): CareerStats {
         break;
       }
       case 'signing': {
-        for (const pr of [...s.prospects].sort((a, b) => b.commitPct - a.commitPct).slice(0, 2)) toggleProspect(s, pr.id);
+        for (const pr of [...s.prospects].sort((a, b) => b.commitPct - a.commitPct).slice(0, 4)) toggleProspect(s, pr.id);
         resolveSigning(s);
+        drainQueue(s);
         break;
       }
-      case 'growth':
-        startNewSeason(s);
-        break;
       default:
         throw new Error(`unexpected phase ${s.phase}`);
     }

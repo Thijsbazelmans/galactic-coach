@@ -60,25 +60,14 @@ async function main(): Promise<void> {
   must('[data-action="pick-team"]', 'pick team');
   if (state().phase !== 'teamSelect') throw new Error(`expected teamSelect, got ${state().phase}`);
   drain();
-  // tryouts: confirm the preselected nine (hold buttons fire via executeAction path — click won't work on .hold)
-  // simulate the hold by calling the action directly through a synthetic pointer flow is overkill;
-  // instead reach into the exported action: the nav button is .hold, so trigger its data-action via gc? Use dispatch.
-  const holdBtn = app.querySelector('[data-action="confirm-roster"]');
-  if (!holdBtn) throw new Error('confirm-roster button missing');
-  // tryouts preselect only the 6 returners — tap unpicked cards until nine
-  for (let i = 0; i < 12; i++) {
-    if (app.querySelectorAll('.pcard.picked').length >= 9) break;
-    const unpicked = app.querySelectorAll('.pcard:not(.picked)')[0] as unknown as { click?: () => void } | undefined;
-    unpicked?.click?.();
-  }
-  if (app.querySelectorAll('.pcard.picked').length !== 9) throw new Error('could not pick nine at tryouts');
-  // holds run through executeAction after a timer; emulate by dispatching pointer events is fragile in happy-dom.
-  // The click handler ignores .hold buttons, so call the same path the hold would:
-  const mainMod = await import('../src/main');
-  void mainMod;
-  // fall back: hold buttons call executeAction(action,id) — replicate via exposed dev handle if present
   const anyWin = win as unknown as { gcAction?: (a: string, id: string) => void };
   if (!anyWin.gcAction) throw new Error('gcAction dev handle missing (expose it for the smoke test)');
+  // TRYOUTS: the selection grid — 4 rows, the bottom one is the CUT
+  if (!app.innerHTML.includes('cutrow')) throw new Error('selection grid CUT row missing');
+  if (app.querySelectorAll('.pcard').length !== 12) throw new Error('selection grid should show all 12');
+  // the confirm flow: nav opens the are-you-sure, the hold commits the cut
+  anyWin.gcAction('cut-confirm-open', '');
+  if (!app.innerHTML.includes('lost to you forever')) throw new Error('cut confirm dialog missing');
   anyWin.gcAction('confirm-roster', '');
   drain();
   if (!['stories', 'practice'].includes(state().phase)) throw new Error(`expected season start, got ${state().phase}`);
@@ -99,7 +88,10 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('k-pot')) throw new Error('potential outline missing');
   if (!app.innerHTML.includes('ksprite')) throw new Error('centered sprite missing');
 
-  // practice: hold RUN (default SHOOTAROUND) via the action handle
+  // MANDATORY practice: the nav is dimmed until the drill runs
+  if (!app.querySelector('[data-action="to-galaxy"][disabled]')) throw new Error('nav should be dimmed before practice');
+  anyWin.gcAction('to-galaxy', ''); // must refuse
+  if (state().phase !== 'practice') throw new Error('left practice without training');
   if (!app.querySelector('[data-action="drill-run"]')) throw new Error('RUN button missing');
   anyWin.gcAction('drill-run', '');
   drain();
@@ -107,24 +99,30 @@ async function main(): Promise<void> {
   if (app.querySelector('[data-action="drill-run"]:not([disabled])')) throw new Error('practice should be once per week');
 
   // galaxy (nav buttons are hold-to-commit now — use the action handle)
-  if (!app.querySelector('[data-action="to-galaxy"]')) throw new Error('TO RECRUITING button missing');
+  if (!app.querySelector('[data-action="to-galaxy"]:not([disabled])')) throw new Error('TO RECRUITING button still dimmed');
   anyWin.gcAction('to-galaxy', '');
   drain();
   if (state().phase !== 'galaxy') throw new Error(`expected galaxy, got ${state().phase}`);
-  // recruiting: empty slot selected by default → DISCOVER; after the find,
-  // the fresh prospect is highlighted → SCOUT + RECRUIT
-  if (app.querySelectorAll('[data-action="gx-run"]').length !== 1) throw new Error('DISCOVER button missing');
-  const nBefore = (gc.state() as any).prospects.length;
-  anyWin.gcAction('gx-run', 'discover');
-  if ((gc.state() as any).prospects.length !== nBefore + 1) throw new Error('discover did not add a prospect');
+  // the board opens FULL: nine strangers, all ??'s
+  const prospects = (gc.state() as any).prospects;
+  if (prospects.length !== 9) throw new Error(`expected 9 prospects on the board, got ${prospects.length}`);
+  if (prospects.some((p: any) => p.seenSkill || p.seenPot || p.digits > 0)) throw new Error('fresh prospects should be total strangers');
+  if (!app.innerHTML.includes('prq')) throw new Error('?? masks missing on the board');
+  // mandatory action: nav dimmed until one lands
+  anyWin.gcAction('to-matchup', '');
+  if (state().phase !== 'galaxy') throw new Error('left recruiting without an action');
+  // run the default SCOUT ALL — every prospect gains a facet
+  anyWin.gcAction('gx-run', '');
+  if (!(gc.state() as any).galaxyActWk) throw new Error('galaxy action did not land');
+  if (!prospects.some((p: any) => p.seenSkill || p.seenPot || p.digits > 0)) throw new Error('scout revealed nothing');
   // dismiss the result dialog
   if (!click('[data-action="gx-result-tap"]')) throw new Error('result dialog missing');
   click('[data-action="gx-result-tap"]');
   drain();
-  if (app.querySelectorAll('[data-action="gx-run"]').length !== 2) throw new Error('SCOUT/RECRUIT buttons missing after discover');
+  if (app.querySelector('[data-action="gx-run"]:not([disabled])')) throw new Error('galaxy action should be once per week');
 
-  // matchup: plan chips render, unlearned chips locked
-  if (!app.querySelector('[data-action="to-matchup"]')) throw new Error('TO MATCHUP button missing');
+  // matchup
+  if (!app.querySelector('[data-action="to-matchup"]:not([disabled])')) throw new Error('TO MATCHUP button still dimmed');
   anyWin.gcAction('to-matchup', '');
   drain();
   if (state().phase !== 'matchup') throw new Error(`expected matchup, got ${state().phase}`);
@@ -134,7 +132,11 @@ async function main(): Promise<void> {
   if (state().phase !== 'matchup') throw new Error('game started without a speech');
   anyWin.gcAction('speech-run', '');
   if (!(gc.state() as any).speechWk) throw new Error('speech did not commit');
-  if (!app.innerHTML.includes('tbars mu')) throw new Error('matchup bars missing');
+  // the speech verdict lands as a toast — dismiss it
+  click('[data-action="toast-tap"]');
+  click('[data-action="toast-tap"]');
+  if (!app.innerHTML.includes('tbars mu')) throw new Error('matchup bars missing')
+  if (!app.innerHTML.includes('scoutbtn')) throw new Error('scout button missing');
 
   // play the game → FIRST HALF needle, then HALFTIME
   anyWin.gcAction('play-game', '');
@@ -166,6 +168,9 @@ async function main(): Promise<void> {
   if ((state() as unknown as GnState).lastResult) throw new Error('H2 played without a halftime speech');
   anyWin.gcAction('speech-run', '');
   if (!(state() as unknown as GnState).speechH2) throw new Error('halftime speech did not commit');
+  // dismiss the halftime speech toast
+  click('[data-action="toast-tap"]');
+  click('[data-action="toast-tap"]');
 
   // SECOND HALF → the final
   anyWin.gcAction('play-h2', '');

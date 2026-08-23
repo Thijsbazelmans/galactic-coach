@@ -10,13 +10,13 @@ import {
   SPECIES,
   STARTING_PLANS,
   TEAM_TEMPLATES,
-  scanById,
+  galaxyActById,
   speciesById,
 } from './data';
 import type { AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
 export const UT_WEEKS = 3; // QF, SF, THE UNIVERSAL FINAL
 export const ROSTER_SIZE = 9;
@@ -188,15 +188,15 @@ export function genSpecial(counter: { nextId: number }, kind: 'walkon' | 'gem' |
 // ---- prospects ------------------------------------------------------------------
 
 /** Refresh the coach's observation of a prospect at its current scout level.
-    Unscouted = a cloud (±4 per attribute); one look = a haze (±2); known = truth. */
+    A stranger's report is a wild guess (±4 with a hype/slander bias); each
+    scout action tightens the read; four looks is the truth. */
 export function observe(pr: Prospect): void {
-  // ABILITY becomes truth at full scout; POTENTIAL stays a projection until
-  // he actually signs. The ONE-LOOK read (level 1) can be WAY off: a single
-  // hot or miserable night skews the whole report — one shared hype/slander
-  // bias (×0.6–1.5) on top of per-attribute noise.
+  // ABILITY sharpens toward truth; POTENTIAL keeps at least ±1 of projection
+  // until he actually signs. Early reads can be WAY off: one shared
+  // hype/slander bias (×0.6–1.5) on top of per-attribute noise.
   const caps = speciesById(pr.speciesId).attrCaps;
-  const bias = pr.scoutLevel === 1 ? 0.6 + Math.random() * 0.9 : 1;
-  const fuzz = pr.scoutLevel >= 2 ? 0 : pr.scoutLevel === 1 ? 3 : 4;
+  const bias = pr.scoutLevel <= 1 ? 0.6 + Math.random() * 0.9 : 1;
+  const fuzz = Math.max(0, 4 - pr.scoutLevel);
   const potFuzz = Math.max(1, fuzz);
   for (const a of ATTRS) {
     pr.seenAttrs[a] = fuzz ? clamp(Math.round(pr.attrs[a] * bias) + rand(fuzz * 2 + 1) - fuzz, 0, caps[a]) : pr.attrs[a];
@@ -204,13 +204,14 @@ export function observe(pr: Prospect): void {
   }
 }
 
-export function genProspect(counter: { nextId: number }, seasonNo: number, regionId: string, taken?: Set<string>): Prospect {
-  const region = scanById(regionId);
-  const sp = speciesById(pick(region.pool));
-  const quality = 4 + rand(12) + Math.min(seasonNo, 5) + region.skillBonus;
+export function genProspect(counter: { nextId: number }, seasonNo: number, searchId: string, taken?: Set<string>): Prospect {
+  const act = galaxyActById(searchId);
+  const pool = act.pool ?? ['terran'];
+  const sp = speciesById(pick(pool));
+  const quality = 4 + rand(12) + Math.min(seasonNo, 5) + (act.skillBonus ?? 0);
   const target = clamp(Math.round((18 + quality + rand(14)) * 0.55), 6, capSum(sp.id) - 4);
   const attrs = rollAttrs(sp.attrCaps, target);
-  const pots = rollPots(sp.attrCaps, attrs, 7 + Math.round(region.potBonus * 0.4));
+  const pots = rollPots(sp.attrCaps, attrs, 7 + Math.round((act.potBonus ?? 0) * 0.4));
   const form: 'masc' | 'femme' = Math.random() < 0.5 ? 'femme' : 'masc';
   const pr: Prospect = {
     id: counter.nextId++,
@@ -223,6 +224,10 @@ export function genProspect(counter: { nextId: number }, seasonNo: number, regio
     scoutLevel: 0,
     seenAttrs: copyAttrs(attrs),
     seenPots: copyAttrs(pots),
+    seenSkill: false,
+    seenPot: false,
+    digits: 0,
+    digitFirst: Math.random() < 0.5 ? 'tens' : 'ones',
     blurb: genderize(pick(PROSPECT_BLURBS), form),
     commitPct: 0,
     bannedWeeks: 0,
@@ -365,15 +370,19 @@ export function newGameState(): GameState {
     queue: [],
     futureBeats: [],
     prospects: [],
+    pendingRecruits: [],
     bag: [],
     legendariesUsed: [],
-    unlockedDrills: ['shootaround', 'scrimmage', 'twodays', 'rest'],
-    unlockedRegions: ['home', 'nebula', 'outerrim'],
+    unlockedDrills: ['shootaround', 'scrimmage', 'twodays', 'rest', 'bonfire'],
+    unlockedRegions: ['reccenter', 'home', 'nebula', 'outerrim'],
     knownPlans: [...STARTING_PLANS],
     tipsSeen: [],
     tipsAuto: false, // instinct first — a proper succinct tutorial comes later (? still works)
     groundedWeeks: 0,
     trainedThisWeek: false,
+    galaxyActWk: false,
+    speechFx: null,
+    speechFxH2: null,
     sitouts: [],
     scoutedOpp: false,
     drillReport: null,

@@ -13,6 +13,13 @@
   --rbg: hsl(150 30% 5%);
   --rpanel: hsl(150 26% 9%);
   --rline: hsl(150 26% 20%);
+  /* THE ONE FRAME: cards are budgeted so FOUR rows always fit above THE BAG —
+     the 3×3 grid never moves, and the space under it holds either a 4th card
+     row or the message-bar + action stack. Chrome ≈ header + title + colhead +
+     margins + bag + lens + nav. */
+  --colw: calc((min(480px, 100vw) - 43px) / 3);
+  --rowh: calc((100dvh - 300px) / 4);
+  --cardh: max(64px, min(var(--colw), var(--rowh)));
 }
 
 * {
@@ -265,9 +272,10 @@ button.hold.wiggle::after {
   gap: 8px;
 }
 .navbar button { margin: 0; }
+/* ONE continue button: always full width, always the same size — it DIMS
+   (never shrinks, never hides) while an action still has to land */
 .navbar .navmain {
-  flex: 0 0 46%;
-  margin-left: auto;
+  flex: 1;
   height: 52px;
   font-size: 15px;
   font-weight: bold;
@@ -277,7 +285,7 @@ button.hold.wiggle::after {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.navbar .navback { flex: 0 0 auto; height: 52px; font-size: 12px; letter-spacing: 1px; padding: 0 14px; color: var(--r55); border-color: var(--rline); }
+.navbar .navmain:disabled { opacity: 0.4; }
 .navnote { font-size: 14px; padding: 14px 0; }
 /* a popup is open: the way forward waits */
 .navbar.dimmed button { opacity: 0.3; pointer-events: none; }
@@ -304,11 +312,13 @@ button.hold.wiggle::after {
 }
 .gcell { flex: 1; min-width: 0; position: relative; display: flex; }
 .gcell.dropzone.dragover { outline: 2px dashed var(--r95); outline-offset: -2px; }
+/* a player item hovering over its target card */
+.pcard.dragover { outline: 2px dashed var(--r95); outline-offset: -2px; }
 .pod.empty {
   border: 1px dashed var(--rline);
   color: var(--r35);
   flex: 1;
-  aspect-ratio: 1 / 1;
+  height: var(--cardh);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -316,6 +326,13 @@ button.hold.wiggle::after {
   font-size: 12px;
   margin: 0;
 }
+
+/* the 4th row is the DOOR: whoever sits there is on the way out */
+.gridrow.cutrow .pcard, .pcard.cutcard { opacity: 0.55; }
+.gridrow.cutrow .rowlabel { color: var(--r55); }
+
+/* the bottom stack grows FROM the bottom: message bar + actions hug the nav */
+.botstack { flex: none; margin-top: auto; display: flex; flex-direction: column; }
 
 /* ---- the compass card ------------------------------------------------------------------ */
 
@@ -367,7 +384,7 @@ button.hold.wiggle::after {
    sprite (sprite pass in progress), so no meters here. */
 
 .pcard.sq { padding: 0; }
-.ksq { position: relative; width: 100%; aspect-ratio: 1 / 1; background: #000; overflow: hidden; }
+.ksq { position: relative; width: 100%; height: var(--cardh); background: #000; overflow: hidden; }
 .ksvg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .rig.ksprite {
   position: absolute;
@@ -678,16 +695,21 @@ button.hold.wiggle::after {
 .vs-track .vsl { flex: 1; min-width: 0; display: flex; justify-content: flex-end; }
 .vs-track .vsr { flex: 1; min-width: 0; display: flex; justify-content: flex-start; }
 .vs-track .vsat { flex: none; color: var(--r55); font-size: 12px; }
+/* SCOUT rides OVER the opponent's half — tall enough to cover all five ropes */
 .mu-bars .scoutbtn {
   position: absolute;
   z-index: 5;
-  top: 32px;
-  width: 66px;
+  top: 26px;
+  bottom: 0;
+  width: 72px;
   margin: 0;
   padding: 6px 2px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: bold;
-  line-height: 1.35;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--rbg);
   border-color: var(--r95);
   color: var(--r95);
@@ -904,8 +926,11 @@ button.hold.wiggle::after {
   padding: 12px 14px;
 }
 .modal.sheetup { border-bottom: none; padding-bottom: 14px; animation: sheetup 0.2s ease-out; }
+.modal.sheetup.scrolly { max-height: 92%; overflow-y: auto; }
 @keyframes sheetup { from { transform: translateY(30%); } to { transform: none; } }
 .modal .tag { color: var(--r95); letter-spacing: 2px; font-size: 13px; }
+/* group headers inside a picker sheet */
+.sheethead { font-size: 10px; letter-spacing: 2px; color: var(--r35); margin: 12px 0 2px; font-weight: bold; }
 
 .drill { display: block; width: 100%; text-align: left; margin: 6px 0; padding: 8px 10px; }
 .drill.locked { border: 1px dashed var(--r20); color: var(--r35); padding: 8px 10px; margin: 6px 0; }

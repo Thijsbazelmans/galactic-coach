@@ -7,11 +7,10 @@ import {
   VOYAGE_POOL,
   drillById,
   fragility,
+  galaxyActById,
   itemById,
   planById,
-  prospectActById,
   rollInjury,
-  scanById,
   speciesById,
   storyById,
   weeklyPool,
@@ -41,10 +40,8 @@ import {
   xpNeed,
 } from './gen';
 import {
-  aiPlan,
   autoLineup,
   benchPlayers,
-  logistic,
   normalizeLineup,
   reserves,
   simAiGame,
@@ -61,13 +58,14 @@ import type {
   PlanId,
   Player,
   Prospect,
+  SpeechFx,
   StoryEvent,
   Team,
 } from './types';
 import { ATTRS, addStats, bumpAny, bumpAnyPot, clamp, copyAttrs, bestAttr, genderize, ovr, pick, rand, roll, zeroStats } from './util';
 
 const SAVE_KEY = 'galactic-coach-save';
-const COMMIT_DECAY = 2;
+const COMMIT_DECAY = 1;
 export const SIGNING_PENALTIES = [0, 10, 25, 45, 65, 80, 90, 95];
 
 export function myTeam(s: GameState): Team {
@@ -113,41 +111,6 @@ export function utOpponent(s: GameState): ChampTeam | null {
   return s.ut ? s.ut.champs[s.ut.myNextOpp] ?? null : null;
 }
 
-function wheelFactor(mine: PlanId, theirs: PlanId): number {
-  if (planById(mine).beats === theirs) return 1.12;
-  if (planById(theirs).beats === mine) return 0.89;
-  return 1;
-}
-
-/** THE WIN METER: a band while unscouted, a point number once you KNOW them. */
-export function winMeter(s: GameState): { lo: number; hi: number; exact: boolean } | null {
-  const me = myTeam(s);
-  let p: number;
-  if (isUtWeek(s)) {
-    const champ = utOpponent(s);
-    if (!champ) return null;
-    const mine = teamPower(me, s.plan) * wheelFactor(s.plan, champ.plan);
-    p = Math.round(logistic(mine - champ.power) * 100);
-  } else {
-    const m = myMatchup(s);
-    if (!m) return null;
-    const oppPlan = aiPlanStable(m.opponent);
-    const mine = teamPower(me, s.plan) * wheelFactor(s.plan, oppPlan) * (m.home ? 1.03 : 1);
-    const theirs = teamPower(m.opponent, oppPlan) * (m.home ? 1 : 1.03);
-    p = Math.round(logistic(mine - theirs) * 100);
-  }
-  p = clamp(p, 1, 99);
-  return s.scoutedOpp ? { lo: p, hi: p, exact: true } : { lo: clamp(p - 15, 1, 99), hi: clamp(p + 15, 1, 99), exact: false };
-}
-
-/** The opponent's likely plan, stable within a week (no re-rolling the surprise). */
-const planCache = new Map<string, PlanId>();
-function aiPlanStable(t: Team): PlanId {
-  const key = `${t.id}`;
-  if (!planCache.has(key)) planCache.set(key, aiPlan(t));
-  return planCache.get(key)!;
-}
-
 // ---- persistence ---------------------------------------------------------------
 
 export function save(s: GameState): void {
@@ -165,8 +128,11 @@ export function load(): GameState | null {
     const s = JSON.parse(raw) as GameState;
     if (s.version !== SAVE_VERSION) return null;
     // in-place migration: the always-available basics exist in every save
-    for (const d of ['shootaround', 'scrimmage', 'twodays', 'rest']) {
+    for (const d of ['shootaround', 'scrimmage', 'twodays', 'rest', 'bonfire']) {
       if (!s.unlockedDrills.includes(d)) s.unlockedDrills.push(d);
+    }
+    for (const r of ['reccenter', 'home', 'nebula', 'outerrim']) {
+      if (!s.unlockedRegions.includes(r)) s.unlockedRegions.push(r);
     }
     return s;
   } catch {
@@ -251,6 +217,7 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
       const counter = { nextId: s.nextId };
       const pr = genProspect(counter, s.season, 'nebula', takenNames(s));
       pr.scoutLevel = 1;
+      pr.seenSkill = true; // met the honest way — you saw the shape yourself
       observe(pr);
       s.nextId = counter.nextId;
       s.prospects.push(pr);
@@ -309,8 +276,8 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
       normalizeLineup(t);
     }
     if (fx.commit) {
-      const pr = s.prospects[0];
-      if (pr) pr.commitPct = clamp(pr.commitPct + fx.commit, 0, 100);
+      // word travels: the whole board hears it
+      for (const pr of s.prospects) pr.commitPct = clamp(pr.commitPct + fx.commit, 0, 100);
     }
   }
 }
@@ -474,15 +441,14 @@ function checkHotSeat(s: GameState): void {
 
 function startWeek(s: GameState): void {
   const t = myTeam(s);
-  planCache.clear();
   s.energy = clamp(s.energy + stipendFor(s.season), 0, CACHE_MAX);
   s.trainedThisWeek = false;
-  s.discoveredWk = false;
-  s.scoutActWk = false;
-  s.recruitActWk = false;
+  s.galaxyActWk = false;
   s.speechWk = false;
   s.speechH2 = false;
   s.planH2 = null;
+  s.speechFx = null;
+  s.speechFxH2 = null;
   s.halftime = null;
   s.sitouts = [];
   s.scoutedOpp = false;
@@ -614,9 +580,10 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
   const gainByPlayer = new Map<number, string>();
   const gainNotes: string[] = [];
   if (d.target === 'rest') {
+    const rec = d.recover ?? { energy: 21, mood: 4 };
     for (const p of t.players.filter((x) => x.outWeeks === 0)) {
-      p.energy = clamp(p.energy + 21, 0, 100);
-      p.mood = clamp(p.mood + 4, 0, 100);
+      p.energy = clamp(p.energy + rec.energy, 0, 100);
+      p.mood = clamp(p.mood + rec.mood, 0, 100);
     }
   } else {
     for (const p of participants) {
@@ -640,13 +607,24 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
           gainNotes.push(`${p.name} is at his ceiling there — the reps banked as XP`);
         }
       }
+      // ceiling work: the dream lab raises where a player can GO
+      if (d.potChance && roll(d.potChance)) {
+        const caps = speciesById(p.speciesId).attrCaps;
+        if (bumpAnyPot(p, caps, 1)) {
+          const bit = '+1 CEILING';
+          gainByPlayer.set(p.id, gainByPlayer.has(p.id) ? `${gainByPlayer.get(p.id)} ${bit}` : bit);
+          gainNotes.push(`${p.name} ${bit}`);
+        }
+      }
       xpByPlayer.set(p.id, gained);
       ups.push(...addXp(s, p, gained));
     }
   }
 
   let report = d.target === 'rest'
-    ? 'The facility echoes with the sound of absolutely nothing happening. Everyone comes back looser.'
+    ? d.id === 'bonfire'
+      ? 'The bonfire burns down to embers and inside jokes. The squad comes back liking each other again.'
+      : 'The facility echoes with the sound of absolutely nothing happening. Everyone comes back looser.'
     : gainNotes.length
       ? `${d.name}: ${gainNotes.join(' · ')}.`
       : `${d.name}: the squad puts the work in.`;
@@ -687,102 +665,224 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
   return { report, xpByPlayer, gainByPlayer, levelUps: ups };
 }
 
-// ---- galaxy: scan / scout / recruit -----------------------------------------------------
+// ---- galaxy: ONE action per week, always board-wide -------------------------------------
 
-export function actionScan(s: GameState, regionId: string): string | null {
-  const def = scanById(regionId);
-  if (s.discoveredWk) return null; // one discovery per week
-  if (!s.unlockedRegions.includes(def.id)) return null;
-  if (s.groundedWeeks > 0 && !def.local) return null;
-  if (s.energy < def.cost || s.prospects.length >= MAX_PROSPECTS) return null;
-  s.energy -= def.cost;
-  s.discoveredWk = true;
-  const counter = { nextId: s.nextId };
-  const found: Prospect[] = [genProspect(counter, s.season, def.id, takenNames(s))];
-  s.nextId = counter.nextId;
-  s.prospects.push(...found);
-  let text = found.length
-    ? `New potential discovered: ${found.map((p) => `${p.name}, a ${speciesById(p.speciesId).name} out of the ${def.name}`).join(', ')}.`
-    : 'Scan complete. The board is full — nine names, maximum.';
-
-  // scans are voyages: the odds line rolls
-  const r = Math.random() * 100;
-  if (s.energy === 0 && roll(10)) {
-    queueStory(s, 'debt', 'start', null, { cause: 'On the way home from the scan, a gravity snare — a salvage rig reels your ship in like a fish.' });
-    text += ' Then the cells run dry in dead space...';
-  } else if (r < def.down.pct) {
-    if (roll(50)) queueStory(s, 'hullbreach', 'start', null);
-    else queueStory(s, 'grounded', 'start', null, { cause: 'A micrometeorite shreds the starboard scoop on the way home.' });
-    text += ' The trip home, however...';
-  } else if (r < def.down.pct + def.up.pct) {
-    if (def.up.cls === 'LOOT') {
-      const item = pick(ITEMS.filter((i) => i.rarity !== 'legendary'));
-      giveItem(s, item.id);
-      text += ` And floating in the debris field: ${item.name}. Finders keepers is maritime law, probably.`;
-    } else {
-      for (const pr of found) { pr.scoutLevel = Math.min(2, pr.scoutLevel + 1); observe(pr); }
-      text += ' The array over-delivers: crisp reads on everyone.';
-    }
-  }
-  save(s);
-  return text;
+export interface GalaxyResult {
+  text: string;
+  /** per-prospect stickers for the board */
+  perProspect: Map<number, { text: string; up?: boolean }[]>;
 }
 
-export function actionProspect(s: GameState, prospectId: number, actId: string): string | null {
-  const pr = s.prospects.find((x) => x.id === prospectId);
-  const act = prospectActById(actId);
-  if (!pr || s.energy < act.cost) return null;
-  if (act.kind === 'scout' && (s.scoutActWk || pr.scoutLevel >= 2)) return null;
-  if (act.kind === 'recruit' && (s.recruitActWk || pr.bannedWeeks > 0)) return null;
+/** Reveal one unrevealed facet of a prospect. Returns the sticker, or null when
+    everything is already known. */
+function revealFacet(pr: Prospect): { text: string; up?: boolean } | null {
+  const facets: ('skill' | 'pot' | 'digit')[] = [];
+  if (!pr.seenSkill) facets.push('skill');
+  if (!pr.seenPot) facets.push('pot');
+  if (pr.digits < 2) facets.push('digit');
+  if (!facets.length) return null;
+  const f = pick(facets);
+  if (f === 'skill') {
+    pr.seenSkill = true;
+    return { text: 'THE SHAPE', up: true };
+  }
+  if (f === 'pot') {
+    pr.seenPot = true;
+    return { text: 'THE CEILING', up: true };
+  }
+  pr.digits = (pr.digits + 1) as 0 | 1 | 2;
+  return { text: pr.digits >= 2 ? 'THE NUMBER' : 'A DIGIT', up: true };
+}
+
+/** Fully reveal a prospect (the combine locks somebody cold). */
+function revealAll(pr: Prospect): void {
+  pr.seenSkill = true;
+  pr.seenPot = true;
+  pr.digits = 2;
+  pr.scoutLevel = Math.max(pr.scoutLevel, 4);
+  observe(pr);
+}
+
+/** THE WEEKLY MOVE: one action, always the whole board. Scout sharpens every
+    name, recruit works every name, search brings new names to the 4th row. */
+export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
+  const act = galaxyActById(actId);
+  if (s.galaxyActWk || s.pendingRecruits.length) return null;
+  if (s.energy < act.cost) return null;
+  if (act.kind === 'search' && !s.unlockedRegions.includes(act.id)) return null;
+  if (act.kind === 'search' && s.groundedWeeks > 0 && !act.local) return null;
+  if (act.kind !== 'search' && !s.prospects.length) return null;
   s.energy -= act.cost;
-  if (act.kind === 'scout') s.scoutActWk = true;
-  else s.recruitActWk = true;
+  s.galaxyActWk = true;
+  const per = new Map<number, { text: string; up?: boolean }[]>();
   let text: string;
   const r = Math.random() * 100;
 
   if (act.kind === 'scout') {
-    pr.scoutLevel = Math.min(2, pr.scoutLevel + 1);
-    observe(pr);
-    if (actId === 'database') {
-      pr.scoutLevel = 2;
-      observe(pr);
-      text = `The database opens like a confession: ${pr.name}, measured to the decimal. You know him better than his own coach now.`;
-      if (r < act.down.pct) {
-        queueStory(s, 'scandal', 'start', null, { cause: 'The combine database seller kept receipts. Sellers always keep receipts.' });
-        text += ' The seller, meanwhile, kept receipts...';
+    let revealed = 0;
+    for (const pr of s.prospects) {
+      const n = act.reveals![0] + rand(act.reveals![1] - act.reveals![0] + 1);
+      const msgs: { text: string; up?: boolean }[] = [];
+      for (let i = 0; i < n; i++) {
+        const m = revealFacet(pr);
+        if (!m) break;
+        msgs.push(m);
+        revealed++;
       }
-    } else {
-      text = pr.scoutLevel >= 2
-        ? `You watch ${pr.name} play a full game. The cloud burns off: his shape is TRUE, current and ceiling both.`
-        : `You watch ${pr.name} warm up and play a half. The cloud thins.`;
-      if (r >= act.down.pct && r < act.down.pct + act.up.pct) {
-        pr.scoutLevel = 2;
+      if (msgs.length) {
+        pr.scoutLevel++;
         observe(pr);
-        text += ' And late in the game he does the ONE thing that tells you everything. Locked.';
+        per.set(pr.id, msgs);
       }
     }
-  } else {
-    const gain = act.gain![0] + rand(act.gain![1] - act.gain![0] + 1);
+    text = revealed
+      ? `${act.name}: nine reports come back. ${revealed} new piece${revealed === 1 ? '' : 's'} of the truth land on the board.`
+      : `${act.name}: the reports come back saying what you already knew. The board is read cold.`;
     if (r < act.down.pct) {
       if (act.down.cls === 'SCANDAL') {
-        pr.bannedWeeks = 2 + rand(2);
-        pr.commitPct = clamp(pr.commitPct + Math.round(gain / 2), 0, 95);
-        queueStory(s, 'scandal', 'start', null, { cause: `League snoops photograph you and ${pr.name} splitting the flambéed comet. The maître d' sells the holos within the hour.` });
-        text = `The dinner is legendary — right up until the flashbulbs. NO CONTACT order: ${pr.bannedWeeks} weeks.`;
+        queueStory(s, 'scandal', 'start', null, { cause: 'Hosting nine amateurs in your gym with travel paid is, the league notes, EXACTLY the thing the rulebook is about.' });
+        text += ' The league, meanwhile, counted the shuttle tickets...';
+      } else if (act.down.cls === 'SHIP') {
+        queueStory(s, 'grounded', 'start', null, { cause: 'Nine gyms in seven systems is a lot of atmosphere re-entries.' });
+        text += ' The shuttle, however, felt every mile...';
       } else {
-        pr.commitPct = clamp(pr.commitPct - 20, 0, 95);
-        text = `${pr.name} gets caught in a brawl over somebody's cheerleader girlfriend and leaves with a black eye and second thoughts. Commitment −20%.`;
+        s.energy = clamp(s.energy - 1, 0, CACHE_MAX);
+        text += ' The feed subscriptions auto-renewed. Of course they did. (−1⚡)';
+      }
+    } else if (r < act.down.pct + act.up.pct && s.prospects.length) {
+      const lucky = pick(s.prospects);
+      revealAll(lucky);
+      per.set(lucky.id, [{ text: 'LOCKED COLD', up: true }]);
+      text += ` And ${lucky.name} does the ONE thing that tells you everything. Locked, cold.`;
+    }
+  } else if (act.kind === 'recruit') {
+    let ups = 0;
+    let downs = 0;
+    for (const pr of s.prospects) {
+      if (pr.bannedWeeks > 0) {
+        per.set(pr.id, [{ text: 'NO CONTACT', up: false }]);
+        continue;
+      }
+      if (roll(act.risk ?? 0)) {
+        const d = act.gain![1];
+        pr.commitPct = clamp(pr.commitPct - d, 0, 95);
+        per.set(pr.id, [{ text: `−${d}% COMMIT`, up: false }]);
+        downs++;
+      } else {
+        const g = act.gain![0] + rand(act.gain![1] - act.gain![0] + 1);
+        pr.commitPct = clamp(pr.commitPct + g, 0, 95);
+        per.set(pr.id, [{ text: `+${g}% COMMIT`, up: true }]);
+        ups++;
+      }
+    }
+    text = `${act.name}: the whole board hears from you. ${ups} name${ups === 1 ? '' : 's'} lean${ups === 1 ? 's' : ''} in${downs ? `, ${downs} lean${downs === 1 ? 's' : ''} away` : ''}.`;
+    if (r < act.down.pct) {
+      if (act.down.cls === 'SCANDAL') {
+        queueStory(s, 'scandal', 'start', null, { cause: 'The gala photos reach the league office before the dessert course ends. Twelve courses of evidence.' });
+        text += ' The flashbulbs, meanwhile...';
+      } else {
+        queueStory(s, 'drama', 'start', null, { cause: 'Two recruits discover they were promised the same jersey number, loudly, in front of everyone.' });
+        text += ' It gets loud at the punch bowl...';
       }
     } else if (r < act.down.pct + act.up.pct) {
-      pr.commitPct = clamp(pr.commitPct + gain + 10, 0, 95);
-      text = `${pr.name} has the night of his LIFE. He calls his mother from the shuttle to talk about your program. +${gain + 10}% → ${pr.commitPct}%.`;
-    } else {
-      pr.commitPct = clamp(pr.commitPct + gain, 0, 95);
-      text = `${pr.name} leaves wearing one of your team caps. Where did he even get that? +${gain}% → ${pr.commitPct}%.`;
+      for (const pr of s.prospects) {
+        if (pr.bannedWeeks > 0) continue;
+        pr.commitPct = clamp(pr.commitPct + 5, 0, 95);
+      }
+      text += ' And the night goes LEGENDARY — the whole board talks about it for a week. +5% everywhere.';
+    }
+  } else {
+    // search: new talent — a full board means somebody must go
+    const counter = { nextId: s.nextId };
+    const names = takenNames(s);
+    const found: Prospect[] = [genProspect(counter, s.season, act.id, names)];
+    if (act.twoChance && roll(act.twoChance)) found.push(genProspect(counter, s.season, act.id, names));
+    s.nextId = counter.nextId;
+    text = `${act.name}: ${found.map((p) => `${p.name}, a ${speciesById(p.speciesId).name}`).join(' — and ')} steps into the light.`;
+    for (const pr of found) {
+      if (s.prospects.length < MAX_PROSPECTS) {
+        s.prospects.push(pr);
+        per.set(pr.id, [{ text: 'NEW', up: true }]);
+      } else {
+        s.pendingRecruits.push(pr);
+      }
+    }
+    if (s.pendingRecruits.length) {
+      text += ' The board is FULL — take the new name on and somebody gets forgotten forever, or let the new one walk.';
+    }
+    if (act.id === 'reccenter' && r < act.down.pct) {
+      // kids notice where you went looking
+      if (s.prospects.length && roll(50)) {
+        const gone = pick(s.prospects.filter((p) => !s.pendingRecruits.includes(p)) as Prospect[]);
+        s.prospects = s.prospects.filter((p) => p.id !== gone.id);
+        text += ` Word gets around that you spent the week at the REC CENTER. ${gone.name} takes it personally and takes ${gone.form === 'femme' ? 'her' : 'his'} name off your board.`;
+      } else {
+        const t = myTeam(s);
+        const p = pick(t.players);
+        p.mood = clamp(p.mood - 15, 0, 100);
+        text += ` ${p.name} hears where you went looking for ${p.form === 'femme' ? 'her' : 'his'} replacement and takes it personally.`;
+      }
+    } else if (act.id !== 'reccenter') {
+      if (s.energy === 0 && roll(10)) {
+        queueStory(s, 'debt', 'start', null, { cause: 'On the way home from the search, a gravity snare — a salvage rig reels your ship in like a fish.' });
+        text += ' Then the cells run dry in dead space...';
+      } else if (r < act.down.pct) {
+        if (roll(50)) queueStory(s, 'hullbreach', 'start', null);
+        else queueStory(s, 'grounded', 'start', null, { cause: 'A micrometeorite shreds the starboard scoop on the way home.' });
+        text += ' The trip home, however...';
+      } else if (r < act.down.pct + act.up.pct) {
+        if (act.up.cls === 'LOOT') {
+          const item = pick(ITEMS.filter((i) => i.rarity !== 'legendary'));
+          giveItem(s, item.id);
+          text += ` And floating in the debris field: ${item.name}. Finders keepers is maritime law, probably.`;
+        } else {
+          for (const pr of found) {
+            revealFacet(pr);
+            observe(pr);
+          }
+          text += ' The array over-delivers: a first read comes free.';
+        }
+      }
     }
   }
   save(s);
-  return text;
+  return { text, perProspect: per };
+}
+
+/** Swap between the board (0–8) and the 4th row (9–11: the pending names). */
+export function swapBoardSlot(s: GameState, from: number, to: number): void {
+  const get = (i: number): Prospect | null => (i < 9 ? s.prospects[i] ?? null : s.pendingRecruits[i - 9] ?? null);
+  const a = get(from);
+  const b = get(to);
+  if (!a && !b) return;
+  const set = (i: number, pr: Prospect | null): void => {
+    if (i < 9) {
+      if (pr) s.prospects[i] = pr;
+      else s.prospects.splice(i, 1);
+    } else {
+      if (pr) s.pendingRecruits[i - 9] = pr;
+      else s.pendingRecruits.splice(i - 9, 1);
+    }
+  };
+  if (a && b) {
+    set(from, b);
+    set(to, a);
+  } else if (a && !b) {
+    // moving into an empty slot: only meaningful across the rows
+    if ((from < 9) === (to < 9)) return;
+    set(from, null);
+    if (to < 9) s.prospects.push(a);
+    else s.pendingRecruits.push(a);
+  }
+  save(s);
+}
+
+/** The 4th row empties FOREVER: whoever sits there when you confirm is gone. */
+export function confirmBoard(s: GameState): string[] {
+  const dropped = s.pendingRecruits.map((p) => p.name);
+  s.pendingRecruits = [];
+  save(s);
+  return dropped;
 }
 
 export function actionDropProspect(s: GameState, prospectId: number): void {
@@ -792,19 +892,39 @@ export function actionDropProspect(s: GameState, prospectId: number): void {
 
 // ---- matchup ---------------------------------------------------------------------------
 
-export function setPlan(s: GameState, plan: PlanId): void {
-  if (!s.knownPlans.includes(plan)) return; // unlearned tactics live in stories
-  s.plan = plan;
-  save(s);
+/** THE SPEECH: mandatory, once, a gamble. Small chance the room IGNITES
+    (+attr for everyone tonight), smaller chance somebody stops believing.
+    Returns the outcome text (the room's verdict), or null if refused. */
+function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx | null; text: string } {
+  const pl = planById(plan);
+  const t = myTeam(s);
+  const r = Math.random() * 100;
+  if (r < pl.down) {
+    const pool = t.players.filter((p) => p.outWeeks === 0);
+    const p = pool.length ? pick(pool) : null;
+    if (p) {
+      p.mood = clamp(p.mood - 20, 0, 100);
+      return { fx: null, text: genderize(`"${pl.speech}," you say. ${p.name} looks at the floor. He's heard this one before, and tonight he doesn't believe a word of it. MOOD −20.`, p.form) };
+    }
+    return { fx: null, text: `"${pl.speech}," you say, to a very quiet room.` };
+  }
+  if (r < pl.down + pl.up) {
+    return {
+      fx: { attr: pl.attr, amt: pl.boost },
+      text: `"${pl.speech}!" — and the room IGNITES. Chairs go over. Somebody headbutts a locker, affectionately. The whole squad plays +${pl.boost} ${pl.attr.toUpperCase()} tonight.`,
+    };
+  }
+  return { fx: null, text: `"${pl.speech}," you say. Nods. A few slapped shoulders. The room heard you. The rest is on them.` };
 }
 
-/** THE SPEECH: commits the game plan for the week. One speech, no take-backs. */
-export function deliverSpeech(s: GameState, plan: PlanId): boolean {
-  if (s.speechWk || !s.knownPlans.includes(plan)) return false;
+export function deliverSpeech(s: GameState, plan: PlanId): string | null {
+  if (s.speechWk || !s.knownPlans.includes(plan)) return null;
   s.plan = plan;
   s.speechWk = true;
+  const out = rollSpeech(s, plan);
+  s.speechFx = out.fx;
   save(s);
-  return true;
+  return out.text;
 }
 
 export function scoutOpponent(s: GameState): boolean {
@@ -815,11 +935,17 @@ export function scoutOpponent(s: GameState): boolean {
   return true;
 }
 
-export function oppPlanHint(s: GameState): PlanId | null {
-  if (!s.scoutedOpp) return null;
-  if (isUtWeek(s)) return utOpponent(s)?.plan ?? null;
-  const m = myMatchup(s);
-  return m ? aiPlanStable(m.opponent) : null;
+/** Which item contexts the current phase accepts ('mood' is always welcome). */
+export function itemAllowedNow(s: GameState, itemId: string): boolean {
+  const item = itemById(itemId);
+  const phaseCtx: Record<string, string[]> = {
+    practice: ['practice'],
+    matchup: ['pregame'],
+    galaxy: ['recruiting'],
+    stories: ['mood'],
+  };
+  const allowed = [...(phaseCtx[s.phase] ?? []), 'mood'];
+  return item.context.some((c) => allowed.includes(c));
 }
 
 /** Use a bag item outside a story (drawer / matchup / practice / galaxy). */
@@ -828,16 +954,7 @@ export function useItem(s: GameState, itemId: string, ctxData: Record<string, un
   if (idx < 0) return null;
   const item = itemById(itemId);
   if (item.rarity === 'legendary' && s.legendariesUsed.includes(item.id)) return null;
-  const phaseCtx: Record<string, string[]> = {
-    practice: ['practice'],
-    matchup: ['pregame'],
-    galaxy: ['recruiting'],
-    stories: ['mood'],
-    gamenight: [],
-    departures: [], signing: [], growth: [], teamSelect: [], pickTeam: [], gameover: [],
-  };
-  const allowed = [...(phaseCtx[s.phase] ?? []), 'mood'];
-  if (!item.context.some((c) => allowed.includes(c))) return null;
+  if (!itemAllowedNow(s, itemId)) return null;
   s.bag.splice(idx, 1);
   if (item.rarity === 'legendary') s.legendariesUsed.push(item.id);
   lastLevelUps = [];
@@ -881,6 +998,8 @@ export function rollTravel(s: GameState): void {
 
 export function toMatchup(s: GameState): void {
   if (s.phase === 'stories' && s.queue.length) return;
+  // recruiting is mandatory: no matchup before the board-wide move lands
+  if (s.phase === 'galaxy' && (!s.galaxyActWk || s.pendingRecruits.length)) return;
   normalizeLineup(myTeam(s));
   rollTravel(s);
   s.phase = 'matchup';
@@ -896,6 +1015,7 @@ export function toPractice(s: GameState): void {
 
 export function toGalaxy(s: GameState): void {
   if (s.queue.length) return;
+  if (!s.trainedThisWeek) return; // practice is mandatory — there's a 0⚡ option
   s.phase = 'galaxy';
   maybeTip(s, 'galaxy');
   save(s);
@@ -955,14 +1075,15 @@ function simWeek(s: GameState): void {
   save(s);
 }
 
-/** HALFTIME SPEECH: reopens the lock once — the H2 plan can change or double
-    down, but either way the room hears something before the second half. */
-export function deliverHalftimeSpeech(s: GameState, plan: PlanId): boolean {
-  if (!s.halftime || s.speechH2 || !s.knownPlans.includes(plan)) return false;
+/** HALFTIME SPEECH: mandatory before the second half — its own fresh roll. */
+export function deliverHalftimeSpeech(s: GameState, plan: PlanId): string | null {
+  if (!s.halftime || s.speechH2 || !s.knownPlans.includes(plan)) return null;
   s.planH2 = plan;
   s.speechH2 = true;
+  const out = rollSpeech(s, plan);
+  s.speechFxH2 = out.fx;
   save(s);
-  return true;
+  return out.text;
 }
 
 /** THE SECOND HALF: sim H2 from the new lineup/speeches/meters, then land the
@@ -1117,7 +1238,7 @@ export function continueFromResult(s: GameState): void {
       s.legacy += 3;
       s.trophies++;
       s.careerLog.push(`Season ${s.season}: won the conference (${me.wins}–${me.losses}).`);
-      s.ut = { round: 0, champs: genChamps(teamPower(me, s.plan), s.season), myNextOpp: 0, log: [] };
+      s.ut = { round: 0, champs: genChamps(teamPower(me), s.season), myNextOpp: 0, log: [] };
       s.week++;
       startWeek(s);
       return;
@@ -1283,36 +1404,14 @@ export function resolveSigning(s: GameState): void {
     }
   }
   if (!s.signingResults.length) s.signingResults.push('You pursued nobody. The recruiting trail is quiet. Too quiet.');
+  // the verdicts get their OWN dialogue box
+  queueStory(s, 'notice', 'start', null, { tag: 'SIGNING DAY', text: s.signingResults.join('\n') });
 
-  const pool: Player[] = [...myTeam(s).players, ...s.commits];
-  const counter = { nextId: s.nextId };
-  const names = takenNames(s);
-  while (pool.length < SELECT_POOL_SIZE) pool.push(genWalkOn(counter, names));
-  s.nextId = counter.nextId;
-  s.selectPool = pool;
-  s.phase = 'teamSelect';
-  save(s);
-}
-
-export function finalizeRoster(s: GameState, chosenIds: number[]): boolean {
-  if (chosenIds.length !== ROSTER_SIZE) return false;
-  const chosen = s.selectPool.filter((p) => chosenIds.includes(p.id));
-  if (chosen.length !== ROSTER_SIZE) return false;
+  // THE SUMMER: the returners develop BEFORE you pick — its own dialogue box
   const t = myTeam(s);
-  t.players = chosen;
-  ensureUniqueJerseys(t.players);
-
-  if (s.season === 0) {
-    // tryouts complete: straight into season 1
-    startNewSeason(s);
-    return true;
-  }
-
-  // GROWTH: the summer finds everyone
-  s.seasonNotes = [];
+  const notes: string[] = [];
   for (const p of t.players) {
-    const wasRet = !s.commits.some((c) => c.id === p.id) && !p.walkOn;
-    p.classYear = Math.min(3, p.classYear + (wasRet ? 1 : 0));
+    p.classYear = Math.min(3, p.classYear + 1);
     const bump = bumpAny(p, 1 + rand(3));
     let driftNote = '';
     if (roll(25)) {
@@ -1326,10 +1425,46 @@ export function finalizeRoster(s: GameState, chosenIds: number[]): boolean {
     p.energy = 85 + rand(15);
     p.mood = clamp(p.mood + 10, 40, 95);
     p.outWeeks = 0; p.outReason = ''; p.dnp = 0;
-    s.seasonNotes.push(`${p.name}: +${bump} over the summer${driftNote}.`);
+    notes.push(genderize(`${p.name}: +${bump} over the summer${driftNote}.`, p.form));
   }
-  s.phase = 'growth';
+  if (notes.length) queueStory(s, 'notice', 'start', null, { tag: 'THE SUMMER', text: notes.join('\n') });
+
+  // the pool, in reading order: returners first, then the new recruits,
+  // then walk-ons filling the empty seats
+  const pool: Player[] = [...t.players, ...s.commits];
+  const counter = { nextId: s.nextId };
+  const names = takenNames(s);
+  while (pool.length < SELECT_POOL_SIZE) pool.push(genWalkOn(counter, names));
+  s.nextId = counter.nextId;
+  s.selectPool = pool;
+  s.phase = 'teamSelect';
+  maybeTip(s, 'tryouts');
   save(s);
+}
+
+/** The cut, from the selection grid: slots[0..8] (in lineup order) stay, the
+    rest are gone forever. Cutting somebody real plants a revenge seed. */
+export function finalizeRoster(s: GameState, chosenIds: number[]): boolean {
+  if (chosenIds.length !== ROSTER_SIZE) return false;
+  const byId = new Map(s.selectPool.map((p) => [p.id, p]));
+  const chosen = chosenIds.map((id) => byId.get(id)).filter((p): p is Player => !!p);
+  if (chosen.length !== ROSTER_SIZE) return false;
+  const t = myTeam(s);
+  const cut = s.selectPool.filter((p) => !chosenIds.includes(p.id));
+  t.players = chosen;
+  ensureUniqueJerseys(t.players);
+  // the grid you arranged IS the opening lineup
+  t.lineup.slots = chosen.map((p) => p.id);
+
+  // the ones you let go remember it
+  for (const p of cut) {
+    if (ovr(p.attrs) >= 38 && roll(25)) {
+      s.futureBeats.push({ weeksLeft: 2 + rand(5), defId: 'cut_revenge', beat: 'start', playerId: null, data: { cutName: p.name, cutForm: p.form } });
+      break; // one grudge per summer is plenty
+    }
+  }
+
+  startNewSeason(s);
   return true;
 }
 
@@ -1345,7 +1480,6 @@ export function startNewSeason(s: GameState): void {
   }
   for (const t of s.teams) { t.wins = 0; t.losses = 0; t.pointsFor = 0; t.pointsAgainst = 0; }
   s.schedule = genSchedule(s.teams.length);
-  s.prospects = [];
   s.commits = [];
   s.selectPool = [];
   s.signingResults = [];
@@ -1353,10 +1487,15 @@ export function startNewSeason(s: GameState): void {
   s.groundedWeeks = 0;
   s.proDeparts = [];
   s.ut = null;
-  autoLineup(myTeam(s));
+  normalizeLineup(myTeam(s)); // keeps the arrangement from the selection grid
+  // a FULL board of nine total strangers — the season's recruiting raw material
+  s.prospects = [];
+  s.pendingRecruits = [];
   const counter = { nextId: s.nextId };
   const names = takenNames(s);
-  for (let i = 0; i < 2; i++) s.prospects.push(genProspect(counter, s.season, Math.random() < 0.5 ? 'home' : 'nebula', names));
+  const regions = ['home', 'home', 'nebula', 'nebula', 'nebula', 'outerrim', 'outerrim'];
+  if (s.unlockedRegions.includes('deepcore')) regions.push('deepcore');
+  for (let i = 0; i < MAX_PROSPECTS; i++) s.prospects.push(genProspect(counter, s.season, pick(regions), names));
   s.nextId = counter.nextId;
   startWeek(s);
 }

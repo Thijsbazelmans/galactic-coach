@@ -162,34 +162,45 @@ export const DEITY_NAMES = [
   'Chandraa', 'Adityaa', 'Yamii', 'Rohinee', 'Revatee',
 ];
 
-// ---- the plan wheel ----------------------------------------------------------
-// Four tactics, one per attribute, 1:1. Each beats exactly one other:
-// SHOWTIME > LOCKDOWN > CLOCKWORK > RUN & GUN > SHOWTIME.
+// ---- THE SPEECH --------------------------------------------------------------
+// The tactics wheel is DEAD. A speech is a rousing gamble: a small chance the
+// room IGNITES (everyone plays +amt in that attribute tonight), a smaller
+// chance somebody stops believing (their mood craters). Four standard
+// speeches, one per attribute; premium speeches with better odds live in
+// stories.
 
 export interface PlanDef {
   id: PlanId;
   name: string;
-  /** the coach's speech that commits this plan */
+  /** the coach's words */
   speech: string;
   attr: Attr;
-  beats: PlanId;
+  /** +attr per player, for the half, when the room ignites */
+  boost: number;
+  /** % the room ignites */
+  up: number;
+  /** % one player stops believing (mood −20) */
+  down: number;
   fantasy: string;
-  beatLine: string; // "your X broke their Y" flavor
+  premium?: boolean;
 }
 
 export const PLANS: PlanDef[] = [
-  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', attr: 'skl', beats: 'lockdown', fantasy: 'Shooters shoot. Rise over anything they pack in.', beatLine: 'Pure touch rose over the muggers.' },
-  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', attr: 'ath', beats: 'showtime', fantasy: 'Outrun everything. Seven seconds or less.', beatLine: 'Their shooters never got a clean look at full sprint.' },
-  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', attr: 'frc', beats: 'clockwork', fantasy: 'Full-court terror. Make them hate the ball.', beatLine: 'The press tore their script to pieces.' },
-  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', attr: 'brn', beats: 'rungun', fantasy: 'The system. Every cut scripted.', beatLine: 'Poise picked the sprinters apart.' },
+  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', attr: 'skl', boost: 2, up: 10, down: 5, fantasy: 'Shooters shoot. Rise over anything they pack in.' },
+  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', attr: 'ath', boost: 2, up: 10, down: 5, fantasy: 'Outrun everything. Seven seconds or less.' },
+  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', attr: 'frc', boost: 2, up: 10, down: 5, fantasy: 'Full-court terror. Make them hate the ball.' },
+  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', attr: 'brn', boost: 2, up: 10, down: 5, fantasy: 'The system. Every cut scripted.' },
+  // premium speeches — found in stories, better odds, bigger boost
+  { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', attr: 'frc', boost: 3, up: 25, down: 5, fantasy: 'An old Quadran battle chant. The paint peels.', premium: true },
+  { id: 'zenmind', name: 'THE STILL POND', speech: 'BE THE STILL POND', attr: 'brn', boost: 3, up: 25, down: 2, fantasy: 'The oracle taught you this one. The gym goes quiet inside.', premium: true },
 ];
 
 export function planById(id: PlanId): PlanDef {
   return PLANS.find((p) => p.id === id)!;
 }
 
-/** The two tactics every coach knows on day one. The rest are KNOWLEDGE. */
-export const STARTING_PLANS: PlanId[] = ['showtime', 'rungun'];
+/** The four standard speeches every coach knows. Premium ones are KNOWLEDGE. */
+export const STARTING_PLANS: PlanId[] = ['showtime', 'rungun', 'lockdown', 'clockwork'];
 
 export const ATTR_LABEL: Record<Attr, string> = {
   skl: 'SKILL', ath: 'ATHLETICISM', frc: 'FIERCENESS', brn: 'BRAINS',
@@ -213,13 +224,24 @@ export interface DrillDef {
   xp: [number, number];
   /** the fast fixed track: direct attribute points — the DRILL picks where */
   gain?: Partial<Record<Attr, number>>;
+  /** ceiling work: % chance per player of +1 potential on a random attribute */
+  potChance?: number;
   /** 'squad' trains everyone not sitting; 'one' trains a single pick; 'rest' recovers */
   target: 'squad' | 'one' | 'rest';
+  /** rest drills: what the squad gets back */
+  recover?: { energy: number; mood: number };
   up: OddsTail;
   down: OddsTail;
   energyCost: number; // player energy drained by participating
   injuryBias: number; // 0 mild … 2 severe
   cause: (name: string) => string;
+}
+
+/** The three practice families: earn XP / hammer stats / get the squad back. */
+export function drillKind(d: DrillDef): 'train' | 'sharpen' | 'recover' {
+  if (d.target === 'rest') return 'recover';
+  if (d.gain || d.potChance) return 'sharpen';
+  return 'train';
 }
 
 export const DRILLS: DrillDef[] = [
@@ -269,11 +291,26 @@ export const DRILLS: DrillDef[] = [
     cost: 0,
     xp: [0, 0],
     target: 'rest',
+    recover: { energy: 21, mood: 4 },
     up: { pct: 2, cls: 'SPIRIT' },
+    down: { pct: 5, cls: 'DRAMA' },
+    energyCost: 0,
+    injuryBias: 0,
+    cause: (n) => `${n}, unsupervised, went quad-racing in a crater on a borrowed grav-board.`,
+  },
+  {
+    id: 'bonfire',
+    name: 'BONFIRE NIGHT',
+    desc: 'Marshmallows, ghost stories, someone brings a guitar with eleven strings. The squad remembers it likes itself.',
+    cost: 1,
+    xp: [0, 0],
+    target: 'rest',
+    recover: { energy: 6, mood: 14 },
+    up: { pct: 5, cls: 'SPIRIT' },
     down: { pct: 2, cls: 'DRAMA' },
     energyCost: 0,
     injuryBias: 0,
-    cause: (n) => `${n}, unsupervised, found a crater to lollygag in on a borrowed grav-board.`,
+    cause: (n) => `${n} told the one ghost story the freshmen were not ready for. Nobody slept.`,
   },
   // ---- discovered methods: direct points, the drill decides where -------------
   {
@@ -319,6 +356,20 @@ export const DRILLS: DrillDef[] = [
     cause: (n) => `${n} won the cage bout but left his shoulder somewhere inside it.`,
   },
   {
+    id: 'dreamlab',
+    name: 'THE DREAM LAB',
+    desc: 'The squad sleeps in tanks and practices in shared lucid dreams. Ceilings are negotiable in there.',
+    cost: 3,
+    xp: [1, 3],
+    potChance: 50,
+    target: 'squad',
+    up: { pct: 5, cls: 'BREAKTHROUGH' },
+    down: { pct: 10, cls: 'DRAMA' },
+    energyCost: 4,
+    injuryBias: 0,
+    cause: (n) => `${n} refused to wake up for two days. The dream, reportedly, was going great.`,
+  },
+  {
     id: 'filmroom',
     name: 'THE FILM CRYPT',
     desc: 'Ten thousand seasons of galactic film, fed straight into the whole room until the floor slows down.',
@@ -338,133 +389,100 @@ export function drillById(id: string): DrillDef {
   return DRILLS.find((d) => d.id === id) ?? DRILLS[0];
 }
 
-// ---- the galaxy: scan regions ---------------------------------------------------
+// ---- the galaxy: ONE action per week, always board-wide -------------------------
+// Three families. SCOUT sharpens every name on the board (facet reveals).
+// RECRUIT works every name at once (bigger spend = bigger range = bigger risk).
+// SEARCH finds new talent — a full board means someone gets discarded forever.
+// The 0⚡ floor is the LOCAL REC CENTER: humans, rarely any good, and sometimes
+// somebody takes offense at where you went looking.
 
-export interface ScanDef {
+export interface GalaxyActDef {
   id: string;
+  kind: 'scout' | 'recruit' | 'search';
   name: string;
   desc: string;
   cost: number;
-  count: number;
-  pool: string[];
-  skillBonus: number;
-  potBonus: number;
-  down: OddsTail;
-  up: OddsTail;
+  /** scout: facet reveals per prospect [min,max] */
+  reveals?: [number, number];
+  /** recruit: commit % range [min,max] */
+  gain?: [number, number];
+  /** recruit: per-prospect % chance the night backfires on that name */
+  risk?: number;
+  /** search: species pool + quality shaping */
+  pool?: string[];
+  skillBonus?: number;
+  potBonus?: number;
+  /** search: % chance of finding TWO */
+  twoChance?: number;
+  /** search: reachable with a grounded ship */
   local?: boolean;
-}
-
-export const SCAN_REGIONS: ScanDef[] = [
-  {
-    id: 'home',
-    name: 'HOME PLANET',
-    desc: 'Terrans wall to wall. Cheap, safe, capped — a Terran never becomes a monster.',
-    cost: 1, count: 2, pool: ['terran'], skillBonus: 0, potBonus: 0,
-    down: { pct: 2, cls: 'SHIP' }, up: { pct: 2, cls: 'INTEL' },
-    local: true,
-  },
-  {
-    id: 'nebula',
-    name: 'LOCAL NEBULA',
-    desc: 'Hexid blurs, Quadran storms, Petran walls. Real specialists, mild turbulence.',
-    cost: 2, count: 2, pool: ['hexid', 'quadran', 'petran', 'oculid'], skillBonus: 4, potBonus: 5,
-    down: { pct: 10, cls: 'SHIP' }, up: { pct: 5, cls: 'INTEL' },
-  },
-  {
-    id: 'outerrim',
-    name: 'OUTER RIM',
-    desc: 'Nimbus shooters, Gelid floor generals, and the strangest talent in known space. The micrometeorites are not a rumor.',
-    cost: 3, count: 2, pool: ['nimbus', 'gelid', 'robota', 'hexid', 'quadran', 'petran', 'oculid'], skillBonus: 8, potBonus: 10,
-    down: { pct: 25, cls: 'SHIP' }, up: { pct: 5, cls: 'LOOT' },
-  },
-  {
-    id: 'deepcore',
-    name: 'DEEP CORE',
-    desc: 'The old charts were real. Every species, generational ceilings, gravity that eats ships.',
-    cost: 3, count: 2, pool: ['terran', 'hexid', 'quadran', 'petran', 'nimbus', 'gelid', 'robota', 'oculid'], skillBonus: 10, potBonus: 16,
-    down: { pct: 25, cls: 'SHIP' }, up: { pct: 10, cls: 'LOOT' },
-  },
-];
-
-export function scanById(id: string): ScanDef {
-  return SCAN_REGIONS.find((r) => r.id === id) ?? SCAN_REGIONS[0];
-}
-
-// ---- the galaxy: SCOUT and RECRUIT acts -----------------------------------------
-
-export interface ProspectActDef {
-  id: string;
-  kind: 'scout' | 'recruit';
-  name: string;
-  desc: string;
-  cost: number;
-  gain?: [number, number]; // commit % for recruit acts
   up: OddsTail;
   down: OddsTail;
 }
 
-export const PROSPECT_ACTS: ProspectActDef[] = [
+export const GALAXY_ACTS: GalaxyActDef[] = [
+  // ---- SCOUT (always costs energy) ----
   {
-    id: 'attend',
-    kind: 'scout',
-    name: 'ATTEND HIS GAME',
-    desc: 'A seat in the stands, a clipboard, the truth.',
-    cost: 1,
-    up: { pct: 5, cls: 'INTEL' },
-    down: { pct: 2, cls: 'SHIP' },
+    id: 'filmnight', kind: 'scout', name: 'FILM NIGHT', cost: 1, reveals: [1, 1],
+    desc: 'Grainy feeds from nine gyms. One honest look at everybody.',
+    up: { pct: 5, cls: 'INTEL' }, down: { pct: 2, cls: 'DRAIN' },
   },
   {
-    id: 'workout',
-    kind: 'scout',
-    name: 'PRIVATE WORKOUT',
-    desc: 'An hour in your gym, your drills, your stopwatch.',
-    cost: 2,
-    up: { pct: 25, cls: 'INTEL' },
-    down: { pct: 5, cls: 'DRAMA' },
+    id: 'roadtrip', kind: 'scout', name: 'SCOUTING ROAD TRIP', cost: 2, reveals: [1, 2],
+    desc: 'A week in the shuttle, a seat in nine different stands.',
+    up: { pct: 10, cls: 'INTEL' }, down: { pct: 5, cls: 'SHIP' },
   },
   {
-    id: 'database',
-    kind: 'scout',
-    name: 'BUY THE COMBINE DATABASE',
-    desc: 'Every measurement the league has, from a man in a chrome trench coat.',
-    cost: 3,
-    up: { pct: 10, cls: 'INTEL' },
-    down: { pct: 25, cls: 'SCANDAL' },
+    id: 'combine', kind: 'scout', name: 'HOST A COMBINE', cost: 3, reveals: [2, 3],
+    desc: 'Fly all nine in. Your gym, your drills, your stopwatch.',
+    up: { pct: 25, cls: 'INTEL' }, down: { pct: 10, cls: 'SCANDAL' },
+  },
+  // ---- RECRUIT (always costs energy) ----
+  {
+    id: 'letters', kind: 'recruit', name: 'HOLO-LETTERS', cost: 1, gain: [4, 10], risk: 2,
+    desc: 'Nine handwritten holograms. Safe. Modest. Sincere.',
+    up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' },
   },
   {
-    id: 'tour',
-    kind: 'recruit',
-    name: 'CAMPUS TOUR',
-    desc: 'Safe. Modest. The gravy-fries do most of the talking.',
-    cost: 1,
-    gain: [6, 12],
-    up: { pct: 2, cls: 'SPIRIT' },
-    down: { pct: 2, cls: 'DRAMA' },
+    id: 'openhouse', kind: 'recruit', name: 'CAMPUS OPEN HOUSE', cost: 2, gain: [4, 18], risk: 5,
+    desc: 'The whole board visits at once. The gravy-fries do most of the talking.',
+    up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' },
   },
   {
-    id: 'frat',
-    kind: 'recruit',
-    name: 'KAPPA NEBULA NIGHT',
-    desc: 'The rowdiest house on campus shows him the time of his life. Usually.',
-    cost: 2,
-    gain: [12, 22],
-    up: { pct: 5, cls: 'SPIRIT' },
-    down: { pct: 25, cls: 'DRAMA' },
+    id: 'gala', kind: 'recruit', name: 'THE RECRUITING GALA', cost: 3, gain: [6, 28], risk: 10,
+    desc: 'Twelve courses, a laser quartet, zero discretion. Huge swings, both ways.',
+    up: { pct: 10, cls: 'SPIRIT' }, down: { pct: 25, cls: 'SCANDAL' },
+  },
+  // ---- SEARCH (the 0⚡ floor lives here) ----
+  {
+    id: 'reccenter', kind: 'search', name: 'LOCAL REC CENTER', cost: 0, pool: ['terran'], skillBonus: -8, potBonus: 0, local: true,
+    desc: 'Humans only, and rarely any good. And kids notice where you went looking.',
+    up: { pct: 2, cls: 'INTEL' }, down: { pct: 5, cls: 'DRAMA' },
   },
   {
-    id: 'dinner',
-    kind: 'recruit',
-    name: 'RESTAURANT AT THE END OF THE GALAXY',
-    desc: 'Twelve courses, a window seat for the apocalypse, zero discretion.',
-    cost: 3,
-    gain: [20, 30],
-    up: { pct: 5, cls: 'SPIRIT' },
-    down: { pct: 25, cls: 'SCANDAL' },
+    id: 'home', kind: 'search', name: 'HOME PLANET', cost: 1, pool: ['terran'], skillBonus: 0, potBonus: 0, local: true,
+    desc: 'Terrans wall to wall. Cheap, safe, capped — a Terran never becomes a monster.',
+    up: { pct: 2, cls: 'INTEL' }, down: { pct: 2, cls: 'SHIP' },
+  },
+  {
+    id: 'nebula', kind: 'search', name: 'LOCAL NEBULA', cost: 2, pool: ['hexid', 'quadran', 'petran', 'oculid'], skillBonus: 4, potBonus: 5,
+    desc: 'Hexid blurs, Quadran storms, Petran walls. Real specialists, mild turbulence.',
+    up: { pct: 5, cls: 'INTEL' }, down: { pct: 10, cls: 'SHIP' },
+  },
+  {
+    id: 'outerrim', kind: 'search', name: 'OUTER RIM', cost: 3, pool: ['nimbus', 'gelid', 'robota', 'hexid', 'quadran', 'petran', 'oculid'], skillBonus: 8, potBonus: 10, twoChance: 15,
+    desc: 'Nimbus shooters, Gelid floor generals, and the strangest talent in known space.',
+    up: { pct: 5, cls: 'LOOT' }, down: { pct: 25, cls: 'SHIP' },
+  },
+  {
+    id: 'deepcore', kind: 'search', name: 'DEEP CORE', cost: 3, pool: ['terran', 'hexid', 'quadran', 'petran', 'nimbus', 'gelid', 'robota', 'oculid'], skillBonus: 10, potBonus: 16, twoChance: 20,
+    desc: 'The old charts were real. Every species, generational ceilings, gravity that eats ships.',
+    up: { pct: 10, cls: 'LOOT' }, down: { pct: 25, cls: 'SHIP' },
   },
 ];
 
-export function prospectActById(id: string): ProspectActDef {
-  return PROSPECT_ACTS.find((a) => a.id === id) ?? PROSPECT_ACTS[0];
+export function galaxyActById(id: string): GalaxyActDef {
+  return GALAXY_ACTS.find((a) => a.id === id) ?? GALAXY_ACTS[0];
 }
 
 // ---- THE BAG ----------------------------------------------------------------------
@@ -494,6 +512,8 @@ export interface ItemDef {
   flavor: string;
   effectText: string;
   context: string[];
+  /** 'player' items are DRAGGED onto a card — the individual action lives here */
+  target?: 'player';
   up?: OddsTail;
   down?: OddsTail;
   use: (ctx: StoryCtx) => StoryResolution;
@@ -692,7 +712,9 @@ export const ITEMS: ItemDef[] = [
     up: { pct: 5, cls: 'INTEL' },
     down: { pct: 25, cls: 'DRAMA' },
     use: (ctx) => {
-      const pr = ctx.data.prospectId !== undefined ? ctx.s.prospects.find((x) => x.id === ctx.data.prospectId) : ctx.s.prospects[0];
+      const pr = ctx.data.prospectId !== undefined
+        ? ctx.s.prospects.find((x) => x.id === ctx.data.prospectId)
+        : ctx.s.prospects.length ? pick(ctx.s.prospects) : undefined;
       if (!pr) return { text: 'Nobody to impress. The pass glows anyway.' };
       const t = tails(5, 25);
       if (t === 'down') {
@@ -701,7 +723,10 @@ export const ITEMS: ItemDef[] = [
       }
       pr.commitPct = clamp(pr.commitPct + 25, 0, 95);
       if (t === 'up') {
-        pr.scoutLevel = 2;
+        pr.seenSkill = true;
+        pr.seenPot = true;
+        pr.digits = 2;
+        pr.scoutLevel = 4;
         pr.seenAttrs = { ...pr.attrs };
         pr.seenPots = { ...pr.pots };
         return { text: `${pr.name} has the night of his life — and plays pickup at 3am while your assistant takes notes. Commitment +25%, and now you KNOW him.` };
@@ -717,11 +742,12 @@ export const ITEMS: ItemDef[] = [
     flavor: 'Every step is leg day.',
     effectText: 'a body permanently rebuilt: +ATHLETICISM',
     context: ['practice'],
+    target: 'player',
     up: { pct: 2, cls: 'BREAKTHROUGH' },
     down: { pct: 25, cls: 'INJURY' },
     use: (ctx) => {
       const squad = ctx.team().filter((p) => p.outWeeks === 0);
-      const p = squad.sort((a, b) => b.attrs.ath - a.attrs.ath)[0] ?? null;
+      const p = ctx.player ?? squad.sort((a, b) => b.attrs.ath - a.attrs.ath)[0] ?? null;
       if (!p) return { text: 'No legs available for leg day.' };
       const t = tails(2, 25);
       if (t === 'down') {
@@ -770,6 +796,166 @@ export const ITEMS: ItemDef[] = [
     },
   },
   {
+    id: 'whistle',
+    short: 'WHSTL',
+    name: 'THE GOLDEN WHISTLE',
+    rarity: 'common',
+    flavor: 'Blow it once and one player hears nothing else for a week.',
+    effectText: 'private training session: +1 attribute',
+    context: ['practice'],
+    target: 'player',
+    up: { pct: 5, cls: 'BREAKTHROUGH' },
+    down: { pct: 2, cls: 'DRAIN' },
+    use: (ctx) => {
+      const p = ctx.player ?? ctx.bestPlayer();
+      if (!p) return { text: 'The whistle glints. Nobody reports for extra work.' };
+      const t = tails(5, 2);
+      if (t === 'up') return { text: `A week of one-on-one mornings and ${p.name} finds TWO new gears. The whistle approves.`, fx: [{ playerId: p.id, anyAttr: 2, mood: 5 }] };
+      if (t === 'down') return { text: `${p.name} puts the work in but leaves the week running on fumes.`, fx: [{ playerId: p.id, anyAttr: 1, energyP: -15 }] };
+      return { text: `A week of private sessions. ${p.name} comes out sharper.`, fx: [{ playerId: p.id, anyAttr: 1 }] };
+    },
+  },
+  {
+    id: 'talk',
+    short: 'TALK',
+    name: 'THE QUIET WORD',
+    rarity: 'common',
+    flavor: 'A closed office door and two cups of nebula tea.',
+    effectText: 'a private talk: mood +20, energy +10',
+    context: ['mood', 'practice'],
+    target: 'player',
+    up: { pct: 5, cls: 'SPIRIT' },
+    down: { pct: 2, cls: 'DRAMA' },
+    use: (ctx) => {
+      const p = ctx.player ?? ctx.bestPlayer();
+      if (!p) return { text: 'The office stays quiet. The tea goes cold.' };
+      const t = tails(5, 2);
+      if (t === 'up') return { text: `You and ${p.name} talk for two hours. He tells you the real thing. Everything after this is easier.`, fx: [{ playerId: p.id, mood: 30, energyP: 10 }] };
+      if (t === 'down') return { text: `The talk goes sideways — you said the wrong name at the wrong moment. ${p.name} leaves colder than he came.`, fx: [{ playerId: p.id, mood: -8 }] };
+      return { text: `Tea, silence, then the truth. ${p.name} walks out lighter.`, fx: [{ playerId: p.id, mood: 20, energyP: 10 }] };
+    },
+  },
+  {
+    id: 'mixtape',
+    short: 'TAPE',
+    name: 'HYPE MIXTAPE',
+    rarity: 'common',
+    flavor: "Forty minutes of his own highlights set to Quadran war drums.",
+    effectText: 'one player: mood +25',
+    context: ['mood'],
+    target: 'player',
+    up: { pct: 2, cls: 'SPIRIT' },
+    down: { pct: 2, cls: 'DRAMA' },
+    use: (ctx) => {
+      const p = ctx.player ?? ctx.bestPlayer();
+      if (!p) return { text: 'The mixtape plays to an empty locker room. It still slaps.' };
+      return { text: `${p.name} watches his own highlights until curfew. He walks into practice like a season finale.`, fx: [{ playerId: p.id, mood: 25 }] };
+    },
+  },
+  {
+    id: 'nappod',
+    short: 'NAP',
+    name: 'NAP POD PASS',
+    rarity: 'common',
+    flavor: 'One session in the faculty-only zero-G sleep pod. Do not tell the faculty.',
+    effectText: 'one player: energy +40',
+    context: ['practice', 'pregame'],
+    target: 'player',
+    up: { pct: 2, cls: 'SPIRIT' },
+    down: { pct: 2, cls: 'DRAMA' },
+    use: (ctx) => {
+      const p = ctx.player ?? ctx.bestPlayer();
+      if (!p) return { text: 'The pod hums, unused. Somewhere, a professor naps unaware of how close it was.' };
+      return { text: `${p.name} sleeps nine dreamless zero-G hours and wakes up ready to fight a moon.`, fx: [{ playerId: p.id, energyP: 40 }] };
+    },
+  },
+  {
+    id: 'telescope',
+    short: 'SCOPE',
+    name: 'STARLIGHT TELESCOPE',
+    rarity: 'rare',
+    flavor: 'Point it at a player and it shows you who they could be.',
+    effectText: 'one player: potential +2',
+    context: ['practice'],
+    target: 'player',
+    up: { pct: 5, cls: 'BREAKTHROUGH' },
+    down: { pct: 2, cls: 'DRAMA' },
+    use: (ctx) => {
+      const p = ctx.player ?? ctx.bestPlayer();
+      if (!p) return { text: 'You point the telescope at the empty gym. It shows you the gym, but better.' };
+      const t = tails(5, 2);
+      if (t === 'up') return { text: `You show ${p.name} what the telescope sees. He stares for a long time, then goes back inside and starts over, bigger.`, fx: [{ playerId: p.id, anyPot: 4, mood: 8 }] };
+      return { text: `You show ${p.name} the ceiling the telescope found. It's higher than the one he'd accepted.`, fx: [{ playerId: p.id, anyPot: 2 }] };
+    },
+  },
+  {
+    id: 'protein',
+    short: 'BARS',
+    name: 'PROTO-PROTEIN BARS',
+    rarity: 'common',
+    flavor: 'Tastes like drywall. Works like a miracle.',
+    effectText: 'squad energy +8',
+    context: ['practice', 'pregame'],
+    up: { pct: 2, cls: 'SPIRIT' },
+    down: { pct: 2, cls: 'DRAMA' },
+    use: () => ({ text: 'The squad chews through the crate with the joyless efficiency of professionals. Legs feel new.', fx: [{ teamEnergyP: 8 }] }),
+  },
+  {
+    id: 'poster',
+    short: 'POSTR',
+    name: 'SIGNED LEGEND POSTER',
+    rarity: 'common',
+    flavor: 'A holo-poster of the greatest to ever do it, signed in three dimensions.',
+    effectText: 'squad mood +10',
+    context: ['mood', 'practice'],
+    up: { pct: 2, cls: 'SPIRIT' },
+    down: { pct: 2, cls: 'DRAMA' },
+    use: () => ({ text: 'The poster goes up in the locker room. Everyone pretends not to look at it. Everyone looks at it.', fx: [{ teamMood: 10 }] }),
+  },
+  {
+    id: 'alarm',
+    short: 'ALARM',
+    name: 'FIRE ALARM CODES',
+    rarity: 'rare',
+    flavor: "The access codes to the visitors' hotel fire panel. You didn't buy these. Officially.",
+    effectText: 'their hotel evacuates at 3am — they play tired',
+    context: ['pregame'],
+    up: { pct: 2, cls: 'WINDFALL' },
+    down: { pct: 25, cls: 'SCANDAL' },
+    use: (ctx) => {
+      ctx.s.pregameFlags.alarm = true;
+      const t = tails(2, 25);
+      if (t === 'down') {
+        return { text: 'The alarm goes off at 3am, beautifully. So does the hotel security cam feed, straight to the league office.', fx: [{ heatS: 15 }] };
+      }
+      if (t === 'up') return { text: 'The alarm fires THREE times. Their star spends the night on the curb in a blanket. You feel bad. You feel great.', fx: [] };
+      return { text: 'The alarm sings at 3am. Tonight their legs answer half a beat late.', fx: [] };
+    },
+  },
+  {
+    id: 'seer',
+    short: 'LENS',
+    name: "THE SEER'S LENS",
+    rarity: 'rare',
+    flavor: 'Ground from the eye of a dead comet. Shows only true things.',
+    effectText: 'one unknown prospect: fully revealed',
+    context: ['recruiting'],
+    up: { pct: 5, cls: 'INTEL' },
+    down: { pct: 2, cls: 'DRAMA' },
+    use: (ctx) => {
+      const pool = ctx.s.prospects.filter((pr) => !pr.seenSkill || !pr.seenPot || pr.digits < 2);
+      const pr = pool.length ? pick(pool) : null;
+      if (!pr) return { text: 'You raise the lens to the board. You already know everything it could tell you.' };
+      pr.seenSkill = true;
+      pr.seenPot = true;
+      pr.digits = 2;
+      pr.scoutLevel = 4;
+      pr.seenAttrs = { ...pr.attrs };
+      pr.seenPots = { ...pr.pots };
+      return { text: `You raise the lens and ${pr.name} resolves into perfect focus — every number, every ceiling, true.` };
+    },
+  },
+  {
     id: 'check',
     short: 'CHECK',
     name: "BOOSTER'S BLANK CHECK",
@@ -780,7 +966,9 @@ export const ITEMS: ItemDef[] = [
     up: { pct: 2, cls: 'LOOT' },
     down: { pct: 25, cls: 'SCANDAL' },
     use: (ctx) => {
-      const pr = ctx.data.prospectId !== undefined ? ctx.s.prospects.find((x) => x.id === ctx.data.prospectId) : [...ctx.s.prospects].sort((a, b) => ovr(b.pots) - ovr(a.pots))[0];
+      const pr = ctx.data.prospectId !== undefined
+        ? ctx.s.prospects.find((x) => x.id === ctx.data.prospectId)
+        : [...ctx.s.prospects].sort((a, b) => ovr(b.pots) - ovr(a.pots))[0];
       if (!pr) return { text: 'Nobody to buy. The check flutters, unspent.' };
       pr.commitPct = 100;
       pr.selected = true;
@@ -1205,7 +1393,7 @@ export const STORIES: StoryDef[] = [
         return { text: 'The gravel goes in a drawer. The drawer now rattles when the team bus passes.', fx: [{ playerId: p.id, mood: -4 }] };
       }
       const t = tails(25, 25);
-      if (t === 'up') return { text: `The monk diet WORKED?? ${p.name} is denser somehow. The training staff refuses to explain the scale readout.`, fx: [{ playerId: p.id, attr: { ath: 2 }, weightKg: 6, mood: 5 }] };
+      if (t === 'up') return { text: `The monk diet WORKED?? ${p.name} is denser somehow. The training staff refuses to explain the scale readout. The monks, impressed, send a care package.`, fx: [{ playerId: p.id, attr: { ath: 2 }, weightKg: 6, mood: 5 }, { giveItem: 'protein' }] };
       if (t === 'down') return { text: `${p.name} spent three days of mineral week in the medical bay. He is not, it turns out, a Petran monk.`, fx: [{ playerId: p.id, energyP: -30, mood: -6, outWeeks: 1, outReason: 'gravel recovery' }] };
       return { text: `${p.name} quit the mineral diet on day two and ate an entire celebration cake about it. He regrets nothing.`, fx: [{ playerId: p.id, mood: 10, weightKg: 3 }] };
     },
@@ -1316,7 +1504,7 @@ export const STORIES: StoryDef[] = [
           next: { defId: 'scandal', beat: 'start', playerId: null, data: { cause: 'Five hospitalized lab partners and a coach who shrugged. The folder is thick.' } },
         };
       }
-      if (t === 'up') return { text: 'He plays. He plays FURIOUS. The boosters send you a fruit basket shaped like a fist.', fx: [{ heatS: 8, heatB: -8 }, { playerId: p.id, mood: 5 }] };
+      if (t === 'up') return { text: 'He plays. He plays FURIOUS. The boosters send you a fruit basket shaped like a fist, with protein bars under the fruit.', fx: [{ heatS: 8, heatB: -8 }, { playerId: p.id, mood: 5 }, { giveItem: 'protein' }] };
       return { text: `He plays. The Dean starts attending your games just to glare.`, fx: [{ heatS: 10 }] };
     },
   },
@@ -1337,7 +1525,7 @@ export const STORIES: StoryDef[] = [
       if (key === 'go') {
         const t = tails(25, 2);
         const base: Fx[] = [{ playerId: p.id, outWeeks: 3, outReason: 'academic exchange', mood: 10 }, { heatS: -6 }];
-        if (t === 'up') return { text: `${p.name} sends weekly holo-postcards and returns measurably smarter and insufferable about it. The Scholar-Ring rewired how he sees the floor.`, fx: [...base, { playerId: p.id, attr: { brn: 2 } }] };
+        if (t === 'up') return { text: `${p.name} sends weekly holo-postcards and returns measurably smarter and insufferable about it. The Scholar-Ring rewired how he sees the floor — and he brought you something from their observatory.`, fx: [...base, { playerId: p.id, attr: { brn: 2 } }, { giveItem: 'telescope' }] };
         if (t === 'down') return { text: `${p.name} loves it there SO much. His postcards start mentioning "options". You sleep worse.`, fx: [...base, { playerId: p.id, mood: 5 }] };
         return { text: `${p.name} goes, learns, returns with a Scholar-Ring hoodie he never takes off.`, fx: [...base, { playerId: p.id, attr: { brn: 1 } }] };
       }
@@ -1363,7 +1551,7 @@ export const STORIES: StoryDef[] = [
       const p = ctx.player!;
       if (key === 'lean') {
         const t = tails(10, 25);
-        if (t === 'up') return { text: `${p.name}'s follower count triples and so does the season-ticket line. The boosters are DELIGHTED.`, fx: [{ playerId: p.id, mood: 12 }, { heatB: -10 }] };
+        if (t === 'up') return { text: `${p.name}'s follower count triples and so does the season-ticket line. The boosters are DELIGHTED — a sponsor crate arrives for THE BAG.`, fx: [{ playerId: p.id, mood: 12 }, { heatB: -10 }, { giveItem: 'mixtape' }] };
         if (t === 'down') return { text: `${p.name} now signs autographs with a stage name and reviews his own highlights during film study. The locker room has opinions about "his brand" too.`, fx: [{ playerId: p.id, mood: 8, attr: { brn: -1 } }, { teamMood: -6 }] };
         return { text: `${p.name} rides the wave. Practice attendance: perfect. Practice focus: negotiable.`, fx: [{ playerId: p.id, mood: 10 }] };
       }
@@ -1390,7 +1578,7 @@ export const STORIES: StoryDef[] = [
       const p = ctx.player!;
       if (key === 'mascot') {
         const t = tails(25, 10);
-        if (t === 'up') return { text: 'The void-pup attends every practice from a courtside crate and learns to fetch rebounds. Morale is illegal levels of high. It has eaten two whistles.', fx: [{ teamMood: 12 }, { teamEnergyP: 5 }] };
+        if (t === 'up') return { text: 'The void-pup attends every practice from a courtside crate and learns to fetch rebounds. Morale is illegal levels of high. It has eaten two whistles — and dug up something shiny for THE BAG.', fx: [{ teamMood: 12 }, { teamEnergyP: 5 }, { giveItem: 'poster' }] };
         if (t === 'down') return { text: `The void-pup phased through a wall into the Dean's office and unmade his desk. ${p.name} took the blame. There is paperwork.`, fx: [{ teamMood: 5 }, { heatS: 10 }] };
         return { text: 'The void-pup becomes furniture with teeth. The team is 30% happier and 100% more bitten.', fx: [{ teamMood: 10 }] };
       }
@@ -1421,7 +1609,7 @@ export const STORIES: StoryDef[] = [
         return { text: 'The league opens a file. The booster sends you a very cold holiday card.', fx: [{ heatS: -8, heatB: 6 }] };
       }
       const t = tails(25, 25);
-      if (t === 'up') return { text: `${p.name} comes back from "visiting his aunt" noticeably sharper. You ask no questions, which is itself an answer.`, fx: [{ playerId: p.id, xp: 15 }, { heatB: -5 }] };
+      if (t === 'up') return { text: `${p.name} comes back from "visiting his aunt" noticeably sharper — and carrying a gift bag "from the aunt". You ask no questions, which is itself an answer.`, fx: [{ playerId: p.id, xp: 15 }, { heatB: -5 }, { giveItem: 'nappod' }] };
       if (t === 'down') {
         return {
           text: `${p.name} gets photographed entering the pod facility by a fan account with 4 followers and terrifying reach.`,
@@ -1568,7 +1756,12 @@ export const STORIES: StoryDef[] = [
     }),
     resolve: (key, ctx) => {
       const wipe = (): void => {
-        for (const pr of ctx.s.prospects) { pr.scoutLevel = 0; }
+        for (const pr of ctx.s.prospects) {
+          pr.scoutLevel = 0;
+          pr.seenSkill = false;
+          pr.seenPot = false;
+          pr.digits = 0;
+        }
       };
       if (key === 'eva') {
         const t = tails(50, 10);
@@ -2004,19 +2197,19 @@ export const STORIES: StoryDef[] = [
 // one-time explainers from the assistant coach (shown once, then never again)
 export const TIPS: Record<string, string> = {
   tryouts:
-    "First practice, coach. Six players from last year's squad, a gym full of hopefuls, and one clipboard: yours.\n\nPick your nine. The rest of the galaxy already picked theirs.",
+    "First practice, coach. Six players from last year's squad, a gym full of hopefuls, one clipboard: yours.\n\nThe top three rows are your squad — starters, bench, reserves. The bottom row is the door. Drag players between the rows; whoever is in the bottom row when you confirm is gone forever.",
   practice:
-    "Practice runs itself — you just pick the drill and HOLD RUN. One practice a week; everything you can't take back is a hold.\n\nBasic drills earn XP (levels bank +2 points YOU place anywhere); discovered methods hammer +1 into exact attributes — the drill decides where. Anyone under 40 energy sits out automatically. Every card prints its odds. They never lie.",
+    "Practice is mandatory, coach — pick something and HOLD RUN. TEAM REST costs nothing (mostly harmless).\n\nThree families: TRAIN earns XP (levels bank +2 points YOU place), SHARPEN hammers direct points into attributes, RECOVER gets meters back. Anyone under 40 energy sits out automatically. Every option prints its odds. They never lie.",
   lenses:
     "One squad, three lenses. Swipe the grid (or tap the arrows): SKILLS is who they are, STATS is what they've done this season, GROWTH is where they started and how far the ceiling goes.\n\nSame nine faces in the same nine places — only the question changes.",
   galaxy:
-    "The board holds nine names. Highlight an empty slot to DISCOVER — deeper space, stranger talent, worse trips home.\n\nHighlight a prospect for two moves: SCOUT (the cloud sharpens into the true shape) or RECRUIT (the commitment climbs). One of each per week. That's the job.\n\nOh — and ignored prospects drift. Kids notice silence.",
+    "The board holds nine strangers, coach — and one action a week, always the whole board. SCOUT reveals pieces of everyone (a cloud here, a digit there). RECRUIT works all nine at once — spend more, swing bigger, risk more. SEARCH finds new talent, and a full board means somebody gets discarded FOREVER.\n\nBroke? The local rec center is free. Humans only. Kids notice where you go looking.\n\nAnd ignored prospects drift. Kids notice silence too.",
   matchup:
-    "Four tactics, one per attribute — each one bets the game on one of your four numbers. And each beats one other: SHOWTIME beats LOCKDOWN beats CLOCKWORK beats RUN & GUN beats SHOWTIME.\n\nYour team number under each tactic moves LIVE as you swap players. But the game has two sides — SCOUT them (1⚡) to see THEIR tactic and THEIR number, and sometimes your second-best shape is the right call, because it counters theirs.",
+    "The speech is mandatory, coach — and it's a gamble like everything else. Four standard speeches, one per attribute: small chance the room IGNITES (everyone plays bigger in that attribute tonight), smaller chance somebody stops believing.\n\nBetter speeches exist. The galaxy hands them out in stories.\n\nSCOUT them (1⚡) to see their real numbers next to yours.",
   signing:
     "Signing day math, coach: send ONE letter and you keep the full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.",
   bag:
-    "That's THE BAG — the five slots at the bottom of your screen, always within reach. Every item is a bargain with printed odds. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. That's not a coincidence. That's the galaxy.",
+    "That's THE BAG — the five slots at the bottom of your screen, always within reach. Every item is a bargain with printed odds. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. Player items drag straight onto a player's card.\n\nFive slots is the LAW: find something with a full bag and you watch it walk away. Use your items, coach.",
   grid:
     "The grid is your lineup, always: top row starts, middle row comes off the bench, bottom row watches. Hold and drag to rearrange — any screen, any time.\n\nColumns matter: BACKCOURT left, FRONTCOURT right. It's positionless out here, but put a wall in the backcourt or a waterbug in the frontcourt and the card will say MISCAST — and mean it. When someone goes down, he sinks to the bottom of his column and the column steps up.",
   stories:
@@ -2043,7 +2236,8 @@ STORIES.push({
   resolve: () => ({ text: '' }),
 });
 
-// bag overflow: full = use or discard, on the spot (SPEC §9)
+// bag overflow: five slots is the LAW — a full bag means the new thing is lost.
+// (Use your items, coach.)
 STORIES.push({
   id: 'bagfull',
   kind: 'coach',
@@ -2051,21 +2245,25 @@ STORIES.push({
     const incoming = itemById(ctx.data.itemId as string);
     return {
       tag: 'THE BAG IS FULL',
-      text: `${incoming.name} lands in your hands — and THE BAG has no room. Five slots. That's the rule the galaxy agreed on.`,
-      choices: [
-        C('take', `MAKE ROOM (drop your oldest item)`, {}),
-        C('leave', `LEAVE ${incoming.name} BEHIND`, {}),
-      ],
+      text: `${incoming.name} lands in your hands — and THE BAG has no room. Five slots, that's the law. You watch a kid outside the arena walk off with it, delighted.\n\nUse your items, coach.`,
     };
   },
-  resolve: (key, ctx) => {
-    const incoming = itemById(ctx.data.itemId as string);
-    if (key === 'take') {
-      const dropped = itemById(ctx.s.bag[0]);
-      ctx.s.bag = [...ctx.s.bag.slice(1), incoming.id];
-      return { text: `${dropped.name} goes to a kid outside the arena, who will absolutely misuse it. ${incoming.name} takes the slot.` };
+  resolve: () => ({ text: '' }),
+});
+
+// the one you cut: players discarded at the roster cut remember it
+STORIES.push({
+  id: 'cut_revenge',
+  kind: 'coach',
+  beat: (_b, ctx) => ({
+    tag: 'THE ONE YOU CUT',
+    text: `${(ctx.data.cutName as string) ?? 'The one you cut'} — the one you let go at the cut — just dropped 40 in a rec-league stream with your program's name written on ${ctx.data.cutForm === 'femme' ? 'her' : 'his'} shoes. Crossed out.\n\nThe squad has all seen it. Twice.`,
+  }),
+  resolve: () => {
+    if (Math.random() < 0.5) {
+      return { text: 'The locker room laughs it off, mostly. The boosters do not laugh at all.', fx: [{ heatB: 5 }] };
     }
-    return { text: `You leave ${incoming.name} where it lies. Somewhere, a rival coach picks it up.` };
+    return { text: 'Practice that week is QUIET. Some cuts cut back.', fx: [{ teamMood: -6 }] };
   },
 });
 

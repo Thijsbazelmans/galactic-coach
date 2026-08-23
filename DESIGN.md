@@ -616,14 +616,87 @@ counted reserves anyway — this closes the free-fresh-legs loophole.)
   didn't sink the game: weekly energy recovery 18→21. Headless landed at
   **~61% win rate, ~1.2 titles/career** (uncompensated it cratered to 47%).
 
+## v3.0 — THE POLISH PASS (Aug 23, 2026, from Thijs's big redesign ramble)
+
+One session, four systems reworked. **Old saves die (SAVE_VERSION 15).**
+
+**THE ONE FRAME (layout law).** Cards are budgeted so FOUR rows always fit:
+`--cardh = min(colWidth, (100dvh − 300px)/4)` — the 3×3 grid sits in the
+same pixels on every screen, and the space under it holds either a 4th
+card row (selection screens) or a bottom-anchored stack (`.botstack`,
+grows from the bottom: message strip + action buttons, or the team
+bars/opponent stats). Nothing scrolls, ever. The continue button is ONE
+full-width hold-button that never changes size — it DIMS (never hides)
+while an action must land first, and its label says which («PRACTICE
+FIRST», «TAKE AN ACTION FIRST», «SPEECH FIRST»). SCOUT on the matchup
+grew to cover all five opponent rope rows. Sprite loops are synced to the
+wall clock (negative animation-delay), so re-renders resume mid-frame —
+cards never «dance» again when you select or swap.
+
+**THE SELECTION GRID (3×4, the door).** Tryouts and every new-season
+roster: the same 3×3 squad grid plus a 4th row — START/BENCH/RES/CUT.
+Drag anyone anywhere; the arrangement IS the opening lineup; whoever is
+in the CUT row (dimmed) when you confirm goes through one final
+are-you-sure («lost to you forever») and is gone. Cutting a decent player
+(ovr ≥ 38) has a 25% chance of planting a `cut_revenge` story beat weeks
+later. Offseason order fixed: SIGNING DAY verdicts get their own dialogue
+box, THE SUMMER (returner growth, now BEFORE the pick) gets its own, then
+the 12-player grid reads returners → recruits → walk-ons. The `growth`
+phase/screen died.
+
+**RECRUITING v2 (one move, whole board).** The season opens with a FULL
+board of nine total strangers — no clouds, all ??'s. Knowledge is per
+FACET: the ability cloud, the potential cloud, and the two rating digits
+(?? → X?/?X → XX), each revealed separately (`seenSkill`/`seenPot`/
+`digits`; observation fuzz still tightens with scoutLevel). ONE mandatory
+action per week, always board-wide, one button + one grouped ▾ sheet:
+SCOUT (film night 1⚡ / road trip 2⚡ / combine 3⚡ — 1–3 facet reveals per
+prospect, combine can lock one cold), RECRUIT (letters 1⚡ +4–10 / open
+house 2⚡ +4–18 / gala 3⚡ +6–28 — every name at once, each with a printed
+per-prospect backfire chance), SEARCH (rec center 0⚡ humans-only-and-it
+-offends-people / home 1⚡ / nebula 2⚡ / outer rim 3⚡ / deep core — finds
+1–2 new names). A find on a full board lands in the 4th row: drag-swap
+like lineup positions, confirm through the same lost-forever dialog
+(`pendingRecruits` + `swapBoardSlot`/`confirmBoard`). Commit decay is 1/wk
+now. Scout/recruit always cost ⚡; the rec center is the 0⚡ floor.
+
+**THE SPEECH (tactics wheel is DEAD).** No more counter-wheel, no ×2.5
+plan boost — the ropes run on raw match values. A speech is a mandatory
+rousing gamble, one per half: 4 standard speeches (one per attribute,
+known from day one) each print «10% squad +2 ATTR tonight · 5% a believer
+lost (mood −20)»; the roll lands immediately as a toast, and an ignited
+room shows on the ropes (`speechFx`/`speechFxH2` → matchAttrs). Premium
+speeches with better odds (THE WAR CRY +3 FRC 25%, THE STILL POND +3 BRN
+25%/2%) live in the knowledge pool. Wallet/cloak/alarm became flat rope
+multipliers (×1.03 / opp ×0.95 / opp ×0.92).
+
+**ITEMS are the individual actions now.** 9 new items: THE GOLDEN WHISTLE
+(+1 attr), THE QUIET WORD (mood+20/⚡+10), HYPE MIXTAPE (mood +25), NAP
+POD PASS (⚡+40), STARLIGHT TELESCOPE (pot +2), PROTO-PROTEIN BARS /
+SIGNED LEGEND POSTER (small squad boosts), FIRE ALARM CODES (illegal:
+their hotel evacuates at 3am, 25% scandal), THE SEER'S LENS (fully reveal
+a random stranger). Items with `target:'player'` are DRAGGED from THE BAG
+onto a card (context-gated per phase; the item modal says «DRAG IT ONTO A
+PLAYER»). A FULL bag now means a found item is LOST (a kid outside the
+arena gets it) — use your items, coach. ~6 story outcomes now hand out
+loot. Practice grouped into three families in the picker — TRAIN (XP) /
+SHARPEN (direct stats + the new THE DREAM LAB, 3⚡, 50% +1 ceiling each) /
+RECOVER (TEAM REST 0⚡ ⚡+21 · BONFIRE NIGHT 1⚡ mood+14) — and practice is
+mandatory (rest is the free floor, with its printed 5% downside).
+
+**Balance:** headless (harness now arranges rows by rating / columns by
+size, scouts 2 weeks then recruits weekly, sends 4 letters) lands at
+**~58% win rate, ~1.25 titles/career**; first-game win rate matches
+v2.8.2 (~40%, tryouts handicap). The collapse risk in this economy is
+signings: board-wide gains vs decay 1 and roster attrition (~2–3
+leavers/season) — watch commits/season ≥ 1.
+
 ## NEXT SESSION (pick up here)
 
-Fresh-session state: the game is **v2.8** (HALFTIME) — all of it logged in
-the version entries above (v2.0 four attributes → v2.8 HALFTIME).
-Engine `src/engine/` (types/data/gen/sim/state/util), UI `src/main.ts` +
-`src/rig.ts` + `src/style.css`. SAVE_VERSION 14 (halftime fields are
-optional — no bump needed). Tests: `npx tsx scripts/headless.ts N`
-(full careers; ~67% win rate baseline post-halftime) and
+Fresh-session state: the game is **v3.0** (THE POLISH PASS) — see the
+entry above. Engine `src/engine/` (types/data/gen/sim/state/util), UI
+`src/main.ts` + `src/rig.ts` + `src/style.css`. SAVE_VERSION 15.
+Tests: `npx tsx scripts/headless.ts N` (full careers; ~58% baseline) and
 `npx tsx scripts/uismoke.ts` (boots the real UI in happy-dom; nav and
 choices are hold-buttons that ignore clicks — drive them via the
 `window.gcAction(action, id)` dev handle). Thijs drops Claude-Designer
@@ -634,27 +707,29 @@ exports into `fromDesign/<date>/` — read them from there.
 - **Away kits**: the sprite lab defines an away kit (light jersey) —
   dress the visiting roster in it (sprites + chips); replaces the
   hue-clash inversion hack on the matchup vs-row.
-- **Premium speeches**: energy-costing dual-attribute speeches
-  (+BRN & +FRC etc.) discovered via stories; halftime-only speeches
-  (the hook exists now — `deliverHalftimeSpeech` is its own path).
+- **Mid-season roster additions through the selection grid**: stories
+  that hand you a player while the roster is full should reuse the 3×4
+  swap grid (the mechanic + confirm dialog exist; only the story hook is
+  missing).
+- **More story speeches** (the two premium ones are seeds; halftime-only
+  speeches remain design space).
 - **Genderless 'x' form** (they/them) — during the story-writing session;
   verb agreement makes it a writing pass. Candidates: Nimbus/Gelid/Robota.
 - **Story-writing session** (more stories, femme-specific arcs beyond the
-  pregnancy variant, pregnancy long-arc consequences).
+  pregnancy variant, pregnancy long-arc consequences, more cut_revenge
+  variants, more item-granting outcomes).
 - **Species design session**: attr caps are provisional; two-cap tier-3
   consequences (fragility) barely expressed.
-- **Succinct tutorial**: auto-tips are OFF by default; design the real
-  onboarding later. The ? button still serves the old tips.
-- **SPEC.md rewrite**: it still describes the dead v1.0 axis model.
-- **Balance watch**: post-v2.8.2 baseline ~61% win rate / ~1.2 titles per
-  career (optimal-play harness). Knobs in play: two-needle favorite boost
-  (SHARP 6), meter economy (recovery 21/wk vs ~19⚡ starter game drain,
-  drill drains), ON FIRE (25 to light / 12 to keep / ×1.2 — a player-only
-  buff, so it doubles as a difficulty knob), squad-wide direct-point
-  drills, one-look scout bias (×0.6–1.5).
+- **Succinct tutorial**: auto-tips are OFF by default; the ? tips were
+  rewritten for v3.0 but the real onboarding is still undesigned.
+- **SPEC.md rewrite**: it still describes the dead v1.0 axis model (and
+  now also a dead tactics wheel).
+- **Balance watch**: post-v3.0 baseline ~58% win rate / ~1.25 titles per
+  career. Knobs: recruit gain ranges + decay 1, signing letter penalties,
+  speech odds (10/5, +2), SHARP 6, ON FIRE 25/12/×1.2, dream-lab 50%
+  ceiling chance, rec-center offense odds (5%).
 - **Alumni/career surfacing**: careers + MVP counts accumulate but only
-  the STATS lens shows them; a legacy/records screen is unbuilt (aging
-  high-scores hook exists in spec).
+  the STATS lens shows them; a legacy/records screen is unbuilt.
 
 Workflow reminders: pushing needs `gh auth switch -u Thijsbazelmans`
 (default active account is thijs-miketeevee and lacks repo access) — switch

@@ -8,20 +8,21 @@ import {
   ATTR_SHORT,
   CLASS_ABBR,
   DRILLS,
+  GALAXY_ACTS,
   PLANS,
-  PROSPECT_ACTS,
-  SCAN_REGIONS,
+  drillKind,
+  galaxyActById,
   itemById,
   planById,
 } from './engine/data';
-import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, ROSTER_SIZE, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, matchAttrs, slotMult, slotPlayer, teamRating, wheel, winShare } from './engine/sim';
+import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, stipendFor, xpNeed } from './engine/gen';
+import { COL_LABELS, matchAttrs, slotMult, slotPlayer, winShare } from './engine/sim';
 import {
   type LevelUp,
   actionDropProspect,
-  actionProspect,
-  actionScan,
+  actionGalaxy,
   chooseTeam,
+  confirmBoard,
   continueFromResult,
   convincePro,
   currentStory,
@@ -32,11 +33,11 @@ import {
   finalizeRoster,
   freshGame,
   isUtWeek,
+  itemAllowedNow,
   letGoPro,
   load,
   myMatchup,
   myTeam,
-  oppPlanHint,
   playGame,
   playSecondHalf,
   queueStory,
@@ -48,8 +49,8 @@ import {
   scoutOpponent,
   showTip,
   sortedStandings,
-  startNewSeason,
   starters,
+  swapBoardSlot,
   toGalaxy,
   toMatchup,
   toSigning,
@@ -60,12 +61,12 @@ import {
   weekLabel,
   wipeSave,
 } from './engine/state';
-import type { Attr, AttrRec, GameState, PlanId, Player, Prospect, Team } from './engine/types';
+import type { Attr, AttrRec, GameState, PlanId, Player, Prospect, SpeechFx, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, perGame, potStars } from './engine/util';
 import { PRACTICE_KIT, busUrl, energyBucket, iconUrl, moodBucket, rigSpriteHtml, type Kit, type RigView } from './rig';
 
-const VERSION = 'v2.0';
+const VERSION = 'v3.0';
 
 let state: GameState = load() ?? freshGame();
 
@@ -144,17 +145,17 @@ let itemUi: string | null = null;
 let toast: string | null = null;
 let drillSheet = false;
 let selectedDrill = 'shootaround';
-let galaxySheet: 'discover' | 'scout' | 'recruit' | null = null;
-let selDiscover = 'home';
-let selScout = 'attend';
-let selRecruit = 'tour';
-let selProspect: number | null = null;
+let galaxySheet = false;
+let selGalaxy = 'filmnight';
 let selSpeech: PlanId | null = null;
 let speechSheet = false;
-let selEmpty = false;
 let dropConfirm: number | null = null;
 let gxResult: { text: string; cost: number; played: boolean } | null = null;
-let poolSelected: Set<number> | null = null;
+/** the selection grid: 12 slots (9 squad in lineup order + the CUT row) */
+let selSlots: number[] | null = null;
+/** the two are-you-sure dialogs before anyone is lost forever */
+let cutConfirm = false;
+let boardConfirm = false;
 // game night: H1 needle → the locker room → H2 needle → verdict → standings
 let gnStage: 'beat' | 'half' | 'beat2' | 'verdict' | 'table' = 'beat';
 let progressTimer: number | null = null;
@@ -444,6 +445,8 @@ interface SqOpts {
   pot?: AttrRec | null;
   start?: AttrRec | null;
   fuzz?: 0 | 1 | 2;
+  /** a total stranger: no shape at all — the axes wait, empty */
+  hide?: boolean;
   /** pre-rendered sprite HTML (the animated rig), centered in the kite */
   sprite?: string | null;
   /** per-attribute numbers printed under the corner labels */
@@ -461,14 +464,16 @@ function squareKite(cur: AttrRec, o: SqOpts): string {
   // an unscouted shape is a CLOUD, not a diamond: three jittered ghosts under
   // a real gaussian blur — nothing sharp survives
   const pts = kitePoints(cur);
-  const shape = fuzz
-    ? `<g class="k-cloud" filter="url(#kblur${fuzz})">
+  const shape = o.hide
+    ? ''
+    : fuzz
+      ? `<g class="k-cloud" filter="url(#kblur${fuzz})">
         <polygon points="${pts}" transform="rotate(-9 50 50) translate(-3 2)"/>
         <polygon points="${pts}" transform="rotate(8 50 50) translate(3 -2)"/>
         <polygon points="${pts}" transform="scale(1.08) translate(-4 -4)"/>
         <polygon points="${pts}"/>
       </g>`
-    : `<polygon class="k-cur" points="${pts}"/>`;
+      : `<polygon class="k-cur" points="${pts}"/>`;
   return `<div class="ksq ${fuzz ? `fuzzy${fuzz}` : ''}">
     <svg class="ksvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       ${fuzz ? `<defs>
@@ -607,14 +612,23 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   </div>`;
 }
 
-// Prospects wear the same square and the same three lenses. ABILITY sharpens
-// to truth with scouting (?? → a range → the number); POTENTIAL never gets past
-// stars until he signs — the cloud is the ceiling. ✕ forgets him forever.
-function prospectCard(pr: Prospect, l: Lens): string {
+/** The masked rating: ?? → 4? or ?7 → 47. Digits reveal one at a time. */
+function prospectMask(pr: Prospect): string {
+  const n = String(ovr(pr.seenAttrs)).padStart(2, '0');
+  if (pr.digits >= 2) return n;
+  if (pr.digits === 1) return pr.digitFirst === 'tens' ? `${n[0]}?` : `?${n[1]}`;
+  return '??';
+}
+
+// Prospects wear the same square and the same three lenses — but a fresh name
+// is a TOTAL stranger: no clouds, all ??'s. Scouting reveals facets one at a
+// time: the ability cloud, the potential cloud, the two rating digits.
+// ✕ forgets him forever.
+function prospectCard(pr: Prospect, l: Lens, opts: { draggable?: boolean; dim?: boolean } = {}): string {
   const img = rigSpriteHtml(
     { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, form: pr.form, mood: 'neutral', energy: 'normal', fire: false },
     PRACTICE_KIT, 1.75, 'ksprite');
-  const known = pr.scoutLevel;
+  const fuzz: 0 | 1 | 2 = pr.scoutLevel >= 4 ? 0 : pr.scoutLevel >= 2 ? 1 : 2;
   const nameHtml = `<span class="kname">${esc(pr.name)}</span><button class="kx" data-action="pr-forget" data-id="${pr.id}">✕</button>`;
   const ring = ringCounter(pr.commitPct, 'COM', `${pr.commitPct}`, `commitment ${pr.commitPct}%`);
   const imgDim = rigSpriteHtml(
@@ -629,27 +643,28 @@ function prospectCard(pr: Prospect, l: Lens): string {
       <div class="prblurb">${esc(pr.blurb)}</div>
     </div>`;
   } else if (l === 2) {
-    // POTENTIAL: the ceiling as a cloud + a star guess (truth only at signing)
+    // POTENTIAL: nothing until the ceiling facet is scouted, then a cloud + stars
     const n = potStars(ovr(pr.seenPots));
-    const stars = known === 0
-      ? `<span class="prq">??</span>`
+    const stars = !pr.seenPot
+      ? `<span class="kovr prq">??</span>`
       : `<span class="prstars"><span>${'★'.repeat(Math.min(2, n))}${'☆'.repeat(Math.max(0, 2 - n))}</span><span>${'★'.repeat(Math.max(0, Math.min(3, n - 2)))}${'☆'.repeat(3 - Math.max(0, Math.min(3, n - 2)))}</span></span>`;
     body = squareKite(pr.seenPots, {
-      fuzz: known >= 2 ? 1 : 2,
+      hide: !pr.seenPot,
+      fuzz: Math.max(1, fuzz) as 1 | 2,
       nameHtml,
       blHtml: stars,
       brHtml: ring,
     });
   } else {
-    // ABILITY: the cloud sharpens — ?? → XX? → XX (bottom-left)
-    const seen = ovr(pr.seenAttrs);
-    const bl = known >= 2
-      ? `<b class="kovr" style="color:${vc(seen * 1.6)}">${seen}</b>`
-      : known === 1
-        ? `<b class="kovr" style="color:${vc(seen * 1.6)}">${seen}?</b>`
-        : `<span class="kovr prq">??</span>`;
+    // ABILITY: no cloud until the shape facet is scouted; the rating unmasks
+    // digit by digit — ?? → 4? / ?7 → 47
+    const mask = prospectMask(pr);
+    const bl = pr.digits >= 2
+      ? `<b class="kovr" style="color:${vc(ovr(pr.seenAttrs) * 1.6)}">${mask}</b>`
+      : `<span class="kovr prq">${mask}</span>`;
     body = squareKite(pr.seenAttrs, {
-      fuzz: known >= 2 ? 0 : known === 1 ? 1 : 2,
+      hide: !pr.seenSkill,
+      fuzz,
       sprite: img,
       nameHtml,
       blHtml: bl,
@@ -657,7 +672,7 @@ function prospectCard(pr: Prospect, l: Lens): string {
     });
   }
   const stick = gxStickers?.get(pr.id);
-  return `<div class="pcard prospect sq ${selProspect === pr.id ? 'selpr' : ''}" data-action="pr-select" data-id="${pr.id}" data-pid="p${pr.id}">
+  return `<div class="pcard prospect sq ${opts.draggable ? 'grabbable' : ''} ${opts.dim ? 'cutcard' : ''}" data-kind="pr" data-pid="${pr.id}">
     ${body}
     ${stick?.length ? `<div class="stickers">${stick.map((st, i) =>
       `<div class="sticker ${st.up === false ? 'down' : ''}" style="animation-delay:${i * 220}ms">${esc(st.text)}</div>`).join('')}</div>` : ''}
@@ -789,19 +804,28 @@ function prospectGridHtml(s: GameState): string {
   // a blank column-header row keeps the cards in exactly the same spot as
   // the practice grid — screens must not jump
   const colHead = `<div class="colhead"><span class="rowlabel"></span><span></span><span></span><span></span></div>`;
-  const sel = gxSelection(s);
-  const firstEmpty = s.prospects.length;
+  const swapping = s.pendingRecruits.length > 0;
   const rows: string[] = [];
   for (let r = 0; r < 3; r++) {
     const cells = [0, 1, 2].map((c) => {
       const idx = r * 3 + c;
       const pr = s.prospects[idx];
-      const podSel = sel.kind === 'empty' && idx === firstEmpty;
-      return `<div class="gcell">${pr
-        ? prospectCard(pr, lens)
-        : `<button class="pod empty ${podSel ? 'selpr' : ''}" data-action="gx-empty">+</button>`}</div>`;
+      return `<div class="gcell ${swapping ? 'dropzone' : ''}" data-zone="${idx}">${pr
+        ? prospectCard(pr, lens, { draggable: swapping && lens === 0 })
+        : `<div class="pod empty">·</div>`}</div>`;
     }).join('');
     rows.push(`<div class="gridrow"><div class="rowlabel"></div>${cells}</div>`);
+  }
+  // the 4th row exists only while new names wait — whoever sits there when
+  // you confirm is gone forever
+  if (swapping) {
+    const cells = [0, 1, 2].map((c) => {
+      const pr = s.pendingRecruits[c];
+      return `<div class="gcell dropzone" data-zone="${9 + c}">${pr
+        ? prospectCard(pr, lens, { draggable: lens === 0, dim: true })
+        : `<div class="pod empty">·</div>`}</div>`;
+    }).join('');
+    rows.push(`<div class="gridrow cutrow"><div class="rowlabel">OUT</div>${cells}</div>`);
   }
   return `<div class="grid">${colHead}${rows.join('')}</div>`;
 }
@@ -924,9 +948,9 @@ function teamBarsPractice(s: GameState): string {
 }
 
 /** MATCHUP: away on the left, home on the right — the ropes run on the real
-    match values (75/25 lineup, energy×mood curve, miscast, fire, the speech).
-    The OVERALL rope's split IS the win chance the needle will land on. */
-function teamBarsMatchup(s: GameState, opts: { plan?: PlanId | null; noVs?: boolean; noScout?: boolean } = {}): string {
+    match values (75/25 lineup, energy×mood curve, miscast, fire, a landed
+    speech). The OVERALL rope's split IS the win chance the needle lands on. */
+function teamBarsMatchup(s: GameState, opts: { fx?: SpeechFx | null; noVs?: boolean; noScout?: boolean } = {}): string {
   const t = myTeam(s);
   const m = myMatchup(s);
   const champ = isUtWeek(s) ? utOpponent(s) : null;
@@ -953,25 +977,23 @@ function teamBarsMatchup(s: GameState, opts: { plan?: PlanId | null; noVs?: bool
     ? ''
     : `<button class="hold scoutbtn ${home ? 'l' : 'r'}" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT<br/>1⚡</button>`;
 
-  const myPlan = opts.plan !== undefined ? opts.plan : s.speechWk ? s.plan : null;
-  const mine = matchAttrs(t, myPlan);
+  const fx = opts.fx !== undefined ? opts.fx : s.speechFx ?? null;
+  const mine = matchAttrs(t, fx);
   const mineTotal = ovr(mine);
   let theirs: AttrRec | null = null;
   let theirsTotal = 0;
   let oppBg = '#666';
   if (s.scoutedOpp) {
     if (champ) {
-      // distribute the champion's power along their plan-weighted kite
-      const boost = planById(champ.plan).attr;
-      const w = ATTRS.map((a) => champ.kite[a] * (a === boost ? 2.5 : 1));
+      // distribute the champion's power along their scouted kite
+      const w = ATTRS.map((a) => champ.kite[a]);
       const tw = w.reduce((x, y) => x + y, 0) || 1;
       theirs = { skl: 0, ath: 0, frc: 0, brn: 0 };
       ATTRS.forEach((a, i) => { theirs![a] = (champ.power * w[i]) / tw; });
       theirsTotal = champ.power;
       oppBg = champ.bg;
     } else if (m) {
-      const hint = oppPlanHint(s);
-      theirs = matchAttrs(m.opponent, hint);
+      theirs = matchAttrs(m.opponent);
       theirsTotal = ovr(theirs);
       oppBg = m.opponent.bg;
     }
@@ -982,17 +1004,14 @@ function teamBarsMatchup(s: GameState, opts: { plan?: PlanId | null; noVs?: bool
     const tv = theirs ? (big ? theirsTotal : theirs[a]) : null;
     let myPct: number;
     if (tv !== null) {
-      // the OVERALL rope shows the true win chance (wheel + venue folded in)
+      // the OVERALL rope shows the true win chance (venue folded in)
       if (big) {
-        const hint = champ ? champ.plan : oppPlanHint(s);
-        const w = myPlan && hint ? wheel(myPlan, hint) : 'tie';
-        const wf = w === 'win' ? 1.12 : w === 'lose' ? 0.89 : 1;
-        myPct = winShare(mv * wf * (home ? 1.03 : 1), tv * (home ? 1 : 1.03)) * 100;
+        myPct = winShare(mv * (home ? 1.03 : 1), tv * (home ? 1 : 1.03)) * 100;
       } else {
         myPct = (mv / Math.max(1, mv + tv)) * 100;
       }
     } else {
-      myPct = Math.min(100, (mv / ((big ? 460 : 130) * (myPlan ? 1.25 : 1))) * 100);
+      myPct = Math.min(100, (mv / (big ? 460 : 130)) * 100);
     }
     const myFill = `<span class="tbfill" style="width:${myPct}%;background:${t.bg}"></span>`;
     const oppFill = tv !== null ? `<span class="tbopp" style="width:${100 - myPct}%;background:${oppBg}"></span>` : '';
@@ -1019,70 +1038,63 @@ function lensBar(): string {
   return `<div class="lensbar">${tabs}</div>`;
 }
 
+function drillRecap(d: (typeof DRILLS)[number]): string {
+  if (d.target === 'rest') {
+    const rec = d.recover ?? { energy: 21, mood: 4 };
+    const bits = [rec.energy >= rec.mood ? `squad ⚡ +${rec.energy}` : '', rec.mood > rec.energy ? `squad MOOD +${rec.mood}` : ''].filter(Boolean);
+    return `${bits.join(' ')} · ${d.cost ? `${d.cost}⚡` : '0⚡'}`;
+  }
+  const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
+  const pot = d.potChance ? `${d.potChance}% +1 CEILING` : '';
+  return `${[gains, pot].filter(Boolean).join(' · ') || `+${d.xp[0]}–${d.xp[1]} XP`} · SQUAD · ${d.cost}⚡`;
+}
+
 function stagePractice(s: GameState): string {
   let fourth: string;
   const d = DRILLS.find((x) => x.id === selectedDrill)!;
   if (lens !== 0) {
     fourth = '';
   } else {
-    const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
-    const recap = d.target === 'rest'
-      ? 'squad ⚡ up · 0⚡'
-      : `${gains || `+${d.xp[0]}–${d.xp[1]} XP`} · SQUAD · ${d.cost}⚡`;
     const spent = s.trainedThisWeek;
     fourth = `<div class="fourthrow actrow"><span class="actwrap runwrap">
       <button class="actmain hold" data-action="drill-run" ${spent || s.energy < d.cost ? 'disabled' : ''}>
-        <b>▶ RUN — ${d.name}</b><span class="actsub">${spent ? '✓ THIS WEEK' : s.energy < d.cost ? `NEED ${d.cost}⚡` : recap}</span>
+        <b>▶ RUN — ${d.name}</b><span class="actsub">${spent ? '✓ THIS WEEK' : s.energy < d.cost ? `NEED ${d.cost}⚡` : drillRecap(d)}</span>
       </button>
       <button class="actarrow" data-action="drill-sheet" ${spent ? 'disabled' : ''}>▾</button>
     </span></div>`;
   }
-  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, lens === 0, lens)}${teamBarsPractice(s)}${fourth}`;
+  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, lens === 0, lens)}<div class="botstack">${teamBarsPractice(s)}${fourth}</div>`;
 }
 
-/** [HOLD main action | ▾ variant picker] — the shared two-part button. */
-function actBtn(kind: 'discover' | 'scout' | 'recruit', verb: string, variant: string, sub: string, disabled: string | false, done: boolean): string {
-  return `<span class="actwrap">
-    <button class="actmain hold" data-action="gx-run" data-id="${kind}" ${disabled || done ? 'disabled' : ''}>
-      <b>▶ ${verb} — ${variant}</b><span class="actsub">${done ? '✓ THIS WEEK' : disabled ? esc(disabled) : sub}</span>
-    </button>
-    <button class="actarrow" data-action="gx-sheet" data-id="${kind}" ${done ? 'disabled' : ''}>▾</button>
-  </span>`;
+/** One-line recap of a galaxy act for the main button. */
+function gxActSub(act: (typeof GALAXY_ACTS)[number]): string {
+  if (act.kind === 'scout') return `reveal ${act.reveals![0]}–${act.reveals![1]} facets · ALL 9 · ${act.cost}⚡`;
+  if (act.kind === 'recruit') return `+${act.gain![0]}–${act.gain![1]}% commit · ALL 9 · ${act.cost}⚡`;
+  return `new talent for the board · ${act.cost ? `${act.cost}⚡` : 'FREE'}`;
 }
 
-/** What's highlighted on the board: a prospect, or the next empty slot. */
-function gxSelection(s: GameState): { kind: 'pr'; pr: Prospect } | { kind: 'empty' } | { kind: 'none' } {
-  const pr = s.prospects.find((x) => x.id === selProspect) ?? null;
-  if (pr && !selEmpty) return { kind: 'pr', pr };
-  if (s.prospects.length < 9) return { kind: 'empty' };
-  if (s.prospects[0]) return { kind: 'pr', pr: s.prospects[0] };
-  return { kind: 'none' };
-}
+const GX_VERB = { scout: 'SCOUT ALL', recruit: 'RECRUIT ALL', search: 'SEARCH' } as const;
 
 function stageGalaxy(s: GameState): string {
-  const sel = gxSelection(s);
-  const reg = SCAN_REGIONS.find((r) => r.id === selDiscover)!;
-  const sAct = PROSPECT_ACTS.find((a) => a.id === selScout)!;
-  const rAct = PROSPECT_ACTS.find((a) => a.id === selRecruit)!;
-  const grounded = s.groundedWeeks > 0 && !reg.local;
-  let buttons: string;
-  if (sel.kind === 'pr') {
-    const pr = sel.pr;
-    buttons =
-      actBtn('scout', 'SCOUT', sAct.name, `the cloud sharpens · ${sAct.cost}⚡`,
-        (pr.scoutLevel >= 2 && 'KNOWN COLD') || (s.energy < sAct.cost && `NEED ${sAct.cost}⚡`), !!s.scoutActWk) +
-      actBtn('recruit', 'RECRUIT', rAct.name, `+${rAct.gain?.[0] ?? 0}–${rAct.gain?.[1] ?? 0}% commit · ${rAct.cost}⚡`,
-        (pr.bannedWeeks > 0 && `BANNED ${pr.bannedWeeks}w`) || (s.energy < rAct.cost && `NEED ${rAct.cost}⚡`), !!s.recruitActWk);
-  } else if (sel.kind === 'empty') {
-    buttons = actBtn('discover', 'DISCOVER', reg.name, `one new name for the board · ${reg.cost}⚡`,
-      (grounded && 'GROUNDED') || (s.energy < reg.cost && `NEED ${reg.cost}⚡`), !!s.discoveredWk);
-  } else {
-    buttons = '';
-  }
+  const act = galaxyActById(selGalaxy);
+  const grounded = s.groundedWeeks > 0 && act.kind === 'search' && !act.local;
+  const swapping = s.pendingRecruits.length > 0;
+  const done = s.galaxyActWk;
+  const disabled = grounded ? 'GROUNDED' : s.energy < act.cost ? `NEED ${act.cost}⚡` : false;
+  const button = swapping
+    ? `<div class="report">Drag to swap — the bottom row is <b>lost forever</b>.</div>`
+    : `<span class="actwrap runwrap">
+      <button class="actmain hold" data-action="gx-run" ${disabled || done ? 'disabled' : ''}>
+        <b>▶ ${GX_VERB[act.kind]} — ${act.name}</b><span class="actsub">${done ? '✓ THIS WEEK' : disabled ? esc(disabled) : gxActSub(act)}</span>
+      </button>
+      <button class="actarrow" data-action="gx-sheet" ${done ? 'disabled' : ''}>▾</button>
+    </span>`;
   return `<h2 class="gridhead">RECRUITING</h2>
     ${prospectGridHtml(s)}
-    ${s.groundedWeeks > 0 ? `<div class="fourthrow slim"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — home scans only</div></div>` : ''}
-    <div class="fourthrow actcol">${buttons}</div>`;
+    <div class="botstack">
+      ${s.groundedWeeks > 0 ? `<div class="fourthrow slim"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — local searches only</div></div>` : ''}
+      <div class="fourthrow actrow">${button}</div>
+    </div>`;
 }
 
 function hue(hex: string): number {
@@ -1103,16 +1115,20 @@ function speechSel(s: GameState): PlanId {
   return selSpeech && s.knownPlans.includes(selSpeech) ? selSpeech : s.knownPlans.includes(s.plan) ? s.plan : s.knownPlans[0];
 }
 
-/** «▶ SPEECH — …» + ▾ — pregame commits the week's plan; halftime reopens it. */
+/** «▶ SPEECH — …» + ▾ — a mandatory gamble, one per half. */
 function speechRow(s: GameState, half: boolean): string {
   const sel = speechSel(s);
   const pl = planById(sel);
   const spoken = half ? !!s.speechH2 : !!s.speechWk;
   const committed = half ? s.planH2 ?? s.plan : s.plan;
+  const landed = half ? s.speechFxH2 : s.speechFx;
+  const spokenSub = landed
+    ? `🔥 THE ROOM IGNITED — squad +${landed.amt} ${ATTR_SHORT[landed.attr]} tonight`
+    : half ? '✓ THE ROOM HEARD IT' : '✓ THIS WEEK';
   return `<div class="fourthrow actrow"><span class="actwrap runwrap">
       <button class="actmain hold" data-action="speech-run" ${spoken ? 'disabled' : ''}>
         <b>▶ ${half ? 'HALFTIME SPEECH' : 'SPEECH'} — ${spoken ? planById(committed).speech : pl.speech}</b>
-        <span class="actsub">${spoken ? (half ? '✓ THE ROOM HEARD IT' : '✓ THIS WEEK') : `+${ATTR_LABEL[pl.attr]} · FREE`}</span>
+        <span class="actsub">${spoken ? spokenSub : `${pl.up}% squad +${pl.boost} ${ATTR_SHORT[pl.attr]} · ${pl.down}% a believer lost · FREE`}</span>
       </button>
       <button class="actarrow" data-action="speech-sheet" ${spoken ? 'disabled' : ''}>▾</button>
     </span></div>`;
@@ -1129,24 +1145,18 @@ function stageMatchup(s: GameState): string {
       : { bg: '#333', fg: '#ccc' };
   return `<h2 class="gridhead">MATCHUP <span class="venuetag" style="background:${host.bg};color:${host.fg}">${homeGame ? 'HOME GAME' : 'AWAY GAME'}</span></h2>
     ${gridHtml(s, true)}
-    ${teamBarsMatchup(s)}
-    ${speech}`;
+    <div class="botstack">${teamBarsMatchup(s)}${speech}</div>`;
 }
 
-// the speech picker: which truth does the room hear tonight?
+// the speech picker: which gamble does the room hear tonight?
 function speechSheetHtml(s: GameState): string {
   if (!speechSheet) return '';
-  const hint = s.scoutedOpp ? oppPlanHint(s) : null;
   const sel = selSpeech ?? s.plan;
   const items = PLANS.map((pl) => {
     if (!s.knownPlans.includes(pl.id)) return `<div class="drill locked">▓▓▓▓ <span class="dim">undiscovered speech</span></div>`;
-    let vs = '';
-    if (hint) {
-      const wl = wheel(pl.id, hint);
-      vs = wl === 'win' ? ' ▲' : wl === 'lose' ? ' ▼' : '';
-    }
     return `<button class="drill ${sel === pl.id ? 'sel' : ''}" data-action="speech-pick" data-id="${pl.id}">
-      <b>${pl.speech}</b>${vs} <span class="xpg">+${ATTR_LABEL[pl.attr]} · ${teamRating(myTeam(s), pl.id)}</span><br/>
+      <b>${pl.speech}</b> <span class="xpg">${ATTR_LABEL[pl.attr]}</span>
+      ${oddsLine({ pct: pl.up, cls: 'SPIRIT', note: `squad +${pl.boost} ${ATTR_SHORT[pl.attr]}` }, { pct: pl.down, cls: 'DRAMA', note: 'a believer lost' })}<br/>
       <span class="ddesc">${esc(pl.fantasy)}</span>
     </button>`;
   }).join('');
@@ -1206,9 +1216,11 @@ function stageHalftime(s: GameState): string {
   return `<h2 class="gridhead">HALFTIME</h2>
     ${scoreline}
     ${gridHtml(s, true)}
-    ${teamBarsMatchup(s, { plan: s.speechH2 ? s.planH2 : null, noVs: true, noScout: true })}
-    ${warn}
-    ${speechRow(s, true)}`;
+    <div class="botstack">
+      ${teamBarsMatchup(s, { fx: s.speechFxH2 ?? null, noVs: true, noScout: true })}
+      ${warn}
+      ${speechRow(s, true)}
+    </div>`;
 }
 
 function stageGamenight(s: GameState): string {
@@ -1237,12 +1249,12 @@ function stageGamenight(s: GameState): string {
     const halves = r.h1 && r.h2 ? `<div class="vline dim">H1 ${r.h1.my}–${r.h1.opp} · H2 ${r.h2.my}–${r.h2.opp}</div>` : '';
     return `<h2 class="gridhead ${r.win ? 'won' : 'lost'}">${r.win ? 'VICTORY' : 'DEFEAT'} ${r.myScore}–${r.oppScore}</h2>
       ${gridHtml(s, true)}
-      <div class="verdict">
+      <div class="botstack"><div class="verdict">
         ${halves}
         <div class="vline">${esc(r.wheelLine)}</div>
         <div class="vline">${esc(r.heroLine)}</div>
         <div class="vline dim">${esc(r.boxLine)}</div>
-      </div>`;
+      </div></div>`;
   }
   const table = !isUtWeek(s)
     ? `<table class="standings">${sortedStandings(s)
@@ -1259,28 +1271,44 @@ function stageGamenight(s: GameState): string {
 
 // ---- full views in the same frame ----------------------------------------------------------------------
 
-function stageTeamSelect(s: GameState): string {
-  if (poolSelected === null) {
-    poolSelected = new Set(
-      [...s.selectPool].filter((p) => !p.walkOn).sort((a, b) => ovr(b.attrs) - ovr(a.attrs)).slice(0, ROSTER_SIZE).map((p) => p.id)
-    );
+// THE SELECTION GRID: the same 3×3 squad grid plus a 4th row — the door.
+// Drag players between rows; slots 0–8 (in lineup order) stay, the bottom
+// row is CUT, forever, after one last are-you-sure.
+const SELECT_ROW_LABELS = ['START', 'BENCH', 'RES', 'CUT'];
+
+function selectSlotIds(s: GameState): number[] {
+  if (selSlots === null || selSlots.length !== s.selectPool.length || selSlots.some((id) => !s.selectPool.some((p) => p.id === id))) {
+    // reading order: returners first, then the new recruits, then walk-ons
+    selSlots = s.selectPool.map((p) => p.id);
   }
+  return selSlots;
+}
+
+function stageTeamSelect(s: GameState): string {
+  const slots = selectSlotIds(s);
   const returning = new Set(myTeam(s).players.map((p) => p.id));
   const commits = new Set(s.commits.map((p) => p.id));
-  const sorted = [...s.selectPool].sort((a, b) => ovr(b.attrs) - ovr(a.attrs));
+  const byId = new Map(s.selectPool.map((p) => [p.id, p]));
+  const colHead = `<div class="colhead"><span class="rowlabel"></span><span></span><span></span><span></span></div>`;
   const rows: string[] = [];
-  for (let r = 0; r < Math.ceil(sorted.length / 3); r++) {
-    const cells = sorted.slice(r * 3, r * 3 + 3).map((p) => {
+  for (let r = 0; r < 4; r++) {
+    const cells = [0, 1, 2].map((c) => {
+      const idx = r * 3 + c;
+      const p = byId.get(slots[idx]);
+      if (!p) return `<div class="gcell dropzone" data-zone="${idx}"><div class="pod empty">·</div></div>`;
       const tag = returning.has(p.id) ? 'RETURNER' : commits.has(p.id) ? 'RECRUIT' : 'WALK-ON';
-      return `<div class="gcell">${playerCard(p, { lens, tag, pick: poolSelected!.has(p.id), kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT })}</div>`;
+      return `<div class="gcell dropzone" data-zone="${idx}">${playerCard(p, {
+        lens,
+        tag,
+        draggable: lens === 0,
+        kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT,
+      })}</div>`;
     }).join('');
-    rows.push(`<div class="gridrow"><div class="rowlabel"></div>${cells}</div>`);
+    rows.push(`<div class="gridrow ${r === 3 ? 'cutrow' : ''}"><div class="rowlabel">${SELECT_ROW_LABELS[r]}</div>${cells}</div>`);
   }
-  const n = poolSelected.size;
-  const results = s.signingResults.length
-    ? `<div class="report">${s.signingResults.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`
-    : '';
-  return `<h2>${s.season === 0 ? 'TRYOUTS' : 'ROSTER'} — ${n}/${ROSTER_SIZE}</h2>${results}<div class="grid scroll">${rows.join('')}</div>`;
+  return `<h2 class="gridhead">${s.season === 0 ? 'TRYOUTS' : `SEASON ${s.season + 1} ROSTER`}</h2>
+    <div class="grid">${colHead}${rows.join('')}</div>
+    <div class="botstack"><div class="fourthrow slim"><div class="report">Drag to arrange — the bottom row is <b>CUT, forever</b>.</div></div></div>`;
 }
 
 function stageDepartures(s: GameState): string {
@@ -1310,12 +1338,10 @@ function stageSigning(s: GameState): string {
     .map((pr) => {
       const eff = chances.find((c) => c.prospect.id === pr.id);
       const seen = ovr(pr.seenAttrs);
-      const ability = pr.scoutLevel >= 2
+      const ability = pr.digits >= 2
         ? `<b style="color:${vc(seen * 1.6)}">${seen}</b>`
-        : pr.scoutLevel === 1
-          ? `<b style="color:${vc(seen * 1.6)}">${seen}?</b>`
-          : '<b class="dim">??</b>'
-      const stars = pr.scoutLevel === 0 ? '<span class="dim">??</span>' : '★'.repeat(potStars(ovr(pr.seenPots)));
+        : `<b class="dim">${prospectMask(pr)}</b>`;
+      const stars = pr.seenPot ? '★'.repeat(potStars(ovr(pr.seenPots))) : '<span class="dim">??</span>';
       return `<tr>
         <td><button class="signbtn" data-action="pursue" data-id="${pr.id}">${pr.selected ? '☑' : '☐'}</button></td>
         <td>${esc(pr.name)}</td>
@@ -1328,11 +1354,6 @@ function stageSigning(s: GameState): string {
     .join('');
   return `<h2>SIGNING DAY</h2>
     <table>${rows || '<tr><td class="dim">You scouted nobody. Enjoy the walk-ons.</td></tr>'}</table>`;
-}
-
-function stageGrowth(s: GameState): string {
-  return `<h2>GROWTH</h2>
-    <div class="report">${s.seasonNotes.map((x) => `<div>${esc(x)}</div>`).join('')}</div>`;
 }
 
 function stageGameover(s: GameState): string {
@@ -1361,41 +1382,40 @@ function stagePickTeam(s: GameState): string {
 
 // ---- nav (always there) ------------------------------------------------------------------------------------
 
-// One nav language everywhere: an optional small BACK on the left, and one
-// hold-to-commit button — always the same size — that names what's next.
+// One nav language everywhere: a single full-width hold-to-commit button that
+// names what's next — DIMMED (not hidden) whenever an action must land first.
 function navMain(label: string, action: string, disabled = false): string {
   return `<button class="primary hold navmain" data-action="${action}" ${disabled ? 'disabled' : ''}>${label}</button>`;
 }
 function nav(s: GameState): string {
-  if (currentStory(s)) return `<span class="navnote dim">the galaxy is talking…</span>`;
+  if (currentStory(s)) return navMain('THE GALAXY IS TALKING…', 'noop', true);
   switch (s.phase) {
     case 'pickTeam':
-      return `<span class="navnote dim">choose your program above</span>`;
+      return navMain('CHOOSE YOUR PROGRAM', 'noop', true);
     case 'teamSelect':
-      return `<span></span>${navMain(poolSelected?.size === ROSTER_SIZE ? 'START' : `PICK ${ROSTER_SIZE}`, 'confirm-roster', poolSelected?.size !== ROSTER_SIZE)}`;
+      return navMain('CONFIRM SQUAD', 'cut-confirm-open');
     case 'practice':
-      return `<span></span>${navMain('TO RECRUITING', 'to-galaxy')}`;
+      return navMain(s.trainedThisWeek ? 'TO RECRUITING' : 'PRACTICE FIRST', 'to-galaxy', !s.trainedThisWeek);
     case 'galaxy':
-      return `<span></span>${navMain('TO MATCHUP', 'to-matchup')}`;
+      if (s.pendingRecruits.length) return navMain('CONFIRM THE BOARD', 'board-confirm-open');
+      return navMain(s.galaxyActWk ? 'TO MATCHUP' : 'TAKE AN ACTION FIRST', 'to-matchup', !s.galaxyActWk);
     case 'matchup':
-      return `<span></span>${navMain(s.speechWk ? 'PLAY' : 'SPEECH FIRST', 'play-game', !s.speechWk)}`;
+      return navMain(s.speechWk ? 'PLAY' : 'SPEECH FIRST', 'play-game', !s.speechWk);
     case 'gamenight': {
       if (gnStage === 'half' && s.halftime && !s.lastResult)
-        return `<span></span>${navMain(s.speechH2 ? 'SECOND HALF' : 'SPEECH FIRST', 'play-h2', !s.speechH2)}`;
-      if (!s.lastResult || gnStage === 'beat' || gnStage === 'beat2') return `<span class="navnote dim">…</span>`;
-      if (gnStage === 'verdict') return `<span></span>${navMain('STANDINGS', 'gn-table')}`;
-      return `<span></span>${navMain('NEXT WEEK', 'continue-result')}`;
+        return navMain(s.speechH2 ? 'SECOND HALF' : 'SPEECH FIRST', 'play-h2', !s.speechH2);
+      if (!s.lastResult || gnStage === 'beat' || gnStage === 'beat2') return navMain('…', 'noop', true);
+      if (gnStage === 'verdict') return navMain('STANDINGS', 'gn-table');
+      return navMain('NEXT WEEK', 'continue-result');
     }
     case 'departures': {
       const unresolved = s.proDeparts.some((d) => !d.resolved);
-      return `<span></span>${navMain(unresolved ? 'YOUR STARS FIRST' : 'SIGNING DAY', 'to-signing', unresolved)}`;
+      return navMain(unresolved ? 'YOUR STARS FIRST' : 'SIGNING DAY', 'to-signing', unresolved);
     }
     case 'signing':
-      return `<span></span>${navMain('SEND LETTERS', 'do-signing')}`;
-    case 'growth':
-      return `<span></span>${navMain(`SEASON ${s.season + 1}`, 'new-season')}`;
+      return navMain('SEND LETTERS', 'do-signing');
     case 'gameover':
-      return `<span></span>${navMain('NEW GAME', 'new-game-direct')}`;
+      return navMain('NEW GAME', 'new-game-direct');
     default:
       return '';
   }
@@ -1403,50 +1423,87 @@ function nav(s: GameState): string {
 
 // ---- overlays --------------------------------------------------------------------------------------------------
 
+// the practice picker, grouped into its three families
+const DRILL_KIND_LABEL = { train: 'TRAIN — earn XP', sharpen: 'SHARPEN — direct gains', recover: 'RECOVER — get the squad back' } as const;
+
 function drillSheetHtml(s: GameState): string {
   if (!drillSheet) return '';
-  const drills = DRILLS.map((d) => {
-    const unlocked = s.unlockedDrills.includes(d.id);
-    if (!unlocked) return `<div class="drill locked">▓▓▓▓ <span class="dim">undiscovered method</span></div>`;
-    const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
-    const what = gains
-      ? `<span class="xpg gaintag">${gains}${d.target === 'one' ? ' · ONE PLAYER' : ''}</span>`
-      : d.xp[1] > 0
-        ? `<span class="xpg">+${d.xp[0]}–${d.xp[1]} XP${d.target === 'one' ? ' · ONE PLAYER' : ''}</span>`
-        : '<span class="xpg">squad ⚡ up</span>';
-    return `<button class="drill ${selectedDrill === d.id ? 'sel' : ''}" data-action="drill-pick" data-id="${d.id}">
-      <b>${d.name}</b> ${what}
-      ${oddsLine(d.up, d.down, d.cost)}
-    </button>`;
+  const groups = (['train', 'sharpen', 'recover'] as const).map((kind) => {
+    const drills = DRILLS.filter((d) => drillKind(d) === kind).map((d) => {
+      const unlocked = s.unlockedDrills.includes(d.id);
+      if (!unlocked) return `<div class="drill locked">▓▓▓▓ <span class="dim">undiscovered method</span></div>`;
+      const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
+      const what = gains
+        ? `<span class="xpg gaintag">${gains}</span>`
+        : d.potChance
+          ? `<span class="xpg gaintag">${d.potChance}% +1 CEILING</span>`
+          : d.xp[1] > 0
+            ? `<span class="xpg">+${d.xp[0]}–${d.xp[1]} XP</span>`
+            : `<span class="xpg">${(d.recover?.mood ?? 0) > (d.recover?.energy ?? 0) ? 'squad MOOD up' : 'squad ⚡ up'}</span>`;
+      return `<button class="drill ${selectedDrill === d.id ? 'sel' : ''}" data-action="drill-pick" data-id="${d.id}">
+        <b>${d.name}</b> ${what}
+        ${oddsLine(d.up, d.down, d.cost)}
+      </button>`;
+    }).join('');
+    return `<div class="sheethead">${DRILL_KIND_LABEL[kind]}</div>${drills}`;
   }).join('');
-  return `<div class="modalback sheet" data-action="drill-sheet-close"><div class="modal sheetup">
+  return `<div class="modalback sheet" data-action="drill-sheet-close"><div class="modal sheetup scrolly">
     <span class="tag">THE PRACTICE</span>
-    ${drills}
+    ${groups}
   </div></div>`;
 }
 
-// the discover / scout / recruit variant pickers — small, non-scrolling
+// the galaxy picker: all three families in one sheet, grouped
+const GX_KIND_LABEL = { scout: 'SCOUT — reveal the board', recruit: 'RECRUIT — work the board', search: 'SEARCH — new talent' } as const;
+
 function galaxySheetHtml(s: GameState): string {
   if (!galaxySheet) return '';
-  let items: string;
-  if (galaxySheet === 'discover') {
-    items = SCAN_REGIONS.filter((r) => s.unlockedRegions.includes(r.id)).map((r) => {
-      const grounded = s.groundedWeeks > 0 && !r.local;
-      return `<button class="drill ${selDiscover === r.id ? 'sel' : ''}" data-action="gx-pick" data-id="${r.id}" ${grounded ? 'disabled' : ''}>
-        <b>${r.name}</b>${grounded ? ' <span class="blink">GROUNDED</span>' : ''} ${oddsLine(r.up, r.down, r.cost)}
+  const groups = (['scout', 'recruit', 'search'] as const).map((kind) => {
+    const acts = GALAXY_ACTS.filter((a) => a.kind === kind).map((a) => {
+      if (a.kind === 'search' && !s.unlockedRegions.includes(a.id)) {
+        return `<div class="drill locked">▓▓▓▓ <span class="dim">uncharted region</span></div>`;
+      }
+      const grounded = s.groundedWeeks > 0 && a.kind === 'search' && !a.local;
+      const what = a.reveals
+        ? `<span class="xpg">${a.reveals[0]}–${a.reveals[1]} facets · ALL 9</span>`
+        : a.gain
+          ? `<span class="xpg">+${a.gain[0]}–${a.gain[1]}% · ALL 9${a.risk ? ` · ${a.risk}% backfire each` : ''}</span>`
+          : `<span class="xpg">1${a.twoChance ? '–2' : ''} new name${a.twoChance ? 's' : ''}</span>`;
+      return `<button class="drill ${selGalaxy === a.id ? 'sel' : ''}" data-action="gx-pick" data-id="${a.id}" ${grounded ? 'disabled' : ''}>
+        <b>${a.name}</b>${grounded ? ' <span class="blink">GROUNDED</span>' : ''} ${what}
+        ${oddsLine(a.up, a.down, a.cost)}<br/>
+        <span class="ddesc">${esc(a.desc)}</span>
       </button>`;
     }).join('');
-  } else {
-    const kind = galaxySheet === 'scout' ? 'scout' : 'recruit';
-    items = PROSPECT_ACTS.filter((a) => a.kind === kind).map((a) =>
-      `<button class="drill ${(kind === 'scout' ? selScout : selRecruit) === a.id ? 'sel' : ''}" data-action="gx-pick" data-id="${a.id}">
-        <b>${a.name}</b>${a.gain ? ` <span class="xpg">+${a.gain[0]}–${a.gain[1]}%</span>` : ''} ${oddsLine(a.up, a.down, a.cost)}
-      </button>`
-    ).join('');
-  }
-  return `<div class="modalback sheet" data-action="gx-sheet-close"><div class="modal sheetup">
-    <span class="tag">${galaxySheet.toUpperCase()}</span>
-    ${items}
+    return `<div class="sheethead">${GX_KIND_LABEL[kind]}</div>${acts}`;
+  }).join('');
+  return `<div class="modalback sheet" data-action="gx-sheet-close"><div class="modal sheetup scrolly">
+    <span class="tag">THE WEEK'S MOVE</span>
+    ${groups}
+  </div></div>`;
+}
+
+// the two are-you-sure dialogs before anyone is lost forever
+function cutConfirmHtml(s: GameState): string {
+  if (!cutConfirm || selSlots === null) return '';
+  const byId = new Map(s.selectPool.map((p) => [p.id, p]));
+  const cut = selSlots.slice(9).map((id) => byId.get(id)).filter((p): p is Player => !!p);
+  return `<div class="modalback"><div class="modal">
+    <span class="tag">THE CUT</span>
+    <p>${cut.length ? `${cut.map((p) => `<b>${esc(p.name)}</b>`).join(', ')} will be released. These players will be <b>lost to you forever</b>. Are you sure?` : 'Confirm this squad?'}</p>
+    <button class="wide hold danger" data-action="confirm-roster">✂ CONFIRM${cut.length ? ` — CUT ${cut.length}` : ''}</button>
+    <button class="wide" data-action="cut-confirm-close">GO BACK</button>
+  </div></div>`;
+}
+
+function boardConfirmHtml(s: GameState): string {
+  if (!boardConfirm || !s.pendingRecruits.length) return '';
+  const names = s.pendingRecruits.map((p) => `<b>${esc(p.name)}</b>`).join(', ');
+  return `<div class="modalback"><div class="modal">
+    <span class="tag">THE BOARD</span>
+    <p>${names} ${s.pendingRecruits.length === 1 ? 'walks' : 'walk'} away now. Whoever leaves the board is <b>lost to you forever</b>. Are you sure?</p>
+    <button class="wide hold danger" data-action="board-confirm-do">✕ LET ${s.pendingRecruits.length === 1 ? 'THIS ONE' : 'THEM'} GO</button>
+    <button class="wide" data-action="board-confirm-close">GO BACK</button>
   </div></div>`;
 }
 
@@ -1480,8 +1537,9 @@ function itemModalHtml(s: GameState): string {
   const spent = item.rarity === 'legendary' && s.legendariesUsed.includes(item.id);
   const ev = currentStory(s);
   const storyKey = ev?.choices?.find((c) => c.itemId === item.id && !ev.resolvedText)?.key ?? null;
-  const phaseOk = !ev && ['practice', 'matchup', 'galaxy'].includes(s.phase);
-  const usable = !spent && (storyKey !== null || phaseOk);
+  const phaseOk = !ev && ['practice', 'matchup', 'galaxy'].includes(s.phase) && itemAllowedNow(s, item.id);
+  const needsDrag = item.target === 'player' && storyKey === null && phaseOk;
+  const usable = !spent && !needsDrag && (storyKey !== null || phaseOk);
   return `<div class="modalback" data-action="item-close"><div class="modal">
     <div class="itemcard ${item.rarity}">
       <b>◆ ${esc(item.name)}</b> <span class="dim">${item.rarity}${item.rarity === 'legendary' ? ' · once/season' : ''}</span><br/>
@@ -1489,7 +1547,7 @@ function itemModalHtml(s: GameState): string {
       ${esc(item.effectText)}<br/>${oddsLine(item.up, item.down)}
     </div>
     <button class="wide hold" data-action="use-item" data-id="${item.id}" ${usable ? '' : 'disabled'}>
-      ${spent ? 'USED THIS SEASON' : storyKey ? '◆ USE IT ON THIS STORY' : usable ? 'USE NOW' : 'NOT THE MOMENT'}</button>
+      ${spent ? 'USED THIS SEASON' : storyKey ? '◆ USE IT ON THIS STORY' : needsDrag ? '↷ DRAG IT ONTO A PLAYER' : usable ? 'USE NOW' : 'NOT THE MOMENT'}</button>
     <button class="wide" data-action="item-close">CLOSE</button>
   </div></div>`;
 }
@@ -1499,11 +1557,11 @@ function coachModalHtml(s: GameState): string {
   const drills = DRILLS.map((d) =>
     s.unlockedDrills.includes(d.id) ? `<div>✓ ${d.name}</div>` : `<div class="dim">▓▓▓ undiscovered</div>`
   ).join('');
-  const regions = SCAN_REGIONS.map((r) =>
+  const regions = GALAXY_ACTS.filter((a) => a.kind === 'search').map((r) =>
     s.unlockedRegions.includes(r.id) ? `<div>✓ ${r.name}</div>` : `<div class="dim">▓▓▓ uncharted</div>`
   ).join('');
   const tactics = PLANS.map((pl) =>
-    s.knownPlans.includes(pl.id) ? `<div>✓ ${pl.name} <span class="dim">(${ATTR_LABEL[pl.attr]})</span></div>` : `<div class="dim">▓▓▓ unlearned tactic</div>`
+    s.knownPlans.includes(pl.id) ? `<div>✓ ${pl.name} <span class="dim">(${ATTR_LABEL[pl.attr]})</span></div>` : `<div class="dim">▓▓▓ unlearned speech</div>`
   ).join('');
   return `<div class="modalback"><div class="modal">
     <span class="tag">THE COACH</span>
@@ -1560,15 +1618,14 @@ function render(): void {
       case 'gamenight': middle = stageGamenight(state); break;
       case 'departures': middle = stageDepartures(state); break;
       case 'signing': middle = stageSigning(state); break;
-      case 'growth': middle = stageGrowth(state); break;
       default: middle = `<h2>THIS WEEK</h2>`;
     }
   }
 
   // popups live INSIDE the middle: the stats bar, THE BAG and the nav stay
   // visible (⚡ readable while a story asks you to spend it) — the nav just dims.
-  const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + speechSheetHtml(state) + gxResultHtml() + dropConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
-  const modalOpen = drillSheet || speechSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet !== null || dropConfirm !== null || gxResult !== null;
+  const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + speechSheetHtml(state) + gxResultHtml() + dropConfirmHtml(state) + cutConfirmHtml(state) + boardConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
+  const modalOpen = drillSheet || speechSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet || dropConfirm !== null || gxResult !== null || cutConfirm || boardConfirm;
   const navHtml = `<div class="navbar ${modalOpen ? 'dimmed' : ''}">${nav(state)}</div>`;
   const lensHtml = (state.phase === 'practice' || state.phase === 'galaxy' || state.phase === 'teamSelect') && !ev ? lensBar() : '';
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
@@ -1727,7 +1784,7 @@ document.addEventListener('pointercancel', () => cancelHold());
 
 interface PtrDrag {
   pointerId: number;
-  kind: 'card' | 'item';
+  kind: 'card' | 'item' | 'pr';
   pid: number;
   itemId: string;
   el: HTMLElement;
@@ -1743,10 +1800,20 @@ let ptr: PtrDrag | null = null;
 let suppressClick = false;
 
 function gridDraggablePhase(): boolean {
-  return ['practice', 'matchup', 'gamenight'].includes(state.phase) && !currentStory(state);
+  return ['practice', 'matchup', 'gamenight', 'teamSelect', 'galaxy'].includes(state.phase) && !currentStory(state);
 }
 
 function handleDrop(zoneIdx: number, playerId: number): void {
+  // the selection grid: swap any two of the 12 slots (the CUT row included)
+  if (state.phase === 'teamSelect') {
+    if (!selSlots) return;
+    const from = selSlots.indexOf(playerId);
+    if (from < 0 || from === zoneIdx || zoneIdx >= selSlots.length) return;
+    const tmp = selSlots[zoneIdx];
+    selSlots[zoneIdx] = playerId;
+    selSlots[from] = tmp;
+    return;
+  }
   const t = myTeam(state);
   const p = t.players.find((x) => x.id === playerId);
   if (!p || p.outWeeks > 0) return;
@@ -1769,11 +1836,26 @@ function handleDrop(zoneIdx: number, playerId: number): void {
   save(state);
 }
 
+/** The recruiting board swap: prospect between the board and the 4th row. */
+function handleProspectDrop(zoneIdx: number, prospectId: number): void {
+  const boardIdx = state.prospects.findIndex((x) => x.id === prospectId);
+  const pendIdx = state.pendingRecruits.findIndex((x) => x.id === prospectId);
+  const from = boardIdx >= 0 ? boardIdx : pendIdx >= 0 ? 9 + pendIdx : -1;
+  if (from < 0 || from === zoneIdx) return;
+  swapBoardSlot(state, from, zoneIdx);
+}
+
 function dropItemOnStory(itemId: string): void {
   const ev = currentStory(state);
   const key = ev?.choices?.find((c) => c.itemId === itemId && !ev.resolvedText)?.key;
   if (!key) return;
   doResolve(key);
+}
+
+/** A player item dragged onto a card: the individual action lands there. */
+function dropItemOnPlayer(itemId: string, playerId: number): void {
+  const text = useItem(state, itemId, { playerId });
+  if (text) toast = text;
 }
 
 function activateDrag(): void {
@@ -1793,7 +1875,7 @@ function moveGhost(): void {
   if (!ptr?.ghost) return;
   ptr.ghost.style.left = `${ptr.lastX - ptr.ghost.offsetWidth / 2}px`;
   ptr.ghost.style.top = `${ptr.lastY - 46}px`;
-  document.querySelectorAll('.dropzone.dragover, .storypanel.dragover').forEach((z) => z.classList.remove('dragover'));
+  document.querySelectorAll('.dropzone.dragover, .storypanel.dragover, .pcard.dragover').forEach((z) => z.classList.remove('dragover'));
   targetAtPoint()?.classList.add('dragover');
 }
 
@@ -1801,7 +1883,13 @@ function targetAtPoint(): Element | null {
   if (!ptr) return null;
   const el = document.elementFromPoint(ptr.lastX, ptr.lastY);
   if (!el) return null;
-  if (ptr.kind === 'item') return el.closest('.storypanel');
+  if (ptr.kind === 'item') {
+    if (currentStory(state)) return el.closest('.storypanel');
+    // a player item lands on a squad card
+    const card = el.closest('.pcard[data-pid]');
+    if (card && card.getAttribute('data-kind') !== 'pr') return card;
+    return null;
+  }
   const zone = el.closest('.dropzone');
   // halftime: the reserve row takes no drops — it never lights up either
   if (zone && state.phase === 'gamenight' && gnStage === 'half' && Number(zone.getAttribute('data-zone')) >= 6) return null;
@@ -1817,10 +1905,12 @@ function endDrag(drop: boolean): void {
     ptr.el.classList.remove('draglift');
     suppressClick = true;
     setTimeout(() => { suppressClick = false; }, 60);
-    document.querySelectorAll('.dropzone.dragover, .storypanel.dragover').forEach((z) => z.classList.remove('dragover'));
+    document.querySelectorAll('.dropzone.dragover, .storypanel.dragover, .pcard.dragover').forEach((z) => z.classList.remove('dragover'));
     if (target) {
       if (ptr.kind === 'card') handleDrop(Number(target.getAttribute('data-zone')), ptr.pid);
-      else dropItemOnStory(ptr.itemId);
+      else if (ptr.kind === 'pr') handleProspectDrop(Number(target.getAttribute('data-zone')), ptr.pid);
+      else if (currentStory(state)) dropItemOnStory(ptr.itemId);
+      else dropItemOnPlayer(ptr.itemId, Number(target.getAttribute('data-pid')));
       ptr = null;
       render();
       return;
@@ -1831,20 +1921,30 @@ function endDrag(drop: boolean): void {
 
 app.addEventListener('pointerdown', (e) => {
   const bag = (e.target as HTMLElement).closest('.bslot.filled') as HTMLElement | null;
-  if (bag && currentStory(state)) {
-    ptr = {
-      pointerId: e.pointerId, kind: 'item', pid: -1, itemId: bag.getAttribute('data-bagitem')!, el: bag,
-      startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY,
-      active: false, holdTimer: 0, ghost: null,
-    };
-    if (e.pointerType === 'touch') ptr.holdTimer = window.setTimeout(() => activateDrag(), 220);
+  if (bag) {
+    const itemId = bag.getAttribute('data-bagitem')!;
+    const playerDrag = itemById(itemId).target === 'player' && itemAllowedNow(state, itemId)
+      && ['practice', 'matchup', 'gamenight'].includes(state.phase) && !currentStory(state);
+    if (currentStory(state) || playerDrag) {
+      ptr = {
+        pointerId: e.pointerId, kind: 'item', pid: -1, itemId, el: bag,
+        startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY,
+        active: false, holdTimer: 0, ghost: null,
+      };
+      if (e.pointerType === 'touch') ptr.holdTimer = window.setTimeout(() => activateDrag(), 220);
+      return;
+    }
     return;
   }
   if (!gridDraggablePhase()) return;
   const card = (e.target as HTMLElement).closest('.pcard.grabbable') as HTMLElement | null;
   if (!card) return;
   ptr = {
-    pointerId: e.pointerId, kind: 'card', pid: Number(card.getAttribute('data-pid')), itemId: '', el: card,
+    pointerId: e.pointerId,
+    kind: card.getAttribute('data-kind') === 'pr' ? 'pr' : 'card',
+    pid: Number(card.getAttribute('data-pid')),
+    itemId: '',
+    el: card,
     startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY,
     active: false, holdTimer: 0, ghost: null,
   };
@@ -1900,58 +2000,42 @@ function executeAction(action: string, id: string): void {
     }
 
     case 'to-galaxy': drillSheet = false; drillStickers = null; toGalaxy(state); break;
-    case 'to-matchup': galaxySheet = null; dropConfirm = null; gxStickers = null; toMatchup(state); break;
+    case 'to-matchup': galaxySheet = false; dropConfirm = null; gxStickers = null; toMatchup(state); break;
     case 'to-signing': toSigning(state); break;
     case 'gn-table': gnStage = 'table'; clearFloatTimers(); break;
     case 'continue-result': gnStage = 'beat'; clearFloatTimers(); drillStickers = null; gxStickers = null; continueFromResult(state); break;
 
     case 'pr-drop': {
       actionDropProspect(state, Number(id));
-      if (selProspect === Number(id)) selProspect = null;
       dropConfirm = null;
       break;
     }
 
     case 'gx-run': {
-      if (id === 'discover') {
-        const reg = SCAN_REGIONS.find((r) => r.id === selDiscover)!;
-        const text = actionScan(state, selDiscover);
-        if (text !== null) {
-          const fresh = state.prospects[state.prospects.length - 1];
-          if (fresh) {
-            selProspect = fresh.id;
-            selEmpty = false;
-            gxStickers = gxStickers ?? new Map();
-            gxStickers.set(fresh.id, [{ text: 'NEW', up: true }]);
-          }
-          gxResult = { text, cost: reg.cost, played: false };
-        }
-      } else {
-        const sel = gxSelection(state);
-        if (sel.kind !== 'pr') break;
-        const actId = id === 'scout' ? selScout : selRecruit;
-        const act = PROSPECT_ACTS.find((a) => a.id === actId)!;
-        const before = sel.pr.commitPct;
-        const text = actionProspect(state, sel.pr.id, actId);
-        if (text !== null) {
-          gxStickers = gxStickers ?? new Map();
-          if (id === 'scout') {
-            gxStickers.set(sel.pr.id, [{ text: 'SCOUTED', up: true }]);
-          } else {
-            const dlt = sel.pr.commitPct - before;
-            gxStickers.set(sel.pr.id, [{ text: `${dlt >= 0 ? '+' : ''}${dlt}% COMMIT`, up: dlt >= 0 }]);
-          }
-          gxResult = { text, cost: act.cost, played: false };
-        }
+      const act = galaxyActById(selGalaxy);
+      const out = actionGalaxy(state, selGalaxy);
+      if (out) {
+        if (out.perProspect.size) gxStickers = out.perProspect;
+        gxResult = { text: out.text, cost: act.cost, played: false };
       }
       break;
     }
 
+    case 'cut-confirm-open': cutConfirm = true; break;
+    case 'board-confirm-open': boardConfirm = true; break;
+    case 'board-confirm-do': {
+      const gone = confirmBoard(state);
+      boardConfirm = false;
+      if (gone.length) toast = `${gone.join(' and ')} walk${gone.length === 1 ? 's' : ''} out of the story. The galaxy is big; you will not find ${gone.length === 1 ? 'them' : 'them'} again.`;
+      break;
+    }
+    case 'noop': break;
+
     case 'scout-opp': if (scoutOpponent(state)) floatEnergyBig(1); break;
     case 'speech-run': {
       const sel = speechSel(state);
-      if (state.phase === 'gamenight') deliverHalftimeSpeech(state, sel);
-      else deliverSpeech(state, sel);
+      const text = state.phase === 'gamenight' ? deliverHalftimeSpeech(state, sel) : deliverSpeech(state, sel);
+      if (text) toast = text;
       break;
     }
     case 'play-game': gnStage = 'beat'; clearFloatTimers(); playGame(state); break;
@@ -1960,13 +2044,13 @@ function executeAction(action: string, id: string): void {
     case 'convince-pro': convincePro(state, Number(id)); break;
     case 'letgo-pro': letGoPro(state, Number(id)); break;
     case 'retire': retire(state); break;
-    case 'do-signing': poolSelected = null; resolveSigning(state); break;
+    case 'do-signing': selSlots = null; resolveSigning(state); break;
     case 'confirm-roster':
-      if (poolSelected && finalizeRoster(state, [...poolSelected])) {
-        poolSelected = null;
+      if (selSlots && finalizeRoster(state, selSlots.slice(0, 9))) {
+        selSlots = null;
+        cutConfirm = false;
       }
       break;
-    case 'new-season': startNewSeason(state); break;
 
     case 'use-item': {
       const itemId = id;
@@ -1976,7 +2060,7 @@ function executeAction(action: string, id: string): void {
       if (storyKey) {
         doResolve(storyKey);
       } else {
-        const text = useItem(state, itemId, selProspect !== null ? { prospectId: selProspect } : {});
+        const text = useItem(state, itemId, {});
         if (text) toast = text;
       }
       break;
@@ -1989,11 +2073,13 @@ function executeAction(action: string, id: string): void {
       coachOpen = false;
       itemUi = null;
       toast = null;
-      galaxySheet = null;
+      galaxySheet = false;
       dropConfirm = null;
-      selProspect = null;
+      selGalaxy = 'filmnight';
       selectedDrill = 'shootaround';
-      poolSelected = null;
+      selSlots = null;
+      cutConfirm = false;
+      boardConfirm = false;
       drillSheet = false;
       break;
   }
@@ -2036,19 +2122,8 @@ app.addEventListener('click', (e) => {
       break;
     }
 
-    case 'card': {
-      const pid = Number(id);
-      if (currentStory(state)) break;
-      if (state.phase === 'teamSelect') {
-        if (poolSelected) {
-          if (poolSelected.has(pid)) poolSelected.delete(pid);
-          else if (poolSelected.size < ROSTER_SIZE) poolSelected.add(pid);
-        }
-      }
+    case 'card':
       break;
-    }
-    case 'pr-select': selProspect = Number(id); selEmpty = false; break;
-    case 'gx-empty': selProspect = null; selEmpty = true; break;
     case 'gx-result-tap':
       if (finishTypeNow()) return;
       clearFloatTimers();
@@ -2056,14 +2131,14 @@ app.addEventListener('click', (e) => {
       break;
     case 'pr-forget': dropConfirm = Number(id); break;
     case 'pr-drop-cancel': dropConfirm = null; break;
-    case 'gx-sheet': galaxySheet = id as 'discover' | 'scout' | 'recruit'; break;
-    case 'gx-sheet-close': if (e.target === el) galaxySheet = null; break;
+    case 'gx-sheet': galaxySheet = true; break;
+    case 'gx-sheet-close': if (e.target === el) galaxySheet = false; break;
     case 'gx-pick':
-      if (galaxySheet === 'discover') selDiscover = id;
-      else if (galaxySheet === 'scout') selScout = id;
-      else if (galaxySheet === 'recruit') selRecruit = id;
-      galaxySheet = null;
+      selGalaxy = id;
+      galaxySheet = false;
       break;
+    case 'cut-confirm-close': cutConfirm = false; break;
+    case 'board-confirm-close': boardConfirm = false; break;
     case 'drill-pick': selectedDrill = id; drillSheet = false; break;
     case 'speech-sheet': speechSheet = true; break;
     case 'speech-sheet-close': if (e.target === el) speechSheet = false; break;

@@ -4,9 +4,9 @@
 // not a stat: small bodies run the backcourt, big bodies hold the frontcourt.
 // The penalty is printed on the card (MISCAST).
 
-import { ATTR_STAT, PLANS, planById } from './data';
-import type { AttrRec, BoxRow, ChampTeam, GameState, MyGameResult, PlanId, Player, Team } from './types';
-import { ATTRS, attrEff, clamp, ovr, pick, rand, sizeIndex, zeroAttrs } from './util';
+import { ATTR_STAT, planById } from './data';
+import type { AttrRec, BoxRow, ChampTeam, GameState, MyGameResult, PlanId, Player, SpeechFx, Team } from './types';
+import { ATTRS, attrEff, clamp, ovr, rand, sizeIndex, zeroAttrs } from './util';
 
 export const COL_LABELS = ['BACKCOURT', 'WING', 'FRONTCOURT'];
 
@@ -114,8 +114,9 @@ export function autoLineup(t: Team): void {
 // ---- the match value: what the ropes (and the needle) run on ------------------
 // Starters count 75%, bench 25%, reserves nothing. Every player's contribution
 // is multiplied by ENERGY and MOOD on the same curve — 0%→×0.40, 25%→×0.60,
-// 50%→×0.80, 75%→×1.00, 100%→×1.20 — plus miscast tax, fire, and the speech
-// (its attribute counts 2.5×). Identical math for both sides of the rope.
+// 50%→×0.80, 75%→×1.00, 100%→×1.20 — plus miscast tax and fire. A LANDED
+// speech (the room ignited) adds +amt to its attribute for every player.
+// Identical math for both sides of the rope.
 
 export function meterMult(v: number): number {
   return 0.4 + 0.8 * (clamp(v, 0, 100) / 100);
@@ -125,16 +126,15 @@ function playerCond(p: Player, col: number): number {
   return meterMult(p.energy) * meterMult(p.mood) * slotMult(p, col) * (p.onFire ? 1.2 : 1);
 }
 
-/** Per-attribute weighted team values (the four rope rows). plan null = no speech yet. */
-export function matchAttrs(t: Team, plan: PlanId | null): AttrRec {
-  const boost = plan ? planById(plan).attr : null;
+/** Per-attribute weighted team values (the four rope rows). fx = a landed speech. */
+export function matchAttrs(t: Team, fx: SpeechFx | null = null): AttrRec {
   const out = zeroAttrs();
   for (let c = 0; c < 3; c++) {
     for (const [row, w] of [[0, 0.75], [1, 0.25]] as [number, number][]) {
       const p = slotPlayer(t, row * 3 + c);
       if (!p || !available(p)) continue;
       const cond = playerCond(p, c) * w;
-      for (const a of ATTRS) out[a] += p.attrs[a] * (a === boost ? 2.5 : 1) * cond;
+      for (const a of ATTRS) out[a] += (p.attrs[a] + (fx && a === fx.attr ? fx.amt : 0)) * cond;
     }
   }
   for (const a of ATTRS) out[a] = Math.round(out[a] * 10) / 10;
@@ -142,13 +142,8 @@ export function matchAttrs(t: Team, plan: PlanId | null): AttrRec {
 }
 
 /** The whole rope: the four rows added up. */
-export function teamPower(t: Team, plan: PlanId): number {
-  return ovr(matchAttrs(t, plan));
-}
-
-/** One display number on the player-OVR scale (the speech sheet). */
-export function teamRating(t: Team, plan: PlanId): number {
-  return Math.round(teamPower(t, plan) / 3);
+export function teamPower(t: Team, fx: SpeechFx | null = null): number {
+  return ovr(matchAttrs(t, fx));
 }
 
 /** The rope split IS the win chance: a sharpened ratio of the two totals. */
@@ -166,19 +161,6 @@ export function teamKite(t: Team): AttrRec {
   if (!st.length) return k;
   for (const a of ATTRS) k[a] = Math.round(st.reduce((s, p) => s + p.attrs[a], 0) / st.length);
   return k;
-}
-
-export function wheel(mine: PlanId, theirs: PlanId): 'win' | 'lose' | 'tie' {
-  if (planById(mine).beats === theirs) return 'win';
-  if (planById(theirs).beats === mine) return 'lose';
-  return 'tie';
-}
-
-const WHEEL_F = { win: 1.12, lose: 0.89, tie: 1.0 };
-
-export function aiPlan(t: Team): PlanId {
-  if (Math.random() < 0.15) return pick(PLANS).id; // the occasional surprise
-  return PLANS.reduce((best, pl) => (teamPower(t, pl.id) > teamPower(t, best) ? pl.id : best), PLANS[0].id);
 }
 
 export function logistic(diff: number): number {
@@ -230,10 +212,11 @@ export function dealHalfBox(me: Team, myScore: number, plan: PlanId): BoxRow[] {
     ...benchPlayers(me).filter(available).map((p) => ({ p, w: 1 })),
   ];
   if (!pool.length) return [];
+  const speechAttr = planById(plan).attr;
   const pts = dealStat(pool, myScore, (p) => attrEff(p, 'skl') + attrEff(p, 'ath') * 0.3);
   const reb = dealStat(pool, 8 + rand(6), (p) => attrEff(p, 'ath') + sizeIndex(p) * 2);
-  const stl = dealStat(pool, 1 + rand(4) + (plan === 'lockdown' ? 2 : 0), (p) => attrEff(p, 'frc'));
-  const ast = dealStat(pool, 3 + rand(4) + (plan === 'clockwork' ? 2 : 0), (p) => attrEff(p, 'brn'));
+  const stl = dealStat(pool, 1 + rand(4) + (speechAttr === 'frc' ? 2 : 0), (p) => attrEff(p, 'frc'));
+  const ast = dealStat(pool, 3 + rand(4) + (speechAttr === 'brn' ? 2 : 0), (p) => attrEff(p, 'brn'));
   return pool.map(({ p }) => ({
     playerId: p.id,
     name: p.name,
@@ -326,31 +309,31 @@ function verdictLines(
   return { wheelLine, heroLine };
 }
 
-/** One half's rope: my weighted power (wheel + venue in) vs theirs. The champ
-    has no roster — their scouted power number holds for both halves. */
+/** One half's rope: my weighted power vs theirs — venue, a landed speech, and
+    any pregame skulduggery folded in. The champ has no roster — their scouted
+    power number holds for both halves. */
 function halfRope(
   s: GameState,
   me: Team,
   opp: Team | null,
   champ: ChampTeam | null,
   home: boolean,
-  myPlan: PlanId,
-  oppPlan: PlanId
-): { mine: number; theirs: number; w: 'win' | 'lose' | 'tie' } {
-  let w = wheel(myPlan, oppPlan);
-  if (s.pregameFlags.wallet && w === 'tie') w = 'win';
+  fx: SpeechFx | null
+): { mine: number; theirs: number } {
   const [vm, vt] = champ ? [1, 1] : home ? [1.03, 1] : [1, 1.03];
-  const mine = teamPower(me, myPlan) * WHEEL_F[w] * vm;
-  const theirs = (champ ? champ.power : teamPower(opp!, oppPlan)) * vt;
-  return { mine, theirs, w };
+  let mine = teamPower(me, fx) * vm;
+  let theirs = (champ ? champ.power : teamPower(opp!)) * vt;
+  if (s.pregameFlags.wallet) mine *= 1.03; // the whistle leans your way
+  if (s.pregameFlags.cloak) theirs *= 0.95; // they prepared for the wrong team
+  if (s.pregameFlags.alarm) theirs *= 0.92; // the 3am fire alarm
+  return { mine, theirs };
 }
 
 /** THE FIRST HALF: rope → needle → half score + half box, then the locker room
     — starters shed half the game drain (both benches too) so the halftime rope
-    is honest, and the other coach re-rolls a plan for the second half. */
+    is honest. */
 export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null, home: boolean): void {
-  const oppPlan = s.pregameFlags.cloak ? pick(PLANS).id : champ ? champ.plan : aiPlan(opp!);
-  const { mine, theirs } = halfRope(s, me, opp, champ, home, s.plan, oppPlan);
+  const { mine, theirs } = halfRope(s, me, opp, champ, home, s.speechFx ?? null);
   const share = winShare(mine, theirs);
   const u = Math.random();
   const sc = halfScores(share, u);
@@ -370,15 +353,12 @@ export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: Cha
     drains[p.id] = -d;
   }
   if (opp) for (const p of opp.players) p.energy = clamp(p.energy - 8, 0, 100);
-  const oppPlanH2 = champ ? champ.plan : s.pregameFlags.cloak ? pick(PLANS).id : aiPlan(opp!);
   s.halftime = {
     myH1: sc.my,
     oppH1: sc.opp,
     share,
     needle: u,
     planMine: s.plan,
-    planOpp: oppPlan,
-    oppPlanH2,
     box,
     home,
     oppName: champ ? champ.name : `${opp!.planet} ${opp!.name}`,
@@ -386,12 +366,12 @@ export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: Cha
   };
 }
 
-/** THE SECOND HALF: the rope recomputes from the NEW lineup, speeches and
-    meters; a second needle lands; the final is the sum of the halves. */
+/** THE SECOND HALF: the rope recomputes from the NEW lineup, the halftime
+    speech and the meters; a second needle lands; the final is the sum. */
 export function simMyGameH2(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null): SimOutcome {
   const ht = s.halftime!;
   const myPlan = s.planH2 ?? s.plan;
-  const { mine, theirs, w } = halfRope(s, me, opp, champ, ht.home, myPlan, ht.oppPlanH2);
+  const { mine, theirs } = halfRope(s, me, opp, champ, ht.home, s.speechFxH2 ?? null);
   const share = winShare(mine, theirs);
   const u = Math.random();
   const sc = halfScores(share, u);
@@ -411,8 +391,6 @@ export function simMyGameH2(s: GameState, me: Team, opp: Team | null, champ: Cha
       oppScore: oppTot,
       oppName: ht.oppName,
       planMine: myPlan,
-      planOpp: ht.oppPlanH2,
-      wheel: w,
       wheelLine,
       heroLine,
       boxLine: boxLineFrom(box),
@@ -427,10 +405,10 @@ export function simMyGameH2(s: GameState, me: Team, opp: Team | null, champ: Cha
   };
 }
 
-/** AI vs AI league game: plans auto, same needle math. */
+/** AI vs AI league game: same needle math, no speeches in empty gyms. */
 export function simAiGame(a: Team, b: Team): { winner: Team; loser: Team; scoreW: number; scoreL: number } {
-  const pa = teamPower(a, aiPlan(a)) * 1.03;
-  const pb = teamPower(b, aiPlan(b));
+  const pa = teamPower(a) * 1.03;
+  const pb = teamPower(b);
   const aWins = Math.random() < winShare(pa, pb);
   const margin = 1 + rand(9);
   const base = 52 + rand(16);
