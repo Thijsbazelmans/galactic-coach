@@ -609,11 +609,9 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       <div class="stcol sr">${rows.map((r) => `<b>${r[1]}</b>`).join('')}</div>
     </div>`;
   } else if (l === 2) {
-    const nums = Object.fromEntries(ATTRS.map((a) => [a, `${p.attrs[a]}/${p.pots[a]}`])) as Record<Attr, string>;
     body = squareKite(p.attrs, {
       pot: p.pots,
       start: p.startAttrs,
-      nums,
       nameHtml,
       blHtml: ovrHtml,
       brHtml: `<span class="kpot"><i>POT</i><b style="color:${vc(ovr(p.pots))}">${ovr(p.pots)}</b></span>`,
