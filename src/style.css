@@ -642,12 +642,30 @@ button.hold.wiggle::after {
 .tbar.big .tbv { font-size: 13px; }
 .tbar.big .tbr { font-size: 10px; color: var(--r95); }
 
-/* matchup: AWAY @ HOME + bars with side numbers + the scout column */
-.mu-vs { flex: none; margin: 4px 0 2px 17px; font-size: 12px; letter-spacing: 1px; }
-.mu-vs b { color: var(--r95); }
-.mu-bars { flex: none; display: flex; align-items: stretch; gap: 6px; }
-.mu-bars .tbars { flex: 1; min-width: 0; margin-right: 0; }
-.mu-bars .scoutbtn { flex: 0 0 56px; margin: 3px 8px 2px 0; font-size: 11px; font-weight: bold; line-height: 1.3; padding: 4px 2px; }
+/* matchup: the vs row shares the rope's columns — the @ sits dead center on
+   the track; the SCOUT button floats OVER the opponent's half of the ropes */
+.mu-bars { flex: none; position: relative; }
+.tbar.vsrow { height: 24px; margin-bottom: 2px; }
+.vs-track { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; }
+.vs-track .vsl { flex: 1; min-width: 0; display: flex; justify-content: flex-end; }
+.vs-track .vsr { flex: 1; min-width: 0; display: flex; justify-content: flex-start; }
+.vs-track .vsat { flex: none; color: var(--r55); font-size: 12px; }
+.mu-bars .scoutbtn {
+  position: absolute;
+  z-index: 5;
+  top: 32px;
+  width: 66px;
+  margin: 0;
+  padding: 6px 2px;
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 1.35;
+  background: var(--rbg);
+  border-color: var(--r95);
+  color: var(--r95);
+}
+.mu-bars .scoutbtn.l { left: 132px; }
+.mu-bars .scoutbtn.r { right: 44px; }
 .tbars.mu .tbl { flex: 0 0 76px; }
 .tbars.mu .tbv { flex: 0 0 30px; }
 .tbars.mu .tbv.opp { text-align: left; }

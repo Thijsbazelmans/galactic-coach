@@ -909,7 +909,29 @@ function teamBarsPractice(s: GameState): string {
 function teamBarsMatchup(s: GameState): string {
   const t = myTeam(s);
   const m = myMatchup(s);
+  const champ = isUtWeek(s) ? utOpponent(s) : null;
   const home = isUtWeek(s) ? true : m?.home ?? true;
+  const opp = champ
+    ? { name: champ.name, bg: champ.bg, fg: champ.fg }
+    : m
+      ? { name: m.opponent.name, bg: m.opponent.bg, fg: m.opponent.fg }
+      : { name: '?', bg: '#333', fg: '#ccc' };
+  const mineChip = { name: t.name, bg: t.bg, fg: t.fg };
+  const away = home ? opp : mineChip;
+  const homeT = home ? mineChip : opp;
+  const clash = Math.min(Math.abs(hue(away.bg) - hue(homeT.bg)), 360 - Math.abs(hue(away.bg) - hue(homeT.bg))) < 40;
+  const vsRow = `<div class="tbar vsrow">
+    <span class="tbl"></span><b class="tbv"></b>
+    <span class="vs-track">
+      <span class="vsl">${clash ? chip(away.name, away.fg, away.bg, true) : chip(away.name, away.bg, away.fg, true)}</span>
+      <span class="vsat">@</span>
+      <span class="vsr">${chip(homeT.name, homeT.bg, homeT.fg, true)}</span>
+    </span>
+    <b class="tbv"></b>
+  </div>`;
+  const scoutBtn = s.scoutedOpp
+    ? ''
+    : `<button class="hold scoutbtn ${home ? 'l' : 'r'}" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT<br/>1⚡</button>`;
   const mineRaw = teamAttrSums(t.players);
   const myAttr = s.speechWk ? planById(s.plan).attr : null;
   let theirsRaw: AttrRec | null = null;
@@ -955,7 +977,7 @@ function teamBarsMatchup(s: GameState): string {
       ${right}
     </div>`;
   }).join('');
-  return `<div class="tbars mu">${rows}</div>`;
+  return `<div class="mu-bars"><div class="tbars mu">${vsRow}${rows}</div>${scoutBtn}</div>`;
 }
 
 function lensBar(): string {
@@ -1044,25 +1066,6 @@ function hue(hex: string): number {
 }
 
 function stageMatchup(s: GameState): string {
-  const m = myMatchup(s);
-  const t = myTeam(s);
-  const champ = isUtWeek(s) ? utOpponent(s) : null;
-  const home = champ ? true : m?.home ?? true;
-  const opp = champ
-    ? { name: champ.name, bg: champ.bg, fg: champ.fg }
-    : m
-      ? { name: m.opponent.name, bg: m.opponent.bg, fg: m.opponent.fg }
-      : { name: '?', bg: '#333', fg: '#ccc' };
-  const mine = { name: t.name, bg: t.bg, fg: t.fg };
-  const away = home ? opp : mine;
-  const homeT = home ? mine : opp;
-  // if the kits blur together, the away side plays in inverted colors
-  const clash = Math.min(Math.abs(hue(away.bg) - hue(homeT.bg)), 360 - Math.abs(hue(away.bg) - hue(homeT.bg))) < 40;
-  const awayChip = clash ? chip(away.name, away.fg, away.bg, true) : chip(away.name, away.bg, away.fg, true);
-  const homeChip = chip(homeT.name, homeT.bg, homeT.fg, true);
-  const scoutBtn = s.scoutedOpp
-    ? ''
-    : `<button class="hold scoutbtn" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT<br/>1⚡</button>`;
   const sel = selSpeech && s.knownPlans.includes(selSpeech) ? selSpeech : s.knownPlans.includes(s.plan) ? s.plan : s.knownPlans[0];
   const pl = planById(sel);
   const spoken = !!s.speechWk;
@@ -1075,8 +1078,7 @@ function stageMatchup(s: GameState): string {
     </span></div>`;
   return `<h2 class="gridhead">MATCHUP</h2>
     ${gridHtml(s, true)}
-    <div class="mu-vs">${awayChip} <span class="dim">@</span> ${homeChip}</div>
-    <div class="mu-bars">${teamBarsMatchup(s)}${scoutBtn}</div>
+    ${teamBarsMatchup(s)}
     ${speech}`;
 }
 
