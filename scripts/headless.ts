@@ -5,6 +5,7 @@
 
 import { PLANS, speciesById } from '../src/engine/data';
 import { LEVEL_CAP, ROSTER_SIZE, newGameState } from '../src/engine/gen';
+import { meterMult, normalizeLineup } from '../src/engine/sim';
 import { ATTRS, bestAttr, ovr, sizeIndex } from '../src/engine/util';
 import {
   actionGalaxy,
@@ -152,6 +153,17 @@ function playCareer(idx: number): CareerStats {
         drainQueue(s);
         if (s.phase !== 'matchup') break;
         const t = myTeam(s);
+        // ROTATE: rows by condition-weighted rating (tired/angry stars sit),
+        // columns by size — the baseline-75 economy punishes a static lineup
+        const cond = (p: import('../src/engine/types').Player): number =>
+          ovr(p.attrs) * meterMult(p.energy) * meterMult(p.mood);
+        const fit = t.players.filter((p) => p.outWeeks === 0).sort((a, b) => cond(b) - cond(a));
+        const slots: (number | null)[] = Array.from({ length: 9 }, () => null);
+        [fit.slice(0, 3), fit.slice(3, 6), fit.slice(6, 9)].forEach((trio, r) => {
+          [...trio].sort((a, b) => sizeIndex(a) - sizeIndex(b)).forEach((p, c) => { slots[r * 3 + c] = p.id; });
+        });
+        t.lineup.slots = slots;
+        normalizeLineup(t);
         const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id));
         // speak to the squad's strongest attribute (best odds of a useful ignition)
         const sums = { skl: 0, ath: 0, frc: 0, brn: 0 };

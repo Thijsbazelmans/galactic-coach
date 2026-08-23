@@ -691,10 +691,46 @@ v2.8.2 (~40%, tryouts handicap). The collapse risk in this economy is
 signings: board-wide gains vs decay 1 and roster attrition (~2–3
 leavers/season) — watch commits/season ≥ 1.
 
+## v3.0.1 — THE BASELINE (same day, from Thijs's meter note)
+
+Meters were living at the cap; now they live at **75**, and the extremes
+belong to stories.
+
+- **Baseline 75 everywhere.** Generation rolls meters 70–80
+  (`METER_BASELINE` in gen.ts); the summer resets there; weekly recovery
+  DRIFTS HOME instead of stacking: energy +14/wk and mood +5/wk, but never
+  past 75 naturally (above it, −2/−3 back down). TEAM REST and BONFIRE
+  climb past the baseline but cap at 85 — only stories and items reach the
+  true extremes. Sprite buckets retuned so 75 reads NEUTRAL/NORMAL
+  (elated ≥95, pumped ≥95, angry <25).
+- **Rotation is mandatory now.** A starter burns ~−12/wk net: three
+  straight starts ≈ 75 → 52 → 43 → 34 — tired sprite, auto-sits practice,
+  and one more start flirts with the 25% low-energy injury. Reserves
+  recover only back TO the baseline (+8 game night, capped).
+- **The frozen ones.** DNP mood sting −4 (−8 on a 3+ streak), and a long
+  freeze becomes a STORY: at 4 straight DNPs (50%) and every 3 after, THE
+  FROZEN ONE knocks — promise him minutes (a futureBeat checks in 2 weeks
+  whether he actually played: kept = +mood and the room notices, broken =
+  −24 and the room notices that too) or tell him to earn it.
+- **Stories hit harder.** Story mood fx land ×1.5 (team-wide ×1.25) — the
+  authored numbers stay as written, the APPLIED swing is bigger; item
+  effects keep their printed values exact (law 5). Speech backfire −20 →
+  −25.
+- **The other five programs live the same life.** AI lineups now rotate by
+  CONDITION (autoLineup ranks ovr × energy-mult × mood-mult), AI rosters
+  fatigue BY ROW like mine (starters ~−19/game, bench ~−11, reserves
+  recover to baseline — `aiPostGame`), and each AI team takes a weekly
+  abstracted campus-life tax (one player mood −6..−15, 30% one player
+  energy −6..−13) standing in for the stories we never see. Without those
+  three, the 75-cap turned MY stories into a pure handicap (win rate
+  cratered to ~30% in testing).
+- Headless (harness now re-sorts its lineup by condition each week):
+  **~57% win rate, ~1.75 titles/career**.
+
 ## NEXT SESSION (pick up here)
 
-Fresh-session state: the game is **v3.0** (THE POLISH PASS) — see the
-entry above. Engine `src/engine/` (types/data/gen/sim/state/util), UI
+Fresh-session state: the game is **v3.0.1** (THE POLISH PASS + THE
+BASELINE) — see the entries above. Engine `src/engine/` (types/data/gen/sim/state/util), UI
 `src/main.ts` + `src/rig.ts` + `src/style.css`. SAVE_VERSION 15.
 Tests: `npx tsx scripts/headless.ts N` (full careers; ~58% baseline) and
 `npx tsx scripts/uismoke.ts` (boots the real UI in happy-dom; nav and
@@ -724,10 +760,12 @@ exports into `fromDesign/<date>/` — read them from there.
   rewritten for v3.0 but the real onboarding is still undesigned.
 - **SPEC.md rewrite**: it still describes the dead v1.0 axis model (and
   now also a dead tactics wheel).
-- **Balance watch**: post-v3.0 baseline ~58% win rate / ~1.25 titles per
-  career. Knobs: recruit gain ranges + decay 1, signing letter penalties,
-  speech odds (10/5, +2), SHARP 6, ON FIRE 25/12/×1.2, dream-lab 50%
-  ceiling chance, rec-center offense odds (5%).
+- **Balance watch**: post-v3.0.1 baseline ~57% win rate / ~1.75 titles per
+  career (titles a touch rich). Knobs: meter economy (baseline 75, recovery
+  14/5 drift, starter ~−12/wk net, AI campus-life tax), story mood scale
+  (×1.5 / ×1.25 team), recruit gain ranges + decay 1, signing letter
+  penalties, speech odds (10/5, +2, backfire −25), SHARP 6, ON FIRE
+  25/12/×1.2, dream-lab 50% ceiling chance, rec-center offense odds (5%).
 - **Alumni/career surfacing**: careers + MVP counts accumulate but only
   the STATS lens shows them; a legacy/records screen is unbuilt.
 

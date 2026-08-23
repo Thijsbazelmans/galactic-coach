@@ -465,19 +465,20 @@ const ENERGIES: Record<RigEnergy, EnergyDef> = {
   pumped: { sweat: 0, drop: 0 },
 };
 
-/** The live meters map onto the five sprite buckets. */
+/** The live meters map onto the five sprite buckets. The baseline (75) reads
+    NEUTRAL/NORMAL — the outer buckets belong to stories, streaks and items. */
 export function moodBucket(mood: number): RigMood {
-  if (mood < 20) return 'angry';
-  if (mood < 40) return 'upset';
-  if (mood < 65) return 'neutral';
-  if (mood < 85) return 'happy';
+  if (mood < 25) return 'angry';
+  if (mood < 50) return 'upset';
+  if (mood < 85) return 'neutral';
+  if (mood < 95) return 'happy';
   return 'elated';
 }
 export function energyBucket(energy: number): RigEnergy {
   if (energy < 15) return 'exhausted';
   if (energy < 40) return 'tired';
-  if (energy < 70) return 'normal';
-  if (energy < 90) return 'fit';
+  if (energy < 85) return 'normal';
+  if (energy < 95) return 'fit';
   return 'pumped';
 }
 

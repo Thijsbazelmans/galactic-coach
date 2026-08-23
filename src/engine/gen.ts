@@ -29,6 +29,9 @@ export const BAG_SIZE = 5;
 export const MAX_PROSPECTS = 9;
 /** An overall this high gets pro scouts in the dorm lobby. */
 export const PRO_OVR = 52;
+/** Meters live around 75. Natural recovery drifts HOME, never past it —
+    the extremes (elated/angry, pumped/sleeping) belong to stories. */
+export const METER_BASELINE = 75;
 
 /** Weekly stipend shrinks by 1 per season from season 21. Mortality is an energy bill. */
 export function stipendFor(season: number): number {
@@ -135,8 +138,8 @@ export function genPlayer(counter: { nextId: number }, quality: number, classYea
     career: zeroStats(),
     level,
     xp: 0,
-    energy: 70 + rand(25),
-    mood: 55 + rand(25),
+    energy: METER_BASELINE - 5 + rand(11),
+    mood: METER_BASELINE - 5 + rand(11),
     outWeeks: 0,
     outReason: '',
     dnp: 0,
@@ -254,8 +257,8 @@ export function prospectToPlayer(pr: Prospect): Player {
     career: zeroStats(),
     level: rand(2),
     xp: 0,
-    energy: 80 + rand(15),
-    mood: 60 + rand(20),
+    energy: METER_BASELINE - 5 + rand(11),
+    mood: METER_BASELINE - 5 + rand(11),
     outWeeks: 0,
     outReason: '',
     dnp: 0,

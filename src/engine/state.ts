@@ -22,6 +22,7 @@ import {
   CACHE_MAX,
   LEVEL_CAP,
   MAX_PROSPECTS,
+  METER_BASELINE,
   REGULAR_WEEKS,
   ROSTER_SIZE,
   PRO_OVR,
@@ -190,9 +191,16 @@ function toAlum(p: Player, exit: Alumnus['exit'], season: number): Alumnus {
 
 // ---- Fx: the one place consequences land --------------------------------------------
 
-export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId: number | null): void {
+/** Story mood swings land HARDER than their authored numbers — at a 75
+    baseline a shrug isn't drama. Item effects keep their printed values. */
+const STORY_MOOD_SCALE = 1.5;
+const STORY_TEAM_MOOD_SCALE = 1.25;
+
+export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId: number | null, storyMoods = false): void {
   if (!fxList) return;
   const t = myTeam(s);
+  const moodOf = (v: number): number => Math.round(v * (storyMoods ? STORY_MOOD_SCALE : 1));
+  const teamMoodOf = (v: number): number => Math.round(v * (storyMoods ? STORY_TEAM_MOOD_SCALE : 1));
   for (const fx of fxList) {
     const pid = fx.playerId ?? defaultPlayerId;
     const p = pid !== null ? t.players.find((x) => x.id === pid) : undefined;
@@ -200,7 +208,7 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
     if (fx.heatS) s.heatS = clamp(s.heatS + fx.heatS, 0, 100 - s.heatB);
     if (fx.heatB) s.heatB = clamp(s.heatB + fx.heatB, 0, 100 - s.heatS);
     if (fx.legacy) s.legacy += fx.legacy;
-    if (fx.teamMood) for (const q of t.players) q.mood = clamp(q.mood + fx.teamMood, 0, 100);
+    if (fx.teamMood) for (const q of t.players) q.mood = clamp(q.mood + teamMoodOf(fx.teamMood), 0, 100);
     if (fx.teamEnergyP) for (const q of t.players) q.energy = clamp(q.energy + fx.teamEnergyP, 0, 100);
     if (fx.giveItem) giveItem(s, fx.giveItem);
     if (fx.loseItemIdx !== undefined) s.bag.splice(fx.loseItemIdx, 1);
@@ -267,7 +275,7 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
     }
     if (fx.xp) lastLevelUps.push(...addXp(s, p, fx.xp));
     if (fx.energyP) p.energy = clamp(p.energy + fx.energyP, 0, 100);
-    if (fx.mood) p.mood = clamp(p.mood + fx.mood, 0, 100);
+    if (fx.mood) p.mood = clamp(p.mood + moodOf(fx.mood), 0, 100);
     if (fx.weightKg) p.weightKg = Math.max(35, p.weightKg + fx.weightKg);
     if (fx.outWeeks !== undefined) {
       p.outWeeks = fx.outWeeks;
@@ -397,7 +405,8 @@ export function resolveStory(s: GameState, choiceKey: string): { resolved: Story
 
   const rpid = res.fx?.find((f) => f.playerId !== undefined)?.playerId ?? ev.playerId;
   const rform = (rpid !== null ? myTeam(s).players.find((p) => p.id === rpid)?.form : (ev.data?.alumForm as 'masc' | 'femme' | undefined)) ?? undefined;
-  applyFx(s, res.fx, ev.playerId);
+  // story consequences swing harder than item effects (items print exact numbers)
+  applyFx(s, res.fx, ev.playerId, !choice?.itemId);
   ev.resolvedText = genderize(res.text, rform);
   for (const f of res.follow ?? []) {
     s.futureBeats.push({ weeksLeft: f.weeks, defId: f.defId ?? ev.defId, beat: f.beat, playerId: f.playerId !== undefined ? f.playerId : ev.playerId, data: f.data });
@@ -471,8 +480,30 @@ function startWeek(s: GameState): void {
         }
         p.outReason = '';
       }
-      p.energy = clamp(p.energy + 21, 0, 100);
-      p.mood = clamp(p.mood + (p.mood < 55 ? 3 : -1), 0, 100);
+      // meters drift HOME to the 75 baseline — natural recovery never passes
+      // it; the extremes (elated/angry, pumped/sleeping) belong to stories.
+      // A starter burns ~−12/week net, so three straight starts land him in
+      // the 30s: bench him, rest him, or watch him break.
+      p.energy = p.energy < METER_BASELINE
+        ? Math.min(METER_BASELINE, p.energy + 14)
+        : Math.max(METER_BASELINE, p.energy - 2);
+      p.mood = p.mood < METER_BASELINE
+        ? Math.min(METER_BASELINE, p.mood + 5)
+        : Math.max(METER_BASELINE, p.mood - 3);
+    }
+    // AI campus life, abstracted: the other programs have festivals, dramas
+    // and frozen-out benches too — we just never see them. Without this tax
+    // the baseline economy would make MY stories a pure handicap.
+    if (team.id !== s.myTeamId) {
+      const alive = team.players.filter((p) => p.outWeeks === 0);
+      if (alive.length) {
+        const q = pick(alive);
+        q.mood = clamp(q.mood - (6 + rand(10)), 0, 100);
+        if (roll(30)) {
+          const w = pick(alive);
+          w.energy = clamp(w.energy - (6 + rand(8)), 0, 100);
+        }
+      }
     }
   }
 
@@ -580,10 +611,12 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
   const gainByPlayer = new Map<number, string>();
   const gainNotes: string[] = [];
   if (d.target === 'rest') {
+    // a deliberate rest week climbs past the baseline — but only stories and
+    // items reach the true extremes (cap 85)
     const rec = d.recover ?? { energy: 21, mood: 4 };
     for (const p of t.players.filter((x) => x.outWeeks === 0)) {
-      p.energy = clamp(p.energy + rec.energy, 0, 100);
-      p.mood = clamp(p.mood + rec.mood, 0, 100);
+      if (p.energy < 85) p.energy = Math.min(85, p.energy + rec.energy);
+      if (p.mood < 85) p.mood = Math.min(85, p.mood + rec.mood);
     }
   } else {
     for (const p of participants) {
@@ -903,8 +936,8 @@ function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx | null; text: st
     const pool = t.players.filter((p) => p.outWeeks === 0);
     const p = pool.length ? pick(pool) : null;
     if (p) {
-      p.mood = clamp(p.mood - 20, 0, 100);
-      return { fx: null, text: genderize(`"${pl.speech}," you say. ${p.name} looks at the floor. He's heard this one before, and tonight he doesn't believe a word of it. MOOD −20.`, p.form) };
+      p.mood = clamp(p.mood - 25, 0, 100);
+      return { fx: null, text: genderize(`"${pl.speech}," you say. ${p.name} looks at the floor. He's heard this one before, and tonight he doesn't believe a word of it. MOOD −25.`, p.form) };
     }
     return { fx: null, text: `"${pl.speech}," you say, to a very quiet room.` };
   }
@@ -1031,6 +1064,21 @@ export function playGame(s: GameState): void {
   save(s);
 }
 
+/** An AI roster living a game night the way mine does: floor players spend
+    by row, reserves get their night off (back toward the baseline only). */
+function aiPostGame(t: Team, won: boolean, halfAlreadySpent: boolean): void {
+  const st = new Set(starters(t).map((p) => p.id));
+  const bn = new Set(benchPlayers(t).map((p) => p.id));
+  for (const p of t.players) {
+    if (p.outWeeks > 0) continue;
+    if (st.has(p.id)) p.energy = clamp(p.energy - (8 + rand(3)) - (halfAlreadySpent ? 0 : 8 + rand(3)), 0, 100);
+    else if (bn.has(p.id)) p.energy = clamp(p.energy - (5 + rand(3)) - (halfAlreadySpent ? 0 : 4 + rand(2)), 0, 100);
+    else if (p.energy < METER_BASELINE) p.energy = Math.min(METER_BASELINE, p.energy + 8);
+    p.mood = clamp(p.mood + (won ? 4 : -5), 0, 100);
+    if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
+  }
+}
+
 /** The week's games: everyone else's whole night, but MY game stops at the
     half — s.halftime holds it open until the locker room lets it back out. */
 function simWeek(s: GameState): void {
@@ -1059,17 +1107,10 @@ function simWeek(s: GameState): void {
       g.winner.pointsFor += g.scoreW; g.winner.pointsAgainst += g.scoreL;
       g.loser.pointsFor += g.scoreL; g.loser.pointsAgainst += g.scoreW;
       s.resultsLog.push(`${g.winner.name} ${g.scoreW} — ${g.scoreL} ${g.loser.name}`);
-      // AI squads drift forward — and feel their results like we do
-      for (const p of g.winner.players) {
-        p.energy = clamp(p.energy - 16, 0, 100);
-        p.mood = clamp(p.mood + 5, 0, 100);
-        if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
-      }
-      for (const p of g.loser.players) {
-        p.energy = clamp(p.energy - 16, 0, 100);
-        p.mood = clamp(p.mood - 5, 0, 100);
-        if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
-      }
+      // AI squads drift forward — and feel their results like we do:
+      // floor players spend, reserves recover, moods swing
+      aiPostGame(g.winner, true, false);
+      aiPostGame(g.loser, false, false);
     }
   }
   save(s);
@@ -1128,11 +1169,7 @@ export function playSecondHalf(s: GameState): void {
   else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
   applyGameEffects(s, out.won, drains);
   // the other locker room lives the same night we do (half already spent)
-  for (const p of m.opponent.players) {
-    p.energy = clamp(p.energy - 8, 0, 100);
-    p.mood = clamp(p.mood + (out.won ? -5 : 5), 0, 100);
-    if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
-  }
+  aiPostGame(m.opponent, !out.won, true);
   // clean weeks slowly cool the school
   s.heatS = clamp(s.heatS - 1, 0, 100);
   save(s);
@@ -1172,12 +1209,16 @@ function applyGameEffects(s: GameState, won: boolean, halfDrains: Record<number,
       xpGain = 4 + rand(3);
       p.dnp = 0;
     } else {
-      // every night in street clothes stings; a long freeze stings harder
-      p.energy = clamp(p.energy + 8, 0, 100);
+      // a night off recovers — but only back toward the baseline
+      if (p.energy < METER_BASELINE) p.energy = Math.min(METER_BASELINE, p.energy + 8);
       p.dnp++;
-      p.mood = clamp(p.mood - (p.dnp >= 3 ? 8 : 3), 0, 100);
+      p.mood = clamp(p.mood - (p.dnp >= 3 ? 8 : 4), 0, 100);
+      // a long freeze becomes a STORY: the frozen-out talk, then worse
+      if ((p.dnp === 4 && roll(50)) || (p.dnp >= 6 && p.dnp % 3 === 0)) {
+        queueStory(s, 'frozen', 'start', p.id, { games: p.dnp });
+      }
     }
-    p.mood = clamp(p.mood + (won ? 5 : -5), 0, 100);
+    p.mood = clamp(p.mood + (won ? 4 : -5), 0, 100);
     if (xpGain > 0) lastLevelUps.push(...addXp(s, p, xpGain));
     s.postGame.push({ playerId: p.id, energyP: p.energy - pre.e + (halfDrains[p.id] ?? 0), mood: p.mood - pre.m, xpGain });
   }
@@ -1301,8 +1342,8 @@ function endSeason(s: GameState, utNote: string | null): void {
     for (const p of team.players) {
       p.classYear++;
       bumpAny(p, 1 + rand(3));
-      p.energy = 80 + rand(15);
-      p.mood = clamp(p.mood + 10, 30, 90);
+      p.energy = METER_BASELINE - 3 + rand(9);
+      p.mood = clamp(p.mood + 15, 60, 85);
       p.outWeeks = 0; p.outReason = '';
     }
     const counter = { nextId: s.nextId };
@@ -1422,8 +1463,8 @@ export function resolveSigning(s: GameState): void {
       p.attrs[a] = Math.min(p.pots[a], p.attrs[a] + 2);
       if (p.attrs[a] > before) driftNote = ` — and his body kept leaning into what it is (+${p.attrs[a] - before} ${a.toUpperCase()})`;
     }
-    p.energy = 85 + rand(15);
-    p.mood = clamp(p.mood + 10, 40, 95);
+    p.energy = METER_BASELINE - 3 + rand(9);
+    p.mood = clamp(p.mood + 15, 60, 85);
     p.outWeeks = 0; p.outReason = ''; p.dnp = 0;
     notes.push(genderize(`${p.name}: +${bump} over the summer${driftNote}.`, p.form));
   }

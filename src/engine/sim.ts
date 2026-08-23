@@ -95,9 +95,11 @@ export function normalizeLineup(t: Team): void {
   t.lineup.slots = slots;
 }
 
-/** AI teams: best six on the floor, sorted into columns by body size. */
+/** AI teams: best six on the floor — CONDITION counts, tired stars sit —
+    sorted into columns by body size. (The other coaches rotate too.) */
 export function autoLineup(t: Team): void {
-  const ranked = [...t.players].filter(available).sort((a, b) => ovr(b.attrs) - ovr(a.attrs));
+  const cond = (p: Player): number => ovr(p.attrs) * meterMult(p.energy) * meterMult(p.mood);
+  const ranked = [...t.players].filter(available).sort((a, b) => cond(b) - cond(a));
   const rows = [ranked.slice(0, 3), ranked.slice(3, 6), ranked.slice(6, 9)];
   const slots: (number | null)[] = Array.from({ length: 9 }, () => null);
   rows.forEach((trio, r) => {
@@ -352,7 +354,11 @@ export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: Cha
     p.energy = clamp(p.energy - d, 0, 100);
     drains[p.id] = -d;
   }
-  if (opp) for (const p of opp.players) p.energy = clamp(p.energy - 8, 0, 100);
+  // their locker room spends the same half ours does — by lineup row
+  if (opp) {
+    for (const p of starters(opp)) if (available(p)) p.energy = clamp(p.energy - (8 + rand(3)), 0, 100);
+    for (const p of benchPlayers(opp)) if (available(p)) p.energy = clamp(p.energy - (4 + rand(2)), 0, 100);
+  }
   s.halftime = {
     myH1: sc.my,
     oppH1: sc.opp,

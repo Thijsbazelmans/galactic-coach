@@ -1228,6 +1228,50 @@ export const STORIES: StoryDef[] = [
       return { text: 'It simmers, then settles. Mostly.', fx: [{ teamMood: -3 }] };
     },
   },
+  // ---- THE FROZEN ONE: live in the reserves long enough and it becomes a story
+  {
+    id: 'frozen',
+    kind: 'player',
+    context: 'mood',
+    beat: (b, ctx) => {
+      const p = pname(ctx);
+      if (b === 'promise_check') {
+        const played = (ctx.player?.dnp ?? 1) === 0;
+        ctx.data.played = played;
+        return played
+          ? { tag: 'THE FROZEN ONE', text: `${p} checked in last game — real minutes, real sweat. In the locker room he nods at you once. Promises kept are rare currency out here.` }
+          : { tag: 'THE FROZEN ONE', text: `You promised ${p} minutes. The games came and went, and he watched every one of them from the same seat.\n\nThe whole locker room did the math with him.` };
+      }
+      const games = (ctx.data.games as number) ?? 4;
+      return {
+        tag: 'THE FROZEN ONE',
+        text: `${p} hasn't left the bench in ${games} straight games. Today he's at your door with his practice tape and a look you remember from your own playing days.`,
+        choices: [
+          C('promise', 'PROMISE HIM REAL MINUTES', { up: { pct: 25, cls: 'SPIRIT' }, down: { pct: 25, cls: 'DRAMA', note: 'keep it, or else' } }),
+          C('earn', '"EARN IT IN PRACTICE."', { up: { pct: 10, cls: 'BREAKTHROUGH' }, down: { pct: 25, cls: 'DRAMA' } }),
+        ],
+      };
+    },
+    resolve: (key, ctx, ev) => {
+      const p = ctx.player!;
+      if (ev.beat === 'promise_check') {
+        const played = ctx.data.played === true || p.dnp === 0;
+        if (played) return { text: `Word gets around: this coach means what he says.`, fx: [{ mood: 10, teamMood: 2 }] };
+        return { text: `${p.name} doesn't slam anything. That's the worst part.`, fx: [{ mood: -16 }, { teamMood: -4 }] };
+      }
+      if (key === 'promise') {
+        return {
+          text: `${p.name} nods slowly. "Okay, coach." Now the only thing left is to actually do it.`,
+          fx: [{ mood: 6 }],
+          follow: [{ weeks: 2, beat: 'promise_check' }],
+        };
+      }
+      const t = tails(10, 25);
+      if (t === 'up') return { text: `${p.name} takes it personally — in the useful way. For a week he practices like the gym owes him money.`, fx: [{ mood: -3, xp: 15 }] };
+      if (t === 'down') return { text: `${p.name} takes it personally. His warm-ups get quieter and his eyes stop finding yours.`, fx: [{ mood: -12 }] };
+      return { text: `${p.name} says nothing and goes back to work. The look stays.`, fx: [{ mood: -7 }] };
+    },
+  },
   {
     id: 'scandal',
     kind: 'coach',
