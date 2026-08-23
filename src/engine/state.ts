@@ -549,6 +549,8 @@ function startWeek(s: GameState): void {
   checkHotSeat(s, defer);
 
   if (isUtWeek(s)) {
+    // tournament rounds are voyages: wheels up before the scouting report
+    defer('travel_out', 'start', null);
     const champ = utOpponent(s);
     if (champ) {
       defer('notice', 'start', null, {
@@ -754,6 +756,8 @@ export interface GalaxyResult {
   text: string;
   /** per-prospect stickers for the board */
   perProspect: Map<number, { text: string; up?: boolean }[]>;
+  /** search trips show the saucer: it flies out, then lands the verdict */
+  art?: 'saucer-hoop' | 'saucer-stranded' | 'saucer-move';
 }
 
 /** Reveal one unrevealed facet of a prospect. Returns the sticker, or null when
@@ -799,6 +803,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
   s.galaxyActWk = true;
   const per = new Map<number, { text: string; up?: boolean }[]>();
   let text: string;
+  let art: GalaxyResult['art'];
   const r = Math.random() * 100;
 
   if (act.kind === 'scout') {
@@ -881,6 +886,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
     const found: Prospect[] = [genProspect(counter, s.season, act.id, names)];
     if (act.twoChance && roll(act.twoChance)) found.push(genProspect(counter, s.season, act.id, names));
     s.nextId = counter.nextId;
+    art = 'saucer-hoop'; // the saucer parks by a court and watches
     text = `${act.name}: ${found.map((p) => `${p.name}, a ${speciesById(p.speciesId).name}`).join(' — and ')} steps into the light.`;
     for (const pr of found) {
       if (s.prospects.length < MAX_PROSPECTS) {
@@ -907,12 +913,14 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
       }
     } else if (act.id !== 'reccenter') {
       if (s.energy === 0 && roll(10)) {
-        queueStory(s, 'debt', 'start', null, { cause: 'On the way home from the search, a gravity snare — a salvage rig reels your ship in like a fish.' });
+        queueStory(s, 'debt', 'start', null, { art: 'saucer', cause: 'On the way home from the search, a gravity snare — a salvage rig reels your ship in like a fish.' });
         text += ' Then the cells run dry in dead space...';
+        art = 'saucer-stranded';
       } else if (r < act.down.pct) {
         if (roll(50)) queueStory(s, 'hullbreach', 'start', null);
         else queueStory(s, 'grounded', 'start', null, { cause: 'A micrometeorite shreds the starboard scoop on the way home.' });
         text += ' The trip home, however...';
+        art = 'saucer-stranded';
       } else if (r < act.down.pct + act.up.pct) {
         if (act.up.cls === 'LOOT') {
           const item = pick(ITEMS.filter((i) => i.rarity !== 'legendary'));
@@ -929,7 +937,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
     }
   }
   save(s);
-  return { text, perProspect: per };
+  return { text, perProspect: per, art };
 }
 
 /** Swap between the board (0–8) and the 4th row (9–11: the pending names). */
@@ -1082,6 +1090,9 @@ export function toMatchup(s: GameState): void {
   // recruiting is mandatory: no matchup before the board-wide move lands
   if (s.phase === 'galaxy' && (!s.galaxyActWk || s.pendingRecruits.length)) return;
   normalizeLineup(myTeam(s));
+  // wheels up: every away game opens with the bus heading out
+  const m = myMatchup(s);
+  if (m && !m.home && s.phase === 'galaxy') queueStory(s, 'travel_out', 'start', null);
   s.phase = 'matchup';
   maybeTip(s, 'matchup');
   save(s);
@@ -1348,7 +1359,14 @@ export function continueFromResult(s: GameState): void {
         s.legacy += 1;
         s.careerLog.push(`Season ${s.season}: runner-up (${me.wins}–${me.losses}) — took the second shuttle to the Universal Tournament.`);
       }
-      s.ut = { round: 0, champs: genChamps(restedPower(me), s.season), myNextOpp: 0, log: [] };
+      // THE CAREER ARC: every piece of knowledge you've earned makes the
+      // tournament a little more winnable; every banner already hung makes
+      // the field hunt you harder. A rookie coach needs a miracle. A wise
+      // one hits streaks. A champion gets everyone's best punch.
+      const knowledge = Math.max(0, s.unlockedDrills.length + s.knownPlans.length + s.unlockedRegions.length - 13);
+      const edge = Math.min(0.12, knowledge * 0.015);
+      const hunted = Math.min(3, s.utTitles) * 0.045;
+      s.ut = { round: 0, champs: genChamps(restedPower(me), s.season, 1 - edge + hunted), myNextOpp: 0, log: [] };
       s.week++;
       startWeek(s);
       return;

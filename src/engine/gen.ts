@@ -321,7 +321,12 @@ export function genSchedule(teamCount: number): [number, number][][] {
 
 // ---- the Universal Tournament -------------------------------------------------------
 
-export function genChamps(myPower: number, _season: number): ChampTeam[] {
+/** The Universal Tournament field. `diff` is THE CAREER ARC in one number:
+    a rookie coach faces it straight (1.0); every piece of KNOWLEDGE earned
+    (drills, speeches, star charts) shaves it down — the galaxy gets smaller
+    as you learn it — and every banner you've already hung raises it back up
+    (champions get HUNTED). */
+export function genChamps(myPower: number, _season: number, diff = 1): ChampTeam[] {
   const names = [...CHAMP_NAMES];
   const champs: ChampTeam[] = [];
   for (let i = 0; i < 7; i++) {
@@ -340,9 +345,8 @@ export function genChamps(myPower: number, _season: number): ChampTeam[] {
       fg: colors[1],
       plan,
       // sized against your RESTED strength — but you arrive tired, streaks
-      // stacked, with no practice week between rounds. Champions are your
-      // equal on a good day; the rounds get harder.
-      power: Math.round(myPower * (0.88 + rand(18) / 100 + i * 0.02)),
+      // stacked, with no practice week between rounds; the rounds get harder.
+      power: Math.round(myPower * diff * (0.84 + rand(18) / 100 + i * 0.02)),
       kite,
     });
   }

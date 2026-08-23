@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin: 0; background: #0a0c14; }
+  a { color: #b6f36a; text-decoration: none; }
+  a:hover { color: #f36ad2; }
+  canvas { image-rendering: pixelated; display: block; }
+</style>
+</helmet>
+<section style="padding:34px 38px 10px;color:#dfe3f2;font-family:'IBM Plex Mono',monospace">
+  <div style="margin-bottom:24px">
+    <div style="font-family:'Silkscreen',monospace;font-size:11px;letter-spacing:3px;color:#b6f36a;margin-bottom:8px">ICBA &middot; ILLUSTRATION OPTIONS &middot; TURN 2 &middot; BUILT FROM PICKS <a href="#1a">1a</a> <a href="#1d">1d</a> <a href="#1g">1g</a> <a href="#1i">1i</a></div>
+    <div style="font-family:'Silkscreen',monospace;font-size:28px;color:#f4f6ff">STORY SCENES + STATES</div>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:22px 0 12px">TEAM BUS &middot; THE FLAT-NOSE &middot; STORY SITUATIONS</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ busScenes }}" as="c" hint-placeholder-count="3">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" data-grid="64" width="384" height="192"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:44ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">SCOUT SAUCER &middot; STORY SITUATIONS</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ saucerScenes }}" as="c" hint-placeholder-count="3">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" data-grid="48" width="288" height="168"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:34ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">THE DEAN &middot; FOUR STATES</div>
+  <div id="2g" style="border:2px solid #232a44;background:#0f1220;padding:14px;display:inline-flex;gap:14px;flex-wrap:wrap">
+    <sc-for list="{{ deanStates }}" as="c" hint-placeholder-count="4">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+        <canvas data-opt="{{ c.id }}" data-grid="32" width="160" height="170"></canvas>
+        <div style="font-size:10px;color:#c8cddb;letter-spacing:1px">{{ c.label }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">THE BOOSTER &middot; FOUR STATES</div>
+  <div id="2h" style="border:2px solid #232a44;background:#0f1220;padding:14px;display:inline-flex;gap:14px;flex-wrap:wrap;margin-bottom:30px">
+    <sc-for list="{{ boosterStates }}" as="c" hint-placeholder-count="4">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+        <canvas data-opt="{{ c.id }}" data-grid="36" width="180" height="220"></canvas>
+        <div style="font-size:10px;color:#c8cddb;letter-spacing:1px">{{ c.label }}</div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+<section ref="{{ pageRef }}" style="padding:34px 38px 70px;color:#dfe3f2;font-family:'IBM Plex Mono',monospace">
+  <div style="margin-bottom:24px">
+    <div style="font-family:'Silkscreen',monospace;font-size:11px;letter-spacing:3px;color:#b6f36a;margin-bottom:8px">ICBA &middot; ILLUSTRATION OPTIONS &middot; TURN 1</div>
+    <div style="font-family:'Silkscreen',monospace;font-size:28px;color:#f4f6ff">SHIPS + CHARACTERS</div>
+    <div style="font-size:12px;color:#818ab0;margin-top:8px;max-width:70ch;line-height:1.6">Pick one per group; the chosen ships then get their three scene variants (space / stranded / hoop). Same palette + pixel rules as the <a href="Terran Guard Study.dc.html">sprite study</a>.</div>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:22px 0 12px">A &middot; TEAM BUS SPACESHIP</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ busCards }}" as="c" hint-placeholder-count="3">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" width="384" height="192"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:44ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">B &middot; SCOUT SHIP</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ scoutCards }}" as="c" hint-placeholder-count="3">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" width="288" height="168"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:34ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">C &middot; THE DEAN &middot; XS SCALE</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ deanCards }}" as="c" hint-placeholder-count="2">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" width="384" height="264"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:44ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">D &middot; THE BOOSTER &middot; XL SCALE &middot; ROBOTA</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ boosterCards }}" as="c" hint-placeholder-count="2">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" width="384" height="264"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:44ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#b6f36a&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#b6f36a&quot;,&quot;#f3c46a&quot;,&quot;#6ad2f3&quot;,&quot;#f36ad2&quot;],&quot;section&quot;:&quot;Team kit&quot;}}">
+const BODY='#2e3d74', DARK='#232c4e', WIN='#7fd8ec', WHITE='#e8ecf8', CHROME='#9aa3b5', CHROME_D='#5f6878',
+  FL1='#ffd76a', FL2='#e08a3c', RED='#f36a6a', SPACE='#0a0c14', DIM='#39406b';
+
+const DEAN = [
+"........hhh.............",
+"........hhh.............",
+".......hhhhhhhhh........",
+".......hhhhhhhhhh.......",
+".......hssssssssh.......",
+".......hkeksskekh.......",
+".......hsssssssdh.......",
+".......hsskksssdh.......",
+"........ssssssss........",
+"..........ssss..........",
+".........wwwwww.........",
+"......uuuuuuuuuuuu......",
+"....uuuuuUUwwUUuuuuu....",
+"....uuuuuUUwwUUuuuuu....",
+"....uuuuuuUwwUuuuuuu....",
+"....uu.uuuukuuuuu.uu....",
+"....ss.uuuuuuuuuu.ss....",
+".......uuuuuuuuuu.......",
+".......UUUUUUUUUU.......",
+".......UUUUUUUUUU.......",
+"......UUUUUUUUUUUU......",
+"......UUUUUUUUUUUU......",
+".........ss..ss.........",
+".........ss..ss.........",
+".........ss..ss.........",
+"........ooo..ooo........"];
+
+const BOOSTER = [
+".............cc.............",
+".............cc.............",
+".........cccccccccc.........",
+".........cCccccccCc.........",
+".........cekccccekc.........",
+".........cccccccccc.........",
+".........cckkkkkkcc.........",
+".........cccccccccc.........",
+"............ccc.............",
+"....uuuuuuuuuuuuuuuuuuuu....",
+"....uuuuuuuUUttUUuuuuuuu....",
+"....uuuuuuuUUttUUuuuuuuu....",
+"....uuuuuggggggggguuuuuu....",
+"....uu.uuuuuuuuuuuuuu.uu....",
+"....uu.uuuuuuuuuuuuuu.uu....",
+"....uu.uuuuuuttuuuuuu.uu....",
+"....uu.uuuuuuttuuuuuu.uu....",
+"....uu.uuuuuuuuuuuuuu.uu....",
+"....uu.uuuuuuuuuuuuuu.uu....",
+"....cc.uuuuuuuuuuuuuu.cc....",
+".......uuuuuuuuuuuuuu.......",
+".......uuuuuuuuuuuuuu.......",
+"........ccc......ccc........",
+"........ccc......ccc........",
+"........cCc......cCc........",
+"........ccc......ccc........",
+"........ccc......ccc........",
+"........cCc......cCc........",
+"........ccc......ccc........",
+"........ccc......ccc........",
+"........ccc......ccc........",
+"........ccc......ccc........",
+"......ooooo....ooooo........",
+"......ooooo....ooooo........"];
+
+function edited(base, edits) {
+  const m = base.map(r => r.split(''));
+  edits.forEach(([y, x, ch]) => { if (m[y]) m[y][x] = ch; });
+  return m.map(r => r.join(''));
+}
+function rowset(map, y, str) { const m = map.slice(); m[y] = str; return m; }
+
+// Dean B: bob hair, accent scarf, pantsuit
+let DEAN_B = DEAN.slice();
+DEAN_B = rowset(DEAN_B, 0, "........................");
+DEAN_B = rowset(DEAN_B, 1, "........................");
+DEAN_B = rowset(DEAN_B, 2, ".......hhhhhhhhhh.......");
+DEAN_B = rowset(DEAN_B, 3, "......hhhhhhhhhhhh......");
+DEAN_B = rowset(DEAN_B, 4, "......hhsssssssshh......");
+DEAN_B = rowset(DEAN_B, 5, "......hhkeksskekhh......");
+DEAN_B = rowset(DEAN_B, 6, "......hhsssssssdhh......");
+DEAN_B = rowset(DEAN_B, 10, ".........tttttt.........");
+DEAN_B = rowset(DEAN_B, 18, ".......uuuu..uuuu.......");
+DEAN_B = rowset(DEAN_B, 19, ".......uuuu..uuuu.......");
+DEAN_B = rowset(DEAN_B, 20, ".......uuuu..uuuu.......");
+DEAN_B = rowset(DEAN_B, 21, ".......uuuu..uuuu.......");
+DEAN_B = rowset(DEAN_B, 22, ".......uuuu..uuuu.......");
+DEAN_B = rowset(DEAN_B, 23, ".........ss..ss.........");
+DEAN_B = rowset(DEAN_B, 24, "........ooo..ooo........");
+DEAN_B = rowset(DEAN_B, 25, "........................");
+
+// Booster B: flat head, visor shades, letterman sleeves
+let BOOSTER_B = BOOSTER.slice();
+BOOSTER_B = rowset(BOOSTER_B, 0, "............................");
+BOOSTER_B = rowset(BOOSTER_B, 1, "............................");
+BOOSTER_B = rowset(BOOSTER_B, 4, ".........ckkkkkkkkc.........");
+for (let y = 13; y <= 18; y++) BOOSTER_B = edited(BOOSTER_B, [[y,4,'w'],[y,5,'w'],[y,22,'w'],[y,23,'w']]);
+BOOSTER_B = edited(BOOSTER_B, [[10,11,'u'],[10,12,'u'],[10,15,'u'],[10,16,'u'],[11,11,'u'],[11,12,'u'],[11,15,'u'],[11,16,'u'],[15,13,'u'],[15,14,'u'],[16,13,'u'],[16,14,'u']]);
+
+const DEAN_STATES = {
+  neutral: [],
+  worried: [[7,9,'k'],[7,12,'k']],
+  mad: [[4,10,'k'],[4,13,'k'],[6,10,'k'],[6,11,'k'],[7,9,'k'],[7,12,'k'],[7,10,'e'],[7,11,'e']],
+  elated: [[5,8,'y'],[5,9,'y'],[5,10,'y'],[5,13,'y'],[5,14,'y'],[5,15,'y'],[6,9,'k'],[6,12,'k'],[7,9,'k'],[7,12,'k'],[7,10,'e'],[7,11,'e'],[8,10,'k'],[8,11,'k']]
+};
+const DEAN_CHEER = [[15,4,'.'],[15,5,'.'],[16,4,'.'],[16,5,'.'],[15,18,'.'],[15,19,'.'],[16,18,'.'],[16,19,'.'],
+  [11,4,'u'],[11,5,'u'],[10,4,'u'],[10,5,'u'],[9,4,'s'],[9,5,'s'],
+  [11,18,'u'],[11,19,'u'],[10,18,'u'],[10,19,'u'],[9,18,'s'],[9,19,'s']];
+const BOOSTER_CHEER = [];
+for (let y = 13; y <= 19; y++) [4,5,22,23].forEach(x => BOOSTER_CHEER.push([y,x,'.']));
+[[8,'u'],[7,'u']].forEach(([y,ch]) => [4,5,22,23].forEach(x => BOOSTER_CHEER.push([y,x,ch])));
+[4,5,22,23].forEach(x => BOOSTER_CHEER.push([6,x,'c']));
+const BOOSTER_STATES = {
+  neutral: [],
+  worried: [[6,11,'c'],[6,16,'c']],
+  mad: [[3,10,'k'],[3,11,'k'],[3,15,'k'],[3,16,'k'],[5,12,'k'],[5,13,'k'],[5,14,'k'],[5,15,'k'],[6,12,'e'],[6,15,'e']],
+  elated: [[4,10,'y'],[4,11,'y'],[4,16,'y'],[4,17,'y'],[6,12,'e'],[6,13,'e'],[6,14,'e'],[6,15,'e']]
+};
+
+class Component extends DCLogic {
+  _f = 0;
+  componentDidMount() {
+    this.paint();
+    this._t = setTimeout(() => this.paint(), 300);
+    this._iv = setInterval(() => { this._f = (this._f + 1) % 48; this.paint(); }, 180);
+  }
+  componentWillUnmount() { clearTimeout(this._t); clearInterval(this._iv); }
+
+  acc() { return this.props.accent || '#b6f36a'; }
+
+  stars(R, W, H, f) {
+    R(0, 0, W, H, SPACE);
+    for (let i = 0; i < 26; i++) {
+      const x = (i * 13 + 5) % W, y = (i * 7 + 3) % H;
+      if ((i + f) % 9 < 7) R(x, y, 1, 1, i % 3 ? DIM : WHITE);
+    }
+  }
+  speedlines(R, f) {
+    for (let i = 0; i < 3; i++) R(1 + ((f * 5 + i * 9) % 14), 8 + i * 8, 4, 1, DIM);
+  }
+
+  busBody(R, ox, y, o) {
+    const ACC = this.acc(), f = this._f;
+    if (o.flame) { const len = 3 + f % 3; R(ox + 6 - len, y + 4, len, 2, FL2); R(ox + 7 - len, y + 4, len - 1, 1, FL1); }
+    R(ox + 6, y + 3, 4, 4, CHROME_D);
+    R(ox + 10, y, 42, 10, BODY); R(ox + 10, y, 42, 2, DARK);
+    R(ox + 52, y + 1, 2, 9, BODY); R(ox + 54, y + 3, 1, 6, BODY);
+    R(ox + 48, y + 2, 4, 4, WIN);
+    for (let i = 0; i < 4; i++) R(ox + 13 + i * 8, y + 3, 5, 3, WIN);
+    R(ox + 10, y + 7, 45, 2, ACC);
+    R(ox + 8, y - 3, 4, 3, ACC);
+    if (o.lights) R(ox + 53, y + 8, 2, 1, FL1);
+    if (o.beacon) R(ox + 30, y - 2, 2, 2, RED);
+    if (o.glow && f % 2) { R(ox + 18, y + 11, 4, 1, WIN); R(ox + 32, y + 11, 4, 1, WIN); R(ox + 44, y + 11, 4, 1, WIN); }
+    if (o.door) { R(ox + 42, y + 2, 5, 8, '#141828'); R(ox + 42, y + 2, 1, 8, ACC); }
+  }
+  busA(R, f) { // boxy team bus, in flight
+    const y = 11 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 64, 32, f); this.speedlines(R, f);
+    this.busBody(R, 0, y, { flame: 1, glow: 1, lights: 1, beacon: f % 4 < 2 });
+  }
+  planetSky(R, W, H) {
+    R(0, 0, W, H, '#1a1226');
+    for (let i = 0; i < 12; i++) R((i * 17 + 3) % W, (i * 5 + 1) % 12, 1, 1, DIM);
+    const mx = W - 18;
+    R(mx + 2, 3, 6, 1, '#3c3152'); R(mx, 4, 10, 2, '#3c3152'); R(mx - 1, 6, 12, 3, '#3c3152');
+    R(mx, 9, 10, 2, '#3c3152'); R(mx + 2, 11, 6, 1, '#3c3152');
+    R(mx + 3, 5, 2, 2, '#2a2340'); R(mx + 6, 8, 2, 1, '#2a2340');
+  }
+  barren(R, W, H, gy) {
+    R(0, gy, W, H - gy, '#6e5638'); R(0, gy, W, 1, '#8a6d47');
+    R(5, gy - 2, 4, 2, '#5a4630'); R(W - 14, gy - 3, 5, 3, '#5a4630');
+    R(16, gy + 3, 2, 1, '#5a4630'); R(W - 24, gy + 5, 3, 1, '#5a4630');
+  }
+  smoke(R, f, sx, sy, n) {
+    for (let i = 0; i < n; i++) {
+      const rise = (f * 2 + i * 5) % 14;
+      if (rise > 1) R(sx + ((f + i) % 3) - 1, sy - rise, rise > 8 ? 3 : rise > 4 ? 2 : 1, 1, i % 2 ? '#8a8f9e' : '#6d7699');
+    }
+  }
+  courtNight(R, W, H, f, gy, px) {
+    this.stars(R, W, H, f);
+    R(0, gy, W, H - gy, '#3c4150'); R(0, gy, W, 1, '#6d7699');
+    R(px, gy - 14, 2, 14, CHROME_D);
+    R(px - 4, gy - 18, 2, 10, '#e8ecf8'); R(px - 4, gy - 18, 2, 1, CHROME_D);
+    R(px - 8, gy - 14, 4, 1, FL2);
+    R(px - 8, gy - 13, 1, 1, '#e8ecf8'); R(px - 5, gy - 13, 1, 1, '#e8ecf8');
+    R(px - 7, gy - 12, 1, 1, '#e8ecf8'); R(px - 6, gy - 11, 1, 1, '#e8ecf8');
+    R(px - 2, gy - 15, 2, 1, CHROME_D); // board-to-pole arm
+  }
+  hoopBall(R, f, px, gy) {
+    const b = [0, 3, 5, 3][f % 4];
+    R(px - 7, gy - 2 - b, 2, 2, '#c9752e');
+  }
+  busStranded(R, f) {
+    this.planetSky(R, 64, 32); this.barren(R, 64, 32, 24);
+    this.busBody(R, 0, 14, { beacon: f % 2 });
+    this.smoke(R, f, 8, 16, 3);
+    if (f % 5 === 0) R(5, 20, 1, 1, FL1);
+  }
+  busHoop(R, f) {
+    this.courtNight(R, 64, 32, f, 24, 56);
+    this.busBody(R, -8, 14, { lights: f % 8 < 4, door: 1 });
+    this.hoopBall(R, f, 56, 24);
+  }
+  saucerBody(R, ox, y, lightFn) {
+    R(ox + 20, y, 8, 2, WIN); R(ox + 18, y + 2, 12, 2, WIN);
+    R(ox + 10, y + 4, 28, 3, CHROME); R(ox + 8, y + 5, 32, 2, CHROME);
+    R(ox + 14, y + 7, 20, 2, CHROME_D);
+    for (let i = 0; i < 7; i++) R(ox + 11 + i * 4, y + 5, 2, 1, lightFn(i));
+  }
+  saucerStranded(R, f) {
+    this.planetSky(R, 48, 28); this.barren(R, 48, 28, 21);
+    this.saucerBody(R, 0, 12, i => (i * 3 + f) % 7 < 1 ? FL1 : DARK);
+    this.smoke(R, f, 23, 11, 3);
+    R(21, 17, 1, 2, '#1a1e2e'); R(22, 18, 1, 1, '#1a1e2e');
+  }
+  saucerHoop(R, f) {
+    const ACC = this.acc();
+    this.courtNight(R, 48, 28, f, 21, 40);
+    this.saucerBody(R, -8, 12, i => (i + Math.floor(f / 3)) % 7 === 0 ? ACC : DARK);
+    this.hoopBall(R, f, 40, 21);
+  }
+  drawIcon(R, x, y, pat) {
+    const IC = { e: '#f4f6fa', k: '#1a1e2e', y: '#ffd76a', c: '#7fd8ec' };
+    pat.forEach((row, ry) => row.split('').forEach((ch, rx) => { if (ch !== '.') R(x + rx, y + ry, 1, 1, IC[ch]); }));
+  }
+  charState(R, f, who, state) {
+    const big = f % 6 < 3;
+    const SK_BIG = [".eeeee.", "ekeeeke", "eeekeee", ".eeeee.", ".e.e.e."], SK_SM = ["..eee..", ".ekeke.", "..eee.."];
+    const ST_BIG = ["..y..", ".yyy.", "yyyyy", ".yyy.", "..y.."], ST_SM = [".y.", "yyy", ".y."];
+    const dean = who === 'dean';
+    const W = dean ? 32 : 36, H = dean ? 34 : 44, ox = 4, oy = dean ? 7 : 8;
+    R(0, 0, W, H, '#535866');
+    const base = dean ? DEAN : BOOSTER;
+    const edits = (dean ? DEAN_STATES : BOOSTER_STATES)[state] || [];
+    const cheer = state === 'elated' && f % 8 < 4;
+    const shrug = state === 'mad' && f % 8 < 3;
+    let m = edited(base, edits.concat(cheer ? (dean ? DEAN_CHEER : BOOSTER_CHEER) : [])).map(r => r.split(''));
+    if (dean && (state === 'neutral' || state === 'worried') && f % 14 < 2) { m[5][9] = 's'; m[5][14] = 's'; }
+    const pal = dean ? this.deanPal() : this.boosterPal();
+    const rows = m.map(r => r.join('')), headEnd = dean ? 9 : 8;
+    if (shrug) { // head sinks into the shoulders
+      this.drawMap(R, rows.slice(headEnd + 1), pal, ox, oy + headEnd + 1);
+      this.drawMap(R, rows.slice(0, headEnd + 1), pal, ox, oy + 1);
+    } else this.drawMap(R, rows, pal, ox, oy);
+    if (!dean) { // cigar + smoke
+      const cy = oy + 6 + (shrug ? 1 : 0);
+      R(ox + 17, cy, 4, 1, '#8a5a32'); R(ox + 21, cy, 1, 1, f % 2 ? '#ff6a4a' : FL1);
+      this.smoke(R, f, ox + 21, cy - 1, 2);
+    }
+    const EX_BIG = ["cc", "cc", "cc", "..", "cc"], EX_SM = ["c", "c", ".", "c"];
+    const ix = dean ? 23 : 2, iy = 2;
+    if (state === 'mad') this.drawIcon(R, ix, iy, big ? SK_BIG : SK_SM);
+    if (state === 'elated') this.drawIcon(R, ix, iy, big ? ST_BIG : ST_SM);
+    if (state === 'worried') {
+      this.drawIcon(R, ix + (big ? 0 : 1), iy + (big ? 0 : 1), big ? EX_BIG : EX_SM);
+      const tx = dean ? ox + 17 : ox + 19;
+      R(tx, oy + 1 + (f % 6), 1, f % 6 > 2 ? 2 : 1, '#7fd8ec');
+    }
+  }
+  busB(R, f) { // sleek shuttle
+    const ACC = this.acc(), y = 10 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 64, 32, f); this.speedlines(R, f);
+    const len = 4 + f % 3;
+    R(10 - len, y + 8, len, 2, FL2); R(11 - len, y + 8, len - 1, 1, FL1);
+    R(13, y - 4, 3, 4, ACC); R(11, y, 6, 6, ACC);
+    R(14, y + 4, 36, 2, BODY); R(12, y + 6, 42, 4, BODY); R(14, y + 10, 36, 2, DARK);
+    R(54, y + 6, 4, 4, BODY); R(58, y + 7, 2, 2, BODY);
+    R(20, y + 6, 28, 2, WIN);
+    for (let i = 0; i < 6; i++) R(24 + i * 5, y + 6, 1, 2, DARK);
+    R(12, y + 9, 42, 1, ACC);
+    R(56, y + 8, 2, 1, FL1);
+    if (f % 3 === 0) R(50, y + 5, 2, 1, WHITE);
+  }
+  busC(R, f) { // heavy hauler
+    const ACC = this.acc(), y = 9 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 64, 32, f); this.speedlines(R, f);
+    const len = 3 + f % 3;
+    R(8 - len, y + 6, len, 2, FL2); R(8 - len, y + 11, len, 2, FL2);
+    R(9 - len, y + 6, len - 1, 1, FL1); R(9 - len, y + 11, len - 1, 1, FL1);
+    R(8, y + 5, 3, 4, CHROME_D); R(8, y + 10, 3, 4, CHROME_D);
+    R(11, y + 4, 38, 12, BODY); R(11, y + 4, 38, 2, DARK);
+    R(42, y, 12, 5, BODY); R(50, y + 1, 3, 3, WIN);
+    R(11, y + 10, 43, 2, ACC);
+    for (let i = 0; i < 3; i++) R(15 + i * 9, y + 7, 6, 2, DARK);
+    R(49, y + 5, 8, 11, BODY); R(54, y + 8, 3, 4, WIN);
+    if (f % 4 < 2) R(46, y - 3, 1, 3, CHROME), R(45, y - 4, 3, 1, RED);
+  }
+
+  scoutA(R, f) { // saucer
+    const ACC = this.acc(), y = 8 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 48, 28, f); this.speedlines(R, f);
+    R(20, y, 8, 2, WIN); R(18, y + 2, 12, 2, WIN);
+    R(10, y + 4, 28, 3, CHROME); R(8, y + 5, 32, 2, CHROME);
+    R(14, y + 7, 20, 2, CHROME_D);
+    for (let i = 0; i < 7; i++) R(11 + i * 4, y + 5, 2, 1, (i + f) % 4 === 0 ? ACC : DARK);
+    if (f % 2) R(22, y + 9, 4, 1, WIN);
+  }
+  scoutB(R, f) { // fighter
+    const ACC = this.acc(), y = 9 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 48, 28, f); this.speedlines(R, f);
+    const len = 3 + f % 3;
+    R(10 - len, y + 5, len, 2, FL2); R(11 - len, y + 5, len - 1, 1, FL1);
+    R(12, y - 1, 3, 5, ACC);
+    R(12, y + 4, 26, 4, BODY); R(38, y + 5, 6, 2, BODY); R(44, y + 5, 2, 1, DARK);
+    R(24, y + 2, 7, 2, WIN);
+    R(16, y + 8, 10, 2, ACC); R(14, y + 10, 6, 1, ACC);
+    R(12, y + 5, 26, 1, DARK);
+  }
+  scoutC(R, f) { // pod
+    const ACC = this.acc(), y = 8 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 48, 28, f); this.speedlines(R, f);
+    const len = 2 + f % 3;
+    R(16 - len, y + 6, len, 2, FL2);
+    R(16, y + 5, 3, 4, CHROME_D);
+    R(19, y + 1, 14, 12, BODY);
+    R(19, y + 1, 14, 1, DARK); R(19, y + 12, 14, 1, DARK);
+    R(20, y, 12, 1, BODY); R(20, y + 13, 12, 1, BODY);
+    R(24, y + 4, 6, 5, WIN); R(24, y + 4, 6, 1, DARK);
+    R(19, y + 10, 14, 2, ACC);
+    R(26, y - 4, 1, 4, CHROME);
+    if (f % 4 < 2) R(25, y - 5, 3, 1, RED);
+  }
+
+  deanPal() { return { h: '#b9bec9', s: '#c08a5e', d: '#a06f45', k: '#1a1e2e', e: '#f4f6fa',
+    w: '#e8ecf8', u: '#6b4a2f', U: '#4e3520', o: '#3a2a1c', t: this.acc(), y: '#ffd76a' }; }
+  boosterPal() { return { c: CHROME, C: CHROME_D, k: '#1a1e2e', e: '#f4f6fa',
+    u: '#2a2135', U: '#1a1626', t: this.acc(), g: '#ffd76a', o: '#1a1e2e', w: '#e8ecf8', y: '#ffd76a' }; }
+
+  drawMap(R, map, pal, ox, oy) {
+    map.forEach((row, y) => row.split('').forEach((ch, x) => {
+      if (ch !== '.') R(ox + x, oy + y, 1, 1, pal[ch] || '#ff00ff');
+    }));
+  }
+
+  deanScene(R, f, map) { // monochrome sepia college building
+    const W = 64, H = 44;
+    R(0, 0, W, H, '#241f19');
+    R(0, 10, W, 26, '#2a231b');
+    for (let i = 0; i < 6; i++) R(32 - (i + 1) * 4, 2 + i, (i + 1) * 8, 1, '#3a3128'); // pediment
+    R(4, 8, 56, 3, '#4e4234');
+    [6, 14, 44, 52].forEach(x => { R(x, 11, 5, 25, '#3a3128'); R(x, 11, 1, 25, '#4e4234'); R(x - 1, 11, 7, 2, '#4e4234'); });
+    R(0, 36, W, 3, '#4e4234'); R(0, 39, W, 5, '#3a3128'); // steps
+    const m = map.map(r => r.split(''));
+    if (f % 14 < 2) { m[5][9] = 's'; m[5][14] = 's'; } // blink behind the glasses
+    this.drawMap(R, m.map(r => r.join('')), this.deanPal(), 20, 13);
+  }
+
+  boosterScene(R, f, map) { // cadillac ship behind him
+    const ACC = this.acc(), W = 64, H = 44;
+    this.stars(R, W, H, f);
+    R(0, 38, W, 6, '#2a231b'); R(0, 38, W, 1, '#3a3128'); // landing pad
+    const by = 20 + (f % 6 < 3 ? 0 : 1); // hover bob
+    R(2, by - 6, 3, 6, '#d16a9e'); R(4, by - 4, 3, 4, '#d16a9e'); // tail fins
+    R(3, by - 6, 1, 2, RED);
+    R(2, by, 60, 8, '#d16a9e'); R(2, by, 60, 2, '#a84a7c');
+    R(2, by + 4, 60, 1, '#d8dde8'); // chrome trim
+    R(34, by - 5, 14, 5, WIN); R(34, by - 5, 14, 1, '#a84a7c'); // canopy
+    R(58, by + 1, 4, 6, '#d8dde8'); // chrome grille
+    if (f % 2) R(8, by + 8, 48, 1, ACC); // hover glow
+    this.drawMap(R, map, this.boosterPal(), 18, 5);
+    // cigar + ember + smoke
+    R(35, 11, 4, 1, '#8a5a32'); R(39, 11, 1, 1, f % 2 ? '#ff6a4a' : FL1);
+    for (let i = 0; i < 3; i++) {
+      const rise = (f * 1 + i * 4) % 12;
+      if (rise > 1) R(39 + (f + i) % 2, 10 - rise, rise > 7 ? 2 : 1, 1, '#8a8f9e');
+    }
+  }
+
+  paint = () => {
+    if (!this._root) return;
+    const f = this._f;
+    document.querySelectorAll('canvas[data-opt]').forEach(cv => {
+      const ctx = cv.getContext('2d');
+      const grid = +cv.dataset.grid || (cv.dataset.opt[0] === '1' && cv.dataset.opt[1] >= 'd' && cv.dataset.opt[1] <= 'f' ? 48 : 64);
+      const sc = cv.width / grid;
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x * sc, y * sc, w * sc, h * sc); };
+      switch (cv.dataset.opt) {
+        case '1a': this.busA(R, f); break;
+        case '1b': this.busB(R, f); break;
+        case '1c': this.busC(R, f); break;
+        case '1d': this.scoutA(R, f); break;
+        case '1e': this.scoutB(R, f); break;
+        case '1f': this.scoutC(R, f); break;
+        case '1g': this.deanScene(R, f, DEAN); break;
+        case '1h': this.deanScene(R, f, DEAN_B); break;
+        case '1i': this.boosterScene(R, f, BOOSTER); break;
+        case '1j': this.boosterScene(R, f, BOOSTER_B); break;
+        case '2a': this.busA(R, f); break;
+        case '2b': this.busStranded(R, f); break;
+        case '2c': this.busHoop(R, f); break;
+        case '2d': this.scoutA(R, f); break;
+        case '2e': this.saucerStranded(R, f); break;
+        case '2f': this.saucerHoop(R, f); break;
+        default: {
+          const mm = cv.dataset.opt.match(/^2([gh])-(\w+)$/);
+          if (mm) this.charState(R, f, mm[1] === 'g' ? 'dean' : 'booster', mm[2]);
+        }
+      }
+    });
+  };
+
+  renderVals() {
+    const ST = ['neutral', 'worried', 'mad', 'elated'];
+    return {
+      pageRef: el => { this._root = el; if (el) this.paint(); },
+      busScenes: [
+        { id: '2a', name: 'IN TRANSIT', note: 'The pick from 1a as-is: engine flame, hover shimmer, beacon, speed lines.' },
+        { id: '2b', name: 'STRANDED', note: 'Down on a barren dustball: dead engine venting smoke, hazard beacon blinking fast, a spark now and then, distant cratered moon.' },
+        { id: '2c', name: 'AT THE HOOP', note: 'Parked courtside at night, door open, headlights idling, a lone ball bouncing under the hoop.' }
+      ],
+      saucerScenes: [
+        { id: '2d', name: 'IN TRANSIT', note: 'Rim lights chasing, tractor shimmer, speed lines.' },
+        { id: '2e', name: 'STRANDED', note: 'Grounded on the dustball, cracked hull, rim lights sputtering, smoke off the dome.' },
+        { id: '2f', name: 'AT THE HOOP', note: 'Parked by the court, lights on slow idle, ball bouncing.' }
+      ],
+      deanStates: ST.map(s => ({ id: '2g-' + s, label: s.toUpperCase() })),
+      boosterStates: ST.map(s => ({ id: '2h-' + s, label: s.toUpperCase() })),
+      busCards: [
+        { id: '1a', name: 'THE FLAT-NOSE', note: 'Classic school-bus box with a rear booster, roof fin, blinking beacon and hover skids. Reads instantly as "the team bus".' },
+        { id: '1b', name: 'THE STREAK', note: 'Low sleek shuttle: continuous window strip, big accent tail fin, one long engine. Faster, cockier program.' },
+        { id: '1c', name: 'THE HAULER', note: 'Two-deck heavy transport with a raised cockpit and twin stacked engines. Cargo doors for the gear.' }
+      ],
+      scoutCards: [
+        { id: '1d', name: 'SAUCER', note: 'One-coach saucer with a chasing rim-light ring.' },
+        { id: '1e', name: 'DART', note: 'Swept single-seat fighter, accent fin and wing.' },
+        { id: '1f', name: 'POD', note: 'Rounded capsule, big porthole, blinking antenna.' }
+      ],
+      deanCards: [
+        { id: '1g', name: 'DEAN · BUN + SKIRT SUIT', note: 'Gray bun, round glasses (she blinks behind them), brown skirt suit with white blouse, in front of the college pediment and columns — background stays monochrome sepia.' },
+        { id: '1h', name: 'DEAN · BOB + PANTSUIT', note: 'Sharper: short gray bob, accent scarf, brown pantsuit. Same monochrome college backdrop.' }
+      ],
+      boosterCards: [
+        { id: '1i', name: 'BOOSTER · THE SUIT', note: 'Chrome robota in a dark suit, accent tie, gold chain, antenna. Cigar burns and puffs pixel smoke; his pink cadillac-ship hovers behind on a glowing skirt, fins up.' },
+        { id: '1j', name: 'BOOSTER · THE LETTERMAN', note: 'Flat-top chassis, full visor shades, letterman jacket with white sleeves over the chain. Same cigar, same cadillac.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

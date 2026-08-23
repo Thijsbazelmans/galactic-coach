@@ -202,6 +202,8 @@ button.hold.wiggle::after {
 /* JOB SECURITY: bright bar, darkness eats in from both sides */
 .jobbar { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 132px; }
 .topbar.spotlight .chip, .topbar.spotlight .jobbar, .topbar.spotlight .weeklab, .topbar.spotlight .hbtns-col { opacity: 0.2; }
+/* the hot seat moved: everything else dims while the darkness visibly eats */
+.topbar.jobflash .chip, .topbar.jobflash .weeklab, .topbar.jobflash .ebar, .topbar.jobflash .hbtns-col { opacity: 0.2; }
 .jicon { width: 11px; height: 11px; image-rendering: pixelated; flex: none; }
 .jtrack { position: relative; flex: 1; min-width: 56px; height: 14px; background: var(--r75); overflow: hidden; }
 .jdark { position: absolute; top: 0; bottom: 0; background: var(--rbg); }
@@ -464,6 +466,9 @@ button.hold.wiggle::after {
 }
 .prq { color: var(--r55); letter-spacing: 2px; }
 .busimg { display: block; width: 168px; margin: 14px auto 4px; image-rendering: pixelated; flex: none; }
+/* story illustrations: the bus/saucer scene or the dean/booster acting */
+.scenebox { flex: none; display: flex; justify-content: center; margin: 10px 0 4px; }
+.rig-flip { transform: scaleX(-1); }
 .krange { color: var(--r75); font-size: 12px; }
 /* potential stars, olympic-ring stack: two up top, three below */
 .prstars { position: static; display: flex; flex-direction: column; align-items: center; line-height: 1; font-size: 12px; color: var(--r95); background: rgba(0, 0, 0, 0.72); padding: 2px 4px; letter-spacing: 2px; }

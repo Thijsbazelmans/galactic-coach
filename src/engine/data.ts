@@ -1079,6 +1079,14 @@ export interface StoryDef {
   kind: 'player' | 'coach';
   weight?: number;
   context?: string;
+  /** the story panel illustration: a ship (always STARTS moving, then
+      transitions to `artEvent` once the story says what happened), or a
+      character who acts the stakes (worried → mad/elated/neutral). 'side'
+      picks dean/booster from the event's data.side (the summons). Vehicle
+      kind can be overridden per event via data.art. */
+  art?: 'bus' | 'saucer';
+  artEvent?: 'stranded' | 'hoop';
+  figure?: 'dean' | 'booster' | 'side';
   when?: (s: GameState) => boolean;
   beat: (beatKey: string, ctx: StoryCtx) => StoryBeatContent;
   resolve: (choiceKey: string, ctx: StoryCtx, ev: StoryEvent) => StoryResolution;
@@ -1276,6 +1284,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'scandal',
     kind: 'coach',
+    figure: 'dean',
     beat: (_b, ctx) => ({
       tag: 'THE LEAGUE CALLS',
       text: `${ctx.data.cause ?? 'A league investigator is in your lobby, holding a folder like it owes him money.'}\n\nHow do you play it?`,
@@ -1753,6 +1762,8 @@ export const STORIES: StoryDef[] = [
   {
     id: 'grounded',
     kind: 'coach',
+    art: 'saucer',
+    artEvent: 'stranded',
     beat: (b, ctx) => {
       if (b === 'goblin_hold') {
         return { tag: 'THE SHIP', text: 'Weekly transmission from the mech-goblin starbase: your ship is "almost done". There is laughing in the background of the recording.' };
@@ -1791,6 +1802,8 @@ export const STORIES: StoryDef[] = [
   {
     id: 'hullbreach',
     kind: 'coach',
+    art: 'saucer',
+    artEvent: 'stranded',
     beat: () => ({
       tag: 'THE SHIP',
       text: 'A micrometeorite shreds the cargo bay on the way home — and your scout reports flew out through the hole. Every dossier, spinning off into the void in a slow, expensive constellation.',
@@ -1836,6 +1849,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'check_probe',
     kind: 'coach',
+    figure: 'dean',
     beat: () => ({ tag: 'THE LEAGUE CALLS', text: "The blank check cleared. So did the league's subpoena. The investigation you felt coming has arrived, with weather of its own." }),
     resolve: () => ({ text: '', fx: [{ heatS: 20 }] }),
   },
@@ -1854,6 +1868,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'interfere_school',
     kind: 'coach',
+    figure: 'dean',
     beat: () => ({
       tag: 'THE SCHOOL INTERFERES',
       text: 'The Provost is in your office, uninvited, rearranging your trophies by "moral weight". The school\'s patience with your methods has run out. She has a list of demands and a pen that costs more than your ship.',
@@ -1882,6 +1897,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'interfere_boost',
     kind: 'coach',
+    figure: 'booster',
     beat: () => ({
       tag: 'THE BOOSTERS INTERFERE',
       text: 'Three boosters in matching chrome suits occupy your office like weather. They\'ve seen the standings. They have "thoughts". The tallest one keeps touching your whiteboard.',
@@ -1911,6 +1927,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'summons',
     kind: 'coach',
+    figure: 'side',
     beat: (_b, ctx) => {
       const lean = (ctx.data.side as string) ?? 'joint';
       const who = lean === 'school' ? 'The Provost, flanked by lawyers,' : lean === 'boost' ? 'The booster council, in funeral chrome,' : 'The Provost AND the booster council, together, agreeing on exactly one thing,';
@@ -1942,6 +1959,8 @@ export const STORIES: StoryDef[] = [
   {
     id: 'debt',
     kind: 'coach',
+    art: 'bus',
+    artEvent: 'stranded',
     beat: (b, ctx) => {
       if (b === 'people') {
         const best = ctx.bestPlayer();
@@ -2063,6 +2082,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'daughter_favor',
     kind: 'coach',
+    figure: 'dean',
     beat: () => ({
       tag: 'FAMILY SEATS',
       text: 'The Dean "wonders aloud", in your doorway, whether his daughter shouldn\'t be STARTING. He wonders it while holding the eligibility forms he could unsign.',
@@ -2086,6 +2106,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'droid_probe',
     kind: 'coach',
+    figure: 'dean',
     beat: () => ({
       tag: 'THE LEAGUE CALLS',
       text: 'A league eligibility officer would like to discuss UNIT-7\'s "birth certificate", which appears to be a warranty card.',
@@ -2110,6 +2131,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'alum_gold',
     kind: 'coach',
+    art: 'bus',
     beat: (_b, ctx) => {
       const name = (ctx.data.alumName as string) ?? 'An old player';
       return { tag: 'ALUMNI', text: `${name} — YOUR ${ctx.data.exit === 'pro' ? 'pro' : 'graduate'}, class of season ${ctx.data.season} — thanks you tonight on a galactic broadcast, by name, twice. The phone in your office starts ringing before he finishes.` };
@@ -2119,6 +2141,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'alum_dark',
     kind: 'coach',
+    art: 'bus',
     beat: (_b, ctx) => {
       const name = (ctx.data.alumName as string) ?? 'someone';
       return {
@@ -2147,6 +2170,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'alum_void',
     kind: 'coach',
+    art: 'bus',
     beat: (_b, ctx) => {
       const name = (ctx.data.alumName as string) ?? 'him';
       const canReturn = !ctx.s.voidReturnUsed;
@@ -2179,6 +2203,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'vendor',
     kind: 'coach',
+    art: 'bus',
     beat: () => ({
       tag: 'VOYAGE',
       text: 'At a refueling station shaped like a grin, a vendor unrolls a coat lined with unlabeled miracles. "For the discerning coach," she says, discerning you instantly.',
@@ -2200,6 +2225,8 @@ export const STORIES: StoryDef[] = [
   {
     id: 'bus_prospect',
     kind: 'coach',
+    art: 'bus',
+    artEvent: 'hoop',
     beat: () => ({
       tag: 'VOYAGE',
       text: 'On the space-bus between systems, a kid is doing ball-handling drills in zero-G with his seatbelt ON, because the driver asked. Fundamentals AND manners.',
@@ -2221,6 +2248,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'omen',
     kind: 'coach',
+    art: 'bus',
     beat: () => ({
       tag: 'VOYAGE',
       text: 'A hermit at the transfer station reads engine exhaust the way others read palms. She looks at your team bus for a long time. "The one you play next," she says, "I have seen their shape."',
@@ -2265,11 +2293,21 @@ export const TIPS: Record<string, string> = {
     "Season's over, coach. Seniors walk, stars flirt with the pros — one conversation each, odds printed as always. And every offseason the question waits at the bottom: walk away with your legacy, or go again.",
 };
 
-// the road: an away week always opens with the bus
+// the ride home: an away weekend ends on the bus, heading screen-left
 STORIES.push({
   id: 'travel',
   kind: 'coach',
-  beat: (_b, ctx) => ({ tag: 'THE ROAD', text: (ctx.data.text as string) ?? pick(TRAVEL_FLAVOR) }),
+  art: 'bus',
+  beat: (_b, ctx) => ({ tag: 'THE ROAD HOME', text: (ctx.data.text as string) ?? pick(TRAVEL_FLAVOR) }),
+  resolve: () => ({ text: '' }),
+});
+
+// wheels up: every away game opens with the bus heading out, screen-right
+STORIES.push({
+  id: 'travel_out',
+  kind: 'coach',
+  art: 'bus',
+  beat: () => ({ tag: 'THE ROAD', text: pick(TRAVEL_OUT_FLAVOR) }),
   resolve: () => ({ text: '' }),
 });
 
@@ -2324,6 +2362,15 @@ export function weeklyPool(s: GameState): StoryDef[] {
 }
 
 export const VOYAGE_POOL = ['vendor', 'bus_prospect', 'omen'];
+
+/** Wheels up: the outbound leg is all nerves and aux-cable politics. */
+export const TRAVEL_OUT_FLAVOR = [
+  'Wheels up. The scouting report is taped to the cabin wall and somebody has already drawn a mustache on their center.',
+  'The bus climbs out of the atmosphere on schedule. The starters sleep. The freshmen press their faces to the glass.',
+  'Away game. The driver puts on the pregame playlist; it is one song, eleven hours long, and nobody complains.',
+  'The team bus points its nose at a stranger\'s sun. Everyone chews the same brand of gum. Ritual is ritual.',
+  'Departure is smooth. Somewhere behind you, your home arena shrinks to a bright dot with a scoreboard in it.',
+];
 
 /** Away weeks: most trips are just... space. The bus hums. */
 export const TRAVEL_FLAVOR = [

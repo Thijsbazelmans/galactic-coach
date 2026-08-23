@@ -765,10 +765,56 @@ the building. **Top two make the tournament.**
   graduates/goes pro before the popup resolves).
 - Headless: **~61% win rate, ~1.3 titles/career**, 8/10 retire at the cap.
 
+## v3.2 — THE CAREER ARC + THE ILLUSTRATED GALAXY (same day)
+
+**The career arc.** One number shapes a whole career (`genChamps` diff):
+UT champions are sized at `restedPower × diff × (0.84–1.02 + rounds)`,
+where diff = 1 − KNOWLEDGE EDGE + HUNTED TAX. Every unlock earned (5
+drills, 2 speeches, the deep core = 8 total) shaves −0.015 (cap −0.12) —
+the galaxy gets smaller as you learn it; every banner already hung adds
++0.045 (cap 3 titles) — champions get everyone's best punch. Measured
+arc over 12 harness careers: **0 titles in seasons 1–3** (a rookie needs
+a miracle — possible, never seen), the first ring lands seasons 4–8,
+then ~3–3.5 titles/career with real streaks and back-to-backs, ~62% win
+rate. Titles come in runs; the run ends when the field starts hunting.
+
+**The illustrated galaxy** (from Thijs's design drop `fromDesign/260823
+- p2`, picks: 1a flat-nose bus · 1d saucer · 1g dean · 1i booster).
+Ported whole into rig.ts as 24-frame sheets on the same steps() loop,
+team color as the accent (bus stripe, saucer lights, the booster's tie):
+
+- **The bus.** Every away game opens with WHEELS UP (`travel_out`, bus
+  flying screen-right, always uneventful) and every away weekend ends
+  with THE ROAD HOME (bus flying screen-left). THE LAW: a ship story
+  ALWAYS starts moving — the scene transitions with the verdict: the
+  space-bus kid story lands the bus PARKED AT THE HOOP (door open, ball
+  bouncing); debt snares land it STRANDED (smoke, blinking hazard).
+- **The saucer.** Search trips show it in THE TRAIL modal: flies out
+  while the report types, then lands its verdict — AT THE HOOP for a
+  find, STRANDED when the trip home breaks (grounded/hullbreach/debt
+  stories carry the stranded scene too). Story defs carry `art` /
+  `artEvent`; per-event override via `data.art`.
+- **The dean & the booster.** Heat stories carry `figure` ('dean' /
+  'booster' / 'side' for the summons): the figure opens WORRIED (sweat
+  drop, flashing !, the dean blinks behind her glasses; the booster's
+  cigar never goes out) and turns ELATED (gold star, arms-up cheer) when
+  the pick cools their heat, MAD (pulsing skull, head-sink shrug) when
+  it stokes it, NEUTRAL when unmoved (`figureVerdict` from the resolve's
+  heat delta).
+- **The hot seat moves like the energy blast**: when a resolution shifts
+  heat, the header dims to the JOB SECURITY bar (`.jobflash`) and the
+  darkness visibly eats — or gives back — its ground (animated widths
+  from the pre-resolve snapshot).
+- **Players act the story**: WORRIED (upset face + sweat, new rig story
+  state) while the question hangs and through the choices, then the
+  verdict (angry+sweat / elated) on the resolved beats — before the
+  numbers land in the impact panel.
+
 ## NEXT SESSION (pick up here)
 
-Fresh-session state: the game is **v3.1** (THE POLISH PASS + THE
-BASELINE + THE WEEKEND RHYTHM) — see the entries above. Engine `src/engine/` (types/data/gen/sim/state/util), UI
+Fresh-session state: the game is **v3.2** (polish pass + baseline +
+weekend rhythm + career arc + illustrated galaxy) — see the entries
+above. Engine `src/engine/` (types/data/gen/sim/state/util), UI
 `src/main.ts` + `src/rig.ts` + `src/style.css`. SAVE_VERSION 15.
 Tests: `npx tsx scripts/headless.ts N` (full careers; ~58% baseline) and
 `npx tsx scripts/uismoke.ts` (boots the real UI in happy-dom; nav and
@@ -798,13 +844,16 @@ exports into `fromDesign/<date>/` — read them from there.
   rewritten for v3.0 but the real onboarding is still undesigned.
 - **SPEC.md rewrite**: it still describes the dead v1.0 axis model (and
   now also a dead tactics wheel).
-- **Balance watch**: post-v3.1 baseline ~61% win rate / ~1.3 titles per
-  career. Knobs: meter economy (baseline 75, half-drain 15–29 starters,
-  weekend bump 40−12×streak, mood drift +5/−3, AI campus-life tax), story
-  mood scale (×1.5 / ×1.25 team), role-weighted game moods, recruit gain
-  ranges + decay 1, signing letter penalties, speech odds (10/5, +2,
-  backfire −25), SHARP 6, ON FIRE 25/12/×1.2, UT champ base 0.88 of
-  restedPower, dream-lab 50% ceiling chance, rec-center offense odds (5%).
+- **Balance watch**: post-v3.2 baseline ~62% win rate / ~3–3.5 titles per
+  career in streaks (first ring S4–8, none in S1–3 over 36 harness
+  seasons). Knobs: THE CAREER ARC (champ base 0.84 of restedPower,
+  knowledge edge −0.015/unlock cap −0.12, hunted tax +0.045/title cap 3),
+  meter economy (baseline 75, half-drain 15–29 starters, weekend bump
+  40−12×streak, mood drift +5/−3, AI campus-life tax), story mood scale
+  (×1.5 / ×1.25 team), role-weighted game moods, recruit gain ranges +
+  decay 1, signing letter penalties, speech odds (10/5, +2, backfire −25),
+  SHARP 6, ON FIRE 25/12/×1.2, dream-lab 50% ceiling chance, rec-center
+  offense odds (5%).
 - **Alumni/career surfacing**: careers + MVP counts accumulate but only
   the STATS lens shows them; a legacy/records screen is unbuilt.
 

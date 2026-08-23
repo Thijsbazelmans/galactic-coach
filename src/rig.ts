@@ -536,10 +536,11 @@ export interface RigView {
   energy: RigEnergy;
   fire: boolean;
   form?: 'masc' | 'femme';
-  /** story acting: the STATE comes from the news, not the meters — the player
+  /** story acting: the STATE comes from the news, not the meters — worried
+      (sweating) while the question hangs, then the verdict. The player
       walks in neutral and breaks into the emotion (bad = angry + sweat,
       good = elated). No ball in a story. */
-  story?: 'good' | 'bad';
+  story?: 'good' | 'bad' | 'worried';
 }
 
 interface Look { tintIx: number; hairIx: number; styleIx: number; socks: 'none' | 'knee' | 'striped'; wrist: boolean; }
@@ -592,13 +593,16 @@ function buildMap(
   jersey: number | null,
   fire: boolean,
   f: number,
-  story?: 'good' | 'bad'
+  story?: 'good' | 'bad' | 'worried'
 ): { map: string[][]; up: number } {
   const cfg = getCfg(species, form);
   const SZ = RIG_SIZES[Math.max(0, Math.min(4, sizeIx))];
   const E = story ? ENERGIES.normal : ENERGIES[energy];
-  // story acting: neutral for a beat, then the emotion takes over
-  const moodKey: RigMood = story ? (f < 8 ? 'neutral' : story === 'bad' ? 'angry' : 'elated') : mood;
+  // story acting: neutral for a beat, then the emotion takes over —
+  // WORRIED holds the whole loop (he came to you sweating)
+  const moodKey: RigMood = story
+    ? story === 'worried' ? 'upset' : f < 8 ? 'neutral' : story === 'bad' ? 'angry' : 'elated'
+    : mood;
   const M = MOODS[moodKey];
   const def = RIG[species] ?? RIG.terran;
   let map = cfg.map.map((r) => r.split(''));
@@ -780,7 +784,7 @@ function buildMap(
     }
   }
 
-  if (E.sweat || (story === 'bad' && f >= 8)) {
+  if (E.sweat || story === 'worried' || (story === 'bad' && f >= 8)) {
     const ph = Math.floor(f / 2) % 6;
     if (ph < 4) { const x = cfg.sweatR + PADL, y2 = PADT + 3 + ph * 2; if (map[y2] && map[y2][x] === '.') map[y2][x] = 'c'; }
   }
@@ -963,4 +967,334 @@ export function iconUrl(kind: IconKind, color = '#7dfc9a'): string {
   const url = c.toDataURL();
   iconCache.set(key, url);
   return url;
+}
+
+// ---- STORY ILLUSTRATIONS (ported from "Illustration Options", 260823-p2) -----
+// Thijs's picks: 1a THE FLAT-NOSE bus · 1d SAUCER scout ship · 1g THE DEAN
+// (bun + skirt suit) · 1i THE BOOSTER (chrome robota, dark suit, cigar).
+// Each scene/figure renders as a 24-frame sheet on the same CSS steps() loop
+// as the player rigs. The team's color is the accent (stripe, fin, tie).
+
+export type SceneId = 'bus-move' | 'bus-stranded' | 'bus-hoop' | 'saucer-move' | 'saucer-stranded' | 'saucer-hoop';
+export type FigureId = 'dean' | 'booster';
+export type FigureMood = 'neutral' | 'worried' | 'mad' | 'elated';
+
+const IL_BODY = '#2e3d74', IL_DARK = '#232c4e', IL_WIN = '#7fd8ec', IL_WHITE = '#e8ecf8',
+  IL_CHROME = '#9aa3b5', IL_CHROME_D = '#5f6878', IL_FL1 = '#ffd76a', IL_FL2 = '#e08a3c',
+  IL_RED = '#f36a6a', IL_SPACE = '#0a0c14', IL_DIM = '#39406b';
+
+type RFn = (x: number, y: number, w: number, h: number, c: string) => void;
+
+function ilStars(R: RFn, W: number, H: number, f: number): void {
+  R(0, 0, W, H, IL_SPACE);
+  for (let i = 0; i < 26; i++) {
+    const x = (i * 13 + 5) % W, y = (i * 7 + 3) % H;
+    if ((i + f) % 9 < 7) R(x, y, 1, 1, i % 3 ? IL_DIM : IL_WHITE);
+  }
+}
+function ilSpeedlines(R: RFn, f: number): void {
+  for (let i = 0; i < 3; i++) R(1 + ((f * 5 + i * 9) % 14), 8 + i * 8, 4, 1, IL_DIM);
+}
+function ilPlanetSky(R: RFn, W: number, H: number): void {
+  R(0, 0, W, H, '#1a1226');
+  for (let i = 0; i < 12; i++) R((i * 17 + 3) % W, (i * 5 + 1) % 12, 1, 1, IL_DIM);
+  const mx = W - 18;
+  R(mx + 2, 3, 6, 1, '#3c3152'); R(mx, 4, 10, 2, '#3c3152'); R(mx - 1, 6, 12, 3, '#3c3152');
+  R(mx, 9, 10, 2, '#3c3152'); R(mx + 2, 11, 6, 1, '#3c3152');
+  R(mx + 3, 5, 2, 2, '#2a2340'); R(mx + 6, 8, 2, 1, '#2a2340');
+}
+function ilBarren(R: RFn, W: number, H: number, gy: number): void {
+  R(0, gy, W, H - gy, '#6e5638'); R(0, gy, W, 1, '#8a6d47');
+  R(5, gy - 2, 4, 2, '#5a4630'); R(W - 14, gy - 3, 5, 3, '#5a4630');
+  R(16, gy + 3, 2, 1, '#5a4630'); R(W - 24, gy + 5, 3, 1, '#5a4630');
+}
+function ilSmoke(R: RFn, f: number, sx: number, sy: number, n: number): void {
+  for (let i = 0; i < n; i++) {
+    const rise = (f * 2 + i * 5) % 14;
+    if (rise > 1) R(sx + ((f + i) % 3) - 1, sy - rise, rise > 8 ? 3 : rise > 4 ? 2 : 1, 1, i % 2 ? '#8a8f9e' : '#6d7699');
+  }
+}
+function ilCourtNight(R: RFn, W: number, H: number, f: number, gy: number, px: number): void {
+  ilStars(R, W, H, f);
+  R(0, gy, W, H - gy, '#3c4150'); R(0, gy, W, 1, '#6d7699');
+  R(px, gy - 14, 2, 14, IL_CHROME_D);
+  R(px - 4, gy - 18, 2, 10, IL_WHITE); R(px - 4, gy - 18, 2, 1, IL_CHROME_D);
+  R(px - 8, gy - 14, 4, 1, IL_FL2);
+  R(px - 8, gy - 13, 1, 1, IL_WHITE); R(px - 5, gy - 13, 1, 1, IL_WHITE);
+  R(px - 7, gy - 12, 1, 1, IL_WHITE); R(px - 6, gy - 11, 1, 1, IL_WHITE);
+  R(px - 2, gy - 15, 2, 1, IL_CHROME_D);
+}
+function ilHoopBall(R: RFn, f: number, px: number, gy: number): void {
+  const b = [0, 3, 5, 3][f % 4];
+  R(px - 7, gy - 2 - b, 2, 2, '#c9752e');
+}
+function ilBusBody(R: RFn, acc: string, f: number, ox: number, y: number, o: { flame?: boolean; lights?: boolean; beacon?: boolean; glow?: boolean; door?: boolean }): void {
+  if (o.flame) { const len = 3 + (f % 3); R(ox + 6 - len, y + 4, len, 2, IL_FL2); R(ox + 7 - len, y + 4, len - 1, 1, IL_FL1); }
+  R(ox + 6, y + 3, 4, 4, IL_CHROME_D);
+  R(ox + 10, y, 42, 10, IL_BODY); R(ox + 10, y, 42, 2, IL_DARK);
+  R(ox + 52, y + 1, 2, 9, IL_BODY); R(ox + 54, y + 3, 1, 6, IL_BODY);
+  R(ox + 48, y + 2, 4, 4, IL_WIN);
+  for (let i = 0; i < 4; i++) R(ox + 13 + i * 8, y + 3, 5, 3, IL_WIN);
+  R(ox + 10, y + 7, 45, 2, acc);
+  R(ox + 8, y - 3, 4, 3, acc);
+  if (o.lights) R(ox + 53, y + 8, 2, 1, IL_FL1);
+  if (o.beacon) R(ox + 30, y - 2, 2, 2, IL_RED);
+  if (o.glow && f % 2) { R(ox + 18, y + 11, 4, 1, IL_WIN); R(ox + 32, y + 11, 4, 1, IL_WIN); R(ox + 44, y + 11, 4, 1, IL_WIN); }
+  if (o.door) { R(ox + 42, y + 2, 5, 8, '#141828'); R(ox + 42, y + 2, 1, 8, acc); }
+}
+function ilSaucerBody(R: RFn, ox: number, y: number, lightFn: (i: number) => string): void {
+  R(ox + 20, y, 8, 2, IL_WIN); R(ox + 18, y + 2, 12, 2, IL_WIN);
+  R(ox + 10, y + 4, 28, 3, IL_CHROME); R(ox + 8, y + 5, 32, 2, IL_CHROME);
+  R(ox + 14, y + 7, 20, 2, IL_CHROME_D);
+  for (let i = 0; i < 7; i++) R(ox + 11 + i * 4, y + 5, 2, 1, lightFn(i));
+}
+
+const SCENE_SIZE: Record<SceneId, [number, number]> = {
+  'bus-move': [64, 32], 'bus-stranded': [64, 32], 'bus-hoop': [64, 32],
+  'saucer-move': [48, 28], 'saucer-stranded': [48, 28], 'saucer-hoop': [48, 28],
+};
+
+function drawScene(R: RFn, scene: SceneId, acc: string, f: number): void {
+  switch (scene) {
+    case 'bus-move': {
+      const y = 11 + (f % 4 < 2 ? 0 : 1);
+      ilStars(R, 64, 32, f); ilSpeedlines(R, f);
+      ilBusBody(R, acc, f, 0, y, { flame: true, glow: true, lights: true, beacon: f % 4 < 2 });
+      break;
+    }
+    case 'bus-stranded': {
+      ilPlanetSky(R, 64, 32); ilBarren(R, 64, 32, 24);
+      ilBusBody(R, acc, f, 0, 14, { beacon: f % 2 === 0 });
+      ilSmoke(R, f, 8, 16, 3);
+      if (f % 5 === 0) R(5, 20, 1, 1, IL_FL1);
+      break;
+    }
+    case 'bus-hoop': {
+      ilCourtNight(R, 64, 32, f, 24, 56);
+      ilBusBody(R, acc, f, -8, 14, { lights: f % 8 < 4, door: true });
+      ilHoopBall(R, f, 56, 24);
+      break;
+    }
+    case 'saucer-move': {
+      const y = 8 + (f % 4 < 2 ? 0 : 1);
+      ilStars(R, 48, 28, f); ilSpeedlines(R, f);
+      ilSaucerBody(R, 0, y, (i) => (i + f) % 4 === 0 ? acc : IL_DARK);
+      if (f % 2) R(22, y + 9, 4, 1, IL_WIN);
+      break;
+    }
+    case 'saucer-stranded': {
+      ilPlanetSky(R, 48, 28); ilBarren(R, 48, 28, 21);
+      ilSaucerBody(R, 0, 12, (i) => (i * 3 + f) % 7 < 1 ? IL_FL1 : IL_DARK);
+      ilSmoke(R, f, 23, 11, 3);
+      R(21, 17, 1, 2, '#1a1e2e'); R(22, 18, 1, 1, '#1a1e2e');
+      break;
+    }
+    case 'saucer-hoop': {
+      ilCourtNight(R, 48, 28, f, 21, 40);
+      ilSaucerBody(R, -8, 12, (i) => (i + Math.floor(f / 3)) % 7 === 0 ? acc : IL_DARK);
+      ilHoopBall(R, f, 40, 21);
+      break;
+    }
+  }
+}
+
+// ---- THE DEAN (bun + skirt suit) and THE BOOSTER (chrome suit, cigar) --------
+
+const DEAN_MAP = [
+  '........hhh.............',
+  '........hhh.............',
+  '.......hhhhhhhhh........',
+  '.......hhhhhhhhhh.......',
+  '.......hssssssssh.......',
+  '.......hkeksskekh.......',
+  '.......hsssssssdh.......',
+  '.......hsskksssdh.......',
+  '........ssssssss........',
+  '..........ssss..........',
+  '.........wwwwww.........',
+  '......uuuuuuuuuuuu......',
+  '....uuuuuUUwwUUuuuuu....',
+  '....uuuuuUUwwUUuuuuu....',
+  '....uuuuuuUwwUuuuuuu....',
+  '....uu.uuuukuuuuu.uu....',
+  '....ss.uuuuuuuuuu.ss....',
+  '.......uuuuuuuuuu.......',
+  '.......UUUUUUUUUU.......',
+  '.......UUUUUUUUUU.......',
+  '......UUUUUUUUUUUU......',
+  '......UUUUUUUUUUUU......',
+  '.........ss..ss.........',
+  '.........ss..ss.........',
+  '.........ss..ss.........',
+  '........ooo..ooo........'];
+
+const BOOSTER_MAP = [
+  '.............cc.............',
+  '.............cc.............',
+  '.........cccccccccc.........',
+  '.........cCccccccCc.........',
+  '.........cekccccekc.........',
+  '.........cccccccccc.........',
+  '.........cckkkkkkcc.........',
+  '.........cccccccccc.........',
+  '............ccc.............',
+  '....uuuuuuuuuuuuuuuuuuuu....',
+  '....uuuuuuuUUttUUuuuuuuu....',
+  '....uuuuuuuUUttUUuuuuuuu....',
+  '....uuuuuggggggggguuuuuu....',
+  '....uu.uuuuuuuuuuuuuu.uu....',
+  '....uu.uuuuuuuuuuuuuu.uu....',
+  '....uu.uuuuuuttuuuuuu.uu....',
+  '....uu.uuuuuuttuuuuuu.uu....',
+  '....uu.uuuuuuuuuuuuuu.uu....',
+  '....uu.uuuuuuuuuuuuuu.uu....',
+  '....cc.uuuuuuuuuuuuuu.cc....',
+  '.......uuuuuuuuuuuuuu.......',
+  '.......uuuuuuuuuuuuuu.......',
+  '........ccc......ccc........',
+  '........ccc......ccc........',
+  '........cCc......cCc........',
+  '........ccc......ccc........',
+  '........ccc......ccc........',
+  '........cCc......cCc........',
+  '........ccc......ccc........',
+  '........ccc......ccc........',
+  '........ccc......ccc........',
+  '........ccc......ccc........',
+  '......ooooo....ooooo........',
+  '......ooooo....ooooo........'];
+
+type PixEdit = [number, number, string];
+
+function ilEdited(base: string[], edits: PixEdit[]): string[] {
+  const m = base.map((r) => r.split(''));
+  edits.forEach(([y, x, ch]) => { if (m[y]) m[y][x] = ch; });
+  return m.map((r) => r.join(''));
+}
+
+const DEAN_STATES: Record<FigureMood, PixEdit[]> = {
+  neutral: [],
+  worried: [[7, 9, 'k'], [7, 12, 'k']],
+  mad: [[4, 10, 'k'], [4, 13, 'k'], [6, 10, 'k'], [6, 11, 'k'], [7, 9, 'k'], [7, 12, 'k'], [7, 10, 'e'], [7, 11, 'e']],
+  elated: [[5, 8, 'y'], [5, 9, 'y'], [5, 10, 'y'], [5, 13, 'y'], [5, 14, 'y'], [5, 15, 'y'], [6, 9, 'k'], [6, 12, 'k'], [7, 9, 'k'], [7, 12, 'k'], [7, 10, 'e'], [7, 11, 'e'], [8, 10, 'k'], [8, 11, 'k']],
+};
+const DEAN_CHEER: PixEdit[] = [[15, 4, '.'], [15, 5, '.'], [16, 4, '.'], [16, 5, '.'], [15, 18, '.'], [15, 19, '.'], [16, 18, '.'], [16, 19, '.'],
+  [11, 4, 'u'], [11, 5, 'u'], [10, 4, 'u'], [10, 5, 'u'], [9, 4, 's'], [9, 5, 's'],
+  [11, 18, 'u'], [11, 19, 'u'], [10, 18, 'u'], [10, 19, 'u'], [9, 18, 's'], [9, 19, 's']];
+
+const BOOSTER_STATES: Record<FigureMood, PixEdit[]> = {
+  neutral: [],
+  worried: [[6, 11, 'c'], [6, 16, 'c']],
+  mad: [[3, 10, 'k'], [3, 11, 'k'], [3, 15, 'k'], [3, 16, 'k'], [5, 12, 'k'], [5, 13, 'k'], [5, 14, 'k'], [5, 15, 'k'], [6, 12, 'e'], [6, 15, 'e']],
+  elated: [[4, 10, 'y'], [4, 11, 'y'], [4, 16, 'y'], [4, 17, 'y'], [6, 12, 'e'], [6, 13, 'e'], [6, 14, 'e'], [6, 15, 'e']],
+};
+const BOOSTER_CHEER: PixEdit[] = (() => {
+  const out: PixEdit[] = [];
+  for (let y = 13; y <= 19; y++) [4, 5, 22, 23].forEach((x) => out.push([y, x, '.']));
+  ([[8, 'u'], [7, 'u']] as [number, string][]).forEach(([y, ch]) => [4, 5, 22, 23].forEach((x) => out.push([y, x, ch])));
+  [4, 5, 22, 23].forEach((x) => out.push([6, x, 'c']));
+  return out;
+})();
+
+function deanPal(acc: string): Record<string, string> {
+  return { h: '#b9bec9', s: '#c08a5e', d: '#a06f45', k: '#1a1e2e', e: '#f4f6fa',
+    w: '#e8ecf8', u: '#6b4a2f', U: '#4e3520', o: '#3a2a1c', t: acc, y: '#ffd76a' };
+}
+function boosterPal(acc: string): Record<string, string> {
+  return { c: IL_CHROME, C: IL_CHROME_D, k: '#1a1e2e', e: '#f4f6fa',
+    u: '#2a2135', U: '#1a1626', t: acc, g: '#ffd76a', o: '#1a1e2e', w: '#e8ecf8', y: '#ffd76a' };
+}
+
+function ilDrawMap(R: RFn, map: string[], pal: Record<string, string>, ox: number, oy: number): void {
+  map.forEach((row, y) => row.split('').forEach((ch, x) => {
+    if (ch !== '.') R(ox + x, oy + y, 1, 1, pal[ch] ?? '#ff00ff');
+  }));
+}
+function ilDrawIcon(R: RFn, x: number, y: number, pat: string[]): void {
+  const IC: Record<string, string> = { e: '#f4f6fa', k: '#1a1e2e', y: '#ffd76a', c: '#7fd8ec' };
+  pat.forEach((row, ry) => row.split('').forEach((ch, rx) => { if (ch !== '.') R(x + rx, y + ry, 1, 1, IC[ch]); }));
+}
+
+const FIGURE_SIZE: Record<FigureId, [number, number]> = { dean: [32, 34], booster: [36, 44] };
+
+/** One figure frame: the character acts the state — sweat drop while worried,
+    pulsing skull when mad, star + arms-up cheer when elated, cigar always. */
+function drawFigure(R: RFn, who: FigureId, state: FigureMood, acc: string, f: number): void {
+  const big = f % 6 < 3;
+  const SK_BIG = ['.eeeee.', 'ekeeeke', 'eeekeee', '.eeeee.', '.e.e.e.'], SK_SM = ['..eee..', '.ekeke.', '..eee..'];
+  const ST_BIG = ['..y..', '.yyy.', 'yyyyy', '.yyy.', '..y..'], ST_SM = ['.y.', 'yyy', '.y.'];
+  const EX_BIG = ['cc', 'cc', 'cc', '..', 'cc'], EX_SM = ['c', 'c', '.', 'c'];
+  const dean = who === 'dean';
+  const ox = 4, oy = dean ? 7 : 8;
+  const base = dean ? DEAN_MAP : BOOSTER_MAP;
+  const edits = (dean ? DEAN_STATES : BOOSTER_STATES)[state] ?? [];
+  const cheer = state === 'elated' && f % 8 < 4;
+  const shrug = state === 'mad' && f % 8 < 3;
+  const m = ilEdited(base, edits.concat(cheer ? (dean ? DEAN_CHEER : BOOSTER_CHEER) : [])).map((r) => r.split(''));
+  if (dean && (state === 'neutral' || state === 'worried') && f % 14 < 2) { m[5][9] = 's'; m[5][14] = 's'; } // blink
+  const pal = dean ? deanPal(acc) : boosterPal(acc);
+  const rows = m.map((r) => r.join(''));
+  const headEnd = dean ? 9 : 8;
+  if (shrug) { // the head sinks into the shoulders
+    ilDrawMap(R, rows.slice(headEnd + 1), pal, ox, oy + headEnd + 1);
+    ilDrawMap(R, rows.slice(0, headEnd + 1), pal, ox, oy + 1);
+  } else {
+    ilDrawMap(R, rows, pal, ox, oy);
+  }
+  if (!dean) { // cigar + ember + smoke
+    const cy = oy + 6 + (shrug ? 1 : 0);
+    R(ox + 17, cy, 4, 1, '#8a5a32'); R(ox + 21, cy, 1, 1, f % 2 ? '#ff6a4a' : IL_FL1);
+    ilSmoke(R, f, ox + 21, cy - 1, 2);
+  }
+  const ix = dean ? 23 : 2, iy = 2;
+  if (state === 'mad') ilDrawIcon(R, ix, iy, big ? SK_BIG : SK_SM);
+  if (state === 'elated') ilDrawIcon(R, ix, iy, big ? ST_BIG : ST_SM);
+  if (state === 'worried') {
+    ilDrawIcon(R, ix + (big ? 0 : 1), iy + (big ? 0 : 1), big ? EX_BIG : EX_SM);
+    const tx = dean ? ox + 17 : ox + 19;
+    R(tx, oy + 1 + (f % 6), 1, f % 6 > 2 ? 2 : 1, '#7fd8ec'); // the sweat drop
+  }
+}
+
+// ---- illustration sheets: same cache + steps() loop as the rigs --------------
+
+const illoCache = new Map<string, string>();
+
+function illoSheet(key: string, W: number, H: number, draw: (R: RFn, f: number) => void): string {
+  const hit = illoCache.get(key);
+  if (hit) return hit;
+  const canvas = document.createElement('canvas');
+  canvas.width = W * FRAMES;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  for (let f = 0; f < FRAMES; f++) {
+    const ox = f * W;
+    const R: RFn = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(ox + x, y, w, h); };
+    draw(R, f);
+  }
+  const url = canvas.toDataURL();
+  illoCache.set(key, url);
+  return url;
+}
+
+function illoHtml(url: string, W: number, H: number, scale: number, cls: string): string {
+  const w = W * scale, h = H * scale;
+  const dur = FRAMES * FRAME_MS;
+  const phase = Math.round(performance.now()) % dur;
+  return `<span class="rig ${cls}" style="width:${w}px;height:${h}px;--rigshift:-${w * FRAMES}px;--rigdur:${dur}ms;animation-delay:-${phase}ms;background-image:url(${url});background-size:${w * FRAMES}px ${h}px"></span>`;
+}
+
+/** A story scene: the bus or the saucer — moving, stranded, or at the hoop.
+    flip = heading home (screen-left). */
+export function sceneHtml(scene: SceneId, kit: Kit, scale = 3, flip = false, cls = ''): string {
+  const [W, H] = SCENE_SIZE[scene];
+  const url = illoSheet(`sc|${scene}|${kit.bg}`, W, H, (R, f) => drawScene(R, scene, kit.bg, f));
+  return illoHtml(url, W, H, scale, `${cls} ${flip ? 'rig-flip' : ''}`);
+}
+
+/** The dean or the booster, acting their read of you: worried → the verdict. */
+export function figureHtml(who: FigureId, mood: FigureMood, kit: Kit, scale = 3, cls = ''): string {
+  const [W, H] = FIGURE_SIZE[who];
+  const url = illoSheet(`fg|${who}|${mood}|${kit.bg}`, W, H, (R, f) => drawFigure(R, who, mood, kit.bg, f));
+  return illoHtml(url, W, H, scale, cls);
 }

@@ -14,6 +14,7 @@ import {
   galaxyActById,
   itemById,
   planById,
+  storyById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, stipendFor, xpNeed } from './engine/gen';
 import { COL_LABELS, matchAttrs, slotMult, slotPlayer, winShare } from './engine/sim';
@@ -65,7 +66,7 @@ import {
 import type { Attr, AttrRec, GameState, PlanId, Player, Prospect, SpeechFx, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, perGame, potStars } from './engine/util';
-import { PRACTICE_KIT, busUrl, energyBucket, iconUrl, moodBucket, rigSpriteHtml, type Kit, type RigView } from './rig';
+import { PRACTICE_KIT, energyBucket, figureHtml, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
 
 const VERSION = 'v3.0';
 
@@ -151,7 +152,10 @@ let selGalaxy = 'filmnight';
 let selSpeech: PlanId | null = null;
 let speechSheet = false;
 let dropConfirm: number | null = null;
-let gxResult: { text: string; cost: number; played: boolean } | null = null;
+let gxResult: { text: string; cost: number; played: boolean; art?: string } | null = null;
+/** how the story's resolution moved the hot seat (drives the dean/booster verdict + the job-bar flash) */
+let heatShift: { dS: number; dB: number } | null = null;
+let jobAnimDone = false;
 /** the selection grid: 12 slots (9 squad in lineup order + the CUT row) */
 let selSlots: number[] | null = null;
 /** the two are-you-sure dialogs before anyone is lost forever */
@@ -306,6 +310,8 @@ function doResolve(key: string): void {
   const res = resolveStory(state, key);
   if (!res) return;
   if (cost > 0) floatEnergyBig(cost);
+  heatShift = { dS: state.heatS - snap.heatS, dB: state.heatB - snap.heatB };
+  jobAnimDone = false;
   impact = buildImpact(snap, res.fx, res.resolved.playerId ?? ev.playerId);
   impactPlayed = false;
   const rBeats = splitBeats(res.resolved.resolvedText ?? '');
@@ -505,7 +511,7 @@ const LENS_NAMES = ['ABILITIES', 'STATS', 'POTENTIAL'];
 let lens: Lens = 0;
 
 /** The sprite tells the truth: mood, energy, size and fire, straight from the rig. */
-function rigView(p: Player, story?: 'good' | 'bad'): RigView {
+function rigView(p: Player, story?: 'good' | 'bad' | 'worried'): RigView {
   if (story) {
     // in a story the STATE is the story's: neutral → the emotion, no ball
     return {
@@ -531,7 +537,7 @@ interface CardOpts {
   lens?: Lens;
   kit?: Kit;
   /** story acting: sprite state comes from the news, not the meters */
-  story?: 'good' | 'bad';
+  story?: 'good' | 'bad' | 'worried';
   /** results land one by one and STAY until you leave the screen */
   stickers?: { text: string; up?: boolean }[];
   stickerDelay?: number;
@@ -703,7 +709,8 @@ function headerHtml(s: GameState): string {
   const cells = Array.from({ length: CACHE_MAX }, (_, i) =>
     `<span class="ecell ${i < s.energy ? 'on' : ''}" style="${i < s.energy ? `background:${ramp(0.35 + 0.55 * (i / CACHE_MAX))}` : ''}"></span>`
   ).join('');
-  return `<div class="topbar ${gxResult ? 'spotlight' : ''}">
+  const jobFlash = storyMode === 'impact' && heatShift !== null && (heatShift.dS !== 0 || heatShift.dB !== 0) && currentStory(s);
+  return `<div class="topbar ${gxResult ? 'spotlight' : ''} ${jobFlash ? 'jobflash' : ''}">
     <div class="hgrid">
       ${chip(t.name, t.bg, t.fg)}
       ${jobBar(s)}
@@ -878,14 +885,55 @@ function storySentiment(tag: string): 'good' | 'bad' {
   return /BREAKTHROUGH|LEVEL UP|ON FIRE|CLEARED/.test(tag) ? 'good' : 'bad';
 }
 
+/** The dean's/booster's read of the resolution: heat toward them DOWN =
+    they love you (elated), UP = they don't (mad), unmoved = neutral. */
+function figureVerdict(figure: FigureId): FigureMood {
+  if (!heatShift) return 'neutral';
+  const d = figure === 'dean' ? heatShift.dS : heatShift.dB;
+  return d < 0 ? 'elated' : d > 0 ? 'mad' : 'neutral';
+}
+
+/** The story's illustration: the player ACTING (worried → the verdict), the
+    bus/saucer (ALWAYS starts moving, then the scene lands with the verdict),
+    or the dean/booster sweating over what you'll pick. */
+function storyArt(s: GameState, ev: { defId: string; playerId: number | null; tag: string; data?: Record<string, unknown>; resolvedText?: string; choices?: unknown[] }): string {
+  const t0 = myTeam(s);
+  const kit = { bg: t0.bg, fg: t0.fg };
+  const def = storyById(ev.defId);
+  const p = ev.playerId !== null ? t0.players.find((x) => x.id === ev.playerId) : undefined;
+  const resolved = !!ev.resolvedText;
+  if (p) {
+    const acting: 'good' | 'bad' | 'worried' = resolved
+      ? (impact && impact.rows.some((r) => !r.up) ? 'bad' : 'good')
+      : ev.choices?.length ? 'worried' : storySentiment(ev.tag);
+    return `<div class="modalcard">${playerCard(p, { inert: true, story: acting })}</div>`;
+  }
+  const figure: FigureId | undefined = def.figure === 'side'
+    ? ((ev.data?.side as string) === 'school' ? 'dean' : 'booster')
+    : def.figure;
+  if (figure) {
+    const mood: FigureMood = resolved ? figureVerdict(figure) : 'worried';
+    return `<div class="scenebox">${figureHtml(figure, mood, kit, 3)}</div>`;
+  }
+  const artKind = (ev.data?.art as 'bus' | 'saucer' | undefined) ?? def.art;
+  if (artKind) {
+    // the law: the ship ALWAYS starts moving; the event scene lands with the news
+    const moving = storyMode === 'antic' || !def.artEvent;
+    const scene = (moving ? `${artKind}-move` : `${artKind}-${def.artEvent}`) as SceneId;
+    const flip = artKind === 'bus' && ev.defId !== 'travel_out' && moving; // heading home
+    return `<div class="scenebox">${sceneHtml(scene, kit, 3, flip)}</div>`;
+  }
+  return '';
+}
+
 function storyPanel(s: GameState): string {
   const ev = currentStory(s)!;
   const p = ev.playerId !== null ? myTeam(s).players.find((x) => x.id === ev.playerId) : undefined;
-  const t0 = myTeam(s);
-  const bus = /THE ROAD|VOYAGE/.test(ev.tag) ? `<img class="busimg" src="${busUrl({ bg: t0.bg, fg: t0.fg })}" alt=""/>` : '';
+  const art = storyArt(s, ev);
   if (storyMode === 'impact') {
     return `<div class="storypanel" data-action="story-tap" id="storypanel">
       <span class="tag">${esc(ev.tag)}</span>
+      ${p ? '' : art}
       ${impactHtml(s)}
       <div class="modal-actions" id="modal-actions"><div class="taphint">▸ tap</div></div>
     </div>`;
@@ -910,7 +958,7 @@ function storyPanel(s: GameState): string {
     }
     return `<div class="storypanel" data-action="story-tap" id="storypanel">
       <span class="tag">${esc(ev.tag)}</span>
-      ${p ? `<div class="modalcard">${playerCard(p, { inert: true, story: storySentiment(ev.tag) })}</div>` : bus}
+      ${art}
       ${inChoices
         ? `<div class="typebox">${esc(beats[beats.length - 1])}</div>`
         : `<div class="typebox" id="typebox"></div>`}
@@ -920,7 +968,7 @@ function storyPanel(s: GameState): string {
   // a single typed beat, center stage (this layout never gains elements mid-read)
   return `<div class="storypanel" data-action="story-tap" id="storypanel">
     <span class="tag">${esc(ev.tag)}</span>
-    ${bus}
+    ${art}
     <div class="typebox beatbox" id="typebox"></div>
     <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap</div></div>
   </div>`;
@@ -1541,10 +1589,17 @@ function boardConfirmHtml(s: GameState): string {
 
 // THE RESULT: everything darkens except the energy bar, the spent ⚡ blasts
 // away one cell at a time, then the typewriter says what happened.
-function gxResultHtml(): string {
+function gxResultHtml(s: GameState): string {
   if (!gxResult) return '';
+  const t = myTeam(s);
+  // a search is a saucer trip: it flies out first; the verdict scene lands
+  // when the report finishes typing (postRender swaps it)
+  const scene = gxResult.art
+    ? `<div class="scenebox" id="gxscene">${sceneHtml('saucer-move', { bg: t.bg, fg: t.fg }, 3)}</div>`
+    : '';
   return `<div class="modalback gxback" data-action="gx-result-tap"><div class="modal gxmodal">
     <span class="tag">THE TRAIL</span>
+    ${scene}
     <div class="typebox" id="typebox"></div>
     <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap</div></div>
   </div></div>`;
@@ -1629,6 +1684,8 @@ function render(): void {
     stageTyped = false;
     impact = null;
     impactPlayed = false;
+    heatShift = null;
+    jobAnimDone = false;
     if (ev.resolvedText) {
       storyMode = splitBeats(ev.resolvedText).length > 1 ? 'r-antic' : 'r-reveal';
     } else {
@@ -1657,7 +1714,7 @@ function render(): void {
 
   // popups live INSIDE the middle: the stats bar, THE BAG and the nav stay
   // visible (⚡ readable while a story asks you to spend it) — the nav just dims.
-  const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + speechSheetHtml(state) + gxResultHtml() + dropConfirmHtml(state) + cutConfirmHtml(state) + boardConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
+  const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + speechSheetHtml(state) + gxResultHtml(state) + dropConfirmHtml(state) + cutConfirmHtml(state) + boardConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
   const modalOpen = drillSheet || speechSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet || dropConfirm !== null || gxResult !== null || cutConfirm || boardConfirm;
   const navHtml = `<div class="navbar ${modalOpen ? 'dimmed' : ''}">${nav(state)}</div>`;
   const lensHtml = (state.phase === 'practice' || state.phase === 'galaxy' || state.phase === 'teamSelect') && !ev ? lensBar() : '';
@@ -1692,7 +1749,15 @@ function postRender(): void {
     floatEnergyBig(r.cost);
     const box0 = document.getElementById('typebox');
     floatTimers.push(window.setTimeout(() => {
-      if (gxResult === r) typewrite(box0 as HTMLElement | null, r.text, revealActions);
+      if (gxResult === r) typewrite(box0 as HTMLElement | null, r.text, () => {
+        revealActions();
+        // the saucer lands its verdict scene as the report finishes
+        if (r.art && r.art !== 'saucer-move') {
+          const el = document.getElementById('gxscene');
+          const t = myTeam(state);
+          if (el) el.innerHTML = sceneHtml(r.art as SceneId, { bg: t.bg, fg: t.fg }, 3);
+        }
+      });
     }, r.cost * 300 + 350));
     return;
   }
@@ -1716,6 +1781,26 @@ function postRender(): void {
       });
     }
     if (storyMode === 'impact' && !impactPlayed) animateImpact();
+    // THE HOT SEAT moves like the energy blast: everything else dims and the
+    // job-security darkness visibly eats (or gives back) its ground
+    if (storyMode === 'impact' && heatShift && (heatShift.dS !== 0 || heatShift.dB !== 0) && !jobAnimDone) {
+      jobAnimDone = true;
+      const l = document.querySelector('.jobbar .jdark.l') as HTMLElement | null;
+      const rr = document.querySelector('.jobbar .jdark.r') as HTMLElement | null;
+      if (l && rr) {
+        l.style.transition = 'none';
+        rr.style.transition = 'none';
+        l.style.width = `${state.heatS - heatShift.dS}%`;
+        rr.style.width = `${state.heatB - heatShift.dB}%`;
+        void l.offsetWidth; // reflow so the transition sees the old widths
+        impactTimers.push(window.setTimeout(() => {
+          l.style.transition = 'width 1.1s ease';
+          rr.style.transition = 'width 1.1s ease';
+          l.style.width = `${state.heatS}%`;
+          rr.style.width = `${state.heatB}%`;
+        }, 500));
+      }
+    }
   }
 
   if (state.phase === 'gamenight' && !state.queue.length) {
@@ -2050,7 +2135,7 @@ function executeAction(action: string, id: string): void {
       const out = actionGalaxy(state, selGalaxy);
       if (out) {
         if (out.perProspect.size) gxStickers = out.perProspect;
-        gxResult = { text: out.text, cost: act.cost, played: false };
+        gxResult = { text: out.text, cost: act.cost, played: false, art: out.art };
       }
       break;
     }
