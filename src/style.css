@@ -361,7 +361,7 @@ button.hold.wiggle::after {
 .ksvg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .rig.ksprite {
   position: absolute;
-  left: 50%; bottom: 4%;
+  left: 50%; bottom: 13px;
   transform: translateX(-50%);
   z-index: 2;
 }
@@ -374,7 +374,7 @@ button.hold.wiggle::after {
   z-index: 3;
 }
 .kname { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kyear { font-size: 9px; color: var(--r35); flex: none; letter-spacing: 1px; }
+.kyear { font-size: 9px; color: var(--r75); flex: none; letter-spacing: 1px; font-weight: bold; }
 .kbl { position: absolute; left: 3px; bottom: 3px; z-index: 3; }
 .kovr { font-size: 18px; font-weight: bold; line-height: 1.1; background: rgba(0, 0, 0, 0.72); padding: 1px 4px; }
 .kbr { position: absolute; right: 3px; bottom: 3px; z-index: 3; }
@@ -400,17 +400,17 @@ button.hold.wiggle::after {
 .kite.grow { width: 62px; height: 62px; }
 .kite.full { width: 130px; height: 130px; }
 .kite svg { display: block; width: 100%; height: 100%; }
-.k-axis { stroke: var(--r20); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.k-axis { stroke: var(--r20); stroke-width: 1; opacity: 0.55; vector-effect: non-scaling-stroke; }
 .k-caps { fill: none; stroke: var(--r35); stroke-width: 1; stroke-dasharray: 2 2; opacity: 0.5; vector-effect: non-scaling-stroke; }
-.k-pot { fill: var(--r35); fill-opacity: 0.16; stroke: var(--r55); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.k-pot { fill: var(--r35); fill-opacity: 0.14; stroke: var(--r55); stroke-opacity: 0.7; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .k-start { fill: none; stroke: var(--r35); stroke-width: 1; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
-.k-cur { fill: var(--r75); fill-opacity: 0.45; stroke: var(--r95); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.k-cur { fill: var(--r75); fill-opacity: 0.35; stroke: var(--r95); stroke-opacity: 0.8; stroke-width: 1.25; vector-effect: non-scaling-stroke; }
 .klabel { position: absolute; font-size: 6px; letter-spacing: 0.5px; color: var(--r35); line-height: 1; pointer-events: none; text-align: center; }
 .klabel i { font-style: normal; }
 .klabel b { display: block; font-size: 8px; color: var(--r75); margin-top: 1px; background: rgba(0, 0, 0, 0.6); padding: 0 1px; }
 /* on the full-square card the labels earn real presence: bigger, bolder,
    and the side pair turns 90° to hug the edges */
-.ksq .klabel { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 9px; font-weight: bold; letter-spacing: 1.5px; color: var(--r55); z-index: 1; }
+.ksq .klabel { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 9px; font-weight: bold; letter-spacing: 1.5px; color: var(--r35); z-index: 1; }
 .ksq .klabel.n { top: 17px; left: 50%; transform: translateX(-50%); }
 .ksq .klabel.s { bottom: 3px; left: 50%; transform: translateX(-50%); flex-direction: column-reverse; }
 .ksq .klabel.e { right: 2px; top: 50%; transform: translateY(-50%); }
@@ -593,6 +593,7 @@ button.hold.wiggle::after {
 .storypanel .tag { color: var(--r95); letter-spacing: 2px; font-size: 13px; flex: none; }
 .modalcard { max-width: 250px; margin: 8px auto; width: 100%; flex: none; display: flex; }
 .typebox { white-space: pre-wrap; min-height: 36px; margin: 8px 0; color: var(--r95); font-size: 16px; line-height: 1.45; flex: none; }
+.tw-rest { visibility: hidden; }
 /* a lone beat gets center stage */
 .typebox.beatbox { flex: 1 1 auto; display: flex; align-items: center; font-size: 19px; line-height: 1.55; }
 

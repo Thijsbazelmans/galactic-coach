@@ -335,16 +335,22 @@ function clearFloatTimers(): void {
 
 // ---- typewriter ---------------------------------------------------------------------------
 
+// The full text is present (invisibly) from the first tick, so the layout is
+// final before a single letter shows — nothing reflows, nothing recenters.
 function typewrite(el: HTMLElement | null, text: string, done: () => void): void {
   stopType();
   if (!el) { done(); return; }
   typeState = { el, text, done };
+  const chars = Array.from(text); // code points — emoji never get cut in half
   let i = 0;
-  el.textContent = '';
+  const paint = (): void => {
+    el.innerHTML = `${esc(chars.slice(0, i).join(''))}<span class="tw-rest">${esc(chars.slice(i).join(''))}</span>`;
+  };
+  paint();
   typeTimer = window.setInterval(() => {
     i += 2;
-    el.textContent = text.slice(0, i);
-    if (i >= text.length) { stopType(); done(); }
+    paint();
+    if (i >= chars.length) { stopType(); el.textContent = text; done(); }
   }, 16);
 }
 
@@ -557,7 +563,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   } else {
     body = squareKite(p.attrs, {
       pot: p.pots,
-      sprite: sprite(2, 'ksprite'),
+      sprite: sprite(1.75, 'ksprite'),
       nameHtml,
       blHtml: ovrHtml,
       brHtml: ringCounter(xpPct, 'LVL', String(p.level), `level ${p.level}/${LEVEL_CAP} · xp ${p.xp}/${p.level >= LEVEL_CAP ? '—' : xpNeed(p.level)}`),
@@ -578,7 +584,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
 function prospectCard(pr: Prospect): string {
   const img = rigSpriteHtml(
     { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, mood: 'neutral', energy: 'normal', fire: false },
-    PRACTICE_KIT, 2, 'ksprite');
+    PRACTICE_KIT, 1.75, 'ksprite');
   const known = pr.scoutLevel;
   const q = known < 2 ? '?' : '';
   return `<div class="pcard prospect sq" data-action="pcell" data-id="${pr.id}" data-pid="p${pr.id}">
@@ -717,26 +723,37 @@ function storyPanel(s: GameState): string {
       <div class="modal-actions" id="modal-actions"><div class="taphint">▸ tap</div></div>
     </div>`;
   }
-  if (storyMode === 'choices' && ev.choices && !ev.resolvedText) {
+  const pendingChoices = !!ev.choices?.length && !ev.resolvedText;
+  if (pendingChoices) {
+    // the FINAL layout from the very first beat — tag, card and text box are
+    // all in place before anything types, so nothing ever bounces or resizes
     const beats = splitBeats(ev.text);
-    let actions = ev.choices
-      .filter((c) => !c.itemId) // items live in THE BAG below — tap or drag them in
-      .map((c) => {
-        const cant = c.cost !== undefined && s.energy < c.cost;
-        return `<button class="wide hold" data-action="story-choice" data-id="${esc(c.key)}" ${cant || c.disabled ? 'disabled' : ''}>
-          ${esc(c.label)}${cant ? ' — NOT ENOUGH ⚡' : ''}<br/>${oddsLine(c.up, c.down, c.cost)}</button>`;
-      }).join('');
-    if (ev.choices.some((c) => c.itemId)) {
-      actions += `<div class="itemhint blink">◆ something in THE BAG could help — tap it below</div>`;
+    const inChoices = storyMode === 'choices';
+    let actions: string;
+    if (inChoices) {
+      actions = ev.choices!
+        .filter((c) => !c.itemId) // items live in THE BAG below — tap or drag them in
+        .map((c) => {
+          const cant = c.cost !== undefined && s.energy < c.cost;
+          return `<button class="wide hold" data-action="story-choice" data-id="${esc(c.key)}" ${cant || c.disabled ? 'disabled' : ''}>
+            ${esc(c.label)}${cant ? ' — NOT ENOUGH ⚡' : ''}<br/>${oddsLine(c.up, c.down, c.cost)}</button>`;
+        }).join('');
+      if (ev.choices!.some((c) => c.itemId)) {
+        actions += `<div class="itemhint blink">◆ something in THE BAG could help — tap it below</div>`;
+      }
+    } else {
+      actions = '<div class="taphint">▸ tap</div>';
     }
     return `<div class="storypanel" data-action="story-tap" id="storypanel">
       <span class="tag">${esc(ev.tag)}</span>
       ${p ? `<div class="modalcard">${playerCard(p, { inert: true })}</div>` : ''}
-      <div class="typebox">${esc(beats[beats.length - 1])}</div>
-      <div class="modal-actions" id="modal-actions">${actions}</div>
+      ${inChoices
+        ? `<div class="typebox">${esc(beats[beats.length - 1])}</div>`
+        : `<div class="typebox" id="typebox"></div>`}
+      <div class="modal-actions ${inChoices ? '' : 'hide'}" id="modal-actions">${actions}</div>
     </div>`;
   }
-  // a single typed beat, center stage
+  // a single typed beat, center stage (this layout never gains elements mid-read)
   return `<div class="storypanel" data-action="story-tap" id="storypanel">
     <span class="tag">${esc(ev.tag)}</span>
     <div class="typebox beatbox" id="typebox"></div>
