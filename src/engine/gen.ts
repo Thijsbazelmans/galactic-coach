@@ -350,7 +350,7 @@ export function newGameState(): GameState {
     prospects: [],
     bag: [],
     legendariesUsed: [],
-    unlockedDrills: ['shootaround', 'rest'],
+    unlockedDrills: ['shootaround', 'scrimmage', 'twodays', 'rest'],
     unlockedRegions: ['home', 'nebula', 'outerrim'],
     knownPlans: [...STARTING_PLANS],
     tipsSeen: [],

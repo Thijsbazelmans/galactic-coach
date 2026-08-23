@@ -439,6 +439,25 @@ gone. Recruiting buttons now share the RUN anatomy («▶ VERB — VARIANT»
 with details beneath). POTENTIAL corner labels are label+number on one
 line (SKL 12/16), sides vertical baseline-in, numbers letter-sized.
 
+**v2.3.3 — the tiers and the tug-of-war:**
+- Spend states everywhere: RUN shows «✓ THIS WEEK» when spent, and every
+  ▾ variant arrow locks once that week's action is used.
+- The always-available options come in 1/2/3⚡ rungs so a full cache can
+  actually be spent: practice = SHOOTAROUND 1⚡ / FULL SCRIMMAGE 2⚡ /
+  TWO-A-DAYS 3⚡ (+ TEAM REST 0⚡); scouting = ATTEND 1⚡ / PRIVATE WORKOUT
+  2⚡ / COMBINE DATABASE 3⚡; recruiting = TOUR 1⚡ / KAPPA NIGHT 2⚡ /
+  RESTAURANT 3⚡; discovery was already 1/2/3⚡ by region. Discovered
+  methods stay the premium tier. Save migration unions the new basics in.
+- THE TEAM BARS: under the practice grid, five horizontal bars — SKILL /
+  ATHLETICISM / FIERCENESS / BRAINS / OVERALL — raw unweighted sums of
+  all available players (max 225 per attr, 900 overall), each with its
+  division rank (1st–6th). On MATCHUP the same five bars become a
+  TUG-OF-WAR once the opponent is scouted: your tactic-weighted total
+  (plan attr ×2.5) pushes from the left in your color, theirs from the
+  right in theirs, numbers on the rail — switching tactics visibly moves
+  the rope. Unscouted shows only your side.
+- Headless win rate settled back to ~56% with the pricier basics.
+
 ## NEXT SESSION (pick up here)
 
 1. **Femme players:** the renderer supports masc/femme (terran has its own

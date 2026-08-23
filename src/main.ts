@@ -869,6 +869,96 @@ function storyPanel(s: GameState): string {
 
 // ---- stages (middle content per phase) -----------------------------------------------------------------
 
+/** Unweighted team totals: every available player's attributes, straight sum. */
+function teamAttrSums(players: Player[]): AttrRec {
+  const sums = { skl: 0, ath: 0, frc: 0, brn: 0 };
+  for (const p of players) {
+    if (p.outWeeks > 0) continue;
+    for (const a of ATTRS) sums[a] += p.attrs[a];
+  }
+  return sums;
+}
+
+function ordinal(n: number): string {
+  return `${n}${['', 'st', 'nd', 'rd'][n] ?? 'th'}`;
+}
+
+const BAR_ROWS: { a: Attr | 'all'; label: string }[] = [
+  { a: 'skl', label: 'SKILL' },
+  { a: 'ath', label: 'ATHLETICISM' },
+  { a: 'frc', label: 'FIERCENESS' },
+  { a: 'brn', label: 'BRAINS' },
+  { a: 'all', label: 'OVERALL' },
+];
+
+/** PRACTICE: five progress bars (max 225 / 900) + division rank per row. */
+function teamBarsPractice(s: GameState): string {
+  const t = myTeam(s);
+  const all = s.teams.map((tm) => ({ id: tm.id, sums: teamAttrSums(tm.players) }));
+  const mine = all.find((x) => x.id === t.id)!.sums;
+  const rows = BAR_ROWS.map(({ a, label }) => {
+    const val = (x: AttrRec): number => (a === 'all' ? ovr(x) : x[a]);
+    const max = a === 'all' ? 900 : 225;
+    const rank = 1 + all.filter((x) => x.id !== t.id && val(x.sums) > val(mine)).length;
+    return `<div class="tbar">
+      <span class="tbl">${label}</span>
+      <span class="tbtrack"><span class="tbfill" style="width:${Math.min(100, (val(mine) / max) * 100)}%;background:${t.bg}"></span></span>
+      <b class="tbv">${val(mine)}</b>
+      <span class="tbr">${ordinal(rank)}</span>
+    </div>`;
+  }).join('');
+  return `<div class="tbars">${rows}</div>`;
+}
+
+/** MATCHUP: the tug-of-war. Your weighted total pushes from the left in your
+    color, theirs from the right in theirs (once SCOUTED). Tactics move the rope. */
+function teamBarsMatchup(s: GameState): string {
+  const t = myTeam(s);
+  const mineRaw = teamAttrSums(t.players);
+  const myAttr = planById(s.plan).attr;
+  let theirsRaw: AttrRec | null = null;
+  let theirAttr: Attr | null = null;
+  let oppBg = '#666';
+  if (s.scoutedOpp) {
+    if (isUtWeek(s)) {
+      const c = utOpponent(s);
+      if (c) {
+        theirsRaw = { skl: c.kite.skl * 9, ath: c.kite.ath * 9, frc: c.kite.frc * 9, brn: c.kite.brn * 9 };
+        theirAttr = planById(c.plan).attr;
+        oppBg = c.bg;
+      }
+    } else {
+      const m = myMatchup(s);
+      const hint = oppPlanHint(s);
+      if (m && hint) {
+        theirsRaw = teamAttrSums(m.opponent.players);
+        theirAttr = planById(hint).attr;
+        oppBg = m.opponent.bg;
+      }
+    }
+  }
+  const w = (x: AttrRec, boost: Attr | null, a: Attr): number => Math.round(x[a] * (a === boost ? 2.5 : 1));
+  const rows = BAR_ROWS.map(({ a, label }) => {
+    const mv = a === 'all' ? ATTRS.reduce((acc, k) => acc + w(mineRaw, myAttr, k), 0) : w(mineRaw, myAttr, a);
+    if (!theirsRaw) {
+      const max = (a === 'all' ? 900 : 225) * 1.6;
+      return `<div class="tbar">
+        <span class="tbl">${label}</span>
+        <span class="tbtrack"><span class="tbfill" style="width:${Math.min(100, (mv / max) * 100)}%;background:${t.bg}"></span></span>
+        <b class="tbv">${mv}</b><span class="tbr dim">?</span>
+      </div>`;
+    }
+    const tv = a === 'all' ? ATTRS.reduce((acc, k) => acc + w(theirsRaw!, theirAttr, k), 0) : w(theirsRaw, theirAttr, a);
+    const myPct = (mv / Math.max(1, mv + tv)) * 100;
+    return `<div class="tbar">
+      <span class="tbl">${label}</span>
+      <span class="tbtrack tug"><span class="tbfill" style="width:${myPct}%;background:${t.bg}"></span><span class="tbopp" style="width:${100 - myPct}%;background:${oppBg}"></span></span>
+      <b class="tbv">${mv}</b><span class="tbr">v ${tv}</span>
+    </div>`;
+  }).join('');
+  return `<div class="tbars">${rows}</div>`;
+}
+
 function lensBar(): string {
   const tabs = LENS_NAMES.map((n, i) =>
     `<button class="lenstab ${lens === i ? 'sel' : ''}" data-action="lens-set" data-id="${i}">${n}</button>`).join('');
@@ -877,24 +967,23 @@ function lensBar(): string {
 
 function stagePractice(s: GameState): string {
   let fourth: string;
+  const d = DRILLS.find((x) => x.id === selectedDrill)!;
   if (lens !== 0) {
     fourth = '';
-  } else if (s.trainedThisWeek) {
-    fourth = `<div class="fourthrow"><div class="report">${esc(s.drillReport ?? 'Practice is done.')}</div></div>`;
   } else {
-    const d = DRILLS.find((x) => x.id === selectedDrill)!;
     const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
     const recap = d.target === 'rest'
       ? 'squad ⚡ up · 0⚡'
       : `${gains || `+${d.xp[0]}–${d.xp[1]} XP`} · SQUAD · ${d.cost}⚡`;
+    const spent = s.trainedThisWeek;
     fourth = `<div class="fourthrow actrow"><span class="actwrap runwrap">
-      <button class="actmain hold" data-action="drill-run" ${s.energy < d.cost ? 'disabled' : ''}>
-        <b>▶ RUN — ${d.name}</b><span class="actsub">${recap}</span>
+      <button class="actmain hold" data-action="drill-run" ${spent || s.energy < d.cost ? 'disabled' : ''}>
+        <b>▶ RUN — ${d.name}</b><span class="actsub">${spent ? '✓ THIS WEEK' : s.energy < d.cost ? `NEED ${d.cost}⚡` : recap}</span>
       </button>
-      <button class="actarrow" data-action="drill-sheet">▾</button>
+      <button class="actarrow" data-action="drill-sheet" ${spent ? 'disabled' : ''}>▾</button>
     </span></div>`;
   }
-  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, lens === 0, lens)}${fourth}`;
+  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, lens === 0, lens)}${teamBarsPractice(s)}${fourth}`;
 }
 
 /** [HOLD main action | ▾ variant picker] — the shared two-part button. */
@@ -903,7 +992,7 @@ function actBtn(kind: 'discover' | 'scout' | 'recruit', verb: string, variant: s
     <button class="actmain hold" data-action="gx-run" data-id="${kind}" ${disabled || done ? 'disabled' : ''}>
       <b>▶ ${verb} — ${variant}</b><span class="actsub">${done ? '✓ THIS WEEK' : disabled ? esc(disabled) : sub}</span>
     </button>
-    <button class="actarrow" data-action="gx-sheet" data-id="${kind}">▾</button>
+    <button class="actarrow" data-action="gx-sheet" data-id="${kind}" ${done ? 'disabled' : ''}>▾</button>
   </span>`;
 }
 
@@ -977,6 +1066,7 @@ function stageMatchup(s: GameState): string {
   }).join('');
   return `<div class="mustrip"><span class="muq">MATCHUP</span> ${meter}<div class="oppbit">${oppBit}</div></div>
     ${gridHtml(s, true)}
+    ${teamBarsMatchup(s)}
     <div class="fourthrow planrow">${plans}</div>`;
 }
 

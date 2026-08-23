@@ -153,7 +153,12 @@ export function load(): GameState | null {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw) as GameState;
-    return s.version === SAVE_VERSION ? s : null;
+    if (s.version !== SAVE_VERSION) return null;
+    // in-place migration: the always-available basics exist in every save
+    for (const d of ['shootaround', 'scrimmage', 'twodays', 'rest']) {
+      if (!s.unlockedDrills.includes(d)) s.unlockedDrills.push(d);
+    }
+    return s;
   } catch {
     return null;
   }
