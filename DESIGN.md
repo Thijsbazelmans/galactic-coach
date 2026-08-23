@@ -839,6 +839,21 @@ exports into `fromDesign/<date>/` — read them from there.
     with their animation, but switching lens (STATS/POTENTIAL and back)
     should NOT replay them — once seen, they just disappear. Practice was
     run, results were seen.
+  - **THE ANIMATION BUILD (screen transitions, the big one).** Every
+    screen switch gets a little build so it's always clear where you are
+    and what's happening. The general law: the HEADER/title appears
+    first (you know where you are), then the rest of the screen builds
+    in, and the ACTION BUTTON lands last (you know where to go next).
+    The game-night sequence is the showcase:
+    - Hit PLAY (H1): everything in the middle disappears (top menu, THE
+      BAG and the bottom button stay, as always) EXCEPT the OVERALL
+      rope — which GROWS and repositions itself to the middle of the
+      screen, becoming the game-play dial. Then «TIP OFF», the needle
+      sweeps, lands on a color.
+    - HALFTIME: the dial disappears, the HALFTIME header appears, then
+      the team names + score animate in (home team first), THEN the
+      cards take their places, stat stickers land, etc. — as today.
+    - The same rope→dial transformation repeats for the second half.
 - **Away kits**: the sprite lab defines an away kit (light jersey) —
   dress the visiting roster in it (sprites + chips); replaces the
   hue-clash inversion hack on the matchup vs-row.
