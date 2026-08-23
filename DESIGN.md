@@ -824,10 +824,14 @@ exports into `fromDesign/<date>/` — read them from there.
 
 ### Backlog (in rough priority)
 
-- **Thijs's playtest notes (Aug 23, marked for the next overhaul — he's
-  mid-playthrough, don't ship these until then):**
-  - ABILITIES view: dim the compass kite AND its corner labels a bit on
-    every roster card (they compete with the sprite/numbers).
+- **Thijs's playtest notes (Aug 23, in the order he made them — the
+  work list for THE NEXT OVERHAUL. He has now played a FULL season on
+  v3.2.x; ship these when he calls the overhaul, not before. A fresh
+  session starts by reading this whole block plus the three session
+  blocks below it: GROWTH & SPECIES, PRIORITY BOARD, STORY SESSION.)**
+  - ~~ABILITIES view: dim the compass kite and labels~~ — SUPERSEDED by
+    THE CARD REWORK (last note in this list): the compass leaves the
+    default view entirely.
   - The practice / recruiting ▾ pickers should DEFAULT to the free option
     (TEAM REST, LOCAL REC CENTER) every week — spending energy should
     always require going into the menu deliberately.
@@ -909,15 +913,9 @@ exports into `fromDesign/<date>/` — read them from there.
     tug-of-war rope (matchup rows, OVERALL, the big game dial) so a tight
     rope instantly reads as "slightly better" or "slightly worse" instead
     of a coin-flip guess.
-  - **TEAM MOOD + TEAM ENERGY readout** (open: where exactly — Thijs is
-    still deciding; candidates were header / action button / continue
-    button). Claude's rec: (1) two extra colored rows in the team-bars
-    block (TEAM ⚡ / TEAM MOOD) on the practice screen — the "is practice
-    a good idea" decision happens right there, and REST/BONFIRE animating
-    those bars up is cascade feedback; (2) prototype two tiny always-on
-    chips in the header's second row (⚡ 64 · ☺ 71) and keep them only if
-    they don't crowd the phone header. NOT inside buttons — a number in a
-    button reads as a cost, not a status.
+  - ~~TEAM MOOD + TEAM ENERGY readout~~ — SUPERSEDED by THE CARD REWORK
+    (last note in this list): per-card energy/mood gauges on the default
+    view negate the need for any team-level mood/energy bar.
   - **NO EXPLANATION TEXT ON SCREENS** (law, partially applied Aug 23:
     the WEEK START strip is already gone, as were the drag-instruction
     strips). The stories carry plenty of reading; screens stay clean —
@@ -925,6 +923,49 @@ exports into `fromDesign/<date>/` — read them from there.
     built once the game is settled. Status/warning strips (SHIP
     GROUNDED, the gassed-starters call-out) are not explanation and
     stay.
+  - **THE CARD REWORK (the big one — after the full-season playtest;
+    per-player gauges return, the lens deck reshuffles).**
+    - **Lens renames**: the POTENTIAL view becomes **ABILITIES**; the
+      current ABILITIES view becomes **ROSTER**. Deck: ROSTER / STATS /
+      ABILITIES.
+    - **ROSTER view (the new default)**: the compass is REMOVED
+      entirely. In its place, two tapered LED gauges hug the card edges
+      — wider at the top, narrower at the bottom:
+      · LEFT edge = ENERGY, with a little lightning bolt overlaying it
+        (black outline). · RIGHT edge = MOOD, with a little face
+        overlaying it (black outline).
+      · Bolt + face change color with the value — brighter when high,
+        darker when low — and BLINK below 25%.
+      · Geometry: gauge top sits one line-height below the name and is
+        **1/3 of the card width**; it tapers to **1/8 of the card
+        width** at the bottom, which ends just above the LVL/XP
+        indicator on its respective side.
+    - **The sticker system**: exactly ONE main sticker slot lives just
+      under the name, above the gauges — the most important sticker
+      goes there. ALL other stickers stick ON TOP of the stat they
+      change: «+8 XP» overlaps the LVL/XP gauge, «+3 SKL» sits on the
+      OVERALL number, «−12 MOOD» sits on the mood gauge, and so forth.
+    - The team gauges below the 3×3 must NOT move when switching to the
+      ABILITIES or STATS views. Training can only be RUN from the
+      ROSTER view — never from the alternate views.
+    - Row label **RES → RESERVES**.
+    - **Team ability gauges below the grid reflect the MATCH weighting**:
+      starters ×75% + bench ×25% only — never the whole team — and
+      unavailable players still sitting in a starter/bench slot add
+      NOTHING to the numbers. (The practice-screen bars currently sum
+      all nine raw; align them with the matchup math.)
+    - The energy/mood gauges appear ONLY on ROSTER — not on STATS, not
+      on ABILITIES.
+    - **Recruiting deck**: the first view is renamed **BIG BOARD** and
+      loses its compass too. On the recruiting POTENTIAL view, the
+      cloud shown is now the cloud of CURRENT skills (not potential) —
+      potential itself reads as STARS in the center of that cloud.
+    - **The matchup/lineup screen shows ROSTER-view cards with NO lens
+      switching** — stats and potential aren't relevant when setting a
+      lineup for tonight.
+    - **Story mode picks per story**: whichever matters for that story —
+      the ABILITIES view behind the acting sprite, or the energy/mood
+      gauges beside it.
 - **THE GROWTH & SPECIES SESSION (dedicated session, Thijs-specced Aug
   23 — this absorbs the old "species design session"):**
   - **Level-ups never hit a dead end.** Placing banked points: an
