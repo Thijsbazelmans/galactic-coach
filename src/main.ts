@@ -1160,7 +1160,7 @@ function stageGalaxy(s: GameState): string {
   const done = s.galaxyActWk;
   const disabled = grounded ? 'GROUNDED' : s.energy < act.cost ? `NEED ${act.cost}⚡` : false;
   const button = swapping
-    ? `<div class="report">Drag to swap — the bottom row is <b>lost forever</b>.</div>`
+    ? ''
     : `<span class="actwrap runwrap">
       <button class="actmain hold" data-action="gx-run" ${disabled || done ? 'disabled' : ''}>
         <b>▶ ${GX_VERB[act.kind]} — ${act.name}</b><span class="actsub">${done ? '✓ THIS WEEK' : disabled ? esc(disabled) : gxActSub(act)}</span>
@@ -1170,8 +1170,8 @@ function stageGalaxy(s: GameState): string {
   return `<h2 class="gridhead">RECRUITING</h2>
     ${prospectGridHtml(s)}
     <div class="botstack">
-      ${s.groundedWeeks > 0 ? `<div class="fourthrow slim"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — local searches only</div></div>` : ''}
-      <div class="fourthrow actrow">${button}</div>
+      ${s.groundedWeeks > 0 && !swapping ? `<div class="fourthrow slim"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — local searches only</div></div>` : ''}
+      ${swapping ? '' : `<div class="fourthrow actrow">${button}</div>`}
     </div>`;
 }
 
@@ -1385,8 +1385,7 @@ function stageTeamSelect(s: GameState): string {
     rows.push(`<div class="gridrow ${r === 3 ? 'cutrow' : ''}"><div class="rowlabel">${SELECT_ROW_LABELS[r]}</div>${cells}</div>`);
   }
   return `<h2 class="gridhead">${s.season === 0 ? 'TRYOUTS' : `SEASON ${s.season + 1} ROSTER`}</h2>
-    <div class="grid">${colHead}${rows.join('')}</div>
-    <div class="botstack"><div class="fourthrow slim"><div class="report">Drag to arrange — the bottom row is <b>CUT, forever</b>.</div></div></div>`;
+    <div class="grid">${colHead}${rows.join('')}</div>`;
 }
 
 function stageDepartures(s: GameState): string {
