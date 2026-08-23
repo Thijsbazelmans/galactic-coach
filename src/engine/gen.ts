@@ -16,7 +16,7 @@ import {
 import type { AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
 import { ATTRS, clamp, copyAttrs, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
 export const UT_WEEKS = 3; // QF, SF, THE UNIVERSAL FINAL
 export const ROSTER_SIZE = 9;
@@ -156,7 +156,7 @@ export function genSpecial(counter: { nextId: number }, kind: 'walkon' | 'gem' |
     return p;
   }
   if (kind === 'droid') {
-    const p = genPlayer(counter, 18, 2, 'lithoid');
+    const p = genPlayer(counter, 18, 2, 'petran');
     p.name = 'UNIT-7';
     p.special = 'droid';
     p.mood = 100; // it does not feel. probably.

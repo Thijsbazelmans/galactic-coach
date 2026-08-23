@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin: 0; background: #0a0c14; }
+  a { color: #b6f36a; text-decoration: none; }
+  a:hover { color: #f36ad2; }
+  canvas { image-rendering: pixelated; display: block; }
+  input { font-family: 'IBM Plex Mono', monospace; }
+</style>
+</helmet>
+<div ref="{{ pageRef }}" style="min-height:100vh;background:#0a0c14;color:#dfe3f2;font-family:'IBM Plex Mono',monospace;padding:34px 38px 70px;box-sizing:border-box">
+
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;border-bottom:2px solid #232a44;padding-bottom:18px;flex-wrap:wrap">
+    <div>
+      <div style="font-family:'Silkscreen',monospace;font-size:11px;letter-spacing:3px;color:#b6f36a;margin-bottom:10px">ICBA &middot; SPRITE LAB</div>
+      <div style="font-family:'Silkscreen',monospace;font-size:34px;line-height:1;color:#f4f6ff">SIX SPECIES &mdash; ONE RULEBOOK</div>
+      <div style="font-size:13px;color:#818ab0;margin-top:11px;max-width:64ch;text-wrap:pretty;line-height:1.6">Every species is a hand-placed pixel map that obeys the same contracts: face rows for mood, ball behavior for energy, height-only sizing, high-tops for everyone. Original rig sketch: <a href="Baller Rig.dc.html">Baller Rig</a>.</div>
+    </div>
+    <div style="border:2px solid #232a44;padding:12px 16px;background:#0f1220">
+      <div style="font-size:9px;letter-spacing:2px;color:#6d7699;margin-bottom:8px">STAT CHANNELS</div>
+      <div style="display:flex;flex-direction:column;gap:5px;font-size:11px;color:#9aa3c4">
+        <div><span style="color:#b6f36a">&#9632;</span> SIZE XS&ndash;XL &mdash; height, never width</div>
+        <div><span style="color:#b6f36a">&#9632;</span> MOOD &times;5 &mdash; face + side icon</div>
+        <div><span style="color:#b6f36a">&#9632;</span> ENERGY &times;5 &mdash; what they do with the ball</div>
+        <div><span style="color:#f3c46a">&#9632;</span> ON FIRE &mdash; streak overlay, fits any body</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:260px minmax(430px,1fr) 290px;gap:22px;margin-top:26px;align-items:start">
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:13px">SPECIES</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ speciesBtns }}" as="p" hint-placeholder-count="6">
+            <div onClick="{{ p.pick }}" style="cursor:pointer;padding:8px 11px;border:2px solid {{ p.bd }};background:{{ p.bg }};display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:1px;color:{{ p.fg }}">
+              <span>{{ p.name }}</span><span style="width:12px;height:12px;background:{{ p.swatch }};border:1px solid #0a0c14"></span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:13px">SIZE</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ sizeBtns }}" as="s" hint-placeholder-count="5">
+            <div onClick="{{ s.pick }}" style="cursor:pointer;padding:8px 11px;border:2px solid {{ s.bd }};background:{{ s.bg }};display:flex;justify-content:space-between;font-size:11px;letter-spacing:1px;color:{{ s.fg }}">
+              <span>{{ s.name }}</span><span style="color:#6d7699">{{ s.note }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:13px">MOOD</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ moodBtns }}" as="m" hint-placeholder-count="5">
+            <div onClick="{{ m.pick }}" style="cursor:pointer;padding:8px 11px;border:2px solid {{ m.bd }};background:{{ m.bg }};display:flex;justify-content:space-between;font-size:11px;letter-spacing:1px;color:{{ m.fg }}">
+              <span>{{ m.name }}</span><span style="color:#6d7699">{{ m.note }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:13px">ENERGY</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ energyBtns }}" as="e" hint-placeholder-count="5">
+            <div onClick="{{ e.pick }}" style="cursor:pointer;padding:8px 11px;border:2px solid {{ e.bd }};background:{{ e.bg }};display:flex;justify-content:space-between;font-size:11px;letter-spacing:1px;color:{{ e.fg }}">
+              <span>{{ e.name }}</span><span style="color:#6d7699">{{ e.note }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="border:2px solid #f3c46a;background:#181420;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#f3c46a;letter-spacing:1px;margin-bottom:13px">STREAK</div>
+        <div onClick="{{ toggleFire }}" style="cursor:pointer;padding:10px 11px;border:2px solid {{ fireBd }};background:{{ fireBg }};display:flex;justify-content:space-between;font-size:11px;letter-spacing:1px;color:{{ fireFg }}">
+          <span>ON FIRE</span><span style="color:{{ fireStateFg }}">{{ fireState }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="border:2px solid #232a44;background:#0f1220;padding:18px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:14px">LIVE &middot; {{ statLabel }}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div style="background:#535866;padding:16px 8px 8px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:10px;min-height:330px">
+            <canvas data-t="lab" data-form="masc" data-scale="7"></canvas>
+            <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#e8ecf8;background:#3c4150;padding:4px 12px;letter-spacing:2px">MASC</div>
+          </div>
+          <div style="background:#535866;padding:16px 8px 8px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:10px;min-height:330px">
+            <canvas data-t="lab" data-form="femme" data-scale="7"></canvas>
+            <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#e8ecf8;background:#3c4150;padding:4px 12px;letter-spacing:2px">FEMME</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px 18px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:12px">SIZE RANGE &middot; HEIGHT ONLY &middot; BALL NEVER SCALES</div>
+        <div style="background:#535866;padding:14px 6px 8px;display:flex;align-items:flex-end;justify-content:center;gap:4px;flex-wrap:wrap">
+          <sc-for list="{{ sizeStrip }}" as="z" hint-placeholder-count="5">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+              <canvas data-t="size" data-size="{{ z.v }}" data-scale="4"></canvas>
+              <div style="font-size:9px;color:#c8cddb;letter-spacing:1px">{{ z.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px 18px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:12px">MOOD RANGE &middot; FACE ROWS + SIDE ICON</div>
+        <div style="background:#535866;padding:14px 10px 8px;display:flex;align-items:flex-start;justify-content:center;gap:12px;flex-wrap:wrap">
+          <sc-for list="{{ moodStrip }}" as="z" hint-placeholder-count="5">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+              <canvas data-t="mood" data-mood="{{ z.v }}" data-scale="6"></canvas>
+              <div style="font-size:9px;color:#c8cddb;letter-spacing:1px">{{ z.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px 18px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:12px">ENERGY RANGE &middot; WHAT THEY DO WITH THE BALL</div>
+        <div style="background:#535866;padding:14px 4px 8px;display:flex;align-items:flex-end;justify-content:center;gap:2px;flex-wrap:wrap">
+          <sc-for list="{{ energyStrip }}" as="z" hint-placeholder-count="5">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+              <canvas data-t="energy" data-energy="{{ z.v }}" data-scale="4"></canvas>
+              <div style="font-size:9px;color:#c8cddb;letter-spacing:1px">{{ z.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:13px">SKIN / PLATING</div>
+        <div style="display:flex;gap:6px">
+          <sc-for list="{{ tintBtns }}" as="t" hint-placeholder-count="4">
+            <div onClick="{{ t.pick }}" style="cursor:pointer;width:28px;height:28px;background:{{ t.swatch }};border:2px solid {{ t.bd }}"></div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ showHair }}" hint-placeholder-val="{{ true }}">
+          <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin:15px 0 10px">HAIR COLOR</div>
+          <div style="display:flex;gap:6px">
+            <sc-for list="{{ hairBtns }}" as="t" hint-placeholder-count="4">
+              <div onClick="{{ t.pick }}" style="cursor:pointer;width:28px;height:28px;background:{{ t.swatch }};border:2px solid {{ t.bd }}"></div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin:15px 0 10px">{{ styleTitle }}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <sc-for list="{{ styleBtns }}" as="h" hint-placeholder-count="4">
+            <div onClick="{{ h.pick }}" style="cursor:pointer;text-align:center;padding:8px 4px;font-size:10px;letter-spacing:1px;border:2px solid {{ h.bd }};background:{{ h.bg }};color:{{ h.fg }}">{{ h.name }}</div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:13px">SOCKS</div>
+        <div style="display:flex;gap:6px">
+          <sc-for list="{{ sockBtns }}" as="k" hint-placeholder-count="3">
+            <div onClick="{{ k.pick }}" style="cursor:pointer;flex:1;text-align:center;padding:8px 0;font-size:10px;letter-spacing:1px;border:2px solid {{ k.bd }};background:{{ k.bg }};color:{{ k.fg }}">{{ k.name }}</div>
+          </sc-for>
+        </div>
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin:15px 0 10px">WRISTBANDS</div>
+        <div onClick="{{ toggleWrist }}" style="cursor:pointer;padding:9px 11px;border:2px solid {{ wristBd }};background:{{ wristBg }};display:flex;justify-content:space-between;font-size:11px;letter-spacing:1px;color:{{ wristFg }}">
+          <span>ACCENT BANDS</span><span style="color:{{ wristStateFg }}">{{ wristState }}</span>
+        </div>
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin:15px 0 10px">KIT</div>
+        <div style="display:flex;gap:6px">
+          <sc-for list="{{ kitBtns }}" as="k" hint-placeholder-count="2">
+            <div onClick="{{ k.pick }}" style="cursor:pointer;flex:1;text-align:center;padding:8px 0;font-size:11px;letter-spacing:1px;border:2px solid {{ k.bd }};background:{{ k.bg }};color:{{ k.fg }}">{{ k.name }}</div>
+          </sc-for>
+        </div>
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin:15px 0 10px">NUMBER</div>
+        <input value="{{ number }}" onChange="{{ setNumber }}" maxlength="2" style="width:100%;box-sizing:border-box;background:#141828;border:2px solid #232a44;color:#f4f6ff;font-size:20px;letter-spacing:4px;padding:9px 12px;text-align:center;outline:none" />
+      </div>
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:12px">SPECIES NOTES</div>
+        <div style="font-size:11px;color:#9aa3c4;line-height:1.8">{{ speciesNote }}</div>
+      </div>
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:12px">THE CONTRACTS</div>
+        <div style="font-size:11px;color:#9aa3c4;line-height:1.8">Face rows 3&ndash;8 belong to mood on every species. The ball (or brick) belongs to energy. Height grows in marked rows only. And everyone &mdash; floating gas included &mdash; laces up the league high-tops.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:30px;border-top:2px solid #232a44;padding-top:16px;font-size:11px;color:#6d7699;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap">
+    <div>Lab v0.8 &middot; six hand-authored species &middot; shared stat channels &middot; room for expansion</div>
+    <div>A new species = one pixel map + one config row</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#b6f36a&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#b6f36a&quot;,&quot;#f3c46a&quot;,&quot;#6ad2f3&quot;,&quot;#f36ad2&quot;],&quot;section&quot;:&quot;Team kit&quot;}}">
+const MASC = [
+"........hhhhhhhh........",
+".......hhhhhhhhhh.......",
+".......hhhhhhhhhh.......",
+".......hsssssssd........",
+".......hsbbsbbsd........",
+".......hsekseksd........",
+".......hssssssdd........",
+"........sskkssd.........",
+".........sssss..........",
+"..........ssss..........",
+"......jjjjjjjjjjjj......",
+"....ssjjjjjjjjjjjJss....",
+"....ssjjjjjjjjjjjJss....",
+"....ssjjjjjjjjjjjJss....",
+"....ssjjjjjjjjjjjJss....",
+"....ssjjjjjjjjjjjJss....",
+"....ss.jjjjjjjjjJ.ss....",
+"....ss.tttttttttt.ss....",
+"....ssjjjjjjjjjjjJss....",
+"......jjjjjjjjjjjJ......",
+"......jjjjjjjjjjjJ......",
+"......jjjj....jjjJ......",
+".......ss......ss.......",
+".......ss......ss.......",
+".......ss......ss.......",
+"......tttt....tttt......",
+"......wwww....wwww......",
+"......waww....waww......",
+"......kkkk....kkkk......"];
+
+const FEMME = [
+"......hh..hhhh..hh......",
+"......hhhhhhhhhhhh......",
+".......hhhhhhhhhh.......",
+".......hssssssdh........",
+".......hsbbsbbdh........",
+".......hseksekdh........",
+".......hssssssdh........",
+".......hsskkssdh........",
+".......h.sssss.h........",
+".......h..ssss..h.......",
+".......jjjjjjjjjj.......",
+".....ssjjjjjjjjjJss.....",
+".....ssjjjjjjjjjJss.....",
+".....ssjjjjjjjjjJss.....",
+".....ss.jjjjjjjJ.ss.....",
+".....ss.jjjjjjjJ.ss.....",
+".....ss.tttttttt.ss.....",
+".....ssjjjjjjjjjjss.....",
+"......jjjjjjjjjjjJ......",
+"......jjjjjjjjjjjJ......",
+"......jjjj....jjjJ......",
+".......ss......ss.......",
+".......ss......ss.......",
+".......ss......ss.......",
+".......ss......ss.......",
+"......tttt....tttt......",
+"......wwww....wwww......",
+"......waww....waww......",
+"......kkkk....kkkk......"];
+
+const QUADRAN = [
+"........................",
+"........................",
+"......ssssssssssss......",
+"......ssssssssssss......",
+"......sssbbsbbssss......",
+"......ssseksekssss......",
+"......ssssssssssss......",
+"......sesskksssses......",
+"......ssssssssssss......",
+"....ssssssssssssssss....",
+"......jjjjjjjjjjjj......",
+"....ssjjjjjjjjjjjJss....",
+"....ssjjjjjjjjjjjJss....",
+"....ssjjjjjjjjjjjJss....",
+"....ssjjjjjjjjjjjJss....",
+"....ssjjjjjjjjjjjJss....",
+"...ss..jjjjjjjjjJ..ss...",
+"...ss.tttttttttttt.ss...",
+"...ss.jjjjjjjjjjjJ.ss...",
+"...ss.jjjjjjjjjjjJ.ss...",
+"...ss.jjjj....jjjJ.ss...",
+"...ss..ss......ss..ss...",
+".......ss......ss.......",
+".......ss......ss.......",
+".......ss......ss.......",
+"......tttt....tttt......",
+"......wwww....wwww......",
+"......waww....waww......",
+"......kkkk....kkkk......"];
+
+const HEXID = [
+"........................",
+"........................",
+"........ssssssss........",
+".......ssssssssss.......",
+".......ssssssssss.......",
+".......ssekseksss.......",
+".......ssssssssss.......",
+".......ssskksssss.......",
+".......sdssssssds.......",
+"..........ssss..........",
+"......jjjjjjjjjjjj......",
+"....ssjjjjjjjjjjjJss....",
+"....ssjjjjjjjjjjjJss....",
+"....ssjjjjjjjjjjjJss....",
+"....ssjjjjjjjjjjjJss....",
+"......tttttttttttt......",
+"......jjjjjjjjjjjJ......",
+"......jjjjjjjjjjjJ......",
+"......jjjjjjjjjjjJ......",
+"......ss...ss...ss......",
+"......ss...ss...ss......",
+"......ss...ss...ss......",
+"......ss...ss...ss......",
+"......ss...ss...ss......",
+"......ss...ss...ss......",
+"......tt...tt...tt......",
+".....wwww.wwww.wwww.....",
+".....waww.waww.waww.....",
+".....kkkk.kkkk.kkkk....."];
+
+const PETRAN = [
+"........................",
+"........................",
+".......ssssssssss.......",
+".......ssssssssss.......",
+".......sdbbsbbdss.......",
+".......ssekseksss.......",
+".......sdssssssss.......",
+".......ssskksssss.......",
+".......ssssssssds.......",
+"..........ssss..........",
+".....jjjjjjjjjjjjjj.....",
+"...ssjjjjjjjjjjjjjjss...",
+"...ssjjjjjjjjjjjjjjss...",
+"...ssjjjjjjjjjjjjjjss...",
+"...ssjjjjjjjjjjjjjjss...",
+"...ssjjjjjjjjjjjjjJss...",
+".....tttttttttttttt.....",
+"...ss..............ss...",
+"...ss.jjjjjjjjjjjJ.ss...",
+"......jjjjjjjjjjjJ......",
+"......jjjj....jjjJ......",
+"......sss.....sss.......",
+"......sss.....sss.......",
+"......sss.....sss.......",
+"......sss.....sss.......",
+"......ttt.....ttt.......",
+".....wwwww...wwwww......",
+".....wawww...wawww......",
+".....kkkkk...kkkkk......"];
+
+const NIMBUS = [
+"........................",
+"........................",
+"..........ssss..........",
+"........ssssssss........",
+"........sbbsbbss........",
+"........seksekss........",
+"........ssssssss........",
+"........sskkssss........",
+"........ssssssss........",
+".......ssssssssss.......",
+".......jjjjjjjjjj.......",
+".....ssjjjjjjjjjjss.....",
+".....ssjjjjjjjjjjss.....",
+".....ssjjjjjjjjjjss.....",
+".....ssjjjjjjjjjjss.....",
+".......tttttttttt.......",
+".......ssssssssss.......",
+"........ssssssss........",
+".........ssssss.........",
+"........ss.ss.ss........",
+"........s...s...s.......",
+".........s..s...........",
+"..........s.............",
+"........................",
+"........................",
+"......tttt....tttt......",
+"......wwww....wwww......",
+"......waww....waww......",
+"......kkkk....kkkk......"];
+
+const GELID = [
+"........................",
+"........................",
+"..........ssss..........",
+"........ssssssss........",
+"........sbbsbbss........",
+"........seksekss........",
+"........ssssssss........",
+"........sskkssss........",
+"........ssssssss........",
+".......ssssssssss.......",
+".......jjjjjjjjjj.......",
+".....ssjjjjjjjjjjss.....",
+".....ssjjjjjjjjjjss.....",
+".....ssjjjjjjjjjjss.....",
+".....ssjjjjjjjjjjss.....",
+".......tttttttttt.......",
+".......ssssssssss.......",
+"......ssssssssssss......",
+"......ssssssssssss......",
+".....ssssssssssssss.....",
+"....ssssssssssssssss....",
+"...ssssssssssssssssss...",
+"..ssssssssssssssssssss..",
+".ssssssssssssssssssssss.",
+"..ssssssssssssssssssss..",
+"......tttt....tttt......",
+"......wwww....wwww......",
+"......waww....waww......",
+"......kkkk....kkkk......"];
+
+const PADT = 7, PADR = 6, PADL = 6;
+const BALL = [".OOO.","OPOOO","QQQQQ","OOOOO",".OOO."];
+const BRICK = ["rrrrrrr","RRRRRRR","RRRQRRR","QQQQQQQ"];
+const Z3 = ["111","010","111"];
+const Z5 = ["11111","00010","00100","01000","11111"];
+
+const SPECIES = {
+  terran:  { name: 'TERRAN', note: 'Baseline humanoid. Hairstyles, four skin tones, the reference for every contract.',
+    masc:  { map: MASC, armL: [4,5], armR: [18,19], armTop: 11, armBot: 18, armGrow: 1, torsoDup: 17, legDup: 22, legTop: 22, hasLegs: 1, numOy: 12, sweatR: 17, sweatL: 6,
+      dome: [[9,1],[10,1],[11,1],[12,1],[13,1],[14,1],[8,2],[9,2],[10,2],[11,2],[12,2],[13,2],[14,2],[15,2]] },
+    femme: { map: FEMME, armL: [5,6], armR: [17,18], armTop: 11, armBot: 17, armGrow: 1, torsoDup: 16, legDup: 21, legTop: 21, hasLegs: 1, numOy: 11, sweatR: 17, sweatL: 6,
+      dome: [[9,1],[10,1],[11,1],[12,1],[13,1],[8,2],[9,2],[10,2],[11,2],[12,2],[13,2],[14,2]] } },
+  quadran: { name: 'QUADRAN', note: 'Hunched heavy-worlder, four arms. Upper pair handles the ball, lower pair boxes out. Tusks on the masc frame.',
+    cfg: { map: QUADRAN, armL: [4,5], armR: [18,19], armTop: 11, armBot: 15, armGrow: 0, torsoDup: 17, legDup: 22, legTop: 21, hasLegs: 1, numOy: 11, sweatR: 18, sweatL: 5 },
+    femmeEdits: [[7,7,'s'],[16,7,'s'],[8,5,'k'],[15,5,'k']] },
+  hexid:   { name: 'HEXID', note: 'Insectoid, six legs, six tiny high-tops. Mandible hooks at the jaw; antennae are the crest slot.',
+    cfg: { map: HEXID, armL: [4,5], armR: [18,19], armTop: 11, armBot: 14, armGrow: 1, torsoDup: 15, legDup: 20, legTop: 19, hasLegs: 1, numOy: 10, sweatR: 17, sweatL: 6 },
+    femmeEdits: [[8,5,'k'],[15,5,'k']] },
+  petran:  { name: 'PETRAN', note: 'Stone golem. Floating shoulder slab with an air gap, cracks in the plating &mdash; and it throws BRICKS, not balls.',
+    cfg: { map: PETRAN, armL: [3,4], armR: [19,20], armTop: 11, armBot: 18, armGrow: 1, torsoDup: 16, legDup: 22, legTop: 21, hasLegs: 1, numOy: 11, sweatR: 17, sweatL: 6, ballPat: BRICK },
+    femmeEdits: [[7,2,'.'],[16,2,'.'],[8,5,'k'],[15,5,'k']] },
+  nimbus:  { name: 'NIMBUS', note: 'Translucent gas-form. No legs &mdash; it floats above a pair of empty regulation high-tops. Body dithers see-through.',
+    cfg: { map: NIMBUS, armL: [5,6], armR: [17,18], armTop: 11, armBot: 14, armGrow: 1, torsoDup: 15, legDup: 19, legTop: 99, hasLegs: 0, numOy: 10, sweatR: 16, sweatL: 7, alpha: 1 },
+    femmeEdits: [[8,5,'k'],[14,5,'k']] },
+  gelid:   { name: 'GELID', note: 'Liquid body melting into its own puddle; the shoes stand in the goo. Side drips animate on a loop.',
+    cfg: { map: GELID, armL: [5,6], armR: [17,18], armTop: 11, armBot: 14, armGrow: 1, torsoDup: 15, legDup: 18, legTop: 99, hasLegs: 0, numOy: 10, sweatR: 16, sweatL: 7 },
+    femmeEdits: [[8,5,'k'],[14,5,'k']] }
+};
+const SPECIES_KEYS = ['terran','quadran','hexid','petran','nimbus','gelid'];
+
+const SKINS_SP = {
+  terran:  ['#c08a5e','#8a5636','#eab98f','#5d3a24'],
+  quadran: ['#4f9c8b','#3d7a6d','#6db5a4','#2f5f55'],
+  hexid:   ['#7a5aa8','#5f4488','#957ac2','#493368'],
+  petran:  ['#8d8377','#6f665c','#a89d8f','#565049'],
+  nimbus:  ['#93a9cf','#7a8fb8','#b0c4e4','#647899'],
+  gelid:   ['#78b955','#5f9a40','#93d06e','#487a30']
+};
+const HAIRS = ['#3a2a1c', '#14100c', '#c9973f', '#8a3d24'];
+
+function span(y, x0, x1) { const a = []; for (let x = x0; x <= x1; x++) a.push([x, y]); return a; }
+const STYLES = {
+  masc: [
+    { name: 'CROP', px: [].concat(span(0,8,15), span(1,7,16), span(2,7,16), [[7,3],[7,4],[7,5],[7,6]]) },
+    { name: 'BUZZ', px: [].concat(span(1,9,14), span(2,8,15)) },
+    { name: 'AFRO', px: [].concat(span(0,6,17), span(1,6,17), span(2,6,17), [[6,3],[7,3],[16,3],[17,3],[6,4],[17,4]]) },
+    { name: 'MOHAWK', px: [].concat(span(0,11,12), span(1,11,12), span(2,11,12)) }
+  ],
+  femme: [
+    { name: 'BUNS', px: [].concat([[6,0],[7,0],[10,0],[11,0],[12,0],[13,0],[16,0],[17,0]], span(1,6,17), span(2,7,16), span(3,7,7).concat([[7,4],[7,5],[7,6],[7,7],[7,8],[7,9],[15,3],[15,4],[15,5],[15,6],[15,7],[15,8],[15,9]])) },
+    { name: 'PONYTAIL', px: [].concat(span(0,9,13), span(1,8,14), [[8,2],[14,2],[15,2],[16,3],[16,4],[16,5],[16,6],[16,7]]) },
+    { name: 'LONG', px: [].concat(span(0,9,13), span(1,8,14), span(2,7,15), [[7,3],[7,4],[7,5],[7,6],[7,7],[7,8],[7,9],[15,3],[15,4],[15,5],[15,6],[15,7],[15,8],[15,9]]) },
+    { name: 'PIXIE', px: [].concat(span(0,9,13), span(1,8,14), [[8,2],[14,2],[8,3]]) }
+  ],
+  quadran: [
+    { name: 'NONE', px: [] },
+    { name: 'RIDGE', px: [[8,1],[10,1],[12,1],[14,1]] },
+    { name: 'HORNS', px: [[6,1],[5,0],[17,1],[18,0]] },
+    { name: 'TUFT', px: [[11,1],[12,1],[11,0]] }
+  ],
+  hexid: [
+    { name: 'ANTENNAE', px: [[9,1],[8,0],[14,1],[15,0]] },
+    { name: 'LONG FEELERS', px: [[9,1],[9,0],[8,0],[14,1],[14,0],[15,0]] },
+    { name: 'HORN', px: [[11,1],[12,1],[11,0],[12,0]] },
+    { name: 'NONE', px: [] }
+  ],
+  petran: [
+    { name: 'SHARDS', px: [[8,1],[11,1],[11,0],[14,1]] },
+    { name: 'MOSS', px: span(1,8,15) },
+    { name: 'PEAK', px: [[11,1],[12,1],[12,0]] },
+    { name: 'NONE', px: [] }
+  ],
+  nimbus: [
+    { name: 'WISP', px: [[11,1],[12,0]] },
+    { name: 'TWIN WISP', px: [[9,1],[10,0],[13,1],[14,0]] },
+    { name: 'HALO', px: span(0,9,14) },
+    { name: 'NONE', px: [] }
+  ],
+  gelid: [
+    { name: 'DROPLETS', px: [[9,1],[12,0],[14,1]] },
+    { name: 'SPIKE', px: [[11,1],[12,1],[12,0]] },
+    { name: 'TWIN DRIP', px: [[9,1],[9,0],[14,1],[14,0]] },
+    { name: 'NONE', px: [] }
+  ]
+};
+
+const SIZES = {
+  xs: { t: 0, l: 0, label: 'XS', note: 'floor' },
+  s:  { t: 1, l: 1, label: 'S',  note: '+2' },
+  m:  { t: 2, l: 2, label: 'M',  note: '+4' },
+  l:  { t: 3, l: 4, label: 'L',  note: '+7' },
+  xl: { t: 5, l: 6, label: 'XL', note: '+11' }
+};
+const SIZE_KEYS = ['xs','s','m','l','xl'];
+
+const MOODS = {
+  angry:   { name: 'ANGRY', note: 'scowl + cloud', open: true, cloud: true, edits: [[9,4,'s'],[9,3,'b'],[13,4,'s'],[13,3,'b'],[10,7,'k'],[11,7,'k'],[9,8,'k'],[12,8,'k'],[10,8,'e'],[11,8,'e']] },
+  upset:   { name: 'UPSET', note: 'no brows, flat wide', open: false, edits: [[9,4,'s'],[10,4,'s'],[12,4,'s'],[13,4,'s'],[9,5,'k'],[10,5,'k'],[12,5,'k'],[13,5,'k'],[9,7,'k'],[12,7,'k']] },
+  neutral: { name: 'NEUTRAL', note: 'flat', open: true, edits: [] },
+  happy:   { name: 'HAPPY', note: 'smile', open: true, edits: [[10,7,'s'],[11,7,'s'],[9,7,'k'],[12,7,'k'],[10,8,'k'],[11,8,'k']] },
+  elated:  { name: 'ELATED', note: 'star eyes + star', open: false, star: true, edits: [[9,4,'s'],[10,4,'s'],[12,4,'s'],[13,4,'s'],[9,3,'b'],[10,3,'b'],[12,3,'b'],[13,3,'b'],[9,5,'y'],[10,5,'y'],[12,5,'y'],[13,5,'y'],[9,7,'k'],[12,7,'k'],[10,7,'e'],[11,7,'e'],[10,8,'k'],[11,8,'k']] }
+};
+const MOOD_KEYS = ['angry','upset','neutral','happy','elated'];
+
+const ENERGIES = {
+  exhausted: { name: 'EXHAUSTED', note: 'in bed, zzz', bed: true, sweat: 0, drop: 0 },
+  tired:     { name: 'TIRED', note: 'palms ball, drips', tuck: true, sweat: 1, drop: 1 },
+  normal:    { name: 'NORMAL', note: 'slow dribble', sweat: 0, drop: 0 },
+  fit:       { name: 'FIT TO PLAY', note: 'dribble + jump shot', sweat: 0, drop: 0 },
+  pumped:    { name: 'PUMPED', note: 'whirlwind + shoot', sweat: 0, drop: 0 }
+};
+const ENERGY_KEYS = ['exhausted','tired','normal','fit','pumped'];
+
+const DIGITS = {
+  '0': ['111','101','101','101','111'], '1': ['010','110','010','010','111'],
+  '2': ['111','001','111','100','111'], '3': ['111','001','111','001','111'],
+  '4': ['101','101','111','001','001'], '5': ['111','100','111','001','111'],
+  '6': ['111','100','111','101','111'], '7': ['111','001','001','001','001'],
+  '8': ['111','101','111','101','111'], '9': ['111','101','111','001','111']
+};
+
+function hx(h) { h = h.replace('#',''); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
+function hs(r,g,b) { const c = v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0'); return '#'+c(r)+c(g)+c(b); }
+function mul(hex, f) { const [r,g,b] = hx(hex); return hs(r*f, g*f, b*f); }
+function ga(hex, a) { const [r,g,b] = hx(hex); return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')'; }
+
+class Component extends DCLogic {
+  state = { species: 'terran', size: 'xs', mood: 'neutral', energy: 'normal', kit: 'home', tintIx: 0, hairIx: 0, number: '12',
+    styleIx: 0, socks: 'none', wrist: false, fire: false };
+  _f = 0;
+
+  componentDidMount() {
+    this.paint();
+    this._t = setTimeout(() => this.paint(), 300);
+    this._iv = setInterval(() => { this._f = (this._f + 1) % 24; this.paint(); }, 190);
+  }
+  componentDidUpdate() { this.paint(); }
+  componentWillUnmount() { clearTimeout(this._t); clearInterval(this._iv); }
+
+  getCfg(species, form) { const S = SPECIES[species]; return S.cfg || S[form]; }
+  getStyles(species, form) { return species === 'terran' ? STYLES[form] : STYLES[species]; }
+
+  pal(species) {
+    const accent = this.props.accent || '#b6f36a';
+    const skin = SKINS_SP[species][this.state.tintIx];
+    const hair = species === 'terran' ? HAIRS[this.state.hairIx] : mul(skin, 0.55);
+    const kit = this.state.kit === 'away'
+      ? { j: '#e3e7f0', J: '#b6bccc', t: '#232c4e', num: '#232c4e' }
+      : { j: '#2e3d74', J: '#232c4e', t: accent, num: '#eef1fa' };
+    const P = { s: skin, d: mul(skin, 0.72), h: hair, b: mul(hair, 0.75),
+      j: kit.j, J: kit.J, t: kit.t, n: kit.num,
+      e: '#f4f6fa', k: '#1a1e2e', m: '#8a3d33', c: '#7fd8ec', y: '#ffd76a',
+      O: '#c9752e', Q: '#7d4315', P: '#e08a3c', g: '#4a5268', F: '#fff0bd',
+      R: '#a4503c', r: '#c16a52', w: '#ece9e2', a: kit.t };
+    if (SPECIES[species].cfg && SPECIES[species].cfg.alpha) {
+      ['s','d','h','b','j','J','t'].forEach(ch => { P[ch] = ga(P[ch].length === 7 ? P[ch] : skin, 0.62); });
+    }
+    return P;
+  }
+
+  buildMap(species, form, size, mood, energy, f, fire) {
+    const cfg = this.getCfg(species, form), SZ = SIZES[size], E = ENERGIES[energy], M = MOODS[mood];
+    const st = this.state;
+    let map = cfg.map.map(r => r.split(''));
+    if (species === 'terran') {
+      for (let y = 0; y <= 9; y++) for (let x = 0; x < 24; x++) if (map[y][x] === 'h') map[y][x] = '.';
+      cfg.dome.forEach(([x, y]) => { map[y][x] = 's'; });
+    } else if (form === 'femme' && SPECIES[species].femmeEdits) {
+      SPECIES[species].femmeEdits.forEach(([x, y, ch]) => { map[y][x] = ch; });
+    }
+    this.getStyles(species, form)[st.styleIx].px.forEach(([x, y]) => { if (map[y] && map[y][x] === '.') map[y][x] = 'h'; else if (map[y]) map[y][x] = 'h'; });
+    M.edits.forEach(([x, y, ch]) => { map[y][x] = ch; });
+    if (M.open && !E.bed && f >= 14 && f <= 16) {
+      map[5][9] = 'k'; map[5][10] = 'e'; map[5][12] = 'k'; map[5][13] = 'e';
+    }
+    for (let i = 0; i < SZ.l; i++) map.splice(cfg.legDup, 0, map[cfg.legDup].slice());
+    for (let i = 0; i < SZ.t; i++) map.splice(cfg.torsoDup, 0, map[cfg.torsoDup - 1].slice());
+    const num = String(st.number || '').replace(/[^0-9]/g, '').slice(0, 2);
+    if (num) {
+      const wN = num.length * 4 - 1, ox = 12 - Math.floor(wN / 2), oy = cfg.numOy;
+      num.split('').forEach((d, i) => { const g = DIGITS[d]; if (!g) return;
+        g.forEach((row, ry) => row.split('').forEach((v, rx) => { if (v === '1' && map[oy + ry]) map[oy + ry][ox + i * 4 + rx] = 'N'; })); });
+    }
+    map.forEach(row => { for (let i = 0; i < PADR; i++) row.push('.'); for (let i = 0; i < PADL; i++) row.unshift('.'); });
+    const W = map[0].length;
+    for (let i = 0; i < PADT; i++) map.unshift(new Array(W).fill('.'));
+    const H = map.length;
+
+    const t = SZ.t, cx = 12 + PADL;
+    const RA = cfg.armR.map(c => c + PADL), LA = cfg.armL.map(c => c + PADL);
+    const armTop = cfg.armTop + PADT, armEnd = cfg.armBot + (cfg.armGrow ? t : 0) + PADT;
+    const legStart = cfg.legTop + t + PADT;
+    const pat = cfg.ballPat || BALL, patW = pat[0].length, patH = pat.length;
+    let up = 0, ball = null, raise = false, tornado = false;
+    const handPx = [];
+
+    const dribble = (side, phase) => {
+      const cols = side === 'R' ? RA : LA;
+      const bx = side === 'R' ? RA[1] + 2 : LA[0] - 1 - patW;
+      if (phase === 0) {
+        cols.forEach(c => { map[armEnd][c] = '.'; map[armEnd - 1][c] = '.'; });
+        ball = [bx, armEnd - 1];
+        handPx.push([bx + 1, armEnd - 2], [bx + 2, armEnd - 2], [bx + 3, armEnd - 2]);
+      } else ball = [bx, H - patH];
+    };
+
+    if (E.tuck) ball = [RA[0] - 1, armEnd - 4];
+    else if (energy === 'normal') { const p = Math.floor(f / 3) % 8; dribble(p < 4 ? 'R' : 'L', p % 2); }
+    else if (energy === 'fit') {
+      const p = f % 6;
+      if (p < 4) { dribble('R', p % 2); up = p % 2 ? 0 : 1; }
+      else { up = 2; raise = true; ball = [RA[0] - 2, 1]; }
+    } else if (energy === 'pumped') {
+      const p = f % 12;
+      if (p < 4) { dribble('R', p % 2); up = p % 2 ? 0 : 1; }
+      else if (p < 6) { up = 2; raise = true; ball = [RA[0] - 2, 1]; }
+      else if (p < 10) tornado = true;
+      else { dribble('R', p % 2); up = p % 2 ? 0 : 1; }
+    }
+
+    if (E.drop && !E.bed) [LA, RA].forEach(cols => cols.forEach(c => {
+      for (let i = 0; i < E.drop; i++) {
+        if (map[armTop + i]) map[armTop + i][c] = '.';
+        const y2 = armEnd + 1 + i;
+        if (map[y2] && map[y2][c] === '.') map[y2][c] = 's';
+      }
+    }));
+    if (raise) {
+      RA.forEach(c => { for (let y2 = armTop + 1; y2 <= armEnd; y2++) map[y2][c] = '.';
+        for (let y2 = PADT + 2; y2 <= PADT + 10; y2++) map[y2][c] = 's'; });
+      map[PADT + 2][RA[0] - 1] = 's'; map[PADT + 3][RA[0] - 1] = 's';
+    }
+
+    if (st.socks !== 'none' && cfg.hasLegs) for (let y = legStart; y <= H - 5; y++) for (let x = PADL + 5; x <= PADL + 18; x++)
+      if (map[y][x] === 's') map[y][x] = st.socks === 'striped' ? ((y - legStart) % 2 ? 'a' : 'w') : (y === legStart ? 'a' : 'w');
+    if (st.wrist) [LA, RA].forEach(cols => cols.forEach(c => {
+      if (raise && cols === RA) { map[PADT + 4][c] = 'a'; return; }
+      let low = -1;
+      for (let y = armTop; y <= armEnd + 3; y++) if (map[y] && map[y][c] === 's') low = y;
+      if (low > armTop) map[low - 1][c] = 'a';
+    }));
+
+    // gelid idle drips
+    if (species === 'gelid' && !tornado && !E.bed) {
+      const ph = Math.floor(f / 2) % 6;
+      if (ph < 4) { const x = PADL + 18, y2 = PADT + 11 + ph * 2; if (map[y2] && map[y2][x] === '.') map[y2][x] = 's'; }
+    }
+
+    if (tornado) {
+      for (let y = 0; y < H - 4; y++) map[y] = new Array(W).fill('.');
+      const top = PADT + 1, bot = H - 5;
+      for (let y = top; y <= bot; y++) {
+        const tt = (y - top) / Math.max(1, bot - top);
+        const halfw = Math.max(2, Math.round(7 - 5 * tt));
+        const c2 = ['j', 'w', 'J'][(y + f) % 3];
+        for (let x = cx - halfw; x <= cx + halfw; x++) map[y][x] = c2;
+        if ((y * 3 + f) % 5 === 0) { const dx = ((y + f) % 2 ? 1 : -1) * (halfw + 2); if (map[y][cx + dx] === '.') map[y][cx + dx] = 'w'; }
+      }
+      ball = [(f % 2 ? cx + 8 : cx - 12), PADT + 6];
+    }
+
+    if (E.bed) {
+      for (let y = PADT + 10; y < H; y++) map[y] = new Array(W).fill('.');
+      const bl = cx - 8, br = cx + 8;
+      for (let y = PADT + 1; y < H; y++) { map[y][bl] = 'Q'; map[y][br] = 'Q'; }
+      for (let x = bl; x <= br; x++) map[H - 1][x] = 'Q';
+      for (let y = PADT + 1; y <= PADT + 9; y++) for (let x = bl + 1; x < br; x++) if (map[y][x] === '.') map[y][x] = 'e';
+      for (let y = PADT + 10; y <= H - 2; y++) for (let x = bl + 1; x < br; x++) map[y][x] = y <= PADT + 11 ? 'w' : 'j';
+      if (map[PADT + 15]) for (let x = bl + 1; x < br; x++) if (map[PADT + 15][x] === 'j') map[PADT + 15][x] = 'J';
+      [9, 10, 12, 13].forEach(x => { map[PADT + 5][x + PADL] = 'k'; });
+      const big = Math.floor(f / 3) % 2, Z = big ? Z5 : Z3, zx = br + 2, zy = big ? 0 : 2;
+      Z.forEach((row, ry) => row.split('').forEach((v, rx) => { if (v === '1' && map[zy + ry] && zx + rx < W) map[zy + ry][zx + rx] = 'c'; }));
+      ball = null;
+    }
+
+    if (!tornado) {
+      if (M.star) {
+        const big = Math.floor(f / 3) % 2, sx = PADL + 18, sy = PADT + 1;
+        if (big) { map[sy][sx + 1] = 'y'; map[sy + 1][sx] = 'y'; map[sy + 1][sx + 1] = 'e'; map[sy + 1][sx + 2] = 'y'; map[sy + 2][sx + 1] = 'y'; }
+        else map[sy + 1][sx + 1] = 'y';
+      }
+      if (M.cloud) {
+        const big = Math.floor(f / 3) % 2, cy = PADT + 1;
+        if (big) { for (let x = PADL + 2; x <= PADL + 6; x++) { map[cy][x] = 'g'; map[cy + 1][x] = 'g'; } map[cy][PADL + 2] = '.'; map[cy + 2][PADL + 3] = 'g'; map[cy + 2][PADL + 5] = 'g'; }
+        else { for (let x = PADL + 3; x <= PADL + 5; x++) map[cy + 1][x] = 'g'; }
+      }
+    }
+
+    if (E.sweat) {
+      const ph = Math.floor(f / 2) % 6;
+      if (ph < 4) { const x = cfg.sweatR + PADL, y2 = PADT + 3 + ph * 2; if (map[y2] && map[y2][x] === '.') map[y2][x] = 'c'; }
+    }
+
+    if (fire) {
+      const solid = (y, x) => map[y] && map[y][x] && map[y][x] !== '.';
+      const ring = [];
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+        if (map[y][x] === '.' && (solid(y + 1, x) || solid(y - 1, x) || solid(y, x + 1) || solid(y, x - 1))) ring.push([x, y]);
+      const tips = [];
+      ring.forEach(([x, y]) => {
+        const h2 = (x * 7 + y * 11 + f * 3) % 5;
+        if (h2 < 2) map[y][x] = 'e'; else if (h2 < 4) map[y][x] = 'F';
+        if (map[y - 1] && map[y - 1][x] === '.' && (x * 5 + y * 3 + f) % 4 === 0) tips.push([x, y - 1]);
+      });
+      tips.forEach(([x, y]) => { map[y][x] = (x + f) % 2 ? 'F' : 'y'; });
+    }
+
+    if (ball) pat.forEach((row, ry) => row.split('').forEach((ch, rx) => {
+      const yy = ball[1] + ry, xx = ball[0] + rx;
+      if (ch !== '.' && map[yy] && xx >= 0 && xx < W) map[yy][xx] = ch;
+    }));
+    if (E.tuck && ball) RA.forEach(c => { for (let y2 = armTop + E.drop; y2 <= armEnd; y2++) if (map[y2]) map[y2][c] = 's'; });
+    handPx.forEach(([x, y2]) => { if (map[y2]) map[y2][x] = 's'; });
+    return { map, up };
+  }
+
+  draw(cv, species, form, size, mood, energy, crop, fire) {
+    const P = this.pal(species);
+    const { map, up } = this.buildMap(species, form, size, mood, energy, this._f, fire);
+    const sc = +(cv.dataset.scale || 4);
+    const W = map[0].length, H = map.length;
+    if (crop) {
+      const [x0, y0, x1, y1] = crop;
+      cv.width = (x1 - x0 + 1) * sc; cv.height = (y1 - y0 + 1) * sc;
+      const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const ch = map[y] && map[y][x]; if (!ch || ch === '.') continue;
+        ctx.fillStyle = ch === 'N' ? P.n : (P[ch] || '#ff00ff');
+        ctx.fillRect((x - x0) * sc, (y - y0) * sc, sc, sc);
+      }
+      return;
+    }
+    cv.width = W * sc; cv.height = (H + 2) * sc;
+    const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const ch = map[y][x]; if (ch === '.') continue;
+      ctx.fillStyle = ch === 'N' ? P.n : (P[ch] || '#ff00ff');
+      ctx.fillRect(x * sc, (y + 2 - up) * sc, sc, sc);
+    }
+  }
+
+  paint = () => {
+    const root = this._root; if (!root) return;
+    const S = this.state;
+    root.querySelectorAll('canvas[data-t]').forEach(cv => {
+      const t = cv.dataset.t;
+      if (t === 'lab') this.draw(cv, S.species, cv.dataset.form, S.size, S.mood, S.energy, null, S.fire);
+      else if (t === 'size') this.draw(cv, S.species, 'masc', cv.dataset.size, S.mood, 'normal', null, S.fire);
+      else if (t === 'mood') this.draw(cv, S.species, 'masc', 'xs', cv.dataset.mood, 'tired', [PADL + 1, PADT + 1, PADL + 22, PADT + 9]);
+      else if (t === 'energy') this.draw(cv, S.species, 'masc', 'xs', 'neutral', cv.dataset.energy);
+    });
+  };
+
+  renderVals() {
+    const S = this.state;
+    const sel = on => on ? { bg: '#1a2440', bd: '#b6f36a', fg: '#f4f6ff' } : { bg: '#141828', bd: '#232a44', fg: '#9aa3c4' };
+    const styles = this.getStyles(S.species, 'masc');
+    return {
+      pageRef: el => { this._root = el; if (el) this.paint(); },
+      statLabel: SPECIES[S.species].name + ' · ' + SIZES[S.size].label + ' · ' + MOODS[S.mood].name + ' · ' + ENERGIES[S.energy].name + (S.fire ? ' · ON FIRE' : ''),
+      speciesNote: SPECIES[S.species].note,
+      showHair: S.species === 'terran',
+      styleTitle: S.species === 'terran' ? 'HAIRSTYLE · M / F' : 'CREST',
+      number: S.number,
+      setNumber: e => this.setState({ number: e.target.value.replace(/[^0-9]/g, '').slice(0, 2) }),
+      speciesBtns: SPECIES_KEYS.map(k => Object.assign({ name: SPECIES[k].name, swatch: SKINS_SP[k][0], pick: () => this.setState({ species: k, styleIx: 0, tintIx: 0 }) }, sel(k === S.species))),
+      sizeBtns: SIZE_KEYS.map(k => Object.assign({ name: SIZES[k].label, note: SIZES[k].note, pick: () => this.setState({ size: k }) }, sel(k === S.size))),
+      moodBtns: MOOD_KEYS.map(k => Object.assign({ name: MOODS[k].name, note: MOODS[k].note, pick: () => this.setState({ mood: k }) }, sel(k === S.mood))),
+      energyBtns: ENERGY_KEYS.map(k => Object.assign({ name: ENERGIES[k].name, note: ENERGIES[k].note, pick: () => this.setState({ energy: k }) }, sel(k === S.energy))),
+      tintBtns: SKINS_SP[S.species].map((c, i) => ({ swatch: c, bd: i === S.tintIx ? '#b6f36a' : '#232a44', pick: () => this.setState({ tintIx: i }) })),
+      hairBtns: HAIRS.map((c, i) => ({ swatch: c, bd: i === S.hairIx ? '#b6f36a' : '#232a44', pick: () => this.setState({ hairIx: i }) })),
+      styleBtns: styles.map((s0, i) => Object.assign({
+        name: S.species === 'terran' ? s0.name + ' / ' + STYLES.femme[i].name : s0.name,
+        pick: () => this.setState({ styleIx: i }) }, sel(i === S.styleIx))),
+      sockBtns: [['none','NONE'],['knee','KNEE'],['striped','STRIPED']].map(([v, name]) => Object.assign({ name, pick: () => this.setState({ socks: v }) }, sel(v === S.socks))),
+      toggleWrist: () => this.setState({ wrist: !S.wrist }),
+      wristBd: S.wrist ? '#b6f36a' : '#232a44', wristBg: S.wrist ? '#1a2440' : '#141828', wristFg: S.wrist ? '#f4f6ff' : '#9aa3c4',
+      wristState: S.wrist ? 'ON' : 'OFF', wristStateFg: S.wrist ? '#b6f36a' : '#6d7699',
+      toggleFire: () => this.setState({ fire: !S.fire }),
+      fireBd: S.fire ? '#f3c46a' : '#232a44', fireBg: S.fire ? '#2a2030' : '#141828', fireFg: S.fire ? '#ffe9b0' : '#9aa3c4',
+      fireState: S.fire ? 'BLAZING' : 'OFF', fireStateFg: S.fire ? '#f3c46a' : '#6d7699',
+      kitBtns: ['home', 'away'].map(k => Object.assign({ name: k.toUpperCase(), pick: () => this.setState({ kit: k }) }, sel(k === S.kit))),
+      sizeStrip: SIZE_KEYS.map(k => ({ v: k, label: SIZES[k].label })),
+      moodStrip: MOOD_KEYS.map(k => ({ v: k, label: MOODS[k].name })),
+      energyStrip: ENERGY_KEYS.map(k => ({ v: k, label: ENERGIES[k].name }))
+    };
+  }
+}
+</script>
+</body>
+</html>

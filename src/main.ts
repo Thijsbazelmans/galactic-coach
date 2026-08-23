@@ -13,7 +13,6 @@ import {
   SCAN_REGIONS,
   itemById,
   planById,
-  speciesById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, ROSTER_SIZE, stipendFor, xpNeed } from './engine/gen';
 import { COL_LABELS, slotMult, slotPlayer, teamKite, teamRating, wheel } from './engine/sim';
@@ -62,10 +61,10 @@ import {
   winMeter,
   wipeSave,
 } from './engine/state';
-import type { AttrRec, GameState, PlanId, Player, Prospect, Team } from './engine/types';
+import type { Attr, AttrRec, GameState, PlanId, Player, Prospect, Team } from './engine/types';
 import type { Fx } from './engine/types';
-import { ATTRS, SIZE_LABELS, attrEff, clamp, copyAttrs, ovr, perGame, sizeIndex } from './engine/util';
-import { PRACTICE_KIT, iconUrl, spriteUrl, type Kit } from './rig';
+import { ATTRS, SIZE_LABELS, clamp, copyAttrs, ovr, perGame, sizeIndex } from './engine/util';
+import { PRACTICE_KIT, energyBucket, iconUrl, moodBucket, rigSpriteHtml, type Kit, type RigView } from './rig';
 
 const VERSION = 'v2.0';
 
@@ -148,7 +147,6 @@ let prospectUi: { id: number; text?: string } | null = null;
 let scanUi: { open: boolean; text?: string } | null = null;
 let drillSheet = false;
 let drillPickOne: string | null = null;
-let detailPlayerId: number | null = null;
 let poolSelected: Set<number> | null = null;
 let gnStage: 'beat' | 'verdict' | 'table' = 'beat';
 let progressTimer: number | null = null;
@@ -431,13 +429,18 @@ interface SqOpts {
   pot?: AttrRec | null;
   start?: AttrRec | null;
   fuzz?: 0 | 1 | 2;
+  /** pre-rendered sprite HTML (the animated rig), centered in the kite */
   sprite?: string | null;
+  /** per-attribute cur/pot numbers under the corner labels (growth lens) */
+  nums?: Record<Attr, string> | null;
   nameHtml: string; // the top strip
   blHtml: string; // bottom-left (the big number)
   brHtml: string; // bottom-right (a ring or a chip)
 }
 
 function squareKite(cur: AttrRec, o: SqOpts): string {
+  const lab = (a: Attr, cls: string): string =>
+    `<span class="klabel ${cls}">${ATTR_SHORT[a]}${o.nums ? `<b>${o.nums[a]}</b>` : ''}</span>`;
   return `<div class="ksq ${o.fuzz ? `fuzzy${o.fuzz}` : ''}">
     <svg class="ksvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       <line class="k-axis" x1="50" y1="4" x2="50" y2="96"/>
@@ -446,9 +449,8 @@ function squareKite(cur: AttrRec, o: SqOpts): string {
       ${o.start ? `<polygon class="k-start" points="${kitePoints(o.start)}"/>` : ''}
       <polygon class="k-cur" points="${kitePoints(cur)}"/>
     </svg>
-    <span class="klabel n">SKL</span><span class="klabel e">ATH</span>
-    <span class="klabel s">FRC</span><span class="klabel w">BRN</span>
-    ${o.sprite ? `<img class="ksprite" src="${o.sprite}" alt="" draggable="false"/>` : ''}
+    ${lab('skl', 'n')}${lab('ath', 'e')}${lab('frc', 's')}${lab('brn', 'w')}
+    ${o.sprite ?? ''}
     <div class="ktop">${o.nameHtml}</div>
     <span class="kbl">${o.blHtml}</span>
     <span class="kbr">${o.brHtml}</span>
@@ -483,6 +485,20 @@ function crownMap(players: Player[]): Map<CrownKey, number> {
   return m;
 }
 
+/** The sprite tells the truth: mood, energy, size and fire, straight from the rig. */
+function rigView(p: Player): RigView {
+  return {
+    id: p.id,
+    speciesId: p.speciesId,
+    heightCm: p.heightCm,
+    weightKg: p.weightKg,
+    jersey: p.jersey,
+    mood: moodBucket(p.mood),
+    energy: p.outWeeks > 0 ? 'exhausted' : energyBucket(p.energy),
+    fire: !!p.onFire && p.outWeeks === 0,
+  };
+}
+
 interface CardOpts {
   lens?: Lens;
   kit?: Kit;
@@ -495,10 +511,10 @@ interface CardOpts {
   crowns?: Map<CrownKey, number>;
 }
 
-function cardHead(p: Player, opts: CardOpts): string {
+function cardHead(p: Player): string {
   return `<div class="pc-head">
       <span class="pc-lvl">L${p.level}</span>
-      <span class="pc-name" ${opts.inert ? '' : `data-action="detail" data-id="${p.id}"`}>${esc(p.name)}</span>
+      <span class="pc-name">${p.onFire ? '🔥 ' : ''}${esc(p.name)}</span>
       <span class="pc-year">${CLASS_ABBR[Math.min(p.classYear, 3)].toUpperCase()}</span>
     </div>`;
 }
@@ -511,10 +527,10 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   const t = myTeam(state);
   const kit = opts.kit ?? { bg: t.bg, fg: t.fg };
   const out = p.outWeeks > 0;
-  const img = spriteUrl(p, kit, p.jersey);
+  const sprite = (scale: number, cls: string): string => rigSpriteHtml(rigView(p), kit, scale, cls);
   const l = opts.lens ?? 0;
   const xpPct = p.level >= LEVEL_CAP ? 100 : Math.min(100, Math.round((p.xp / xpNeed(p.level)) * 100));
-  const nameHtml = `<span class="kname" ${opts.inert ? '' : `data-action="detail" data-id="${p.id}"`}>${esc(p.name)}</span>
+  const nameHtml = `<span class="kname">${p.onFire ? '🔥 ' : ''}${esc(p.name)}</span>
       <span class="kyear">${CLASS_ABBR[Math.min(p.classYear, 3)].toUpperCase()}</span>`;
   const ovrHtml = `<b class="kovr" style="color:${vc(ovr(p.attrs) * 1.6)}">${ovr(p.attrs)}</b>`;
   let body: string;
@@ -523,15 +539,17 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       const crown = opts.crowns?.get(k) === p.id;
       return `<div class="strow ${crown ? 'lead' : ''}"><i>${STAT_LABEL[k]}</i><b>${perGame(p.stats, k)}</b>${crown ? '<span class="crown">♛</span>' : ''}</div>`;
     }).join('');
-    body = `${cardHead(p, opts)}<div class="pc-stats">
-        <img class="sprite tiny" src="${img}" alt="" draggable="false"/>
+    body = `${cardHead(p)}<div class="pc-stats">
+        ${sprite(1, 'rigtiny')}
         <div class="stgrid">${cells}</div>
       </div>
-      <div class="pc-gp">GP ${p.stats.gp}${p.career.gp ? ` · CAREER ${p.career.gp}` : ''}</div>`;
+      <div class="pc-gp">GP ${p.stats.gp}${p.career.gp ? ` · CAREER ${p.career.pts}p ${p.career.reb}r ${p.career.stl}s ${p.career.ast}a` : ''}</div>`;
   } else if (l === 2) {
+    const nums = Object.fromEntries(ATTRS.map((a) => [a, `${p.attrs[a]}/${p.pots[a]}`])) as Record<Attr, string>;
     body = squareKite(p.attrs, {
       pot: p.pots,
       start: p.startAttrs,
+      nums,
       nameHtml,
       blHtml: ovrHtml,
       brHtml: `<span class="kpot"><i>POT</i><b style="color:${vc(ovr(p.pots))}">${ovr(p.pots)}</b></span>`,
@@ -539,7 +557,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   } else {
     body = squareKite(p.attrs, {
       pot: p.pots,
-      sprite: img,
+      sprite: sprite(2, 'ksprite'),
       nameHtml,
       blHtml: ovrHtml,
       brHtml: ringCounter(xpPct, 'LVL', String(p.level), `level ${p.level}/${LEVEL_CAP} · xp ${p.xp}/${p.level >= LEVEL_CAP ? '—' : xpNeed(p.level)}`),
@@ -559,7 +577,9 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
 // Prospects wear the same square: the kite as a CLOUD that scouting sharpens,
 // sprite centered, seen OVERALL bottom-left, the commit ring bottom-right.
 function prospectCard(pr: Prospect): string {
-  const img = spriteUrl(pr, PRACTICE_KIT, null);
+  const img = rigSpriteHtml(
+    { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, mood: 'neutral', energy: 'normal', fire: false },
+    PRACTICE_KIT, 2, 'ksprite');
   const known = pr.scoutLevel;
   const q = known < 2 ? '?' : '';
   return `<div class="pcard prospect sq" data-action="pcell" data-id="${pr.id}" data-pid="p${pr.id}">
@@ -685,7 +705,7 @@ function impactHtml(s: GameState): string {
     <span class="imp-arrow">${r.up ? '▲' : '▼'}</span>
   </div>`).join('');
   return `<div class="impactpanel">
-    ${p ? `<img class="imp-sprite" src="${spriteUrl(p, { bg: t.bg, fg: t.fg }, p.jersey)}" alt=""/><div class="imp-name">${esc(p.name)}</div>` : ''}
+    ${p ? `<span class="imp-sprite">${rigSpriteHtml(rigView(p), { bg: t.bg, fg: t.fg }, 2)}</span><div class="imp-name">${esc(p.name)}</div>` : ''}
     <div class="imp-rows">${rows}</div>
   </div>`;
 }
@@ -1096,40 +1116,6 @@ function toastModalHtml(): string {
   </div></div>`;
 }
 
-function detailModalHtml(s: GameState): string {
-  if (detailPlayerId === null) return '';
-  const p = myTeam(s).players.find((x) => x.id === detailPlayerId) ?? s.selectPool.find((x) => x.id === detailPlayerId);
-  if (!p) return '';
-  const sp = speciesById(p.speciesId);
-  const t = myTeam(s);
-  const attrRows = ATTRS.map((a) => {
-    const eff = Math.round(attrEff(p, a));
-    return `<div class="arow">
-      <span class="alab">${ATTR_LABEL[a]}</span>
-      <b style="color:${vc(p.attrs[a] * 4)}">${p.attrs[a]}</b><span class="dim">/${p.pots[a]}${eff < p.attrs[a] ? ` · now ${eff}` : ''}</span>
-    </div>`;
-  }).join('');
-  const season = p.stats;
-  const career = { ...p.career };
-  return `<div class="modalback" data-action="close-detail"><div class="modal">
-    <span class="tag">#${p.jersey} ${esc(p.name)} · ${CLASS_ABBR[Math.min(p.classYear, 3)].toUpperCase()}</span>
-    <div class="detailtop">
-      <img class="sprite big" src="${spriteUrl(p, { bg: t.bg, fg: t.fg }, p.jersey)}" alt=""/>
-      ${kite(p.attrs, { pot: p.pots, start: p.startAttrs, caps: sp.attrCaps, ovrText: String(ovr(p.attrs)), cls: 'full' })}
-      <div class="arows">${attrRows}
-        <div class="arow"><span class="alab">OVERALL</span><b style="color:${vc(ovr(p.attrs) * 1.6)}">${ovr(p.attrs)}</b><span class="dim">/${ovr(p.pots)}</span></div>
-      </div>
-    </div>
-    <div class="dim">${SIZE_LABELS[sizeIndex(p)]} · ${p.heightCm}cm ${p.weightKg}kg — size is position: small runs the backcourt, big holds the frontcourt</div>
-    <div class="dim">${esc(sp.name)} (tier ${sp.tier}) — ${esc(sp.desc)}</div>
-    <div class="report">SEASON · GP ${season.gp} · ${perGame(season, 'pts')} pts · ${perGame(season, 'reb')} reb · ${perGame(season, 'stl')} stl · ${perGame(season, 'ast')} ast
-      ${career.gp ? `<br/><span class="dim">CAREER · GP ${career.gp} · ${career.pts} pts · ${career.reb} reb · ${career.stl} stl · ${career.ast} ast</span>` : ''}</div>
-    <div class="dim">⚡ ENERGY <b style="color:${vc(p.energy)}">${p.energy}</b> (mutes ATH+FRC) · MOOD <b style="color:${vc(p.mood)}">${p.mood}</b> (mutes SKL+BRN)</div>
-    <div class="dim">Level ${p.level}/${LEVEL_CAP} · XP ${p.xp}/${p.level >= LEVEL_CAP ? '—' : xpNeed(p.level)}${p.outWeeks > 0 ? ` · <b>OUT ${p.outWeeks}w — ${esc(p.outReason)}</b>` : ''}</div>
-    <button class="wide" data-action="close-detail">CLOSE</button>
-  </div></div>`;
-}
-
 // ---- render ------------------------------------------------------------------------------------------------
 
 function render(): void {
@@ -1171,8 +1157,8 @@ function render(): void {
 
   // popups live INSIDE the middle: the stats bar, THE BAG and the nav stay
   // visible (⚡ readable while a story asks you to spend it) — the nav just dims.
-  const overlays = drillSheetHtml(state) + prospectModalHtml(state) + scanModalHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state) + detailModalHtml(state);
-  const modalOpen = drillSheet || coachOpen || itemUi !== null || toast !== null || prospectUi !== null || scanUi !== null || detailPlayerId !== null;
+  const overlays = drillSheetHtml(state) + prospectModalHtml(state) + scanModalHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
+  const modalOpen = drillSheet || coachOpen || itemUi !== null || toast !== null || prospectUi !== null || scanUi !== null;
   const navHtml = `<div class="navbar ${modalOpen ? 'dimmed' : ''}">${nav(state)}</div>`;
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
     ? `<div class="midwrap"><div class="middle solo">${middle}</div>${overlays}</div>${navHtml}`
@@ -1238,6 +1224,8 @@ function animateProgress(): void {
     render();
     state.postGame.forEach((d, i) => {
       const msgs: { text: string; up?: boolean }[] = [];
+      if (d.fire === 'lit') msgs.push({ text: '🔥 ON FIRE', up: true });
+      if (d.fire === 'out') msgs.push({ text: '🔥 the fire goes out', up: false });
       if (d.xpGain > 0) msgs.push({ text: `+${d.xpGain} XP` });
       if (d.energyP !== 0) msgs.push({ text: `${d.energyP > 0 ? '+' : ''}${d.energyP}⚡`, up: d.energyP > 0 });
       if (d.mood !== 0) msgs.push({ text: `${d.mood > 0 ? '+' : ''}${d.mood} MOOD`, up: d.mood > 0 });
@@ -1442,7 +1430,7 @@ document.addEventListener('pointercancel', () => endDrag(false));
 let swipe: { id: number; x: number; y: number } | null = null;
 
 app.addEventListener('pointerdown', (e) => {
-  const modalOpen = drillSheet || coachOpen || itemUi !== null || toast !== null || prospectUi !== null || scanUi !== null || detailPlayerId !== null;
+  const modalOpen = drillSheet || coachOpen || itemUi !== null || toast !== null || prospectUi !== null || scanUi !== null;
   if (state.phase === 'practice' && !currentStory(state) && !modalOpen) {
     swipe = { id: e.pointerId, x: e.clientX, y: e.clientY };
   }
@@ -1528,7 +1516,6 @@ function executeAction(action: string, id: string): void {
     case 'confirm-roster':
       if (poolSelected && finalizeRoster(state, [...poolSelected])) {
         poolSelected = null;
-        detailPlayerId = null;
       }
       break;
     case 'new-season': startNewSeason(state); break;
@@ -1557,7 +1544,6 @@ function executeAction(action: string, id: string): void {
       prospectUi = null;
       scanUi = null;
       poolSelected = null;
-      detailPlayerId = null;
       drillSheet = false;
       break;
   }
@@ -1611,7 +1597,7 @@ app.addEventListener('click', (e) => {
       const pid = Number(id);
       if (currentStory(state)) break;
       if (state.phase === 'practice') {
-        if (lens !== 0 && !drillPickOne) { detailPlayerId = detailPlayerId === pid ? null : pid; break; }
+        if (lens !== 0 && !drillPickOne) break;
         if (drillPickOne) {
           const out = runDrill(state, drillPickOne, pid);
           drillPickOne = null;
@@ -1631,26 +1617,6 @@ app.addEventListener('click', (e) => {
       }
       break;
     }
-    // only the underlined name opens the detail view — unless a one-player
-    // drill is waiting for its target, then the whole card means "him"
-    case 'detail': {
-      const pid = Number(id);
-      if (currentStory(state)) break;
-      if (state.phase === 'practice' && drillPickOne) {
-        const out = runDrill(state, drillPickOne, pid);
-        drillPickOne = null;
-        if (out) {
-          out.xpByPlayer.forEach((xp, pid2) => floatCard(pid2, [{ text: `+${xp} XP` }], 200));
-          out.gainByPlayer.forEach((g, pid2) => floatCard(pid2, [{ text: g, up: true }], 600));
-          out.levelUps.forEach((lu, i) => floatCard(lu.playerId, [{ text: `★ LEVEL ${lu.level}`, up: true }], 900 + i * 300));
-        }
-      } else {
-        detailPlayerId = detailPlayerId === pid ? null : pid;
-      }
-      break;
-    }
-    case 'close-detail': detailPlayerId = null; break;
-
     case 'pcell': prospectUi = { id: Number(id) }; break;
     case 'scancell': scanUi = { open: true }; break;
     case 'prospect-close': prospectUi = null; break;

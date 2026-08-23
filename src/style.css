@@ -331,12 +331,22 @@ button.hold.wiggle::after {
 /* head (STATS lens only): LVL · NAME · YEAR */
 .pc-head { display: flex; align-items: baseline; gap: 3px; flex: none; }
 .pc-lvl { font-size: 10px; font-weight: bold; line-height: 1; flex: none; color: var(--r55); letter-spacing: 0.5px; }
-.pc-name { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.pc-name { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pc-year { font-size: 10px; color: var(--r35); flex: none; letter-spacing: 1px; }
 
-.sprite { width: 38px; height: 38px; image-rendering: pixelated; flex: none; }
-.sprite.tiny { width: 30px; height: 30px; }
-.sprite.big { width: 72px; height: 72px; }
+/* the animated rig: a 24-frame sprite sheet on a CSS steps() loop */
+.rig {
+  display: block;
+  flex: none;
+  image-rendering: pixelated;
+  background-repeat: no-repeat;
+  animation: rigrun var(--rigdur, 4560ms) steps(24) infinite;
+  pointer-events: none;
+}
+@keyframes rigrun {
+  from { background-position-x: 0; }
+  to { background-position-x: var(--rigshift); }
+}
 
 /* ---- the full-bleed square card -------------------------------------------------
    The card IS the compass. Sprite in the middle, name strip on top, OVERALL
@@ -346,14 +356,11 @@ button.hold.wiggle::after {
 .pcard.sq { padding: 0; }
 .ksq { position: relative; width: 100%; aspect-ratio: 1 / 1; background: #000; overflow: hidden; }
 .ksvg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.ksprite {
+.rig.ksprite {
   position: absolute;
-  left: 50%; top: 55%;
-  transform: translate(-50%, -50%);
-  width: 48px; height: 48px;
-  image-rendering: pixelated;
+  left: 50%; bottom: 4%;
+  transform: translateX(-50%);
   z-index: 2;
-  pointer-events: none;
 }
 .ktop {
   position: absolute;
@@ -363,7 +370,7 @@ button.hold.wiggle::after {
   background: rgba(0, 0, 0, 0.72);
   z-index: 3;
 }
-.kname { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.kname { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kyear { font-size: 9px; color: var(--r35); flex: none; letter-spacing: 1px; }
 .kbl { position: absolute; left: 3px; bottom: 3px; z-index: 3; }
 .kovr { font-size: 18px; font-weight: bold; line-height: 1.1; background: rgba(0, 0, 0, 0.72); padding: 1px 4px; }
@@ -396,7 +403,8 @@ button.hold.wiggle::after {
 .k-pot { fill: var(--r35); fill-opacity: 0.16; stroke: var(--r55); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .k-start { fill: none; stroke: var(--r35); stroke-width: 1; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
 .k-cur { fill: var(--r75); fill-opacity: 0.45; stroke: var(--r95); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.klabel { position: absolute; font-size: 6px; letter-spacing: 0.5px; color: var(--r35); line-height: 1; pointer-events: none; }
+.klabel { position: absolute; font-size: 6px; letter-spacing: 0.5px; color: var(--r35); line-height: 1; pointer-events: none; text-align: center; }
+.klabel b { display: block; font-size: 8px; color: var(--r75); margin-top: 1px; background: rgba(0, 0, 0, 0.6); padding: 0 1px; }
 .klabel.n { top: 1px; left: 50%; transform: translateX(-50%); }
 .klabel.s { bottom: 1px; left: 50%; transform: translateX(-50%); }
 .klabel.w { left: 1px; top: 50%; transform: translateY(-50%); }
@@ -589,7 +597,7 @@ button.hold.wiggle::after {
   gap: 4px;
   min-height: 0;
 }
-.imp-sprite { width: 96px; height: 96px; image-rendering: pixelated; }
+.imp-sprite { display: flex; justify-content: center; }
 .imp-name { color: var(--r95); font-weight: bold; font-size: 15px; letter-spacing: 1px; margin-bottom: 8px; }
 .imp-rows { display: flex; flex-direction: column; gap: 10px; align-items: center; }
 .imp-row {

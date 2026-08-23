@@ -290,6 +290,7 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
     if (fx.outWeeks !== undefined) {
       p.outWeeks = fx.outWeeks;
       p.outReason = fx.outWeeks > 0 ? fx.outReason ?? p.outReason ?? 'unspecified' : '';
+      if (fx.outWeeks > 0) p.onFire = false; // nothing burns in a bio-lab tank
       normalizeLineup(t);
     }
     if (fx.commit) {
@@ -948,6 +949,29 @@ function applyGameEffects(s: GameState, won: boolean): void {
     if (xpGain > 0) lastLevelUps.push(...addXp(s, p, xpGain));
     s.postGame.push({ playerId: p.id, energyP: p.energy - pre.e, mood: p.mood - pre.m, xpGain });
   }
+
+  // ON FIRE (printed rule): 20+ points lights a man up — everything he has
+  // plays +20% until he cools off (under 15 points, or a night without minutes).
+  const FIRE_ON = 20;
+  const FIRE_KEEP = 15;
+  const box = s.lastResult?.box ?? [];
+  for (const p of me.players) {
+    const row = box.find((r) => r.playerId === p.id);
+    const d = s.postGame.find((x) => x.playerId === p.id);
+    if (p.onFire) {
+      if (!row || row.pts < FIRE_KEEP || p.outWeeks > 0) {
+        p.onFire = false;
+        if (d) d.fire = 'out';
+      }
+    } else if (row && row.pts >= FIRE_ON && p.outWeeks === 0) {
+      p.onFire = true;
+      if (d) d.fire = 'lit';
+      queueStory(s, 'notice', 'start', p.id, {
+        tag: '🔥 ON FIRE',
+        text: `${p.name} drops ${row.pts} and the rim starts SMOKING.\n\nHe is ON FIRE — everything he has plays +20% until he cools off (under ${FIRE_KEEP} points, or a night without minutes).`,
+      });
+    }
+  }
 }
 
 // ---- week/season advance -----------------------------------------------------------------
@@ -1204,6 +1228,7 @@ export function startNewSeason(s: GameState): void {
     addStats(p.career, p.stats);
     p.stats = zeroStats();
     p.startAttrs = copyAttrs(p.attrs);
+    p.onFire = false; // summer puts every fire out
   }
   for (const t of s.teams) { t.wins = 0; t.losses = 0; t.pointsFor = 0; t.pointsAgainst = 0; }
   s.schedule = genSchedule(s.teams.length);

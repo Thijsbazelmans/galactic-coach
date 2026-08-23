@@ -317,17 +317,54 @@ meanwhile). Prospects wear the same square (cloud kite + COM commit ring);
 the GROWTH lens is the same square layered (start dashes + pot outline)
 with a POT chip instead of the ring; STATS lens unchanged.
 
+## v2.2 — THE SPRITE LAB + ON FIRE (same day, Aug 22, 2026)
+
+Thijs authored the sprite rework himself in Claude Designer ("Terran Guard
+Study", checked into `fromDesign/260822/`) and it landed whole. **Old saves
+die again (SAVE_VERSION 14); fresh season 1.**
+
+- **The new rig (rig.ts, ported verbatim from the study):** six hand-placed
+  24px pixel maps — TERRAN, HEXID (six-legged insectoid), QUADRAN
+  (four-armed heavy-worlder), PETRAN (stone golem that shoots BRICKS),
+  NIMBUS (gas-form floating over empty high-tops), GELID (liquid melting
+  into its own puddle). Shared contracts: face rows = MOOD (5 buckets:
+  angry+cloud / upset / neutral / happy / elated+star), the ball = ENERGY
+  (exhausted = in bed with zzz / tired = tucked ball + sweat / normal =
+  slow dribble / fit = dribble + jump shot / pumped = whirlwind), SIZE is
+  height-only row duplication, ON FIRE is a flame ring that fits any
+  silhouette. Seeded per-player flavor: skin tint, hair/crest style,
+  socks, wristbands. Rendered as a 24-frame sprite sheet data-URL
+  (cached), animated by a CSS steps(24) loop — no JS timers, survives
+  re-renders. FEMME forms are fully implemented in the renderer but every
+  player currently renders MASC (story texts all say "he" — a pronoun
+  pass is needed before rolling femme players).
+- **The six species replace the five** in the engine, caps tuned to the
+  bodies: terran 15×4 · hexid ATH 24 (small) · quadran FRC 24 (huge) ·
+  petran FRC 21/SKL 6 (bruiser-L, bricks) · nimbus SKL 24 + BRN 21 (tier
+  3 glass) · gelid BRN 23 + ATH 21 (tier 3 liquid). Scan pools remapped.
+- **ON FIRE (Thijs's pitch, printed rule):** drop 20+ points → ignite:
+  every attribute plays ×1.2 (attrEff), which also feeds the box-score
+  dealer, so streaks feed themselves. Stays lit at 15+ points; goes out
+  under 15, on a night without minutes, on injury, or over the summer.
+  Ignition is a story beat; cooling is a floater. The rule is printed in
+  the gamenight tip.
+- **The detail view is DEAD** (Thijs's call): the three lenses carry it.
+  Rehomed: exact cur/pot per attribute → GROWTH lens corner labels;
+  career totals → STATS lens footer; energy/mood/size/species → the
+  sprite itself. Names are no longer underlined doors.
+
 ## NEXT SESSION (pick up here)
 
-1. **The sprite pass (Thijs designing):** make mood, energy and size
-   readable in the rig itself — posture/expression for mood, stance or
-   glow for energy; size already drives the silhouette. When his designs
-   land, wire them into rig.ts.
-2. **Thijs playtests v2.0/v2.1 on phone.** Feel questions: (a) does the
-   full-square kite card read? (b) does the lens swipe fight the card drag
-   on the SKILLS lens? (c) are direct-point drills too strong vs XP?
-   (d) OVERALL numbers now live around 20–40 (species caps) — does that
-   feel right or do the numbers want a bigger scale?
+1. **Femme players:** the renderer supports masc/femme (terran has its own
+   map + hairstyles; other species have femme edits) but all players
+   render masc because every story says "he". Decide: add a form field +
+   pronoun pass over the story registry, or keep masc-only.
+2. **Thijs playtests v2.2 on phone.** Feel questions: (a) do the animated
+   sprites read at card size / does the fire ring pop? (b) mood/energy
+   bucket thresholds (20/40/65/85 mood, 15/40/70/90 energy) feel right?
+   (c) ON FIRE tuning: 20 to light, 15 to keep, ×1.2 — too strong?
+   (d) lens swipe vs card drag on SKILLS; drills-vs-XP balance;
+   OVERALL scale (20–40 real range).
 2. Balance watch: counter bonus is ±12% power (≈70/30 at equal strength);
    level cap 10 × 2pts + drills + offseason growth vs pot ceilings.
 3. Parked as before: species design session (caps are provisional),

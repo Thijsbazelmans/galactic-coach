@@ -1,108 +1,426 @@
-// Modular Baller Rig — 48×48 procedural pixel players, front-facing.
-// Reimplements the "Baller Rig" design spec: one rig, species chassis as data
-// rows, size classes from body measurements, jersey + 3×5 number at the chest.
-// UI-side module (uses canvas); the engine stays DOM-free.
+// The Sprite Lab rig (fromDesign/260822 "Terran Guard Study") — six
+// hand-authored 24px species maps that all obey the same contracts:
+//   face rows belong to MOOD (5 buckets + side icon: anger cloud / elation star),
+//   the ball belongs to ENERGY (bed & zzz → tuck & sweat → dribble → jump shot →
+//   whirlwind), SIZE grows height-only in marked rows, ON FIRE is a flame ring
+//   that fits any silhouette, and everyone laces up the league high-tops.
+// Rendered as a 24-frame sprite sheet (one canvas → data URL, cached), animated
+// with a CSS steps() loop — no timers, survives innerHTML re-renders.
 
-const G = 48;
-const GROUND = 46;
-const CX = 22;
+import { sizeIndex } from './engine/util';
 
-interface SizeDef {
-  total: number; head: number; torsoH: number; legLen: number; torsoW: number; th: number; armLen: number;
+// ---- the pixel maps (verbatim from the study) -------------------------------
+
+const MASC = [
+  '........hhhhhhhh........',
+  '.......hhhhhhhhhh.......',
+  '.......hhhhhhhhhh.......',
+  '.......hsssssssd........',
+  '.......hsbbsbbsd........',
+  '.......hsekseksd........',
+  '.......hssssssdd........',
+  '........sskkssd.........',
+  '.........sssss..........',
+  '..........ssss..........',
+  '......jjjjjjjjjjjj......',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ss.jjjjjjjjjJ.ss....',
+  '....ss.tttttttttt.ss....',
+  '....ssjjjjjjjjjjjJss....',
+  '......jjjjjjjjjjjJ......',
+  '......jjjjjjjjjjjJ......',
+  '......jjjj....jjjJ......',
+  '.......ss......ss.......',
+  '.......ss......ss.......',
+  '.......ss......ss.......',
+  '......tttt....tttt......',
+  '......wwww....wwww......',
+  '......waww....waww......',
+  '......kkkk....kkkk......'];
+
+const FEMME = [
+  '......hh..hhhh..hh......',
+  '......hhhhhhhhhhhh......',
+  '.......hhhhhhhhhh.......',
+  '.......hssssssdh........',
+  '.......hsbbsbbdh........',
+  '.......hseksekdh........',
+  '.......hssssssdh........',
+  '.......hsskkssdh........',
+  '.......h.sssss.h........',
+  '.......h..ssss..h.......',
+  '.......jjjjjjjjjj.......',
+  '.....ssjjjjjjjjjJss.....',
+  '.....ssjjjjjjjjjJss.....',
+  '.....ssjjjjjjjjjJss.....',
+  '.....ss.jjjjjjjJ.ss.....',
+  '.....ss.jjjjjjjJ.ss.....',
+  '.....ss.tttttttt.ss.....',
+  '.....ssjjjjjjjjjjss.....',
+  '......jjjjjjjjjjjJ......',
+  '......jjjjjjjjjjjJ......',
+  '......jjjj....jjjJ......',
+  '.......ss......ss.......',
+  '.......ss......ss.......',
+  '.......ss......ss.......',
+  '.......ss......ss.......',
+  '......tttt....tttt......',
+  '......wwww....wwww......',
+  '......waww....waww......',
+  '......kkkk....kkkk......'];
+
+const QUADRAN = [
+  '........................',
+  '........................',
+  '......ssssssssssss......',
+  '......ssssssssssss......',
+  '......sssbbsbbssss......',
+  '......ssseksekssss......',
+  '......ssssssssssss......',
+  '......sesskksssses......',
+  '......ssssssssssss......',
+  '....ssssssssssssssss....',
+  '......jjjjjjjjjjjj......',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '...ss..jjjjjjjjjJ..ss...',
+  '...ss.tttttttttttt.ss...',
+  '...ss.jjjjjjjjjjjJ.ss...',
+  '...ss.jjjjjjjjjjjJ.ss...',
+  '...ss.jjjj....jjjJ.ss...',
+  '...ss..ss......ss..ss...',
+  '.......ss......ss.......',
+  '.......ss......ss.......',
+  '.......ss......ss.......',
+  '......tttt....tttt......',
+  '......wwww....wwww......',
+  '......waww....waww......',
+  '......kkkk....kkkk......'];
+
+const HEXID = [
+  '........................',
+  '........................',
+  '........ssssssss........',
+  '.......ssssssssss.......',
+  '.......ssssssssss.......',
+  '.......ssekseksss.......',
+  '.......ssssssssss.......',
+  '.......ssskksssss.......',
+  '.......sdssssssds.......',
+  '..........ssss..........',
+  '......jjjjjjjjjjjj......',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '......tttttttttttt......',
+  '......jjjjjjjjjjjJ......',
+  '......jjjjjjjjjjjJ......',
+  '......jjjjjjjjjjjJ......',
+  '......ss...ss...ss......',
+  '......ss...ss...ss......',
+  '......ss...ss...ss......',
+  '......ss...ss...ss......',
+  '......ss...ss...ss......',
+  '......ss...ss...ss......',
+  '......tt...tt...tt......',
+  '.....wwww.wwww.wwww.....',
+  '.....waww.waww.waww.....',
+  '.....kkkk.kkkk.kkkk.....'];
+
+const PETRAN = [
+  '........................',
+  '........................',
+  '.......ssssssssss.......',
+  '.......ssssssssss.......',
+  '.......sdbbsbbdss.......',
+  '.......ssekseksss.......',
+  '.......sdssssssss.......',
+  '.......ssskksssss.......',
+  '.......ssssssssds.......',
+  '..........ssss..........',
+  '.....jjjjjjjjjjjjjj.....',
+  '...ssjjjjjjjjjjjjjjss...',
+  '...ssjjjjjjjjjjjjjjss...',
+  '...ssjjjjjjjjjjjjjjss...',
+  '...ssjjjjjjjjjjjjjjss...',
+  '...ssjjjjjjjjjjjjjJss...',
+  '.....tttttttttttttt.....',
+  '...ss..............ss...',
+  '...ss.jjjjjjjjjjjJ.ss...',
+  '......jjjjjjjjjjjJ......',
+  '......jjjj....jjjJ......',
+  '......sss.....sss.......',
+  '......sss.....sss.......',
+  '......sss.....sss.......',
+  '......sss.....sss.......',
+  '......ttt.....ttt.......',
+  '.....wwwww...wwwww......',
+  '.....wawww...wawww......',
+  '.....kkkkk...kkkkk......'];
+
+const NIMBUS = [
+  '........................',
+  '........................',
+  '..........ssss..........',
+  '........ssssssss........',
+  '........sbbsbbss........',
+  '........seksekss........',
+  '........ssssssss........',
+  '........sskkssss........',
+  '........ssssssss........',
+  '.......ssssssssss.......',
+  '.......jjjjjjjjjj.......',
+  '.....ssjjjjjjjjjjss.....',
+  '.....ssjjjjjjjjjjss.....',
+  '.....ssjjjjjjjjjjss.....',
+  '.....ssjjjjjjjjjjss.....',
+  '.......tttttttttt.......',
+  '.......ssssssssss.......',
+  '........ssssssss........',
+  '.........ssssss.........',
+  '........ss.ss.ss........',
+  '........s...s...s.......',
+  '.........s..s...........',
+  '..........s.............',
+  '........................',
+  '........................',
+  '......tttt....tttt......',
+  '......wwww....wwww......',
+  '......waww....waww......',
+  '......kkkk....kkkk......'];
+
+const GELID = [
+  '........................',
+  '........................',
+  '..........ssss..........',
+  '........ssssssss........',
+  '........sbbsbbss........',
+  '........seksekss........',
+  '........ssssssss........',
+  '........sskkssss........',
+  '........ssssssss........',
+  '.......ssssssssss.......',
+  '.......jjjjjjjjjj.......',
+  '.....ssjjjjjjjjjjss.....',
+  '.....ssjjjjjjjjjjss.....',
+  '.....ssjjjjjjjjjjss.....',
+  '.....ssjjjjjjjjjjss.....',
+  '.......tttttttttt.......',
+  '.......ssssssssss.......',
+  '......ssssssssssss......',
+  '......ssssssssssss......',
+  '.....ssssssssssssss.....',
+  '....ssssssssssssssss....',
+  '...ssssssssssssssssss...',
+  '..ssssssssssssssssssss..',
+  '.ssssssssssssssssssssss.',
+  '..ssssssssssssssssssss..',
+  '......tttt....tttt......',
+  '......wwww....wwww......',
+  '......waww....waww......',
+  '......kkkk....kkkk......'];
+
+const PADT = 7, PADR = 6, PADL = 6;
+const BALL = ['.OOO.', 'OPOOO', 'QQQQQ', 'OOOOO', '.OOO.'];
+const BRICK = ['rrrrrrr', 'RRRRRRR', 'RRRQRRR', 'QQQQQQQ'];
+const Z3 = ['111', '010', '111'];
+const Z5 = ['11111', '00010', '00100', '01000', '11111'];
+
+interface RigCfg {
+  map: string[];
+  armL: [number, number];
+  armR: [number, number];
+  armTop: number;
+  armBot: number;
+  armGrow: number;
+  torsoDup: number;
+  legDup: number;
+  legTop: number;
+  hasLegs: number;
+  numOy: number;
+  sweatR: number;
+  sweatL: number;
+  dome?: [number, number][];
+  ballPat?: string[];
+  alpha?: number;
 }
 
-// Sizing rules — pixels from the y=46 baseline (straight from the spec).
-const SIZES: Record<string, SizeDef> = {
-  xs: { total: 30, head: 8, torsoH: 9, legLen: 11, torsoW: 7, th: 2, armLen: 11 },
-  s: { total: 34, head: 8, torsoH: 11, legLen: 13, torsoW: 8, th: 2, armLen: 13 },
-  m: { total: 38, head: 9, torsoH: 12, legLen: 15, torsoW: 9, th: 3, armLen: 15 },
-  l: { total: 40, head: 10, torsoH: 14, legLen: 14, torsoW: 13, th: 3, armLen: 15 },
-  xl: { total: 45, head: 11, torsoH: 16, legLen: 17, torsoW: 12, th: 4, armLen: 18 },
-};
-
-export interface RigBody {
-  id: number;
-  speciesId: string;
-  heightCm: number;
-  weightKg: number;
+interface RigSpeciesDef {
+  masc?: RigCfg;
+  femme?: RigCfg;
+  cfg?: RigCfg;
+  femmeEdits?: [number, number, string][];
 }
 
-function sizeClass(b: RigBody): keyof typeof SIZES {
-  if (b.weightKg >= 135 && b.heightCm < 212) return 'l'; // the bruiser build
-  if (b.heightCm < 180) return 'xs';
-  if (b.heightCm < 192) return 's';
-  if (b.heightCm < 205) return 'm';
-  return 'xl';
-}
-
-interface Chassis {
-  ramp: [string, string, string, string]; // 4 skin tints
-  arms: 2 | 4;
-  legs: 0 | 2 | 6;
-  torso: 'human' | 'chitin' | 'rock' | 'float';
-  headShape: 'round' | 'wide' | 'crystal' | 'orb';
-  eyes: 1 | 2 | 3;
-  feet: 'shoe' | 'claw' | 'none';
-  crest: 'hair' | 'antennae' | 'glow' | 'none';
-  tail: boolean;
-}
-
-// A new race is a data row, not a drawing job.
-const CHASSIS: Record<string, Chassis> = {
+const RIG: Record<string, RigSpeciesDef> = {
   terran: {
-    ramp: ['#f1c27d', '#c08a5e', '#8d5524', '#5a3825'],
-    arms: 2, legs: 2, torso: 'human', headShape: 'round', eyes: 2, feet: 'shoe', crest: 'hair', tail: false,
+    masc: { map: MASC, armL: [4, 5], armR: [18, 19], armTop: 11, armBot: 18, armGrow: 1, torsoDup: 17, legDup: 22, legTop: 22, hasLegs: 1, numOy: 12, sweatR: 17, sweatL: 6,
+      dome: [[9, 1], [10, 1], [11, 1], [12, 1], [13, 1], [14, 1], [8, 2], [9, 2], [10, 2], [11, 2], [12, 2], [13, 2], [14, 2], [15, 2]] },
+    femme: { map: FEMME, armL: [5, 6], armR: [17, 18], armTop: 11, armBot: 17, armGrow: 1, torsoDup: 16, legDup: 21, legTop: 21, hasLegs: 1, numOy: 11, sweatR: 17, sweatL: 6,
+      dome: [[9, 1], [10, 1], [11, 1], [12, 1], [13, 1], [8, 2], [9, 2], [10, 2], [11, 2], [12, 2], [13, 2], [14, 2]] },
   },
-  hexabrach: {
-    ramp: ['#8fd4b8', '#57a98a', '#337a61', '#1c4d3c'],
-    arms: 4, legs: 2, torso: 'chitin', headShape: 'wide', eyes: 3, feet: 'claw', crest: 'none', tail: false,
+  quadran: {
+    cfg: { map: QUADRAN, armL: [4, 5], armR: [18, 19], armTop: 11, armBot: 15, armGrow: 0, torsoDup: 17, legDup: 22, legTop: 21, hasLegs: 1, numOy: 11, sweatR: 18, sweatL: 5 },
+    femmeEdits: [[7, 7, 's'], [16, 7, 's'], [8, 5, 'k'], [15, 5, 'k']],
   },
-  dodecapede: {
-    ramp: ['#ffb37f', '#e0854f', '#b3582e', '#7d371a'],
-    arms: 2, legs: 6, torso: 'human', headShape: 'round', eyes: 2, feet: 'claw', crest: 'antennae', tail: true,
+  hexid: {
+    cfg: { map: HEXID, armL: [4, 5], armR: [18, 19], armTop: 11, armBot: 14, armGrow: 1, torsoDup: 15, legDup: 20, legTop: 19, hasLegs: 1, numOy: 10, sweatR: 17, sweatL: 6 },
+    femmeEdits: [[8, 5, 'k'], [15, 5, 'k']],
   },
-  lithoid: {
-    ramp: ['#c2c2cc', '#93939f', '#686874', '#42424c'],
-    arms: 2, legs: 2, torso: 'rock', headShape: 'crystal', eyes: 2, feet: 'none', crest: 'none', tail: false,
+  petran: {
+    cfg: { map: PETRAN, armL: [3, 4], armR: [19, 20], armTop: 11, armBot: 18, armGrow: 1, torsoDup: 16, legDup: 22, legTop: 21, hasLegs: 1, numOy: 11, sweatR: 17, sweatL: 6, ballPat: BRICK },
+    femmeEdits: [[7, 2, '.'], [16, 2, '.'], [8, 5, 'k'], [15, 5, 'k']],
   },
-  luminar: {
-    ramp: ['#eaffff', '#b0f0ff', '#79d3f0', '#3fa6c9'],
-    arms: 2, legs: 0, torso: 'float', headShape: 'orb', eyes: 1, feet: 'none', crest: 'glow', tail: false,
+  nimbus: {
+    cfg: { map: NIMBUS, armL: [5, 6], armR: [17, 18], armTop: 11, armBot: 14, armGrow: 1, torsoDup: 15, legDup: 19, legTop: 99, hasLegs: 0, numOy: 10, sweatR: 16, sweatL: 7, alpha: 1 },
+    femmeEdits: [[8, 5, 'k'], [14, 5, 'k']],
+  },
+  gelid: {
+    cfg: { map: GELID, armL: [5, 6], armR: [17, 18], armTop: 11, armBot: 14, armGrow: 1, torsoDup: 15, legDup: 18, legTop: 99, hasLegs: 0, numOy: 10, sweatR: 16, sweatL: 7 },
+    femmeEdits: [[8, 5, 'k'], [14, 5, 'k']],
   },
 };
 
-// 3×5 bitmap digits for the chest number.
-const DIGITS: Record<string, string> = {
-  '0': '111101101101111',
-  '1': '010110010010111',
-  '2': '111001111100111',
-  '3': '111001011001111',
-  '4': '101101111001001',
-  '5': '111100111001111',
-  '6': '111100111101111',
-  '7': '111001001010010',
-  '8': '111101111101111',
-  '9': '111101111001111',
+const SKINS_SP: Record<string, string[]> = {
+  terran: ['#c08a5e', '#8a5636', '#eab98f', '#5d3a24'],
+  quadran: ['#4f9c8b', '#3d7a6d', '#6db5a4', '#2f5f55'],
+  hexid: ['#7a5aa8', '#5f4488', '#957ac2', '#493368'],
+  petran: ['#8d8377', '#6f665c', '#a89d8f', '#565049'],
+  nimbus: ['#93a9cf', '#7a8fb8', '#b0c4e4', '#647899'],
+  gelid: ['#78b955', '#5f9a40', '#93d06e', '#487a30'],
 };
+const HAIRS = ['#3a2a1c', '#14100c', '#c9973f', '#8a3d24'];
 
-const HAIR_COLORS = ['#241a12', '#0e0e10', '#5a3825', '#7a2d2d'];
-
-function mulberry(seed: number): () => number {
-  let s = seed | 0;
-  return () => {
-    s = (s + 0x6d2b79f5) | 0;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+function span(y: number, x0: number, x1: number): [number, number][] {
+  const a: [number, number][] = [];
+  for (let x = x0; x <= x1; x++) a.push([x, y]);
+  return a;
 }
 
+interface StyleDef { name: string; px: [number, number][]; }
+
+const STYLES: Record<string, StyleDef[]> = {
+  masc: [
+    { name: 'CROP', px: ([] as [number, number][]).concat(span(0, 8, 15), span(1, 7, 16), span(2, 7, 16), [[7, 3], [7, 4], [7, 5], [7, 6]]) },
+    { name: 'BUZZ', px: ([] as [number, number][]).concat(span(1, 9, 14), span(2, 8, 15)) },
+    { name: 'AFRO', px: ([] as [number, number][]).concat(span(0, 6, 17), span(1, 6, 17), span(2, 6, 17), [[6, 3], [7, 3], [16, 3], [17, 3], [6, 4], [17, 4]]) },
+    { name: 'MOHAWK', px: ([] as [number, number][]).concat(span(0, 11, 12), span(1, 11, 12), span(2, 11, 12)) },
+  ],
+  femme: [
+    { name: 'BUNS', px: ([] as [number, number][]).concat([[6, 0], [7, 0], [10, 0], [11, 0], [12, 0], [13, 0], [16, 0], [17, 0]], span(1, 6, 17), span(2, 7, 16), span(3, 7, 7).concat([[7, 4], [7, 5], [7, 6], [7, 7], [7, 8], [7, 9], [15, 3], [15, 4], [15, 5], [15, 6], [15, 7], [15, 8], [15, 9]])) },
+    { name: 'PONYTAIL', px: ([] as [number, number][]).concat(span(0, 9, 13), span(1, 8, 14), [[8, 2], [14, 2], [15, 2], [16, 3], [16, 4], [16, 5], [16, 6], [16, 7]]) },
+    { name: 'LONG', px: ([] as [number, number][]).concat(span(0, 9, 13), span(1, 8, 14), span(2, 7, 15), [[7, 3], [7, 4], [7, 5], [7, 6], [7, 7], [7, 8], [7, 9], [15, 3], [15, 4], [15, 5], [15, 6], [15, 7], [15, 8], [15, 9]]) },
+    { name: 'PIXIE', px: ([] as [number, number][]).concat(span(0, 9, 13), span(1, 8, 14), [[8, 2], [14, 2], [8, 3]]) },
+  ],
+  quadran: [
+    { name: 'NONE', px: [] },
+    { name: 'RIDGE', px: [[8, 1], [10, 1], [12, 1], [14, 1]] },
+    { name: 'HORNS', px: [[6, 1], [5, 0], [17, 1], [18, 0]] },
+    { name: 'TUFT', px: [[11, 1], [12, 1], [11, 0]] },
+  ],
+  hexid: [
+    { name: 'ANTENNAE', px: [[9, 1], [8, 0], [14, 1], [15, 0]] },
+    { name: 'LONG FEELERS', px: [[9, 1], [9, 0], [8, 0], [14, 1], [14, 0], [15, 0]] },
+    { name: 'HORN', px: [[11, 1], [12, 1], [11, 0], [12, 0]] },
+    { name: 'NONE', px: [] },
+  ],
+  petran: [
+    { name: 'SHARDS', px: [[8, 1], [11, 1], [11, 0], [14, 1]] },
+    { name: 'MOSS', px: span(1, 8, 15) },
+    { name: 'PEAK', px: [[11, 1], [12, 1], [12, 0]] },
+    { name: 'NONE', px: [] },
+  ],
+  nimbus: [
+    { name: 'WISP', px: [[11, 1], [12, 0]] },
+    { name: 'TWIN WISP', px: [[9, 1], [10, 0], [13, 1], [14, 0]] },
+    { name: 'HALO', px: span(0, 9, 14) },
+    { name: 'NONE', px: [] },
+  ],
+  gelid: [
+    { name: 'DROPLETS', px: [[9, 1], [12, 0], [14, 1]] },
+    { name: 'SPIKE', px: [[11, 1], [12, 1], [12, 0]] },
+    { name: 'TWIN DRIP', px: [[9, 1], [9, 0], [14, 1], [14, 0]] },
+    { name: 'NONE', px: [] },
+  ],
+};
+
+/** Height-only sizing: how many torso (t) and leg (l) rows get duplicated. */
+const RIG_SIZES = [
+  { t: 0, l: 0 }, // XS
+  { t: 1, l: 1 }, // S
+  { t: 2, l: 2 }, // M
+  { t: 3, l: 4 }, // L
+  { t: 5, l: 6 }, // XL
+];
+
+export type RigMood = 'angry' | 'upset' | 'neutral' | 'happy' | 'elated';
+export type RigEnergy = 'exhausted' | 'tired' | 'normal' | 'fit' | 'pumped';
+
+interface MoodDef { open: boolean; cloud?: boolean; star?: boolean; edits: [number, number, string][]; }
+const MOODS: Record<RigMood, MoodDef> = {
+  angry: { open: true, cloud: true, edits: [[9, 4, 's'], [9, 3, 'b'], [13, 4, 's'], [13, 3, 'b'], [10, 7, 'k'], [11, 7, 'k'], [9, 8, 'k'], [12, 8, 'k'], [10, 8, 'e'], [11, 8, 'e']] },
+  upset: { open: false, edits: [[9, 4, 's'], [10, 4, 's'], [12, 4, 's'], [13, 4, 's'], [9, 5, 'k'], [10, 5, 'k'], [12, 5, 'k'], [13, 5, 'k'], [9, 7, 'k'], [12, 7, 'k']] },
+  neutral: { open: true, edits: [] },
+  happy: { open: true, edits: [[10, 7, 's'], [11, 7, 's'], [9, 7, 'k'], [12, 7, 'k'], [10, 8, 'k'], [11, 8, 'k']] },
+  elated: { open: false, star: true, edits: [[9, 4, 's'], [10, 4, 's'], [12, 4, 's'], [13, 4, 's'], [9, 3, 'b'], [10, 3, 'b'], [12, 3, 'b'], [13, 3, 'b'], [9, 5, 'y'], [10, 5, 'y'], [12, 5, 'y'], [13, 5, 'y'], [9, 7, 'k'], [12, 7, 'k'], [10, 7, 'e'], [11, 7, 'e'], [10, 8, 'k'], [11, 8, 'k']] },
+};
+
+interface EnergyDef { bed?: boolean; tuck?: boolean; sweat: number; drop: number; }
+const ENERGIES: Record<RigEnergy, EnergyDef> = {
+  exhausted: { bed: true, sweat: 0, drop: 0 },
+  tired: { tuck: true, sweat: 1, drop: 1 },
+  normal: { sweat: 0, drop: 0 },
+  fit: { sweat: 0, drop: 0 },
+  pumped: { sweat: 0, drop: 0 },
+};
+
+/** The live meters map onto the five sprite buckets. */
+export function moodBucket(mood: number): RigMood {
+  if (mood < 20) return 'angry';
+  if (mood < 40) return 'upset';
+  if (mood < 65) return 'neutral';
+  if (mood < 85) return 'happy';
+  return 'elated';
+}
+export function energyBucket(energy: number): RigEnergy {
+  if (energy < 15) return 'exhausted';
+  if (energy < 40) return 'tired';
+  if (energy < 70) return 'normal';
+  if (energy < 90) return 'fit';
+  return 'pumped';
+}
+
+const DIGITS: Record<string, string[]> = {
+  '0': ['111', '101', '101', '101', '111'], '1': ['010', '110', '010', '010', '111'],
+  '2': ['111', '001', '111', '100', '111'], '3': ['111', '001', '111', '001', '111'],
+  '4': ['101', '101', '111', '001', '001'], '5': ['111', '100', '111', '001', '111'],
+  '6': ['111', '100', '111', '101', '111'], '7': ['111', '001', '001', '001', '001'],
+  '8': ['111', '101', '111', '101', '111'], '9': ['111', '101', '111', '001', '111'],
+};
+
+function hx(h: string): [number, number, number] {
+  const s = h.replace('#', '');
+  return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
+}
+function hs(r: number, g: number, b: number): string {
+  const c = (v: number): string => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+  return '#' + c(r) + c(g) + c(b);
+}
 function mul(hex: string, f: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const r = Math.min(255, Math.round(((n >> 16) & 255) * f));
-  const g = Math.min(255, Math.round(((n >> 8) & 255) * f));
-  const b = Math.min(255, Math.round((n & 255) * f));
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+  const [r, g, b] = hx(hex);
+  return hs(r * f, g * f, b * f);
+}
+function ga(hex: string, a: number): string {
+  const [r, g, b] = hx(hex);
+  return `rgba(${r},${g},${b},${a})`;
 }
 
 export interface Kit {
@@ -113,367 +431,299 @@ export interface Kit {
 /** Unsigned prospects and walk-on tryouts wear the gray practice kit. */
 export const PRACTICE_KIT: Kit = { bg: '#3a3f45', fg: '#e4e4e4' };
 
-const cache = new Map<string, string>();
-
-export function spriteUrl(body: RigBody, kit: Kit, jersey: number | null): string {
-  const sz = sizeClass(body);
-  const key = `${body.id}|${body.speciesId}|${sz}|${kit.bg}|${kit.fg}|${jersey ?? 'x'}`;
-  const hit = cache.get(key);
-  if (hit) return hit;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = G;
-  canvas.height = G;
-  const ctx = canvas.getContext('2d')!;
-  drawRig(ctx, body, kit, jersey, sz);
-  const url = canvas.toDataURL();
-  cache.set(key, url);
-  return url;
+// seeded flavor (skin tint, hairstyle, socks, wristbands) — stable per player
+function mulberry(seed: number): () => number {
+  let s = seed | 0;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-function drawRig(
-  ctx: CanvasRenderingContext2D,
-  body: RigBody,
-  kit: Kit,
+export interface RigView {
+  id: number;
+  speciesId: string;
+  heightCm: number;
+  weightKg: number;
+  jersey: number | null;
+  mood: RigMood;
+  energy: RigEnergy;
+  fire: boolean;
+  form?: 'masc' | 'femme';
+}
+
+interface Look { tintIx: number; hairIx: number; styleIx: number; socks: 'none' | 'knee' | 'striped'; wrist: boolean; }
+
+function lookFor(id: number, species: string, form: 'masc' | 'femme'): Look {
+  const rng = mulberry((id * 2654435761) >>> 0);
+  const styles = species === 'terran' ? STYLES[form] : STYLES[species] ?? STYLES.masc;
+  return {
+    tintIx: Math.floor(rng() * 4),
+    hairIx: Math.floor(rng() * HAIRS.length),
+    styleIx: Math.floor(rng() * styles.length),
+    socks: rng() < 0.6 ? 'none' : rng() < 0.5 ? 'knee' : 'striped',
+    wrist: rng() < 0.25,
+  };
+}
+
+function pal(species: string, look: Look, kit: Kit): Record<string, string> {
+  const skins = SKINS_SP[species] ?? SKINS_SP.terran;
+  const skin = skins[look.tintIx];
+  const hair = species === 'terran' ? HAIRS[look.hairIx] : mul(skin, 0.55);
+  const P: Record<string, string> = {
+    s: skin, d: mul(skin, 0.72), h: hair, b: mul(hair, 0.75),
+    j: kit.bg, J: mul(kit.bg, 0.7), t: kit.fg, n: kit.fg,
+    e: '#f4f6fa', k: '#1a1e2e', m: '#8a3d33', c: '#7fd8ec', y: '#ffd76a',
+    O: '#c9752e', Q: '#7d4315', P: '#e08a3c', g: '#4a5268', F: '#fff0bd',
+    R: '#a4503c', r: '#c16a52', w: '#ece9e2', a: kit.fg,
+  };
+  const def = RIG[species];
+  if (def?.cfg?.alpha) {
+    for (const ch of ['s', 'd', 'h', 'b', 'j', 'J', 't']) P[ch] = ga(P[ch], 0.62);
+  }
+  return P;
+}
+
+function getCfg(species: string, form: 'masc' | 'femme'): RigCfg {
+  const def = RIG[species] ?? RIG.terran;
+  return def.cfg ?? (form === 'femme' ? def.femme! : def.masc!);
+}
+
+// ---- the frame builder (the study's buildMap, ported) -------------------------
+
+function buildMap(
+  species: string,
+  form: 'masc' | 'femme',
+  sizeIx: number,
+  mood: RigMood,
+  energy: RigEnergy,
+  look: Look,
   jersey: number | null,
-  sz: keyof typeof SIZES
-): void {
-  const S = SIZES[sz];
-  const C = CHASSIS[body.speciesId] ?? CHASSIS.terran;
-  const rng = mulberry((body.id * 2654435761) >>> 0);
+  fire: boolean,
+  f: number
+): { map: string[][]; up: number } {
+  const cfg = getCfg(species, form);
+  const SZ = RIG_SIZES[Math.max(0, Math.min(4, sizeIx))];
+  const E = ENERGIES[energy];
+  const M = MOODS[mood];
+  const def = RIG[species] ?? RIG.terran;
+  let map = cfg.map.map((r) => r.split(''));
+  if (species === 'terran') {
+    for (let y = 0; y <= 9; y++) for (let x = 0; x < 24; x++) if (map[y][x] === 'h') map[y][x] = '.';
+    cfg.dome!.forEach(([x, y]) => { map[y][x] = 's'; });
+  } else if (form === 'femme' && def.femmeEdits) {
+    def.femmeEdits.forEach(([x, y, ch]) => { map[y][x] = ch; });
+  }
+  const styles = species === 'terran' ? STYLES[form] : STYLES[species] ?? STYLES.masc;
+  styles[look.styleIx % styles.length].px.forEach(([x, y]) => { if (map[y]) map[y][x] = 'h'; });
+  M.edits.forEach(([x, y, ch]) => { map[y][x] = ch; });
+  if (M.open && !E.bed && f >= 14 && f <= 16) {
+    map[5][9] = 'k'; map[5][10] = 'e'; map[5][12] = 'k'; map[5][13] = 'e';
+  }
+  for (let i = 0; i < SZ.l; i++) map.splice(cfg.legDup, 0, map[cfg.legDup].slice());
+  for (let i = 0; i < SZ.t; i++) map.splice(cfg.torsoDup, 0, map[cfg.torsoDup - 1].slice());
+  const num = jersey === null ? '' : String(jersey).replace(/[^0-9]/g, '').slice(0, 2);
+  if (num) {
+    const wN = num.length * 4 - 1, ox = 12 - Math.floor(wN / 2), oy = cfg.numOy;
+    num.split('').forEach((d, i) => {
+      const gph = DIGITS[d];
+      if (!gph) return;
+      gph.forEach((row, ry) => row.split('').forEach((v, rx) => { if (v === '1' && map[oy + ry]) map[oy + ry][ox + i * 4 + rx] = 'N'; }));
+    });
+  }
+  map.forEach((row) => { for (let i = 0; i < PADR; i++) row.push('.'); for (let i = 0; i < PADL; i++) row.unshift('.'); });
+  const W = map[0].length;
+  for (let i = 0; i < PADT; i++) map.unshift(new Array(W).fill('.') as string[]);
+  const H = map.length;
 
-  const skin = C.ramp[Math.floor(rng() * 4)];
-  const skinDark = mul(skin, 0.72);
-  const skinLite = mul(skin, 1.2);
-  const bg = kit.bg;
-  const bgDark = mul(bg, 0.75);
-  const fg = kit.fg;
+  const t = SZ.t, cx = 12 + PADL;
+  const RA = cfg.armR.map((c) => c + PADL), LA = cfg.armL.map((c) => c + PADL);
+  const armTop = cfg.armTop + PADT, armEnd = cfg.armBot + (cfg.armGrow ? t : 0) + PADT;
+  const legStart = cfg.legTop + t + PADT;
+  const pat = cfg.ballPat ?? BALL, patW = pat[0].length, patH = pat.length;
+  let up = 0, ball: [number, number] | null = null, raise = false, tornado = false;
+  const handPx: [number, number][] = [];
 
-  const px = (x: number, y: number, c: string): void => {
-    ctx.fillStyle = c;
-    ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+  const dribble = (side: 'R' | 'L', phase: number): void => {
+    const cols = side === 'R' ? RA : LA;
+    const bx = side === 'R' ? RA[1] + 2 : LA[0] - 1 - patW;
+    if (phase === 0) {
+      cols.forEach((c) => { map[armEnd][c] = '.'; map[armEnd - 1][c] = '.'; });
+      ball = [bx, armEnd - 1];
+      handPx.push([bx + 1, armEnd - 2], [bx + 2, armEnd - 2], [bx + 3, armEnd - 2]);
+    } else ball = [bx, H - patH];
   };
-  const rect = (x: number, y: number, w: number, h: number, c: string): void => {
-    ctx.fillStyle = c;
-    ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
-  };
 
-  const floaty = C.torso === 'float';
-  const hover = floaty ? 5 : 0;
-  const hipY = floaty ? GROUND - hover - 3 : GROUND - S.legLen;
-  const torsoTop = hipY - S.torsoH;
-  const halfW = Math.floor(S.torsoW / 2);
-  const shoulderY = torsoTop + 1;
-  const headR = Math.floor(S.head / 2);
-  const headCy = torsoTop - headR - 1;
-
-  // ground shadow
-  rect(CX - halfW - 2, GROUND, S.torsoW + 4, 1, 'rgba(0,0,0,0.45)');
-
-  // tail (drawn first, behind everything)
-  if (C.tail) {
-    const dir = rng() < 0.5 ? 1 : -1;
-    let tx = CX + dir * (halfW + 1);
-    let ty = hipY + 1;
-    for (let i = 0; i < 4; i++) {
-      px(tx, ty, skinDark);
-      tx += dir;
-      if (i >= 1) ty -= 1;
-    }
-    px(tx, ty, skinLite);
+  if (E.tuck) ball = [RA[0] - 1, armEnd - 4];
+  else if (energy === 'normal') { const p = Math.floor(f / 3) % 8; dribble(p < 4 ? 'R' : 'L', p % 2); }
+  else if (energy === 'fit') {
+    const p = f % 6;
+    if (p < 4) { dribble('R', p % 2); up = p % 2 ? 0 : 1; }
+    else { up = 2; raise = true; ball = [RA[0] - 2, 1]; }
+  } else if (energy === 'pumped') {
+    const p = f % 12;
+    if (p < 4) { dribble('R', p % 2); up = p % 2 ? 0 : 1; }
+    else if (p < 6) { up = 2; raise = true; ball = [RA[0] - 2, 1]; }
+    else if (p < 10) tornado = true;
+    else { dribble('R', p % 2); up = p % 2 ? 0 : 1; }
   }
 
-  // legs + shorts + feet
-  const legW = Math.max(1, S.th - 1);
-  const shortsLen = Math.max(2, Math.floor(S.legLen * 0.35));
-  const drawLeg = (lx: number, top: number, len: number, withShorts: boolean): void => {
-    const bottom = Math.min(GROUND - 1, top + len);
-    if (withShorts) {
-      rect(lx, top, legW, Math.min(shortsLen, bottom - top), bg);
-      rect(lx, top + shortsLen, legW, Math.max(0, bottom - top - shortsLen + 1), skin);
-    } else {
-      rect(lx, top, legW, bottom - top + 1, skin);
+  if (E.drop && !E.bed) [LA, RA].forEach((cols) => cols.forEach((c) => {
+    for (let i = 0; i < E.drop; i++) {
+      if (map[armTop + i]) map[armTop + i][c] = '.';
+      const y2 = armEnd + 1 + i;
+      if (map[y2] && map[y2][c] === '.') map[y2][c] = 's';
     }
-    // feet
-    if (C.feet === 'shoe') {
-      rect(lx - 1, GROUND - 1, legW + 2, 1, fg);
-      rect(lx - 1, GROUND, legW + 2, 1, '#1a1a1e');
-    } else if (C.feet === 'claw') {
-      px(lx - 1, GROUND - 1, skinDark);
-      px(lx + legW, GROUND - 1, skinDark);
-    }
-  };
-  if (C.legs === 2) {
-    drawLeg(CX - halfW + 1, hipY, S.legLen, true);
-    drawLeg(CX + halfW - legW - 1, hipY, S.legLen, true);
-  } else if (C.legs === 6) {
-    // three splayed pairs — twelve in the lore, six on the sprite, it reads
-    drawLeg(CX - halfW + 1, hipY, S.legLen, true);
-    drawLeg(CX + halfW - legW - 1, hipY, S.legLen, true);
-    drawLeg(CX - halfW - 1, hipY + 2, S.legLen - 2, false);
-    drawLeg(CX + halfW + 1 - legW, hipY + 2, S.legLen - 2, false);
-    drawLeg(CX - halfW - 3, hipY + 4, S.legLen - 4, false);
-    drawLeg(CX + halfW + 3 - legW, hipY + 4, S.legLen - 4, false);
+  }));
+  if (raise) {
+    RA.forEach((c) => {
+      for (let y2 = armTop + 1; y2 <= armEnd; y2++) map[y2][c] = '.';
+      for (let y2 = PADT + 2; y2 <= PADT + 10; y2++) map[y2][c] = 's';
+    });
+    map[PADT + 2][RA[0] - 1] = 's'; map[PADT + 3][RA[0] - 1] = 's';
   }
 
-  // torso
-  if (C.torso === 'float') {
-    // tapering wisp: jersey on top, glow tail below, hovering above the ground
-    const rows = S.torsoH + 3;
-    for (let i = 0; i < rows; i++) {
-      const w = Math.max(2, S.torsoW - Math.floor((i / rows) * S.torsoW));
-      const c = i < Math.floor(rows * 0.55) ? bg : i % 2 === 0 ? skin : skinLite;
-      rect(CX - Math.floor(w / 2), torsoTop + i, w, 1, c);
+  if (look.socks !== 'none' && cfg.hasLegs) {
+    for (let y = legStart; y <= H - 5; y++) for (let x = PADL + 5; x <= PADL + 18; x++)
+      if (map[y][x] === 's') map[y][x] = look.socks === 'striped' ? ((y - legStart) % 2 ? 'a' : 'w') : (y === legStart ? 'a' : 'w');
+  }
+  if (look.wrist) [LA, RA].forEach((cols) => cols.forEach((c) => {
+    if (raise && cols === RA) { map[PADT + 4][c] = 'a'; return; }
+    let low = -1;
+    for (let y = armTop; y <= armEnd + 3; y++) if (map[y] && map[y][c] === 's') low = y;
+    if (low > armTop) map[low - 1][c] = 'a';
+  }));
+
+  // gelid idle drips
+  if (species === 'gelid' && !tornado && !E.bed) {
+    const ph = Math.floor(f / 2) % 6;
+    if (ph < 4) { const x = PADL + 18, y2 = PADT + 11 + ph * 2; if (map[y2] && map[y2][x] === '.') map[y2][x] = 's'; }
+  }
+
+  if (tornado) {
+    for (let y = 0; y < H - 4; y++) map[y] = new Array(W).fill('.') as string[];
+    const top = PADT + 1, bot = H - 5;
+    for (let y = top; y <= bot; y++) {
+      const tt = (y - top) / Math.max(1, bot - top);
+      const halfw = Math.max(2, Math.round(7 - 5 * tt));
+      const c2 = ['j', 'w', 'J'][(y + f) % 3];
+      for (let x = cx - halfw; x <= cx + halfw; x++) map[y][x] = c2;
+      if ((y * 3 + f) % 5 === 0) { const dx = ((y + f) % 2 ? 1 : -1) * (halfw + 2); if (map[y][cx + dx] === '.') map[y][cx + dx] = 'w'; }
     }
-  } else {
-    rect(CX - halfW, torsoTop, S.torsoW, S.torsoH, bg);
-    // rounded shoulders
-    ctx.clearRect(CX - halfW, torsoTop, 1, 1);
-    ctx.clearRect(CX + halfW - 1 + (S.torsoW % 2), torsoTop, 1, 1);
-    // trim + neckline
-    rect(CX - halfW, hipY - 1, S.torsoW, 1, fg);
-    px(CX, torsoTop, skin);
-    if (C.torso === 'chitin') {
-      for (let y = torsoTop + 2; y < hipY - 1; y += 3) rect(CX - halfW + 1, y, S.torsoW - 2, 1, bgDark);
+    ball = [f % 2 ? cx + 8 : cx - 12, PADT + 6];
+  }
+
+  if (E.bed) {
+    for (let y = PADT + 10; y < H; y++) map[y] = new Array(W).fill('.') as string[];
+    const bl = cx - 8, br = cx + 8;
+    for (let y = PADT + 1; y < H; y++) { map[y][bl] = 'Q'; map[y][br] = 'Q'; }
+    for (let x = bl; x <= br; x++) map[H - 1][x] = 'Q';
+    for (let y = PADT + 1; y <= PADT + 9; y++) for (let x = bl + 1; x < br; x++) if (map[y][x] === '.') map[y][x] = 'e';
+    for (let y = PADT + 10; y <= H - 2; y++) for (let x = bl + 1; x < br; x++) map[y][x] = y <= PADT + 11 ? 'w' : 'j';
+    if (map[PADT + 15]) for (let x = bl + 1; x < br; x++) if (map[PADT + 15][x] === 'j') map[PADT + 15][x] = 'J';
+    [9, 10, 12, 13].forEach((x) => { map[PADT + 5][x + PADL] = 'k'; });
+    const big = Math.floor(f / 3) % 2, Z = big ? Z5 : Z3, zx = br + 2, zy = big ? 0 : 2;
+    Z.forEach((row, ry) => row.split('').forEach((v, rx) => { if (v === '1' && map[zy + ry] && zx + rx < W) map[zy + ry][zx + rx] = 'c'; }));
+    ball = null;
+  }
+
+  if (!tornado) {
+    if (M.star) {
+      const big = Math.floor(f / 3) % 2, sx = PADL + 18, sy = PADT + 1;
+      if (big) { map[sy][sx + 1] = 'y'; map[sy + 1][sx] = 'y'; map[sy + 1][sx + 1] = 'e'; map[sy + 1][sx + 2] = 'y'; map[sy + 2][sx + 1] = 'y'; }
+      else map[sy + 1][sx + 1] = 'y';
     }
-    if (C.torso === 'rock') {
-      // craggy silhouette + a proper number plate at the chest
-      ctx.clearRect(CX - halfW, hipY - 2, 1, 1);
-      ctx.clearRect(CX + halfW - 1 + (S.torsoW % 2), torsoTop + 3, 1, 1);
-      for (let i = 0; i < 4; i++) {
-        px(CX - halfW + 1 + Math.floor(rng() * (S.torsoW - 2)), torsoTop + 1 + Math.floor(rng() * (S.torsoH - 2)), bgDark);
-      }
-      rect(CX - halfW + 1, torsoTop + 2, S.torsoW - 2, 7, bg);
+    if (M.cloud) {
+      const big = Math.floor(f / 3) % 2, cy = PADT + 1;
+      if (big) { for (let x = PADL + 2; x <= PADL + 6; x++) { map[cy][x] = 'g'; map[cy + 1][x] = 'g'; } map[cy][PADL + 2] = '.'; map[cy + 2][PADL + 3] = 'g'; map[cy + 2][PADL + 5] = 'g'; }
+      else { for (let x = PADL + 3; x <= PADL + 5; x++) map[cy + 1][x] = 'g'; }
     }
   }
 
-  // arms (sleeve on top, skin below, hand at the end)
-  const armX = (side: -1 | 1, off: number): number =>
-    side < 0 ? CX - halfW - S.th + 1 - off : CX + halfW - 1 + (S.torsoW % 2) + off;
-  const drawArm = (side: -1 | 1, topY: number, len: number, off: number): void => {
-    const ax = armX(side, off);
-    const w = Math.max(1, S.th - 1);
-    rect(ax, topY, w, 2, bg); // sleeve
-    rect(ax, topY + 2, w, Math.max(1, len - 3), skin);
-    rect(ax, topY + len - 1, w, 1, skinLite); // hand
-    if (rng() < 0.25) rect(ax, topY + len - 3, w, 1, fg); // wristband
-  };
-  drawArm(-1, shoulderY, S.armLen, 0);
-  drawArm(1, shoulderY, S.armLen, 0);
-  if (C.arms === 4) {
-    drawArm(-1, shoulderY + 4, S.armLen - 4, 1);
-    drawArm(1, shoulderY + 4, S.armLen - 4, 1);
+  if (E.sweat) {
+    const ph = Math.floor(f / 2) % 6;
+    if (ph < 4) { const x = cfg.sweatR + PADL, y2 = PADT + 3 + ph * 2; if (map[y2] && map[y2][x] === '.') map[y2][x] = 'c'; }
   }
 
-  // the rock (seeded — some players pose with it)
-  if (rng() < 0.55) {
-    const bx = armX(1, C.arms === 4 ? 1 : 0) + S.th - 1;
-    const by = shoulderY + S.armLen - 2;
-    rect(bx, by - 1, 3, 3, '#e0703a');
-    px(bx + 1, by, mul('#e0703a', 0.6));
-    px(bx, by - 1, mul('#e0703a', 1.25));
+  // ON FIRE: a flame ring hugging whatever silhouette this body has
+  if (fire) {
+    const solid = (y: number, x: number): boolean => !!(map[y] && map[y][x] && map[y][x] !== '.');
+    const ring: [number, number][] = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+      if (map[y][x] === '.' && (solid(y + 1, x) || solid(y - 1, x) || solid(y, x + 1) || solid(y, x - 1))) ring.push([x, y]);
+    const tips: [number, number][] = [];
+    ring.forEach(([x, y]) => {
+      const h2 = (x * 7 + y * 11 + f * 3) % 5;
+      if (h2 < 2) map[y][x] = 'e'; else if (h2 < 4) map[y][x] = 'F';
+      if (map[y - 1] && map[y - 1][x] === '.' && (x * 5 + y * 3 + f) % 4 === 0) tips.push([x, y - 1]);
+    });
+    tips.forEach(([x, y]) => { map[y][x] = (x + f) % 2 ? 'F' : 'y'; });
   }
 
-  // head
-  const drawRound = (rx: number, ry: number): void => {
-    for (let y = -ry; y <= ry; y++) {
-      for (let x = -rx; x <= rx; x++) {
-        if ((x * x) / (rx * rx + 0.4) + (y * y) / (ry * ry + 0.4) <= 1) {
-          px(CX + x, headCy + y, skin);
-        }
-      }
-    }
-    // simple shading
-    for (let y = -ry + 1; y <= ry - 1; y++) px(CX - rx + 1, headCy + y, skinDark);
-    px(CX + rx - 1, headCy - ry + 1, skinLite);
-  };
-  if (C.headShape === 'crystal') {
-    rect(CX - headR + 1, headCy - headR + 1, S.head - 2, S.head - 2, skin);
-    ctx.clearRect(CX - headR + 1, headCy - headR + 1, 1, 1);
-    ctx.clearRect(CX + headR - 2 + (S.head % 2), headCy + headR - 2, 1, 1);
-    px(CX - headR + 2, headCy, skinDark);
-    px(CX + 1, headCy - headR + 2, skinLite);
-  } else if (C.headShape === 'wide') {
-    drawRound(headR + 1, Math.max(2, headR - 1));
-  } else {
-    drawRound(headR, headR);
+  if (ball) {
+    const b: [number, number] = ball;
+    pat.forEach((row, ry) => row.split('').forEach((ch, rx) => {
+      const yy = b[1] + ry, xx = b[0] + rx;
+      if (ch !== '.' && map[yy] && xx >= 0 && xx < W) map[yy][xx] = ch;
+    }));
   }
-  if (C.headShape === 'orb') {
-    px(CX, headCy - headR - 1, skinLite);
-    px(CX - headR - 1, headCy, skinLite);
-    px(CX + headR + 1, headCy, skinLite);
-  }
-
-  // eyes (+ occasional goggles)
-  const eyeY = headCy;
-  const goggles = rng() < 0.15;
-  if (goggles) rect(CX - headR + 1, eyeY, S.head - 2, 1, mul(fg, 0.9));
-  const eye = (x: number): void => {
-    px(x, eyeY, '#101014');
-    px(x, eyeY - 1, '#ffffff');
-  };
-  if (C.eyes === 1) {
-    rect(CX - 1, eyeY - 1, 3, 2, '#ffffff');
-    px(CX, eyeY, '#12455c');
-  } else if (C.eyes === 2) {
-    eye(CX - 2);
-    eye(CX + 2);
-  } else {
-    eye(CX - 3);
-    eye(CX);
-    eye(CX + 3);
-  }
-
-  // crest
-  const crownY = headCy - headR;
-  if (C.crest === 'hair') {
-    const hair = HAIR_COLORS[Math.floor(rng() * HAIR_COLORS.length)];
-    const style = Math.floor(rng() * 3);
-    if (style === 0) rect(CX - headR + 1, crownY - 1, S.head - 2, 1, hair);
-    else if (style === 1) {
-      for (let x = -headR + 1; x < headR; x += 2) px(CX + x, crownY - 1, hair);
-    } else {
-      rect(CX - headR + 1, crownY - 1, S.head - 2, 2, hair);
-      rect(CX - headR, crownY, 1, 2, hair);
-      rect(CX + headR - 1 + (S.head % 2), crownY, 1, 2, hair);
-    }
-  } else if (C.crest === 'antennae') {
-    px(CX - 2, crownY - 1, skinDark);
-    px(CX - 2, crownY - 2, skinLite);
-    px(CX + 2, crownY - 1, skinDark);
-    px(CX + 2, crownY - 2, skinLite);
-  } else if (C.crest === 'glow') {
-    px(CX, crownY - 1, skin);
-    px(CX, crownY - 2, '#ffffff');
-  }
-  if (!goggles && rng() < 0.18 && C.crest === 'hair') {
-    rect(CX - headR + 1, crownY, S.head - 2, 1, fg); // headband
-  }
-
-  // chest number, 3×5 bitmap in letter color
-  if (jersey !== null) {
-    const digits = String(jersey);
-    const totalW = digits.length * 3 + (digits.length - 1);
-    let dx = CX - Math.floor(totalW / 2);
-    const dy = C.torso === 'rock' ? torsoTop + 3 : torsoTop + 3;
-    for (const d of digits) {
-      const bits = DIGITS[d];
-      for (let i = 0; i < 15; i++) {
-        if (bits[i] === '1') px(dx + (i % 3), dy + Math.floor(i / 3), fg);
-      }
-      dx += 4;
-    }
-  }
+  if (E.tuck && ball) RA.forEach((c) => { for (let y2 = armTop + E.drop; y2 <= armEnd; y2++) if (map[y2]) map[y2][c] = 's'; });
+  handPx.forEach(([x, y2]) => { if (map[y2]) map[y2][x] = 's'; });
+  return { map, up };
 }
 
-/** Small helper for UI copy: the rig's size class label. */
-export function sizeLabel(body: RigBody): string {
-  const labels: Record<string, string> = {
-    xs: 'XS', s: 'S', m: 'M', l: 'L', xl: 'XL',
-  };
-  return labels[sizeClass(body)];
-}
+// ---- the sprite sheet: 24 frames → one data URL → a CSS steps() loop ----------
 
-// ---- pixel mood faces -----------------------------------------------------
-// 9×9 outline smiley. COLOR LAW: one hue per save — the caller passes the ramp
-// color at the mood's brightness; the expression carries the meaning.
+const FRAMES = 24;
+const FRAME_MS = 190;
 
-const faceCache = new Map<string, string>();
+const sheetCache = new Map<string, { url: string; w: number; h: number }>();
 
-export function faceUrl(mood: number, color: string): string {
-  const variant = mood >= 75 ? 'happy' : mood >= 50 ? 'neutral' : mood >= 25 ? 'sad' : 'angry';
-  const key = `${color}|${variant}`;
-  const hit = faceCache.get(key);
-  if (hit) return hit;
-
-  const c = document.createElement('canvas');
-  c.width = 9;
-  c.height = 9;
-  const ctx = c.getContext('2d')!;
-  ctx.fillStyle = color;
-  const px = (x: number, y: number): void => ctx.fillRect(x, y, 1, 1);
-
-  // outline ring
-  for (let y = 0; y < 9; y++) {
-    for (let x = 0; x < 9; x++) {
-      const d = Math.sqrt((x - 4) ** 2 + (y - 4) ** 2);
-      if (d >= 3.2 && d <= 4.2) px(x, y);
+function buildSheet(v: RigView, kit: Kit): { url: string; w: number; h: number } {
+  const form = v.form ?? 'masc';
+  const look = lookFor(v.id, v.speciesId, form);
+  const P = pal(v.speciesId, look, kit);
+  const sizeIx = sizeIndex(v);
+  const first = buildMap(v.speciesId, form, sizeIx, v.mood, v.energy, look, v.jersey, v.fire, 0);
+  const W = first.map[0].length;
+  const H = first.map.length + 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = W * FRAMES;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  for (let f = 0; f < FRAMES; f++) {
+    const { map, up } = f === 0 ? first : buildMap(v.speciesId, form, sizeIx, v.mood, v.energy, look, v.jersey, v.fire, f);
+    const ox = f * W;
+    for (let y = 0; y < map.length; y++) for (let x = 0; x < W; x++) {
+      const ch = map[y][x];
+      if (ch === '.') continue;
+      ctx.fillStyle = ch === 'N' ? P.n : P[ch] ?? '#ff00ff';
+      ctx.fillRect(ox + x, y + 2 - up, 1, 1);
     }
   }
-  // eyes
-  px(3, 3);
-  px(5, 3);
-  // mouth
-  if (variant === 'happy') {
-    px(2, 5); px(3, 6); px(4, 6); px(5, 6); px(6, 5);
-  } else if (variant === 'neutral') {
-    px(3, 6); px(4, 6); px(5, 6);
-  } else if (variant === 'sad') {
-    px(3, 6); px(4, 5); px(5, 6);
-  } else {
-    // angry: slanted brows + frown
-    px(2, 2); px(3, 2); px(5, 2); px(6, 2);
-    px(3, 6); px(4, 5); px(5, 6);
-  }
-
-  const url = c.toDataURL();
-  faceCache.set(key, url);
-  return url;
+  return { url: canvas.toDataURL(), w: W, h: H };
 }
 
-// ---- single-color pixel stat icons ---------------------------------------
+/** The animated sprite as an HTML element (background sprite sheet + CSS loop). */
+export function rigSpriteHtml(v: RigView, kit: Kit, scale: number, cls = ''): string {
+  const key = `${v.id}|${v.speciesId}|${v.form ?? 'masc'}|${sizeIndex(v)}|${v.mood}|${v.energy}|${v.fire ? 1 : 0}|${kit.bg}|${kit.fg}|${v.jersey ?? 'x'}`;
+  let sheet = sheetCache.get(key);
+  if (!sheet) {
+    sheet = buildSheet(v, kit);
+    sheetCache.set(key, sheet);
+  }
+  const w = sheet.w * scale;
+  const h = sheet.h * scale;
+  return `<span class="rig ${cls}" style="width:${w}px;height:${h}px;--rigshift:-${w * FRAMES}px;--rigdur:${FRAMES * FRAME_MS}ms;background-image:url(${sheet.url});background-size:${w * FRAMES}px ${h}px"></span>`;
+}
 
-type IconKind = 'phy' | 'men' | 'tec' | 'def' | 'bolt' | 'fang' | 'run' | 'cap' | 'shades';
+// ---- single-color pixel stat icons (unchanged) --------------------------------
+
+type IconKind = 'bolt' | 'cap' | 'shades';
 
 const ICON_PIXELS: Record<IconKind, string[]> = {
-  // dumbbell
-  phy: [
-    '.........',
-    '.X.....X.',
-    '.X.....X.',
-    'XX.....XX',
-    'XXXXXXXXX',
-    'XX.....XX',
-    '.X.....X.',
-    '.X.....X.',
-    '.........',
-  ],
-  // brain
-  men: [
-    '..XXXXX..',
-    '.XXXXXXX.',
-    'XXX.XX.XX',
-    'XXXXXXXXX',
-    'XX.XXX.XX',
-    'XXXXXXXXX',
-    '.XXX.XXX.',
-    '..XXXXX..',
-    '....X....',
-  ],
-  // sword
-  tec: [
-    '......XX.',
-    '.....XXX.',
-    '....XXX..',
-    '...XXX...',
-    'X.XXX....',
-    '.XXX.....',
-    'XXX......',
-    'XX.X.....',
-    '....X....',
-  ],
-  // shield
-  def: [
-    'XXXXXXXXX',
-    'XXXXXXXXX',
-    'XX.....XX',
-    'XX.....XX',
-    'XXXXXXXXX',
-    '.XX...XX.',
-    '.XXXXXXX.',
-    '..XXXXX..',
-    '....X....',
-  ],
   // thunderbolt
   bolt: [
     '....XXXX.',
@@ -485,30 +735,6 @@ const ICON_PIXELS: Record<IconKind, string[]> = {
     '.XXXX....',
     '.XXX.....',
     '.XX......',
-  ],
-  // pair of fangs (fierce)
-  fang: [
-    'XX.....XX',
-    'XXX...XXX',
-    'XXX...XXX',
-    '.XX...XX.',
-    '.XX...XX.',
-    '.XX...XX.',
-    '..X...X..',
-    '..X...X..',
-    '.........',
-  ],
-  // running figure (quick)
-  run: [
-    '.....XX..',
-    '.....XX..',
-    '..XXXX...',
-    '.X..XX...',
-    '....XXX..',
-    '...XX.X..',
-    '..X.X..X.',
-    '.X...X..X',
-    'X....X...',
   ],
   // scholar cap (the school side of job security)
   cap: [

@@ -77,6 +77,8 @@ export interface Player {
   /** live meters 0–100; energy mutes ATH+FRC, mood mutes SKL+BRN */
   energy: number;
   mood: number;
+  /** the hot streak: 20+ points lights it, everything plays +20% until he cools */
+  onFire?: boolean;
   outWeeks: number;
   outReason: string;
   /** consecutive games without minutes */
@@ -242,6 +244,7 @@ export interface PlayerDeltas {
   energyP: number;
   mood: number;
   xpGain: number;
+  fire?: 'lit' | 'out';
 }
 
 // ---- the Universal Tournament -----------------------------------------------

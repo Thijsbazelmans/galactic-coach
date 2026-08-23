@@ -35,12 +35,12 @@ export function ovr(a: AttrRec): number {
 
 /** Meters MUTE the game: energy suppresses the body (ATH, FRC),
     mood suppresses the head (SKL, BRN). Floor 60% — nobody becomes nothing. */
-export function attrEff(p: { attrs: AttrRec; energy: number; mood: number }, a: Attr): number {
+export function attrEff(p: { attrs: AttrRec; energy: number; mood: number; onFire?: boolean }, a: Attr): number {
   const meter = a === 'ath' || a === 'frc' ? p.energy : p.mood;
-  return p.attrs[a] * (0.6 + 0.4 * (meter / 100));
+  return p.attrs[a] * (0.6 + 0.4 * (meter / 100)) * (p.onFire ? 1.2 : 1);
 }
 
-export function effOvr(p: { attrs: AttrRec; energy: number; mood: number }): number {
+export function effOvr(p: { attrs: AttrRec; energy: number; mood: number; onFire?: boolean }): number {
   return ATTRS.reduce((s, a) => s + attrEff(p, a), 0);
 }
 

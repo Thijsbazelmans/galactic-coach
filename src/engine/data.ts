@@ -34,43 +34,53 @@ export const SPECIES: SpeciesDef[] = [
     rarity: 0,
   },
   {
-    id: 'lithoid',
-    name: 'Lithoid',
+    id: 'hexid',
+    name: 'Hexid',
     tier: 2,
-    attrCaps: { skl: 8, ath: 18, frc: 23, brn: 14 },
-    heightRange: [185, 210],
+    attrCaps: { skl: 13, ath: 24, frc: 9, brn: 15 },
+    heightRange: [158, 186],
+    weightRange: [48, 80],
+    desc: 'Insectoid on six legs and six tiny high-tops. Nothing in the league moves faster, or lower.',
+    rarity: 1,
+  },
+  {
+    id: 'quadran',
+    name: 'Quadran',
+    tier: 2,
+    attrCaps: { skl: 9, ath: 17, frc: 24, brn: 10 },
+    heightRange: [196, 224],
+    weightRange: [118, 175],
+    desc: 'Hunched heavy-worlder with four arms and tusks. The upper pair handles the ball; the lower pair handles you.',
+    rarity: 1,
+  },
+  {
+    id: 'petran',
+    name: 'Petran',
+    tier: 2,
+    attrCaps: { skl: 6, ath: 19, frc: 21, brn: 15 },
+    heightRange: [188, 214],
     weightRange: [140, 200],
-    desc: 'Sentient rock. The meanest defender in known space — and every shot is an actual brick.',
+    desc: 'Stone golem, cracked plating, patient as geology. Every drive dies on it — and every shot it takes is an actual brick.',
     rarity: 1,
   },
   {
-    id: 'dodecapede',
-    name: 'Dodecapede',
-    tier: 2,
-    attrCaps: { skl: 14, ath: 24, frc: 10, brn: 15 },
-    heightRange: [165, 190],
-    weightRange: [55, 85],
-    desc: 'Twelve legs, zero patience. Nothing in the league moves faster, or smaller.',
-    rarity: 1,
-  },
-  {
-    id: 'hexabrach',
-    name: 'Hexabrach',
-    tier: 2,
-    attrCaps: { skl: 11, ath: 18, frc: 24, brn: 9 },
-    heightRange: [195, 222],
-    weightRange: [100, 140],
-    desc: 'Six arms and a temper. A full-court press with a pulse.',
-    rarity: 1,
-  },
-  {
-    id: 'luminar',
-    name: 'Luminar',
+    id: 'nimbus',
+    name: 'Nimbus',
     tier: 3,
-    attrCaps: { skl: 24, ath: 9, frc: 5, brn: 21 },
+    attrCaps: { skl: 24, ath: 8, frc: 5, brn: 21 },
     heightRange: [188, 218],
     weightRange: [40, 62],
-    desc: 'Coherent light with a jumper. Brilliant, blinding, and made of glass.',
+    desc: 'Translucent gas-form floating above a pair of empty regulation high-tops. Pure touch, nothing to bump.',
+    rarity: 2,
+  },
+  {
+    id: 'gelid',
+    name: 'Gelid',
+    tier: 3,
+    attrCaps: { skl: 10, ath: 21, frc: 7, brn: 23 },
+    heightRange: [168, 200],
+    weightRange: [60, 95],
+    desc: 'A liquid body melting into its own puddle. Flows through any defense and sees every passing lane on the way.',
     rarity: 2,
   },
 ];
@@ -303,22 +313,22 @@ export const SCAN_REGIONS: ScanDef[] = [
   {
     id: 'nebula',
     name: 'LOCAL NEBULA',
-    desc: 'Lithoid walls, Dodecapede blurs, Hexabrach storms. Real specialists, mild turbulence.',
-    cost: 2, count: 2, pool: ['lithoid', 'dodecapede', 'hexabrach'], skillBonus: 4, potBonus: 5,
+    desc: 'Hexid blurs, Quadran storms, Petran walls. Real specialists, mild turbulence.',
+    cost: 2, count: 2, pool: ['hexid', 'quadran', 'petran'], skillBonus: 4, potBonus: 5,
     down: { pct: 10, cls: 'SHIP' }, up: { pct: 5, cls: 'INTEL' },
   },
   {
     id: 'outerrim',
     name: 'OUTER RIM',
-    desc: 'Luminars and the strangest talent in known space. The micrometeorites are not a rumor.',
-    cost: 3, count: 2, pool: ['luminar', 'lithoid', 'dodecapede', 'hexabrach'], skillBonus: 8, potBonus: 10,
+    desc: 'Nimbus shooters, Gelid floor generals, and the strangest talent in known space. The micrometeorites are not a rumor.',
+    cost: 3, count: 2, pool: ['nimbus', 'gelid', 'hexid', 'quadran', 'petran'], skillBonus: 8, potBonus: 10,
     down: { pct: 25, cls: 'SHIP' }, up: { pct: 5, cls: 'LOOT' },
   },
   {
     id: 'deepcore',
     name: 'DEEP CORE',
     desc: 'The old charts were real. Every species, generational ceilings, gravity that eats ships.',
-    cost: 3, count: 2, pool: ['terran', 'lithoid', 'dodecapede', 'hexabrach', 'luminar'], skillBonus: 10, potBonus: 16,
+    cost: 3, count: 2, pool: ['terran', 'hexid', 'quadran', 'petran', 'nimbus', 'gelid'], skillBonus: 10, potBonus: 16,
     down: { pct: 25, cls: 'SHIP' }, up: { pct: 10, cls: 'LOOT' },
   },
 ];
@@ -1118,7 +1128,7 @@ export const STORIES: StoryDef[] = [
     weight: 3,
     beat: (_b, ctx) => ({
       tag: 'CAMPUS STORY',
-      text: `${pname(ctx)} has discovered the all-mineral diet of the Lithoid monks and wants to try it for a week. His plate at the training table is, at this moment, gravel.`,
+      text: `${pname(ctx)} has discovered the all-mineral diet of the Petran monks and wants to try it for a week. His plate at the training table is, at this moment, gravel.`,
       choices: [
         C('allow', 'LET HIM CRUNCH', { up: { pct: 25, cls: 'BREAKTHROUGH' }, down: { pct: 25, cls: 'INJURY' } }),
         C('confiscate', 'CONFISCATE THE GRAVEL', { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' } }),
@@ -1134,7 +1144,7 @@ export const STORIES: StoryDef[] = [
       }
       const t = tails(25, 25);
       if (t === 'up') return { text: `The monk diet WORKED?? ${p.name} is denser somehow. The training staff refuses to explain the scale readout.`, fx: [{ playerId: p.id, attr: { ath: 2 }, weightKg: 6, mood: 5 }] };
-      if (t === 'down') return { text: `${p.name} spent three days of mineral week in the medical bay. He is not, it turns out, a Lithoid monk.`, fx: [{ playerId: p.id, energyP: -30, mood: -6, outWeeks: 1, outReason: 'gravel recovery' }] };
+      if (t === 'down') return { text: `${p.name} spent three days of mineral week in the medical bay. He is not, it turns out, a Petran monk.`, fx: [{ playerId: p.id, energyP: -30, mood: -6, outWeeks: 1, outReason: 'gravel recovery' }] };
       return { text: `${p.name} quit the mineral diet on day two and ate an entire celebration cake about it. He regrets nothing.`, fx: [{ playerId: p.id, mood: 10, weightKg: 3 }] };
     },
   },
@@ -1934,7 +1944,7 @@ export const TIPS: Record<string, string> = {
   stories:
     "The week opens with whatever the galaxy throws at you. Every choice prints its two tails — the chance it goes wrong, the chance it goes wonderful. The numbers never lie. The people sometimes do.",
   gamenight:
-    "The verdict tells you if the PLAN worked, not just the score. Watch the cards: energy spent, mood swung, XP earned — then the table. First place is the only door to the Universal Tournament.",
+    "The verdict tells you if the PLAN worked, not just the score. Watch the cards: energy spent, mood swung, XP earned — then the table. First place is the only door to the Universal Tournament.\n\nOne more thing, coach: drop 20 points and a man catches FIRE — everything he has plays +20% until he cools off (under 15 points, or a night without minutes).",
   departures:
     "Season's over, coach. Seniors walk, stars flirt with the pros — one conversation each, odds printed as always. And every offseason the question waits at the bottom: walk away with your legacy, or go again.",
 };
