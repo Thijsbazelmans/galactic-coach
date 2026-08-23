@@ -152,7 +152,9 @@ let selDiscover = 'home';
 let selScout = 'attend';
 let selRecruit = 'tour';
 let selProspect: number | null = null;
+let selEmpty = false;
 let dropConfirm: number | null = null;
+let gxResult: { text: string; cost: number; played: boolean } | null = null;
 let poolSelected: Set<number> | null = null;
 let gnStage: 'beat' | 'verdict' | 'table' = 'beat';
 let progressTimer: number | null = null;
@@ -215,6 +217,23 @@ function floatEnergy(n: number): void {
         bar.appendChild(el);
         window.setTimeout(() => el.remove(), 700);
       }, i * 150)
+    );
+  }
+}
+
+/** The RESULT version: huge, one blast per spent cell. */
+function floatEnergyBig(n: number): void {
+  const bar = document.querySelector('.ebar');
+  if (!bar || n <= 0) return;
+  for (let i = 0; i < n; i++) {
+    floatTimers.push(
+      window.setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = 'efloat big';
+        el.textContent = '-1⚡';
+        bar.appendChild(el);
+        window.setTimeout(() => el.remove(), 900);
+      }, i * 300)
     );
   }
 }
@@ -494,13 +513,29 @@ interface SqOpts {
 function squareKite(cur: AttrRec, o: SqOpts): string {
   const lab = (a: Attr, cls: string): string =>
     `<span class="klabel ${cls}"><i>${ATTR_SHORT[a]}</i>${o.nums ? `<b>${o.nums[a]}</b>` : ''}</span>`;
-  return `<div class="ksq ${o.fuzz ? `fuzzy${o.fuzz}` : ''}">
+  const fuzz = o.fuzz ?? 0;
+  // an unscouted shape is a CLOUD, not a diamond: three jittered ghosts under
+  // a real gaussian blur — nothing sharp survives
+  const pts = kitePoints(cur);
+  const shape = fuzz
+    ? `<g class="k-cloud" filter="url(#kblur${fuzz})">
+        <polygon points="${pts}" transform="rotate(-9 50 50) translate(-3 2)"/>
+        <polygon points="${pts}" transform="rotate(8 50 50) translate(3 -2)"/>
+        <polygon points="${pts}" transform="scale(1.08) translate(-4 -4)"/>
+        <polygon points="${pts}"/>
+      </g>`
+    : `<polygon class="k-cur" points="${pts}"/>`;
+  return `<div class="ksq ${fuzz ? `fuzzy${fuzz}` : ''}">
     <svg class="ksvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      ${fuzz ? `<defs>
+        <filter id="kblur1" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.2"/></filter>
+        <filter id="kblur2" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.5"/></filter>
+      </defs>` : ''}
       <line class="k-axis" x1="50" y1="4" x2="50" y2="96"/>
       <line class="k-axis" x1="4" y1="50" x2="96" y2="50"/>
       ${o.pot ? `<polygon class="k-pot" points="${kitePoints(o.pot)}"/>` : ''}
       ${o.start ? `<polygon class="k-start" points="${kitePoints(o.start)}"/>` : ''}
-      <polygon class="k-cur" points="${kitePoints(cur)}"/>
+      ${shape}
     </svg>
     ${lab('skl', 'n')}${lab('ath', 'e')}${lab('frc', 's')}${lab('brn', 'w')}
     ${o.sprite ?? ''}
@@ -630,11 +665,14 @@ function prospectCard(pr: Prospect, l: Lens): string {
   const known = pr.scoutLevel;
   const nameHtml = `<span class="kname">${esc(pr.name)}</span><button class="kx" data-action="pr-forget" data-id="${pr.id}">✕</button>`;
   const ring = ringCounter(pr.commitPct, 'COM', `${pr.commitPct}`, `commitment ${pr.commitPct}%`);
+  const imgDim = rigSpriteHtml(
+    { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, mood: 'neutral', energy: 'normal', fire: false },
+    PRACTICE_KIT, 1.75, 'ksprite dimspr');
   let body: string;
   if (l === 1) {
-    // STATS: no box scores yet — the scout's one-line read
+    // STATS: no box scores yet — the scout's one-line read over a dimmed sprite
     body = `<div class="ksq">
-      ${img}
+      ${imgDim}
       <div class="ktop">${nameHtml}</div>
       <div class="prblurb">${esc(pr.blurb)}</div>
     </div>`;
@@ -651,18 +689,18 @@ function prospectCard(pr: Prospect, l: Lens): string {
       brHtml: ring,
     });
   } else {
-    // ABILITY: the cloud sharpens — ?? → a two-row range → the number
+    // ABILITY: the cloud sharpens — ?? → a two-row range → the number (bottom-left)
     const seen = ovr(pr.seenAttrs);
-    const center = known >= 2
-      ? `<b style="color:${vc(seen * 1.6)}">${seen}</b>`
+    const bl = known >= 2
+      ? `<b class="kovr" style="color:${vc(seen * 1.6)}">${seen}</b>`
       : known === 1
         ? `<span class="krange">${Math.max(0, seen - 6)}<br/>–${seen + 6}</span>`
-        : `<span class="prq">??</span>`;
+        : `<span class="kovr prq">??</span>`;
     body = squareKite(pr.seenAttrs, {
       fuzz: known >= 2 ? 0 : known === 1 ? 1 : 2,
       sprite: img,
       nameHtml,
-      centerHtml: center,
+      blHtml: bl,
       brHtml: ring,
     });
   }
@@ -694,7 +732,7 @@ function headerHtml(s: GameState): string {
   const cells = Array.from({ length: CACHE_MAX }, (_, i) =>
     `<span class="ecell ${i < s.energy ? 'on' : ''}" style="${i < s.energy ? `background:${ramp(0.35 + 0.55 * (i / CACHE_MAX))}` : ''}"></span>`
   ).join('');
-  return `<div class="topbar">
+  return `<div class="topbar ${gxResult ? 'spotlight' : ''}">
     <div class="hgrid">
       ${chip(t.name, t.bg, t.fg)}
       ${jobBar(s)}
@@ -759,13 +797,19 @@ function prospectGridHtml(s: GameState): string {
   // a blank column-header row keeps the cards in exactly the same spot as
   // the practice grid — screens must not jump
   const colHead = `<div class="colhead"><span class="rowlabel"></span><span></span><span></span><span></span></div>`;
+  const sel = gxSelection(s);
+  const firstEmpty = s.prospects.length;
   const rows: string[] = [];
   for (let r = 0; r < 3; r++) {
     const cells = [0, 1, 2].map((c) => {
-      const pr = s.prospects[r * 3 + c];
-      return `<div class="gcell">${pr ? prospectCard(pr, lens) : '<div class="pod empty">—</div>'}</div>`;
+      const idx = r * 3 + c;
+      const pr = s.prospects[idx];
+      const podSel = sel.kind === 'empty' && idx === firstEmpty;
+      return `<div class="gcell">${pr
+        ? prospectCard(pr, lens)
+        : `<button class="pod empty ${podSel ? 'selpr' : ''}" data-action="gx-empty">+</button>`}</div>`;
     }).join('');
-    rows.push(`<div class="gridrow"><div class="rowlabel">${r === 0 ? 'BOARD' : ''}</div>${cells}</div>`);
+    rows.push(`<div class="gridrow"><div class="rowlabel"></div>${cells}</div>`);
   }
   return `<div class="grid">${colHead}${rows.join('')}</div>`;
 }
@@ -883,22 +927,39 @@ function actBtn(kind: 'discover' | 'scout' | 'recruit', label: string, sub: stri
   </span>`;
 }
 
-function stageGalaxy(s: GameState): string {
+/** What's highlighted on the board: a prospect, or the next empty slot. */
+function gxSelection(s: GameState): { kind: 'pr'; pr: Prospect } | { kind: 'empty' } | { kind: 'none' } {
   const pr = s.prospects.find((x) => x.id === selProspect) ?? null;
+  if (pr && !selEmpty) return { kind: 'pr', pr };
+  if (s.prospects.length < 9) return { kind: 'empty' };
+  if (s.prospects[0]) return { kind: 'pr', pr: s.prospects[0] };
+  return { kind: 'none' };
+}
+
+function stageGalaxy(s: GameState): string {
+  const sel = gxSelection(s);
   const reg = SCAN_REGIONS.find((r) => r.id === selDiscover)!;
   const sAct = PROSPECT_ACTS.find((a) => a.id === selScout)!;
   const rAct = PROSPECT_ACTS.find((a) => a.id === selRecruit)!;
   const grounded = s.groundedWeeks > 0 && !reg.local;
-  const discover = actBtn('discover', 'DISCOVER', `${reg.name} · ${reg.cost}⚡`,
-    (grounded && 'GROUNDED') || (s.prospects.length >= 9 && 'BOARD FULL') || (s.energy < reg.cost && `NEED ${reg.cost}⚡`), !!s.discoveredWk);
-  const scout = actBtn('scout', 'SCOUT', `${sAct.name} · ${sAct.cost}⚡`,
-    (!pr && 'PICK A NAME') || (pr!.scoutLevel >= 2 && 'KNOWN COLD') || (s.energy < sAct.cost && `NEED ${sAct.cost}⚡`), !!s.scoutActWk);
-  const recruit = actBtn('recruit', 'RECRUIT', `${rAct.name} · ${rAct.cost}⚡`,
-    (!pr && 'PICK A NAME') || (pr!.bannedWeeks > 0 && `BANNED ${pr!.bannedWeeks}w`) || (s.energy < rAct.cost && `NEED ${rAct.cost}⚡`), !!s.recruitActWk);
+  let buttons: string;
+  if (sel.kind === 'pr') {
+    const pr = sel.pr;
+    buttons =
+      actBtn('scout', 'SCOUT', `${sAct.name} · ${sAct.cost}⚡`,
+        (pr.scoutLevel >= 2 && 'KNOWN COLD') || (s.energy < sAct.cost && `NEED ${sAct.cost}⚡`), !!s.scoutActWk) +
+      actBtn('recruit', 'RECRUIT', `${rAct.name} · ${rAct.cost}⚡`,
+        (pr.bannedWeeks > 0 && `BANNED ${pr.bannedWeeks}w`) || (s.energy < rAct.cost && `NEED ${rAct.cost}⚡`), !!s.recruitActWk);
+  } else if (sel.kind === 'empty') {
+    buttons = actBtn('discover', 'DISCOVER', `${reg.name} · ${reg.cost}⚡`,
+      (grounded && 'GROUNDED') || (s.energy < reg.cost && `NEED ${reg.cost}⚡`), !!s.discoveredWk);
+  } else {
+    buttons = '';
+  }
   return `<h2 class="gridhead">RECRUITING</h2>
     ${prospectGridHtml(s)}
     ${s.groundedWeeks > 0 ? `<div class="fourthrow"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — home scans only</div></div>` : ''}
-    <div class="fourthrow actrow">${discover}${scout}${recruit}</div>`;
+    <div class="fourthrow actcol">${buttons}</div>`;
 }
 
 function stageMatchup(s: GameState): string {
@@ -1161,6 +1222,17 @@ function galaxySheetHtml(s: GameState): string {
   </div></div>`;
 }
 
+// THE RESULT: everything darkens except the energy bar, the spent ⚡ blasts
+// away one cell at a time, then the typewriter says what happened.
+function gxResultHtml(): string {
+  if (!gxResult) return '';
+  return `<div class="modalback gxback" data-action="gx-result-tap"><div class="modal gxmodal">
+    <span class="tag">THE TRAIL</span>
+    <div class="typebox" id="typebox"></div>
+    <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap</div></div>
+  </div></div>`;
+}
+
 // forgetting a prospect is forever — say so once
 function dropConfirmHtml(s: GameState): string {
   if (dropConfirm === null) return '';
@@ -1267,8 +1339,8 @@ function render(): void {
 
   // popups live INSIDE the middle: the stats bar, THE BAG and the nav stay
   // visible (⚡ readable while a story asks you to spend it) — the nav just dims.
-  const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + dropConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
-  const modalOpen = drillSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet !== null || dropConfirm !== null;
+  const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + gxResultHtml() + dropConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
+  const modalOpen = drillSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet !== null || dropConfirm !== null || gxResult !== null;
   const navHtml = `<div class="navbar ${modalOpen ? 'dimmed' : ''}">${nav(state)}</div>`;
   const lensHtml = (state.phase === 'practice' || state.phase === 'galaxy') && !ev ? lensBar() : '';
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
@@ -1296,6 +1368,16 @@ function currentBeatText(ev: { text: string; resolvedText?: string }): string | 
 }
 
 function postRender(): void {
+  if (gxResult && !gxResult.played) {
+    gxResult.played = true;
+    const r = gxResult;
+    floatEnergyBig(r.cost);
+    const box0 = document.getElementById('typebox');
+    floatTimers.push(window.setTimeout(() => {
+      if (gxResult === r) typewrite(box0 as HTMLElement | null, r.text, revealActions);
+    }, r.cost * 300 + 350));
+    return;
+  }
   const ev = currentStory(state);
   const box = document.getElementById('typebox');
   const overlayText = toast;
@@ -1584,25 +1666,19 @@ function executeAction(action: string, id: string): void {
     case 'gx-run': {
       if (id === 'discover') {
         const reg = SCAN_REGIONS.find((r) => r.id === selDiscover)!;
-        if (actionScan(state, selDiscover) !== null) {
-          floatEnergy(reg.cost);
+        const text = actionScan(state, selDiscover);
+        if (text !== null) {
           const fresh = state.prospects[state.prospects.length - 1];
-          if (fresh) selProspect = fresh.id;
+          if (fresh) { selProspect = fresh.id; selEmpty = false; }
+          gxResult = { text, cost: reg.cost, played: false };
         }
-      } else if (selProspect !== null) {
+      } else {
+        const sel = gxSelection(state);
+        if (sel.kind !== 'pr') break;
         const actId = id === 'scout' ? selScout : selRecruit;
         const act = PROSPECT_ACTS.find((a) => a.id === actId)!;
-        const pr = state.prospects.find((x) => x.id === selProspect);
-        const before = pr?.commitPct ?? 0;
-        if (actionProspect(state, selProspect, actId) !== null && pr) {
-          floatEnergy(act.cost);
-          if (id === 'scout') {
-            floatCard(pr.id, [{ text: pr.scoutLevel >= 2 ? 'KNOWN COLD' : 'THE CLOUD THINS', up: true }], 350);
-          } else {
-            const d = pr.commitPct - before;
-            floatCard(pr.id, [{ text: `${d >= 0 ? '+' : ''}${d}% COMMIT`, up: d >= 0 }], 350);
-          }
-        }
+        const text = actionProspect(state, sel.pr.id, actId);
+        if (text !== null) gxResult = { text, cost: act.cost, played: false };
       }
       break;
     }
@@ -1717,7 +1793,13 @@ app.addEventListener('click', (e) => {
       }
       break;
     }
-    case 'pr-select': selProspect = selProspect === Number(id) ? null : Number(id); break;
+    case 'pr-select': selProspect = Number(id); selEmpty = false; break;
+    case 'gx-empty': selProspect = null; selEmpty = true; break;
+    case 'gx-result-tap':
+      if (finishTypeNow()) return;
+      clearFloatTimers();
+      gxResult = null;
+      break;
     case 'pr-forget': dropConfirm = Number(id); break;
     case 'pr-drop-cancel': dropConfirm = null; break;
     case 'gx-sheet': galaxySheet = id as 'discover' | 'scout' | 'recruit'; break;

@@ -413,6 +413,17 @@ three tabs are the only lens control.
   card; prospect grid got a blank col-header row so cards never shift
   between screens; CONTINUE is lens-tab width.
 
+**v2.3.1:** BOARD label dropped. Recruiting buttons are context-driven and
+full width: an empty slot highlighted (the default) shows DISCOVER alone;
+a highlighted prospect shows SCOUT over RECRUIT, greyed when known cold /
+banned / already used this week. Every action ends in THE RESULT: the
+screen goes near-black except the energy bar, the spent ⚡ blasts away in
+huge pops one cell at a time, then the typewriter reports what happened
+("New potential discovered: …"). Prospect clouds are REAL clouds now —
+three jittered ghost kites under an SVG gaussian blur (the CSS filter
+path didn't render on Safari). Ability readout moved to the bottom-left
+of the card; the STATS-view sprite is dimmed hard behind the blurb.
+
 ## NEXT SESSION (pick up here)
 
 1. **Femme players:** the renderer supports masc/femme (terran has its own

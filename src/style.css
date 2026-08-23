@@ -193,6 +193,7 @@ button.hold.wiggle::after {
 
 /* JOB SECURITY: bright bar, darkness eats in from both sides */
 .jobbar { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 132px; }
+.topbar.spotlight .chip, .topbar.spotlight .jobbar, .topbar.spotlight .weeklab, .topbar.spotlight .hbtns-col { opacity: 0.2; }
 .jicon { width: 11px; height: 11px; image-rendering: pixelated; flex: none; }
 .jtrack { position: relative; flex: 1; min-width: 56px; height: 14px; background: var(--r75); overflow: hidden; }
 .jdark { position: absolute; top: 0; bottom: 0; background: var(--rbg); }
@@ -577,6 +578,10 @@ button.hold.wiggle::after {
 .planrow { display: flex; gap: 5px; }
 
 .actrow { display: flex; gap: 5px; }
+.actcol { display: flex; flex-direction: column; gap: 5px; }
+.actcol .actwrap { width: 100%; }
+.k-cloud polygon { fill: var(--r75); fill-opacity: 0.2; stroke: none; }
+.rig.dimspr { filter: brightness(0.4); }
 .actwrap { flex: 1; min-width: 0; display: flex; align-items: stretch; }
 .actmain {
   flex: 1;
@@ -610,7 +615,13 @@ button.hold.wiggle::after {
   font-size: 13px;
   pointer-events: none;
   animation: epop 0.7s forwards;
-  z-index: 60;
+  z-index: 130;
+}
+.efloat.big { font-size: 30px; animation: epopbig 0.9s forwards; }
+@keyframes epopbig {
+  0% { opacity: 0; transform: translateX(-50%) scale(0.6); }
+  20% { opacity: 1; transform: translateX(-50%) scale(1.4); }
+  100% { opacity: 0; transform: translateX(-50%) scale(3.2) translateY(14px); }
 }
 @keyframes epop {
   0% { opacity: 1; transform: translateX(-50%) scale(1); }
@@ -745,6 +756,8 @@ button.hold.wiggle::after {
   padding: 14px 10px;
 }
 .modalback.sheet { align-items: flex-end; padding: 0; }
+.modalback.gxback { background: rgba(0, 0, 0, 0.88); align-items: center; }
+.gxmodal { min-height: 160px; }
 .modal {
   background: var(--rbg);
   border: 1px solid var(--r55);

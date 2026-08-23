@@ -671,7 +671,7 @@ export function actionScan(s: GameState, regionId: string): string | null {
   s.nextId = counter.nextId;
   s.prospects.push(...found);
   let text = found.length
-    ? `Scan complete. New names on the board: ${found.map((p) => `${p.name} (${speciesById(p.speciesId).name})`).join(', ')}.`
+    ? `New potential discovered: ${found.map((p) => `${p.name}, a ${speciesById(p.speciesId).name} out of the ${def.name}`).join(', ')}.`
     : 'Scan complete. The board is full — nine names, maximum.';
 
   // scans are voyages: the odds line rolls

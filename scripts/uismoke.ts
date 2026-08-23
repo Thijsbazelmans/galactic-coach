@@ -110,12 +110,17 @@ async function main(): Promise<void> {
   must('[data-action="to-galaxy"]', 'continue to galaxy');
   drain();
   if (state().phase !== 'galaxy') throw new Error(`expected galaxy, got ${state().phase}`);
-  // recruiting: the three-button row renders; DISCOVER fills a slot
-  if (app.querySelectorAll('[data-action="gx-run"]').length !== 3) throw new Error('discover/scout/recruit buttons missing');
+  // recruiting: empty slot selected by default → DISCOVER; after the find,
+  // the fresh prospect is highlighted → SCOUT + RECRUIT
+  if (app.querySelectorAll('[data-action="gx-run"]').length !== 1) throw new Error('DISCOVER button missing');
   const nBefore = (gc.state() as any).prospects.length;
   anyWin.gcAction('gx-run', 'discover');
-  drain();
   if ((gc.state() as any).prospects.length !== nBefore + 1) throw new Error('discover did not add a prospect');
+  // dismiss the result dialog
+  if (!click('[data-action="gx-result-tap"]')) throw new Error('result dialog missing');
+  click('[data-action="gx-result-tap"]');
+  drain();
+  if (app.querySelectorAll('[data-action="gx-run"]').length !== 2) throw new Error('SCOUT/RECRUIT buttons missing after discover');
 
   // matchup: plan chips render, unlearned chips locked
   must('[data-action="to-matchup"]', 'continue to matchup');
