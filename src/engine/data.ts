@@ -13,7 +13,7 @@ import type {
   StoryChoiceView,
   StoryEvent,
 } from './types';
-import { ATTRS, clamp, ovr, pick, rand } from './util';
+import { ATTRS, clamp, genderize, ovr, pick, rand } from './util';
 
 export const CLASS_ABBR = ['Fr', 'So', 'Jr', 'Sr'];
 
@@ -126,22 +126,40 @@ export const TEAM_TEMPLATES = [
 ];
 
 export const DEITY_NAMES = [
-  'Zeuxx', 'Apollyx', 'Arex', 'Hermezz', 'Poseidrox', 'Hadez-9', 'Dionyzos',
-  'Heliox', 'Kronoz', 'Atlazz', 'Jupiteron', 'Marz', 'Neptun-8', 'Vulkann', 'Mercurix',
-  'Odynn', 'Thorr', 'Lokee', 'Baldyr', 'Heimdall-7', 'Tyrr', 'Freyr-X',
-  'Ra-9', 'Anubix', 'Ozirix', 'Horuz', 'Thoth-3', 'Amunn', 'Sobekk',
-  'Shangox', 'Ogunn', 'Olorunn', 'Eshuu', 'Obatala-2', 'Anansi-6',
-  'Kalungaa', 'Mukurux', 'Huvee', 'Unkuluu', 'Modimoo', 'Nyambe-3',
-  'Quetzal-4', 'Tezcatt', 'Kukulkan-6', 'Chaak', 'Huitzill',
+  'Zeuxx', 'Apollyx', 'Arex', 'Hermezz', 'Poseidrox', 'Hadezz', 'Dionyzos',
+  'Heliox', 'Kronoz', 'Atlazz', 'Jupiteron', 'Marz', 'Neptunn', 'Vulkann', 'Mercurix',
+  'Odynn', 'Thorr', 'Lokee', 'Baldyr', 'Heimdahl', 'Tyrr', 'Freyrr',
+  'Raa', 'Anubix', 'Ozirix', 'Horuz', 'Thotth', 'Amunn', 'Sobekk',
+  'Shangox', 'Ogunn', 'Olorunn', 'Eshuu', 'Obatalla', 'Anansix',
+  'Kalungaa', 'Mukurux', 'Huvee', 'Unkuluu', 'Modimoo', 'Nyambee',
+  'Quetzall', 'Tezcatt', 'Kukulkann', 'Chaak', 'Huitzill',
   'Perunn', 'Velezz', 'Svarogg', 'Morozz', 'Perkunazz',
   'Lughh', 'Dagdaa', 'Brann', 'Morrigann',
-  'Raijinn', 'Fujinn', 'Susanoo-9', 'Inarix', 'Wukongg', 'Nezha-X',
-  'Mauii', 'Tangaroa-3', 'Lono-2', 'Ku-Prime', 'Pele-7',
+  'Raijinn', 'Fujinn', 'Susanoox', 'Inarix', 'Wukongg', 'Nezhaa',
+  'Mauii', 'Tangaroaa', 'Lonoo', 'Kuu', 'Pelee',
   'Mardux', 'Enkii', 'Enlyl', 'Ishtarr', 'Gilgamezz',
-  'Indrax', 'Varunox', 'Agnix', 'Suryon', 'Hanumann-8',
-  'Ignatiux', 'Xavyer', 'Benedix', 'Augustyn', 'Gabryel', 'Mikha-El',
-  'Raffael-9', 'Uriyel', 'Domynic', 'Seraphym', 'Pyus-X', 'Aquinax',
-  'Ukko-3', 'Vaino-7', 'Sednaa',
+  'Indrax', 'Varunox', 'Agnix', 'Suryon', 'Hanumann',
+  'Ignatiux', 'Xavyer', 'Benedix', 'Augustyn', 'Gabryel', 'Mikhael',
+  'Raffaell', 'Uriyel', 'Domynic', 'Seraphym', 'Pyux', 'Aquinax',
+  'Ukkoo', 'Vainoo', 'Sednaa',
+  'Athenna', 'Heraa', 'Artemyx', 'Aphroditee', 'Persephonee', 'Demetra',
+  'Nyxx', 'Selenee', 'Gaiaa', 'Rheaa', 'Hekatee', 'Irys', 'Eoss',
+  'Frigga', 'Siff', 'Idunna', 'Skadee', 'Hellia', 'Sigynn', 'Ranna',
+  'Bastett', 'Sekhmett', 'Hathorr', 'Nuut', 'Maatt', 'Nephtys', 'Serqett',
+  'Oyaa', 'Oshunn', 'Yemojaa', 'Mawuu', 'Alaa', 'Asaseyaa',
+  'Inannaa', 'Ereshka', 'Tiamatt', 'Ninsunn', 'Nammuu', 'Antuu',
+  'Saraswatee', 'Lakshmee', 'Parvatee', 'Durgaa', 'Sitaa', 'Taraa', 'Kalii', 'Ushass',
+  'Guanyinn', 'Nuwaa', 'Xiwangmuu', 'Changxee', 'Mazuu',
+  'Amaterasuu', 'Izanamee', 'Bentenn', 'Uzumee', 'Konohanaa',
+  'Hinaa', 'Lakaa', 'Haumeaa', 'Sinaa', 'Papaa', 'Rangee',
+  'Coatlee', 'Ixchell', 'Itzell', 'Xochee', 'Chalchee',
+  'Marzannaa', 'Ladaa', 'Mokoshh', 'Zoryaa', 'Vesnaa', 'Devanaa',
+  'Brigidd', 'Danuu', 'Ainee', 'Boannee', 'Eponaa', 'Rhiannonn', 'Cerridwenn',
+  'Louhee', 'Ilmatarr', 'Mielikkee', 'Kuutarr',
+  'Astartee', 'Cybelee', 'Vestaa', 'Junoo', 'Ceress', 'Fortunaa', 'Aurorra',
+  'Lunaa', 'Floraa', 'Bellonaa', 'Nikee', 'Tychee', 'Circee', 'Calypsoo',
+  'Medeaa', 'Pandorra', 'Cassandraa', 'Andromedaa', 'Atalantaa', 'Penthesileaa',
+  'Chandraa', 'Adityaa', 'Yamii', 'Rohinee', 'Revatee',
 ];
 
 // ---- the plan wheel ----------------------------------------------------------
@@ -1231,23 +1249,39 @@ export const STORIES: StoryDef[] = [
     kind: 'player',
     weight: 3,
     context: 'mood',
-    beat: (_b, ctx) => ({
-      tag: 'CAMPUS STORY',
-      text: `${pname(ctx)} comes to your office, pale. A cheerleader from Zeta Squadron is pregnant, and he's the father. He has no idea what to do and, for some reason, thinks you will.`,
-      choices: [
-        C('leave', 'A WEEK OFF. HANDLE IT LIKE AN ADULT.', { up: { pct: 25, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } }),
-        C('season', '"SEASON FIRST. OFFSEASON PROBLEM."', { up: { pct: 2, cls: 'WINDFALL' }, down: { pct: 50, cls: 'DRAMA' } }),
-      ],
-    }),
+    beat: (_b, ctx) => {
+      const femme = ctx.player?.form === 'femme';
+      return {
+        tag: 'CAMPUS STORY',
+        text: femme
+          ? `${pname(ctx)} comes to your office, pale. She's pregnant — the father is a cheerleader from Zeta Squadron — and the season has never looked longer. For some reason she thinks you'll know what to do.`
+          : `${pname(ctx)} comes to your office, pale. A cheerleader from Zeta Squadron is pregnant, and he's the father. He has no idea what to do and, for some reason, thinks you will.`,
+        choices: [
+          C('leave', femme ? 'A WEEK OFF. FIGURE IT OUT TOGETHER.' : 'A WEEK OFF. HANDLE IT LIKE AN ADULT.', { up: { pct: 25, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } }),
+          C('season', '"SEASON FIRST. OFFSEASON PROBLEM."', { up: { pct: 2, cls: 'WINDFALL' }, down: { pct: 50, cls: 'DRAMA' } }),
+        ],
+      };
+    },
     resolve: (key, ctx) => {
       const p = ctx.player!;
+      const femme = p.form === 'femme';
       if (key === 'leave') {
         const t = tails(25, 2);
+        if (femme) {
+          if (t === 'up') return { text: `${p.name} takes the week, makes her plan with her people, and walks back into the gym with a calendar and a to-do list that would frighten a fleet admiral. The team noticed. The team talks about it quietly and well.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'personal leave', mood: 10, attr: { brn: 2 } }, { teamMood: 5 }, { heatS: -4 }] };
+          if (t === 'down') return { text: `${p.name} takes the week — and comes back with MORE questions. You are apparently the godparent now? There was no form for this.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'personal leave', mood: 3 }] };
+          return { text: `${p.name} takes the week and handles her business. She comes back steadier.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'personal leave', mood: 8, attr: { brn: 1 } }] };
+        }
         if (t === 'up') return { text: `${p.name} misses a game, attends every appointment, and comes back more grown-up than he left. The team noticed. The team talks about it quietly and well.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'personal leave', mood: 10, attr: { brn: 2 } }, { teamMood: 5 }, { heatS: -4 }] };
         if (t === 'down') return { text: `${p.name} takes the week — and comes back with MORE questions. You are apparently the godfather now? There was no form for this.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'personal leave', mood: 3 }] };
         return { text: `${p.name} takes the week and handles his business. He comes back steadier.`, fx: [{ playerId: p.id, outWeeks: 1, outReason: 'personal leave', mood: 8, attr: { brn: 1 } }] };
       }
       const t = tails(2, 50);
+      if (femme) {
+        if (t === 'down') return { text: `${p.name} stays in the lineup with the whole galaxy on her shoulders. She's stopped sleeping. Zeta Squadron now boos your bench, specifically, and the medical staff files a note with your name underlined.`, fx: [{ playerId: p.id, mood: -18, energyP: -15 }, { heatS: 8 }] };
+        if (t === 'up') return { text: `${p.name} somehow compartmentalizes. You have created a professional. You are not sure you're proud.`, fx: [{ playerId: p.id, mood: -5, attr: { brn: 1 } }] };
+        return { text: `${p.name} plays on, jaw set. The scoreboard doesn't know. Everyone else does.`, fx: [{ playerId: p.id, mood: -12 }] };
+      }
       if (t === 'down') return { text: `${p.name} stays in the lineup with his head somewhere else entirely. He's stopped eating properly. Zeta Squadron now boos your bench, specifically.`, fx: [{ playerId: p.id, mood: -18, weightKg: -4 }, { heatS: 5 }] };
       if (t === 'up') return { text: `${p.name} somehow compartmentalizes. You have created a professional. You are not sure you're proud.`, fx: [{ playerId: p.id, mood: -5, attr: { brn: 1 } }] };
       return { text: `${p.name} plays on, hollow-eyed. The scoreboard doesn't know. Everyone else does.`, fx: [{ playerId: p.id, mood: -12 }] };
@@ -1676,7 +1710,7 @@ export const STORIES: StoryDef[] = [
         const name = best?.name ?? 'your best player';
         return {
           tag: '☠ THE DEBT LADDER',
-          text: `The smuggler captain walks your bench with a jeweler's eye and points at ${name}. "Him. He works the engine room until the debt clears. Debts here don't clear."\n\nThey have taste. They also have a tractor beam.`,
+          text: genderize(`The smuggler captain walks your bench with a jeweler's eye and points at ${name}. "Him. He works the engine room until the debt clears. Debts here don't clear."\n\nThey have taste. They also have a tractor beam.`, best?.form),
           data: { targetId: best?.id ?? null },
           choices: [
             C('hand', `HAND OVER ${name.toUpperCase()}`, { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } }),
@@ -1725,7 +1759,7 @@ export const STORIES: StoryDef[] = [
         }
         if (target) {
           return {
-            text: `You shake ${target.name}'s hand at the airlock and cannot find one single word. He nods like it's a road game. The doors close. The team will not look at you this week.`,
+            text: genderize(`You shake ${target.name}'s hand at the airlock and cannot find one single word. He nods like it's a road game. The doors close. The team will not look at you this week.`, target.form),
             fx: [{ playerId: target.id, takePlayer: true }, { teamMood: -18 }],
             next: { defId: 'locker', beat: 'start', playerId: null },
           };
@@ -1972,15 +2006,15 @@ export const TIPS: Record<string, string> = {
   tryouts:
     "First practice, coach. Six players from last year's squad, a gym full of hopefuls, and one clipboard: yours.\n\nPick your nine. The rest of the galaxy already picked theirs.",
   practice:
-    "Practice runs itself — you just pick THE DRILL. Hold it down to commit; everything you can't take back works that way.\n\nTwo kinds of training, coach: basic drills earn XP (levels bank +2 points YOU place anywhere), and discovered methods burn ⚡ to hammer +1 into exact attributes — the drill decides where. Tap a player first to SIT HIM OUT of squad drills. Every card prints its odds. They never lie.",
+    "Practice runs itself — you just pick the drill and HOLD RUN. One practice a week; everything you can't take back is a hold.\n\nBasic drills earn XP (levels bank +2 points YOU place anywhere); discovered methods hammer +1 into exact attributes — the drill decides where. Anyone under 40 energy sits out automatically. Every card prints its odds. They never lie.",
   lenses:
     "One squad, three lenses. Swipe the grid (or tap the arrows): SKILLS is who they are, STATS is what they've done this season, GROWTH is where they started and how far the ceiling goes.\n\nSame nine faces in the same nine places — only the question changes.",
   galaxy:
-    "The board holds nine names. Tap an empty slot to SCAN a region — deeper space, stranger talent, worse trips home.\n\nTap a prospect and you have two moves: SCOUT him (the cloud on his compass sharpens into his true shape) or RECRUIT him (the commitment climbs). You never have energy for both. That's the job.\n\nOh — and ignored prospects drift. Kids notice silence.",
+    "The board holds nine names. Highlight an empty slot to DISCOVER — deeper space, stranger talent, worse trips home.\n\nHighlight a prospect for two moves: SCOUT (the cloud sharpens into the true shape) or RECRUIT (the commitment climbs). One of each per week. That's the job.\n\nOh — and ignored prospects drift. Kids notice silence.",
   matchup:
     "Four tactics, one per attribute — each one bets the game on one of your four numbers. And each beats one other: SHOWTIME beats LOCKDOWN beats CLOCKWORK beats RUN & GUN beats SHOWTIME.\n\nYour team number under each tactic moves LIVE as you swap players. But the game has two sides — SCOUT them (1⚡) to see THEIR tactic and THEIR number, and sometimes your second-best shape is the right call, because it counters theirs.",
   signing:
-    "Signing day math, coach: sign ONE letter and you keep his full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.",
+    "Signing day math, coach: send ONE letter and you keep the full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.",
   bag:
     "That's THE BAG — the five slots at the bottom of your screen, always within reach. Every item is a bargain with printed odds. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. That's not a coincidence. That's the galaxy.",
   grid:
@@ -1988,7 +2022,7 @@ export const TIPS: Record<string, string> = {
   stories:
     "The week opens with whatever the galaxy throws at you. Every choice prints its two tails — the chance it goes wrong, the chance it goes wonderful. The numbers never lie. The people sometimes do.",
   gamenight:
-    "The verdict tells you if the PLAN worked, not just the score. Watch the cards: energy spent, mood swung, XP earned — then the table. First place is the only door to the Universal Tournament.\n\nOne more thing, coach: drop 20 points and a man catches FIRE — everything he has plays +20% until he cools off (under 15 points, or a night without minutes).",
+    "The verdict tells you if the PLAN worked, not just the score. Watch the cards: energy spent, mood swung, XP earned — then the table. First place is the only door to the Universal Tournament.\n\nOne more thing, coach: drop 20 points and a player catches FIRE — everything they have plays +20% until they cool off (under 15 points, or a night without minutes).",
   departures:
     "Season's over, coach. Seniors walk, stars flirt with the pros — one conversation each, odds printed as always. And every offseason the question waits at the bottom: walk away with your legacy, or go again.",
 };

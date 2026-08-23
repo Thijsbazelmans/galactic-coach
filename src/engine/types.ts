@@ -60,6 +60,8 @@ export interface Player {
   speciesId: string;
   /** 0=Fr 1=So 2=Jr 3=Sr */
   classYear: number;
+  /** body form + pronouns (she/her for femme); old saves default to masc */
+  form?: 'masc' | 'femme';
   jersey: number;
   heightCm: number;
   weightKg: number;
@@ -118,6 +120,7 @@ export interface Prospect {
   id: number;
   name: string;
   speciesId: string;
+  form?: 'masc' | 'femme';
   heightCm: number;
   weightKg: number;
   /** the truth (hidden until scouted) */
@@ -208,6 +211,7 @@ export interface Fx {
 export interface Alumnus {
   name: string;
   speciesId: string;
+  form?: 'masc' | 'femme';
   ovr: number;
   /** how he left: 'pro' | 'grad' | 'void' */
   exit: 'pro' | 'grad' | 'void';

@@ -14,7 +14,7 @@ import {
   speciesById,
 } from './data';
 import type { AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
-import { ATTRS, clamp, copyAttrs, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
+import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
 export const SAVE_VERSION = 14;
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
@@ -117,6 +117,7 @@ export function genPlayer(counter: { nextId: number }, quality: number, classYea
     name: genName(),
     speciesId: sp.id,
     classYear: cy,
+    form: Math.random() < 0.5 ? 'femme' : 'masc',
     jersey: rand(56),
     ...rollBody(sp.id),
     attrs,
@@ -150,6 +151,7 @@ export function genSpecial(counter: { nextId: number }, kind: 'walkon' | 'gem' |
   if (kind === 'daughter') {
     const p = genPlayer(counter, 12, 1, 'terran');
     p.name = 'Minervva';
+    p.form = 'femme';
     p.special = 'daughter';
     const caps = speciesById('terran').attrCaps;
     for (const a of ATTRS) p.pots[a] = clamp(p.attrs[a] + 5, p.attrs[a], caps[a]);
@@ -201,17 +203,19 @@ export function genProspect(counter: { nextId: number }, seasonNo: number, regio
   const target = clamp(Math.round((18 + quality + rand(14)) * 0.55), 6, capSum(sp.id) - 4);
   const attrs = rollAttrs(sp.attrCaps, target);
   const pots = rollPots(sp.attrCaps, attrs, 7 + Math.round(region.potBonus * 0.4));
+  const form: 'masc' | 'femme' = Math.random() < 0.5 ? 'femme' : 'masc';
   const pr: Prospect = {
     id: counter.nextId++,
     name: genName(),
     speciesId: sp.id,
+    form,
     ...rollBody(sp.id),
     attrs,
     pots,
     scoutLevel: 0,
     seenAttrs: copyAttrs(attrs),
     seenPots: copyAttrs(pots),
-    blurb: pick(PROSPECT_BLURBS),
+    blurb: genderize(pick(PROSPECT_BLURBS), form),
     commitPct: 0,
     bannedWeeks: 0,
     selected: false,
@@ -225,6 +229,7 @@ export function prospectToPlayer(pr: Prospect): Player {
     id: pr.id,
     name: pr.name,
     speciesId: pr.speciesId,
+    form: pr.form,
     classYear: 0,
     jersey: rand(56),
     heightCm: pr.heightCm,

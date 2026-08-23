@@ -86,6 +86,22 @@ export function sizeIndex(b: { heightCm: number; weightKg: number }): number {
 
 export const SIZE_LABELS = ['XS', 'S', 'M', 'L', 'XL'];
 
+// ---- pronouns -----------------------------------------------------------------
+// One central pass: every story/UI text is written masc and rewritten on the
+// fly for femme players. Word-boundary safe, handles ALL-CAPS button labels.
+
+const FEM: Record<string, string> = {
+  he: 'she', He: 'She', HE: 'SHE',
+  him: 'her', Him: 'Her', HIM: 'HER',
+  his: 'her', His: 'Her', HIS: 'HER',
+  himself: 'herself', Himself: 'Herself', HIMSELF: 'HERSELF',
+};
+
+export function genderize(text: string, form?: 'masc' | 'femme'): string {
+  if (form !== 'femme') return text;
+  return text.replace(/\b(?:he|He|HE|him|Him|HIM|his|His|HIS|himself|Himself|HIMSELF)\b/g, (w) => FEM[w] ?? w);
+}
+
 // ---- box-score lines ----------------------------------------------------------
 
 export function zeroStats(): StatLine {

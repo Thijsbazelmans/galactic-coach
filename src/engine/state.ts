@@ -64,7 +64,7 @@ import type {
   StoryEvent,
   Team,
 } from './types';
-import { ATTRS, addStats, bumpAny, bumpAnyPot, clamp, copyAttrs, bestAttr, ovr, pick, rand, roll, zeroStats } from './util';
+import { ATTRS, addStats, bumpAny, bumpAnyPot, clamp, copyAttrs, bestAttr, genderize, ovr, pick, rand, roll, zeroStats } from './util';
 
 const SAVE_KEY = 'galactic-coach-save';
 const COMMIT_DECAY = 2;
@@ -209,7 +209,7 @@ export let lastLevelUps: LevelUp[] = [];
 function toAlum(p: Player, exit: Alumnus['exit'], season: number): Alumnus {
   const career = { ...p.career };
   addStats(career, p.stats);
-  return { name: p.name, speciesId: p.speciesId, ovr: ovr(p.attrs), exit, season, career };
+  return { name: p.name, speciesId: p.speciesId, form: p.form, ovr: ovr(p.attrs), exit, season, career };
 }
 
 // ---- Fx: the one place consequences land --------------------------------------------
@@ -367,6 +367,14 @@ export function queueStory(
     choices: content.choices,
     data: { ...data, ...(content.data ?? {}) },
   };
+  // the story speaks the player's pronouns — text AND button labels
+  const gform = (playerId !== null
+    ? myTeam(s).players.find((p) => p.id === playerId)?.form
+    : (data.alumForm as 'masc' | 'femme' | undefined)) ?? undefined;
+  if (gform === 'femme') {
+    ev.text = genderize(ev.text, gform);
+    ev.choices?.forEach((c) => { c.label = genderize(c.label, gform); });
+  }
   // THE BAG's killer integration: matching items appear as extra choice buttons
   if (def.context && ev.choices) {
     for (const itemId of s.bag) {
@@ -410,8 +418,10 @@ export function resolveStory(s: GameState, choiceKey: string): { resolved: Story
     res = def.resolve(choiceKey, storyCtx(s, ev.playerId, ev.data ?? {}), ev);
   }
 
+  const rpid = res.fx?.find((f) => f.playerId !== undefined)?.playerId ?? ev.playerId;
+  const rform = (rpid !== null ? myTeam(s).players.find((p) => p.id === rpid)?.form : (ev.data?.alumForm as 'masc' | 'femme' | undefined)) ?? undefined;
   applyFx(s, res.fx, ev.playerId);
-  ev.resolvedText = res.text;
+  ev.resolvedText = genderize(res.text, rform);
   for (const f of res.follow ?? []) {
     s.futureBeats.push({ weeksLeft: f.weeks, defId: f.defId ?? ev.defId, beat: f.beat, playerId: f.playerId !== undefined ? f.playerId : ev.playerId, data: f.data });
   }
@@ -477,7 +487,7 @@ function startWeek(s: GameState): void {
         if (team.id === s.myTeamId) {
           queueStory(s, 'notice', 'start', p.id, {
             tag: 'CLEARED TO PLAY',
-            text: `${p.name} is back from ${p.outReason || 'his absence'} and cleared to play. The first dunk back is always the loudest.`,
+            text: `${p.name} is back from ${p.outReason || 'the long absence'} and cleared to play. The first dunk back is always the loudest.`,
           });
         }
         p.outReason = '';
@@ -819,6 +829,9 @@ export function useItem(s: GameState, itemId: string, ctxData: Record<string, un
   if (item.rarity === 'legendary') s.legendariesUsed.push(item.id);
   lastLevelUps = [];
   const res = item.use(storyCtx(s, (ctxData.playerId as number | null) ?? null, ctxData));
+  const ipid = res.fx?.find((f) => f.playerId !== undefined)?.playerId ?? (ctxData.playerId as number | null) ?? null;
+  const iform = ipid !== null ? myTeam(s).players.find((p) => p.id === ipid)?.form : undefined;
+  res.text = genderize(res.text, iform);
   applyFx(s, res.fx, (ctxData.playerId as number | null) ?? null);
   for (const f of res.follow ?? []) {
     s.futureBeats.push({ weeksLeft: f.weeks, defId: f.defId ?? 'breakthrough', beat: f.beat, playerId: f.playerId ?? null, data: f.data });
@@ -843,7 +856,7 @@ export function rollTravel(s: GameState): void {
     if (s.alumni.length && roll(10)) {
       const alum = pick(s.alumni);
       queueStory(s, alum.exit === 'void' ? 'alum_void' : roll(50) ? 'alum_gold' : 'alum_dark', 'start', null, {
-        alumName: alum.name, exit: alum.exit, season: alum.season,
+        alumName: alum.name, alumForm: alum.form, exit: alum.exit, season: alum.season,
       });
     } else {
       queueStory(s, pick(VOYAGE_POOL), 'start', null);
@@ -1131,7 +1144,7 @@ export function convincePro(s: GameState, playerId: number): void {
     d.note = `You talk about legacy, unfinished business, banners. ${p.name} STAYS. (${chance}% — and you hit it.)`;
   } else {
     d.staying = false;
-    d.note = `${p.name} listens politely, then shows you the contract already on his holo. Gone. (${chance}% — missed.)`;
+    d.note = genderize(`${p.name} listens politely, then shows you the contract already on his holo. Gone. (${chance}% — missed.)`, p.form);
     departPro(s, p);
   }
   save(s);
@@ -1194,9 +1207,9 @@ export function resolveSigning(s: GameState): void {
   for (const { prospect, pct } of effectiveChances(s)) {
     if (Math.random() * 100 < pct) {
       s.commits.push(prospectToPlayer(prospect));
-      s.signingResults.push(`✓ ${prospect.name} COMMITS! (${pct}% held) He announces it by skywriting over your stadium.`);
+      s.signingResults.push(genderize(`✓ ${prospect.name} COMMITS! (${pct}% held) He announces it by skywriting over your stadium.`, prospect.form));
     } else {
-      s.signingResults.push(`✗ ${prospect.name} signs elsewhere (${pct}% missed). His holo-agent says it "wasn't personal." It was a little personal.`);
+      s.signingResults.push(genderize(`✗ ${prospect.name} signs elsewhere (${pct}% missed). His holo-agent says it "wasn't personal." It was a little personal.`, prospect.form));
     }
   }
   if (!s.signingResults.length) s.signingResults.push('You pursued nobody. The recruiting trail is quiet. Too quiet.');

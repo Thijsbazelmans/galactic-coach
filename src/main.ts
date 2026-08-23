@@ -60,7 +60,7 @@ import {
 } from './engine/state';
 import type { Attr, AttrRec, GameState, PlanId, Player, Prospect, Team } from './engine/types';
 import type { Fx } from './engine/types';
-import { ATTRS, clamp, copyAttrs, ovr, perGame, potStars } from './engine/util';
+import { ATTRS, clamp, copyAttrs, genderize, ovr, perGame, potStars } from './engine/util';
 import { PRACTICE_KIT, busUrl, energyBucket, iconUrl, moodBucket, rigSpriteHtml, type Kit, type RigView } from './rig';
 
 const VERSION = 'v2.0';
@@ -501,7 +501,7 @@ function rigView(p: Player, story?: 'good' | 'bad'): RigView {
     // in a story the STATE is the story's: neutral → the emotion, no ball
     return {
       id: p.id, speciesId: p.speciesId, heightCm: p.heightCm, weightKg: p.weightKg,
-      jersey: p.jersey, mood: 'neutral', energy: 'normal',
+      jersey: p.jersey, form: p.form, mood: 'neutral', energy: 'normal',
       fire: !!p.onFire && p.outWeeks === 0, story,
     };
   }
@@ -511,6 +511,7 @@ function rigView(p: Player, story?: 'good' | 'bad'): RigView {
     heightCm: p.heightCm,
     weightKg: p.weightKg,
     jersey: p.jersey,
+    form: p.form,
     mood: moodBucket(p.mood),
     energy: p.outWeeks > 0 ? 'exhausted' : energyBucket(p.energy),
     fire: !!p.onFire && p.outWeeks === 0,
@@ -604,13 +605,13 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
 // stars until he signs — the cloud is the ceiling. ✕ forgets him forever.
 function prospectCard(pr: Prospect, l: Lens): string {
   const img = rigSpriteHtml(
-    { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, mood: 'neutral', energy: 'normal', fire: false },
+    { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, form: pr.form, mood: 'neutral', energy: 'normal', fire: false },
     PRACTICE_KIT, 1.75, 'ksprite');
   const known = pr.scoutLevel;
   const nameHtml = `<span class="kname">${esc(pr.name)}</span><button class="kx" data-action="pr-forget" data-id="${pr.id}">✕</button>`;
   const ring = ringCounter(pr.commitPct, 'COM', `${pr.commitPct}`, `commitment ${pr.commitPct}%`);
   const imgDim = rigSpriteHtml(
-    { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, mood: 'neutral', energy: 'normal', fire: false },
+    { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, form: pr.form, mood: 'neutral', energy: 'normal', fire: false },
     PRACTICE_KIT, 1.75, 'ksprite dimspr');
   let body: string;
   if (l === 1) {
@@ -1168,9 +1169,9 @@ function stageDepartures(s: GameState): string {
         if (d.resolved) return `<div class="propane">${esc(d.note)}</div>`;
         const p = myTeam(s).players.find((x) => x.id === d.playerId);
         const chance = p ? clamp(15 + (p.mood - 40), 10, 80) : 15;
-        return `<div class="propane"><b>${esc(d.name)}</b> has pro scouts in his dorm lobby.
-          <button class="hold" data-action="convince-pro" data-id="${d.playerId}">KEEP HIM ${oddsLine({ pct: chance as 2, cls: 'SPIRIT' }, { pct: (100 - chance) as 2, cls: 'DRAMA' })}</button>
-          <button class="hold" data-action="letgo-pro" data-id="${d.playerId}">LET HIM FLY</button></div>`;
+        return `<div class="propane"><b>${esc(d.name)}</b> ${genderize('has pro scouts in his dorm lobby.', p?.form)}
+          <button class="hold" data-action="convince-pro" data-id="${d.playerId}">${genderize('KEEP HIM', p?.form)} ${oddsLine({ pct: chance as 2, cls: 'SPIRIT' }, { pct: (100 - chance) as 2, cls: 'DRAMA' })}</button>
+          <button class="hold" data-action="letgo-pro" data-id="${d.playerId}">${genderize('LET HIM FLY', p?.form)}</button></div>`;
       }).join('')
     : '';
   return `<h2>OFFSEASON</h2>
@@ -1343,10 +1344,10 @@ function dropConfirmHtml(s: GameState): string {
   const pr = s.prospects.find((x) => x.id === dropConfirm);
   if (!pr) return '';
   return `<div class="modalback"><div class="modal">
-    <span class="tag">FORGET HIM?</span>
-    <p>Are you sure you want to forget about ${esc(pr.name)}? You won't be able to find him again.</p>
+    <span class="tag">${genderize('FORGET HIM?', pr.form)}</span>
+    <p>${genderize(`Are you sure you want to forget about ${esc(pr.name)}? You won't be able to find him again.`, pr.form)}</p>
     <button class="wide hold danger" data-action="pr-drop" data-id="${pr.id}">✕ FORGET ${esc(pr.name.toUpperCase())}</button>
-    <button class="wide" data-action="pr-drop-cancel">KEEP HIM</button>
+    <button class="wide" data-action="pr-drop-cancel">${genderize('KEEP HIM', pr.form)}</button>
   </div></div>`;
 }
 
