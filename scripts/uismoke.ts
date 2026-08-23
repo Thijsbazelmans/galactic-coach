@@ -159,6 +159,7 @@ async function main(): Promise<void> {
   ns1.click();
   if (!app.innerHTML.includes('HALFTIME')) throw new Error('halftime screen missing after H1 needle');
   if (!app.innerHTML.includes('HALFTIME SPEECH')) throw new Error('halftime speech row missing');
+  if (!app.innerHTML.includes('hlock')) throw new Error('reserves not locked at halftime');
 
   // no second half before the halftime speech
   anyWin.gcAction('play-h2', '');

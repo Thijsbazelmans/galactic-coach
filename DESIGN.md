@@ -587,6 +587,11 @@ phone screenshot: the under-grid space is a fixed budget now — action rows
 are 46px slots, info strips (SHIP GROUNDED, the gassed warning) are slim
 24px ones, so strip + SCOUT + RECRUIT can't clip into THE BAG anymore.
 
+**v2.8.1:** At halftime the RESERVES are locked — the row greys out
+(`hlock`), can't be dragged, takes no drops and never lights up as a
+target; swaps live strictly between starters and bench. (The rope never
+counted reserves anyway — this closes the free-fresh-legs loophole.)
+
 ## NEXT SESSION (pick up here)
 
 Fresh-session state: the game is **v2.8** (HALFTIME) — all of it logged in

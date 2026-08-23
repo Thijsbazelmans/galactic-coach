@@ -532,6 +532,8 @@ interface CardOpts {
   tag?: string;
   inert?: boolean;
   draggable?: boolean;
+  /** halftime: the reserves stayed in the locker room — greyed, unswappable */
+  locked?: boolean;
   sitout?: boolean;
   miscast?: number; // % penalty to print
   pick?: boolean; // selection screens
@@ -591,7 +593,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       brHtml: ringCounter(xpPct, 'LVL', String(p.level), `level ${p.level}/${LEVEL_CAP} · xp ${p.xp}/${p.level >= LEVEL_CAP ? '—' : xpNeed(p.level)}`),
     });
   }
-  return `<div class="pcard lens${l} sq ${out ? 'pout' : ''} ${opts.draggable && !out && l === 0 ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
+  return `<div class="pcard lens${l} sq ${out ? 'pout' : ''} ${opts.locked ? 'hlock' : ''} ${opts.draggable && !out && !opts.locked && l === 0 ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
       ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
     ${body}
     ${opts.stickers?.length ? `<div class="stickers">${opts.stickers.map((st, i) =>
@@ -766,9 +768,11 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0): string 
           sweep++;
         }
       }
+      // halftime: no fresh legs off the reserve bench — that row is locked
+      const halfLock = s.phase === 'gamenight' && gnStage === 'half' && r === 2;
       return `<div class="gcell dropzone" data-zone="${idx}">
         ${p
-          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, miscast: Math.round((1 - mult) * 100), stickers, stickerDelay })
+          ? playerCard(p, { lens: gridLens, draggable: draggable && !halfLock, locked: halfLock, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, miscast: Math.round((1 - mult) * 100), stickers, stickerDelay })
           : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');
@@ -1742,6 +1746,8 @@ function handleDrop(zoneIdx: number, playerId: number): void {
   if (!p || p.outWeeks > 0) return;
   const from = t.lineup.slots.indexOf(playerId);
   if (from < 0 || from === zoneIdx) return;
+  // halftime: reserves are locked — swaps live between starters and bench only
+  if (state.phase === 'gamenight' && gnStage === 'half' && (from >= 6 || zoneIdx >= 6)) return;
   const occupant = t.lineup.slots[zoneIdx];
   t.lineup.slots[zoneIdx] = playerId;
   t.lineup.slots[from] = occupant;
@@ -1789,7 +1795,11 @@ function targetAtPoint(): Element | null {
   if (!ptr) return null;
   const el = document.elementFromPoint(ptr.lastX, ptr.lastY);
   if (!el) return null;
-  return ptr.kind === 'item' ? el.closest('.storypanel') : el.closest('.dropzone');
+  if (ptr.kind === 'item') return el.closest('.storypanel');
+  const zone = el.closest('.dropzone');
+  // halftime: the reserve row takes no drops — it never lights up either
+  if (zone && state.phase === 'gamenight' && gnStage === 'half' && Number(zone.getAttribute('data-zone')) >= 6) return null;
+  return zone;
 }
 
 function endDrag(drop: boolean): void {
