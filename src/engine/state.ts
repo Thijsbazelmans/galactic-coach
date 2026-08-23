@@ -74,6 +74,16 @@ export function myTeam(s: GameState): Team {
   return s.teams[s.myTeamId];
 }
 
+/** Names in active use anywhere in the league — new people must not reuse them. */
+function takenNames(s: GameState): Set<string> {
+  const set = new Set<string>();
+  for (const t of s.teams) for (const p of t.players) set.add(p.name);
+  for (const pr of s.prospects) set.add(pr.name);
+  for (const p of s.selectPool) set.add(p.name);
+  for (const p of s.commits) set.add(p.name);
+  return set;
+}
+
 export function weekLabel(s: GameState): string {
   if (s.season === 0) return 'TRYOUTS';
   if (s.week <= REGULAR_WEEKS) return `WEEK ${s.week}/${REGULAR_WEEKS}`;
@@ -239,7 +249,7 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
     }
     if (fx.intel && s.prospects.length < MAX_PROSPECTS) {
       const counter = { nextId: s.nextId };
-      const pr = genProspect(counter, s.season, 'nebula');
+      const pr = genProspect(counter, s.season, 'nebula', takenNames(s));
       pr.scoutLevel = 1;
       observe(pr);
       s.nextId = counter.nextId;
@@ -247,7 +257,7 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
     }
     if (fx.addPlayer && t.players.length < ROSTER_SIZE) {
       const counter = { nextId: s.nextId };
-      const np = genSpecial(counter, fx.addPlayer);
+      const np = genSpecial(counter, fx.addPlayer, takenNames(s));
       s.nextId = counter.nextId;
       t.players.push(np);
       ensureUniqueJerseys(t.players);
@@ -685,7 +695,7 @@ export function actionScan(s: GameState, regionId: string): string | null {
   s.energy -= def.cost;
   s.discoveredWk = true;
   const counter = { nextId: s.nextId };
-  const found: Prospect[] = [genProspect(counter, s.season, def.id)];
+  const found: Prospect[] = [genProspect(counter, s.season, def.id, takenNames(s))];
   s.nextId = counter.nextId;
   s.prospects.push(...found);
   let text = found.length
@@ -1116,8 +1126,9 @@ function endSeason(s: GameState, utNote: string | null): void {
       p.outWeeks = 0; p.outReason = '';
     }
     const counter = { nextId: s.nextId };
+    const names = takenNames(s);
     while (team.players.length < ROSTER_SIZE) {
-      team.players.push(prospectToPlayer(genProspect(counter, s.season, Math.random() < 0.3 ? 'outerrim' : 'nebula')));
+      team.players.push(prospectToPlayer(genProspect(counter, s.season, Math.random() < 0.3 ? 'outerrim' : 'nebula', names)));
     }
     s.nextId = counter.nextId;
     ensureUniqueJerseys(team.players);
@@ -1216,7 +1227,8 @@ export function resolveSigning(s: GameState): void {
 
   const pool: Player[] = [...myTeam(s).players, ...s.commits];
   const counter = { nextId: s.nextId };
-  while (pool.length < SELECT_POOL_SIZE) pool.push(genWalkOn(counter));
+  const names = takenNames(s);
+  while (pool.length < SELECT_POOL_SIZE) pool.push(genWalkOn(counter, names));
   s.nextId = counter.nextId;
   s.selectPool = pool;
   s.phase = 'teamSelect';
@@ -1284,7 +1296,8 @@ export function startNewSeason(s: GameState): void {
   s.ut = null;
   autoLineup(myTeam(s));
   const counter = { nextId: s.nextId };
-  for (let i = 0; i < 2; i++) s.prospects.push(genProspect(counter, s.season, Math.random() < 0.5 ? 'home' : 'nebula'));
+  const names = takenNames(s);
+  for (let i = 0; i < 2; i++) s.prospects.push(genProspect(counter, s.season, Math.random() < 0.5 ? 'home' : 'nebula', names));
   s.nextId = counter.nextId;
   startWeek(s);
 }
@@ -1300,7 +1313,8 @@ export function chooseTeam(s: GameState, teamId: number): void {
   for (const p of t.players) if (p.classYear === 0) p.classYear = 1 + rand(3);
   const pool: Player[] = [...t.players];
   const counter = { nextId: s.nextId };
-  while (pool.length < SELECT_POOL_SIZE) pool.push(genWalkOn(counter));
+  const names = takenNames(s);
+  while (pool.length < SELECT_POOL_SIZE) pool.push(genWalkOn(counter, names));
   s.nextId = counter.nextId;
   s.selectPool = pool;
   s.signingResults = [];

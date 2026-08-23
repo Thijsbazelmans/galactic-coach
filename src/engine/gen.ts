@@ -40,7 +40,15 @@ export function xpNeed(level: number): number {
   return 20 + level * 12;
 }
 
-export function genName(): string {
+/** Pick a name nobody active is using; only a truly exhausted pool repeats. */
+export function genName(taken?: Set<string>): string {
+  for (let i = 0; i < 40; i++) {
+    const n = pick(DEITY_NAMES);
+    if (!taken?.has(n)) {
+      taken?.add(n);
+      return n;
+    }
+  }
   return pick(DEITY_NAMES);
 }
 
@@ -104,7 +112,7 @@ function levelForClass(classYear: number): number {
 
 const CLASS_HEADROOM = [9, 7, 5, 3];
 
-export function genPlayer(counter: { nextId: number }, quality: number, classYear?: number, speciesId?: string): Player {
+export function genPlayer(counter: { nextId: number }, quality: number, classYear?: number, speciesId?: string, taken?: Set<string>): Player {
   const pool = SPECIES.filter((sp) => sp.rarity <= 1);
   const sp = speciesId ? speciesById(speciesId) : pick(pool);
   const cy = classYear ?? rand(4);
@@ -114,7 +122,7 @@ export function genPlayer(counter: { nextId: number }, quality: number, classYea
   const pots = rollPots(sp.attrCaps, attrs, CLASS_HEADROOM[Math.min(cy, 3)]);
   return {
     id: counter.nextId++,
-    name: genName(),
+    name: genName(taken),
     speciesId: sp.id,
     classYear: cy,
     form: Math.random() < 0.5 ? 'femme' : 'masc',
@@ -135,9 +143,9 @@ export function genPlayer(counter: { nextId: number }, quality: number, classYea
   };
 }
 
-export function genWalkOn(counter: { nextId: number }): Player {
+export function genWalkOn(counter: { nextId: number }, taken?: Set<string>): Player {
   const gem = Math.random() < 0.12;
-  const p = genPlayer(counter, gem ? 14 + rand(8) : -12 + rand(6), rand(4));
+  const p = genPlayer(counter, gem ? 14 + rand(8) : -12 + rand(6), rand(4), undefined, taken);
   p.walkOn = true;
   p.gem = gem;
   if (gem) {
@@ -147,7 +155,7 @@ export function genWalkOn(counter: { nextId: number }): Player {
   return p;
 }
 
-export function genSpecial(counter: { nextId: number }, kind: 'walkon' | 'gem' | 'daughter' | 'droid'): Player {
+export function genSpecial(counter: { nextId: number }, kind: 'walkon' | 'gem' | 'daughter' | 'droid', taken?: Set<string>): Player {
   if (kind === 'daughter') {
     const p = genPlayer(counter, 12, 1, 'terran');
     p.name = 'Minervva';
@@ -164,7 +172,7 @@ export function genSpecial(counter: { nextId: number }, kind: 'walkon' | 'gem' |
     p.mood = 100; // it does not feel. probably.
     return p;
   }
-  const p = genWalkOn(counter);
+  const p = genWalkOn(counter, taken);
   if (kind === 'gem') {
     p.gem = true;
     const caps = speciesById(p.speciesId).attrCaps;
@@ -196,7 +204,7 @@ export function observe(pr: Prospect): void {
   }
 }
 
-export function genProspect(counter: { nextId: number }, seasonNo: number, regionId: string): Prospect {
+export function genProspect(counter: { nextId: number }, seasonNo: number, regionId: string, taken?: Set<string>): Prospect {
   const region = scanById(regionId);
   const sp = speciesById(pick(region.pool));
   const quality = 4 + rand(12) + Math.min(seasonNo, 5) + region.skillBonus;
@@ -206,7 +214,7 @@ export function genProspect(counter: { nextId: number }, seasonNo: number, regio
   const form: 'masc' | 'femme' = Math.random() < 0.5 ? 'femme' : 'masc';
   const pr: Prospect = {
     id: counter.nextId++,
-    name: genName(),
+    name: genName(taken),
     speciesId: sp.id,
     form,
     ...rollBody(sp.id),
@@ -263,10 +271,10 @@ export function emptyLineup(): Lineup {
   return { slots: Array.from({ length: 9 }, () => null) };
 }
 
-function genTeam(counter: { nextId: number }, idx: number): Team {
+function genTeam(counter: { nextId: number }, idx: number, taken: Set<string>): Team {
   const t = TEAM_TEMPLATES[idx];
   const players: Player[] = [];
-  for (let i = 0; i < ROSTER_SIZE; i++) players.push(genPlayer(counter, rand(10)));
+  for (let i = 0; i < ROSTER_SIZE; i++) players.push(genPlayer(counter, rand(10), undefined, undefined, taken));
   ensureUniqueJerseys(players);
   return {
     id: idx,
@@ -335,7 +343,8 @@ export function genChamps(myPower: number, season: number): ChampTeam[] {
 
 export function newGameState(): GameState {
   const counter = { nextId: 1 };
-  const teams = TEAM_TEMPLATES.map((_, i) => genTeam(counter, i));
+  const takenNames = new Set<string>();
+  const teams = TEAM_TEMPLATES.map((_, i) => genTeam(counter, i, takenNames));
   return {
     version: SAVE_VERSION,
     season: 1,

@@ -533,6 +533,12 @@ they/them) deliberately deferred to the story-writing session — verb
 agreement makes it a writing pass, not a token swap; Nimbus/Gelid/Robota
 are the natural candidates.
 
+**v2.6.1:** Names are league-unique — every generation site (fresh
+league, walk-on pools, discoveries, AI refills, the empty-locker
+specials) draws against the set of names in active use; alumni names
+recycle so long careers can't exhaust the 201-name pool. Verified: 0
+duplicates across 300 fresh tryouts and full leagues.
+
 ## NEXT SESSION (pick up here)
 
 0. **HALFTIME (agreed direction):** split the sim into two halves — after
