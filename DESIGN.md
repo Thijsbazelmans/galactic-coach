@@ -375,6 +375,18 @@ column. Text purge: assistant auto-tips OFF by default (the ? button
 remains), lens info rows / galaxy hint / bag item-hint removed — a
 proper succinct tutorial is future work.
 
+**v2.2.6:** STATS card rebuilt as a flanking scoreboard — ten aligned
+rows, labels down the left in team color (GmPl · Pts · PPG · Reb · RPG ·
+Stl · SPG · Ast · APG · MVP), numbers down the right in white, sprite in
+its usual center spot. NEW STAT: in-game MVP (best combined line on the
+team each game; StatLine.mvp, dealt in dealBox, careers fold it in).
+POTENTIAL card orientation fixed per spec: SKILL horizontal top, BODY
+down the right edge baseline-in, FIRE horizontal bottom, BRAIN up the
+left edge baseline-in; OVR returns bottom-left and the POT box bottom-
+right (center chip gone). SKILLS lens renamed ABILITIES. Lens arrows
+removed AND the swipe gesture removed (it fought the card drag) — the
+three tabs are the only lens control.
+
 ## NEXT SESSION (pick up here)
 
 1. **Femme players:** the renderer supports masc/femme (terran has its own

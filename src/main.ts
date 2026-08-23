@@ -479,28 +479,8 @@ function squareKite(cur: AttrRec, o: SqOpts): string {
 // GROWTH (where did he start, how far can he go). Same faces, same places.
 
 type Lens = 0 | 1 | 2;
-const LENS_NAMES = ['SKILLS', 'STATS', 'POTENTIAL'];
+const LENS_NAMES = ['ABILITIES', 'STATS', 'POTENTIAL'];
 let lens: Lens = 0;
-
-type CrownKey = 'pts' | 'reb' | 'stl' | 'ast';
-const STAT_KEYS: CrownKey[] = ['pts', 'reb', 'stl', 'ast'];
-const STAT_LABEL: Record<CrownKey, string> = { pts: 'PTS', reb: 'REB', stl: 'STL', ast: 'AST' };
-
-/** Who leads the roster in each per-game stat (season lens crowns). */
-function crownMap(players: Player[]): Map<CrownKey, number> {
-  const m = new Map<CrownKey, number>();
-  for (const k of STAT_KEYS) {
-    let best: Player | null = null;
-    let bestV = 0;
-    for (const p of players) {
-      if (p.stats.gp === 0) continue;
-      const v = p.stats[k] / p.stats.gp;
-      if (v > bestV) { bestV = v; best = p; }
-    }
-    if (best && bestV > 0) m.set(k, best.id);
-  }
-  return m;
-}
 
 /** The sprite tells the truth: mood, energy, size and fire, straight from the rig. */
 function rigView(p: Player, story?: 'good' | 'bad'): RigView {
@@ -535,7 +515,6 @@ interface CardOpts {
   sitout?: boolean;
   miscast?: number; // % penalty to print
   pick?: boolean; // selection screens
-  crowns?: Map<CrownKey, number>;
 }
 
 // The card, phone-first, one lens at a time. SKILLS: the full-bleed square
@@ -554,16 +533,26 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   const ovrHtml = `<b class="kovr" style="color:${vc(ovr(p.attrs) * 1.6)}">${ovr(p.attrs)}</b>`;
   let body: string;
   if (l === 1) {
-    // the same square, sprite in the same spot — stats take the corners
-    const cell = (k: CrownKey, cls: string): string => {
-      const crown = opts.crowns?.get(k) === p.id;
-      return `<span class="statc ${cls} ${crown ? 'lead' : ''}"><i>${STAT_LABEL[k]}</i><b>${perGame(p.stats, k)}</b>${crown ? '<span class="crown">♛</span>' : ''}</span>`;
-    };
+    // the same square, sprite in the same spot — labels flank left (team
+    // color), numbers flank right (white), one aligned row each
+    const st = p.stats;
+    const rows: [string, string][] = [
+      ['GmPl', String(st.gp)],
+      ['Pts', String(st.pts)],
+      ['PPG', perGame(st, 'pts')],
+      ['Reb', String(st.reb)],
+      ['RPG', perGame(st, 'reb')],
+      ['Stl', String(st.stl)],
+      ['SPG', perGame(st, 'stl')],
+      ['Ast', String(st.ast)],
+      ['APG', perGame(st, 'ast')],
+      ['MVP', String(st.mvp ?? 0)],
+    ];
     body = `<div class="ksq">
       ${sprite(1.75, 'ksprite')}
       <div class="ktop">${nameHtml}</div>
-      ${cell('pts', 'tl')}${cell('reb', 'tr')}${cell('stl', 'bl')}${cell('ast', 'br')}
-      <span class="statc bc"><i>GP</i><b>${p.stats.gp}</b></span>
+      <div class="stcol sl" style="color:${kit.fg}">${rows.map((r) => `<span>${r[0]}</span>`).join('')}</div>
+      <div class="stcol sr">${rows.map((r) => `<b>${r[1]}</b>`).join('')}</div>
     </div>`;
   } else if (l === 2) {
     const nums = Object.fromEntries(ATTRS.map((a) => [a, `${p.attrs[a]}/${p.pots[a]}`])) as Record<Attr, string>;
@@ -573,7 +562,8 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       nums,
       words: true,
       nameHtml,
-      centerHtml: `<b style="color:${vc(ovr(p.attrs) * 1.6)}">${ovr(p.attrs)}</b><span class="kcdim">/${ovr(p.pots)}</span>`,
+      blHtml: ovrHtml,
+      brHtml: `<span class="kpot"><i>POT</i><b style="color:${vc(ovr(p.pots))}">${ovr(p.pots)}</b></span>`,
     });
   } else {
     body = squareKite(p.attrs, {
@@ -680,7 +670,6 @@ const ROW_LABELS = ['START', 'BENCH', 'RES'];
 function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0): string {
   const t = myTeam(s);
   const isPractice = s.phase === 'practice';
-  const crowns = gridLens === 1 ? crownMap(t.players) : undefined;
   const colHead = `<div class="colhead"><span class="rowlabel"></span>${COL_LABELS.map((c) => `<span>${c}</span>`).join('')}</div>`;
   const rows: string[] = [];
   for (let r = 0; r < 3; r++) {
@@ -690,7 +679,7 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0): string 
       const mult = p && r < 2 ? slotMult(p, c) : 1;
       return `<div class="gcell dropzone" data-zone="${idx}">
         ${p
-          ? playerCard(p, { lens: gridLens, crowns, draggable, sitout: isPractice && s.sitouts.includes(p.id), miscast: Math.round((1 - mult) * 100) })
+          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && s.sitouts.includes(p.id), miscast: Math.round((1 - mult) * 100) })
           : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');
@@ -787,9 +776,7 @@ function storyPanel(s: GameState): string {
 function lensBar(): string {
   const tabs = LENS_NAMES.map((n, i) =>
     `<button class="lenstab ${lens === i ? 'sel' : ''}" data-action="lens-set" data-id="${i}">${n}</button>`).join('');
-  return `<div class="lensbar">
-    <button class="lensarrow" data-action="lens-prev">‹</button>${tabs}<button class="lensarrow" data-action="lens-next">›</button>
-  </div>`;
+  return `<div class="lensbar">${tabs}</div>`;
 }
 
 function stagePractice(s: GameState): string {
@@ -1455,30 +1442,7 @@ document.addEventListener('pointerup', (e) => {
 });
 document.addEventListener('pointercancel', () => endDrag(false));
 
-// ---- the lens swipe: a horizontal fling on the training grid changes lenses ----
-
-let swipe: { id: number; x: number; y: number } | null = null;
-
-app.addEventListener('pointerdown', (e) => {
-  const modalOpen = drillSheet || coachOpen || itemUi !== null || toast !== null || prospectUi !== null || scanUi !== null;
-  if (state.phase === 'practice' && !currentStory(state) && !modalOpen) {
-    swipe = { id: e.pointerId, x: e.clientX, y: e.clientY };
-  }
-});
-document.addEventListener('pointerup', (e) => {
-  if (!swipe || e.pointerId !== swipe.id) return;
-  const dx = e.clientX - swipe.x;
-  const dy = e.clientY - swipe.y;
-  swipe = null;
-  if (suppressClick) return; // that was a card drag, not a fling
-  if (Math.abs(dx) > 56 && Math.abs(dx) > Math.abs(dy) * 2) {
-    lens = ((lens + (dx < 0 ? 1 : 2)) % 3) as Lens;
-    suppressClick = true;
-    setTimeout(() => { suppressClick = false; }, 60);
-    render();
-  }
-});
-document.addEventListener('pointercancel', () => { swipe = null; });
+// (lens switching is tabs-only — a swipe gesture fought the card drag)
 document.addEventListener('touchmove', (e) => { if (ptr?.active) e.preventDefault(); }, { passive: false });
 
 // ---- actions ----------------------------------------------------------------------------------------------------
@@ -1667,8 +1631,6 @@ app.addEventListener('click', (e) => {
     case 'plan': setPlan(state, id as PlanId); break;
 
     case 'lens-set': lens = (Number(id) % 3) as Lens; break;
-    case 'lens-prev': lens = ((lens + 2) % 3) as Lens; break;
-    case 'lens-next': lens = ((lens + 1) % 3) as Lens; break;
 
     case 'drill-sheet': drillSheet = true; break;
     case 'drill-sheet-close': if (e.target === el) drillSheet = false; break;

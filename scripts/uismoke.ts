@@ -87,9 +87,9 @@ async function main(): Promise<void> {
 
   // the three lenses render
   if (!app.innerHTML.includes('lensbar')) throw new Error('lens bar missing');
-  must('[data-action="lens-next"]', 'lens next');
-  if (!app.innerHTML.includes('statc')) throw new Error('stats lens did not render');
-  must('[data-action="lens-next"]', 'lens next 2');
+  (app.querySelectorAll('[data-action="lens-set"]')[1] as unknown as { click: () => void }).click();
+  if (!app.innerHTML.includes('stcol')) throw new Error('stats lens did not render');
+  (app.querySelectorAll('[data-action="lens-set"]')[2] as unknown as { click: () => void }).click();
   if (!app.innerHTML.includes('BRAIN')) throw new Error('potential lens did not render');
   must('[data-action="lens-set"]', 'lens set 0');
 

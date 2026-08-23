@@ -89,7 +89,7 @@ export const SIZE_LABELS = ['XS', 'S', 'M', 'L', 'XL'];
 // ---- box-score lines ----------------------------------------------------------
 
 export function zeroStats(): StatLine {
-  return { gp: 0, pts: 0, reb: 0, stl: 0, ast: 0 };
+  return { gp: 0, pts: 0, reb: 0, stl: 0, ast: 0, mvp: 0 };
 }
 
 export function addStats(into: StatLine, from: StatLine): void {
@@ -98,6 +98,7 @@ export function addStats(into: StatLine, from: StatLine): void {
   into.reb += from.reb;
   into.stl += from.stl;
   into.ast += from.ast;
+  into.mvp = (into.mvp ?? 0) + (from.mvp ?? 0);
 }
 
 /** Per-game average, one decimal, '—' when he hasn't played. */

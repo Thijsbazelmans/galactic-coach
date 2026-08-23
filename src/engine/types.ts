@@ -34,6 +34,8 @@ export interface StatLine {
   reb: number;
   stl: number;
   ast: number;
+  /** in-game MVP awards: best combined line on the team that night */
+  mvp: number;
 }
 
 // ---- species (interface only — real species design is its own session) ------

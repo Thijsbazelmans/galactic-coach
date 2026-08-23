@@ -233,6 +233,13 @@ export function dealBox(me: Team, myScore: number, plan: PlanId): BoxRow[] {
     p.stats.ast += row.ast;
     return row;
   });
+  // the in-game MVP: best combined line on the floor tonight
+  if (rows.length) {
+    const line = (r: BoxRow): number => r.pts + r.reb + r.stl + r.ast;
+    const star = rows.reduce((b, r) => (line(r) > line(b) ? r : b), rows[0]);
+    const mp = me.players.find((p) => p.id === star.playerId);
+    if (mp) mp.stats.mvp = (mp.stats.mvp ?? 0) + 1;
+  }
   return rows.sort((a, b) => b.pts - a.pts);
 }
 
