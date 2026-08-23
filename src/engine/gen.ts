@@ -180,14 +180,17 @@ export function genSpecial(counter: { nextId: number }, kind: 'walkon' | 'gem' |
 /** Refresh the coach's observation of a prospect at its current scout level.
     Unscouted = a cloud (±4 per attribute); one look = a haze (±2); known = truth. */
 export function observe(pr: Prospect): void {
-  const fuzz = pr.scoutLevel >= 2 ? 0 : pr.scoutLevel === 1 ? 2 : 4;
   // ABILITY becomes truth at full scout; POTENTIAL stays a projection until
-  // he actually signs — you never fully know a kid's ceiling from the stands
-  const potFuzz = Math.max(1, fuzz);
+  // he actually signs. The ONE-LOOK read (level 1) can be WAY off: a single
+  // hot or miserable night skews the whole report — one shared hype/slander
+  // bias (×0.6–1.5) on top of per-attribute noise.
   const caps = speciesById(pr.speciesId).attrCaps;
+  const bias = pr.scoutLevel === 1 ? 0.6 + Math.random() * 0.9 : 1;
+  const fuzz = pr.scoutLevel >= 2 ? 0 : pr.scoutLevel === 1 ? 3 : 4;
+  const potFuzz = Math.max(1, fuzz);
   for (const a of ATTRS) {
-    pr.seenAttrs[a] = fuzz ? clamp(pr.attrs[a] + rand(fuzz * 2 + 1) - fuzz, 0, caps[a]) : pr.attrs[a];
-    pr.seenPots[a] = clamp(pr.pots[a] + rand(potFuzz * 2 + 1) - potFuzz, pr.seenAttrs[a], caps[a]);
+    pr.seenAttrs[a] = fuzz ? clamp(Math.round(pr.attrs[a] * bias) + rand(fuzz * 2 + 1) - fuzz, 0, caps[a]) : pr.attrs[a];
+    pr.seenPots[a] = clamp(Math.round(pr.pots[a] * bias) + rand(potFuzz * 2 + 1) - potFuzz, pr.seenAttrs[a], caps[a]);
   }
 }
 
