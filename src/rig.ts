@@ -80,9 +80,9 @@ const QUADRAN = [
   '......ssssssssssss......',
   '......sssbbsbbssss......',
   '......ssseksekssss......',
-  '......ssssssssssss......',
-  '......sesskksssses......',
-  '......ssssssssssss......',
+  '.ss...sesssssssses...ss.',
+  '..s...sesskksssses...s..',
+  '...s..ssssssssssss..s...',
   '....ssssssssssssssss....',
   '......jjjjjjjjjjjj......',
   '....ssjjjjjjjjjjjJss....',
@@ -90,12 +90,12 @@ const QUADRAN = [
   '....ssjjjjjjjjjjjJss....',
   '....ssjjjjjjjjjjjJss....',
   '....ssjjjjjjjjjjjJss....',
-  '...ss..jjjjjjjjjJ..ss...',
-  '...ss.tttttttttttt.ss...',
-  '...ss.jjjjjjjjjjjJ.ss...',
-  '...ss.jjjjjjjjjjjJ.ss...',
-  '...ss.jjjj....jjjJ.ss...',
-  '...ss..ss......ss..ss...',
+  '.......jjjjjjjjjJ.......',
+  '......tttttttttttt......',
+  '......jjjjjjjjjjjJ......',
+  '......jjjjjjjjjjjJ......',
+  '......jjjj....jjjJ......',
+  '.......ss......ss.......',
   '.......ss......ss.......',
   '.......ss......ss.......',
   '.......ss......ss.......',
@@ -113,7 +113,7 @@ const HEXID = [
   '.......ssekseksss.......',
   '.......ssssssssss.......',
   '.......ssskksssss.......',
-  '.......sdssssssds.......',
+  '.......ddssssssdd.......',
   '..........ssss..........',
   '......jjjjjjjjjjjj......',
   '....ssjjjjjjjjjjjJss....',
@@ -139,10 +139,10 @@ const PETRAN = [
   '........................',
   '........................',
   '.......ssssssssss.......',
-  '.......ssssssssss.......',
+  '.......ssssssdsss.......',
   '.......sdbbsbbdss.......',
   '.......ssekseksss.......',
-  '.......sdssssssss.......',
+  '.......sddsssssss.......',
   '.......ssskksssss.......',
   '.......ssssssssds.......',
   '..........ssss..........',
@@ -158,7 +158,7 @@ const PETRAN = [
   '......jjjjjjjjjjjJ......',
   '......jjjj....jjjJ......',
   '......sss.....sss.......',
-  '......sss.....sss.......',
+  '......sds.....sds.......',
   '......sss.....sss.......',
   '......sss.....sss.......',
   '......ttt.....ttt.......',
@@ -169,11 +169,11 @@ const PETRAN = [
 const NIMBUS = [
   '........................',
   '........................',
-  '..........ssss..........',
-  '........ssssssss........',
-  '........sbbsbbss........',
-  '........seksekss........',
-  '........ssssssss........',
+  '........................',
+  '........................',
+  '.........ee.ee..........',
+  '.........ek.ek..........',
+  '..........s..s..........',
   '........sskkssss........',
   '........ssssssss........',
   '.......ssssssssss.......',
@@ -183,8 +183,8 @@ const NIMBUS = [
   '.....ssjjjjjjjjjjss.....',
   '.....ssjjjjjjjjjjss.....',
   '.......tttttttttt.......',
-  '.......ssssssssss.......',
-  '........ssssssss........',
+  '.......ssssesssss.......',
+  '........ssesssss........',
   '.........ssssss.........',
   '........ss.ss.ss........',
   '........s...s...s.......',
@@ -217,20 +217,81 @@ const GELID = [
   '.......ssssssssss.......',
   '......ssssssssssss......',
   '......ssssssssssss......',
+  '.......ssssssssss.......',
   '.....ssssssssssssss.....',
+  '.....ssssssssssssss.....',
+  '......ssssssssssss......',
   '....ssssssssssssssss....',
-  '...ssssssssssssssssss...',
-  '..ssssssssssssssssssss..',
-  '.ssssssssssssssssssssss.',
-  '..ssssssssssssssssssss..',
+  '....ssssssssssssssss....',
   '......tttt....tttt......',
   '......wwww....wwww......',
   '......waww....waww......',
   '......kkkk....kkkk......'];
 
+const ROBOTA = [
+  '........................',
+  '........................',
+  '.......ssssssssss.......',
+  '.......sdssssssds.......',
+  '.......ssssssssss.......',
+  '.......sdeksekdss.......',
+  '.......ssssssssss.......',
+  '.......sdskksdsss.......',
+  '.......ssssssssss.......',
+  '..........dddd..........',
+  '......jjjjjjjjjjjj......',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '......tttttttttttt......',
+  '......jjjjjjjjjjjJ......',
+  '......jjjjjjjjjjjJ......',
+  '......jjjj....jjjJ......',
+  '.......ss......ss.......',
+  '.......sd......sd.......',
+  '.......ss......ss.......',
+  '.......sd......sd.......',
+  '.......ss......ss.......',
+  '......tttt....tttt......',
+  '......wwww....wwww......',
+  '......waww....waww......',
+  '......kkkk....kkkk......'];
+
+const OCULID = [
+  '........................',
+  '........................',
+  '........................',
+  '........................',
+  '.........ee.ee..........',
+  '.........ek.ek..........',
+  '..........s..s..........',
+  '.........skksss.........',
+  '.........ssssss.........',
+  '..........ssss..........',
+  '......jjjjjjjjjjjj......',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '....ssjjjjjjjjjjjJss....',
+  '......tttttttttttt......',
+  '......jjjjjjjjjjjJ......',
+  '......jjjjjjjjjjjJ......',
+  '......jjjjjjjjjjjJ......',
+  '.....ss..ss..ss..ss.....',
+  '.....ss..ss..ss..ss.....',
+  '.....ss..ss..ss..ss.....',
+  '.....ss..ss..ss..ss.....',
+  '.....ss..ss..ss..ss.....',
+  '.....ss..ss..ss..ss.....',
+  '.....tt..tt..tt..tt.....',
+  '....www.www.www.www.....',
+  '....waw.waw.waw.waw.....',
+  '....kkk.kkk.kkk.kkk.....'];
+
 const PADT = 7, PADR = 6, PADL = 6;
-const BALL = ['.OOO.', 'OPOOO', 'QQQQQ', 'OOOOO', '.OOO.'];
-const BRICK = ['rrrrrrr', 'RRRRRRR', 'RRRQRRR', 'QQQQQQQ'];
+const BALL = ['.OOO.', 'OQPQO', 'QQQQQ', 'OQOQO', '.OOO.'];
 const Z3 = ['111', '010', '111'];
 const Z5 = ['11111', '00010', '00100', '01000', '11111'];
 
@@ -269,23 +330,31 @@ const RIG: Record<string, RigSpeciesDef> = {
   },
   quadran: {
     cfg: { map: QUADRAN, armL: [4, 5], armR: [18, 19], armTop: 11, armBot: 15, armGrow: 0, torsoDup: 17, legDup: 22, legTop: 21, hasLegs: 1, numOy: 11, sweatR: 18, sweatL: 5 },
-    femmeEdits: [[7, 7, 's'], [16, 7, 's'], [8, 5, 'k'], [15, 5, 'k']],
+    femmeEdits: [[7, 6, 's'], [16, 6, 's'], [7, 7, 's'], [16, 7, 's'], [8, 5, 'k'], [15, 5, 'k'], [6, 2, '.'], [17, 2, '.'], [6, 14, '.'], [17, 14, '.'], [16, 14, 'J'], [6, 15, '.'], [17, 15, '.'], [16, 15, 'J'], [11, 1, 'h'], [12, 1, 'h']],
   },
   hexid: {
     cfg: { map: HEXID, armL: [4, 5], armR: [18, 19], armTop: 11, armBot: 14, armGrow: 1, torsoDup: 15, legDup: 20, legTop: 19, hasLegs: 1, numOy: 10, sweatR: 17, sweatL: 6 },
-    femmeEdits: [[8, 5, 'k'], [15, 5, 'k']],
+    femmeEdits: [[8, 5, 'k'], [15, 5, 'k'], [6, 13, '.'], [17, 13, '.'], [16, 13, 'J'], [6, 14, '.'], [17, 14, '.'], [16, 14, 'J'], [5, 18, 'j'], [18, 18, 'j'], [8, 1, 'h'], [15, 1, 'h']],
   },
   petran: {
-    cfg: { map: PETRAN, armL: [3, 4], armR: [19, 20], armTop: 11, armBot: 18, armGrow: 1, torsoDup: 16, legDup: 22, legTop: 21, hasLegs: 1, numOy: 11, sweatR: 17, sweatL: 6, ballPat: BRICK },
-    femmeEdits: [[7, 2, '.'], [16, 2, '.'], [8, 5, 'k'], [15, 5, 'k']],
+    cfg: { map: PETRAN, armL: [3, 4], armR: [19, 20], armTop: 11, armBot: 18, armGrow: 1, torsoDup: 16, legDup: 22, legTop: 21, hasLegs: 1, numOy: 11, sweatR: 17, sweatL: 6 },
+    femmeEdits: [[7, 2, '.'], [16, 2, '.'], [7, 8, '.'], [16, 8, '.'], [8, 5, 'k'], [15, 5, 'k'], [5, 14, '.'], [18, 14, '.'], [5, 15, '.'], [18, 15, '.'], [17, 15, 'J'], [10, 1, 'h'], [13, 1, 'h']],
   },
   nimbus: {
     cfg: { map: NIMBUS, armL: [5, 6], armR: [17, 18], armTop: 11, armBot: 14, armGrow: 1, torsoDup: 15, legDup: 19, legTop: 99, hasLegs: 0, numOy: 10, sweatR: 16, sweatL: 7, alpha: 1 },
-    femmeEdits: [[8, 5, 'k'], [14, 5, 'k']],
+    femmeEdits: [[8, 4, 'k'], [14, 4, 'k'], [7, 13, '.'], [16, 13, '.'], [7, 14, '.'], [16, 14, '.'], [10, 23, 's'], [14, 23, 's'], [10, 1, 'h'], [13, 1, 'h']],
   },
   gelid: {
     cfg: { map: GELID, armL: [5, 6], armR: [17, 18], armTop: 11, armBot: 14, armGrow: 1, torsoDup: 15, legDup: 18, legTop: 99, hasLegs: 0, numOy: 10, sweatR: 16, sweatL: 7 },
-    femmeEdits: [[8, 5, 'k'], [14, 5, 'k']],
+    femmeEdits: [[8, 5, 'k'], [14, 5, 'k'], [5, 19, '.'], [18, 19, '.'], [4, 20, '.'], [19, 20, '.'], [10, 1, 'h'], [13, 1, 'h']],
+  },
+  robota: {
+    cfg: { map: ROBOTA, armL: [4, 5], armR: [18, 19], armTop: 11, armBot: 15, armGrow: 1, torsoDup: 16, legDup: 22, legTop: 20, hasLegs: 1, numOy: 11, sweatR: 17, sweatL: 6 },
+    femmeEdits: [[8, 5, 'k'], [15, 5, 'k'], [7, 2, '.'], [16, 2, '.'], [7, 8, '.'], [16, 8, '.'], [6, 14, '.'], [17, 14, '.'], [16, 14, 'J'], [6, 15, '.'], [17, 15, '.'], [16, 15, 'J'], [9, 1, 'h'], [14, 1, 'h']],
+  },
+  oculid: {
+    cfg: { map: OCULID, armL: [4, 5], armR: [18, 19], armTop: 11, armBot: 14, armGrow: 1, torsoDup: 15, legDup: 20, legTop: 19, hasLegs: 1, numOy: 11, sweatR: 15, sweatL: 7 },
+    femmeEdits: [[8, 4, 'k'], [14, 4, 'k'], [6, 13, '.'], [17, 13, '.'], [16, 13, 'J'], [6, 14, '.'], [17, 14, '.'], [16, 14, 'J'], [11, 3, 'h'], [12, 3, 'h']],
   },
 };
 
@@ -296,6 +365,8 @@ const SKINS_SP: Record<string, string[]> = {
   petran: ['#8d8377', '#6f665c', '#a89d8f', '#565049'],
   nimbus: ['#93a9cf', '#7a8fb8', '#b0c4e4', '#647899'],
   gelid: ['#78b955', '#5f9a40', '#93d06e', '#487a30'],
+  robota: ['#9aa3b5', '#7c8598', '#b8c1d1', '#5f6878'],
+  oculid: ['#c9a53f', '#a37f2c', '#e0c05e', '#7c5f1f'],
 };
 const HAIRS = ['#3a2a1c', '#14100c', '#c9973f', '#8a3d24'];
 
@@ -322,33 +393,45 @@ const STYLES: Record<string, StyleDef[]> = {
   ],
   quadran: [
     { name: 'NONE', px: [] },
-    { name: 'RIDGE', px: [[8, 1], [10, 1], [12, 1], [14, 1]] },
-    { name: 'HORNS', px: [[6, 1], [5, 0], [17, 1], [18, 0]] },
-    { name: 'TUFT', px: [[11, 1], [12, 1], [11, 0]] },
+    { name: 'RIDGE', px: [[8, 1], [8, 0], [10, 1], [12, 1], [12, 0], [14, 1]] },
+    { name: 'HORNS', px: [[6, 1], [6, 0], [5, 0], [17, 1], [17, 0], [18, 0]] },
+    { name: 'TUFT', px: [[10, 1], [11, 1], [12, 1], [13, 1], [11, 0], [12, 0]] },
   ],
   hexid: [
-    { name: 'ANTENNAE', px: [[9, 1], [8, 0], [14, 1], [15, 0]] },
-    { name: 'LONG FEELERS', px: [[9, 1], [9, 0], [8, 0], [14, 1], [14, 0], [15, 0]] },
+    { name: 'ANTENNAE', px: [[9, 1], [9, 0], [8, 0], [14, 1], [14, 0], [15, 0]] },
+    { name: 'LONG FEELERS', px: [[9, 1], [9, 0], [8, 0], [7, 0], [14, 1], [14, 0], [15, 0], [16, 0]] },
     { name: 'HORN', px: [[11, 1], [12, 1], [11, 0], [12, 0]] },
     { name: 'NONE', px: [] },
   ],
   petran: [
-    { name: 'SHARDS', px: [[8, 1], [11, 1], [11, 0], [14, 1]] },
-    { name: 'MOSS', px: span(1, 8, 15) },
-    { name: 'PEAK', px: [[11, 1], [12, 1], [12, 0]] },
+    { name: 'SHARDS', px: [[8, 1], [8, 0], [11, 1], [11, 0], [12, 1], [14, 1], [14, 0]] },
+    { name: 'MOSS', px: span(1, 8, 15).concat([[9, 0], [13, 0]]) },
+    { name: 'PEAK', px: [[11, 1], [12, 1], [11, 0], [12, 0]] },
     { name: 'NONE', px: [] },
   ],
   nimbus: [
-    { name: 'WISP', px: [[11, 1], [12, 0]] },
-    { name: 'TWIN WISP', px: [[9, 1], [10, 0], [13, 1], [14, 0]] },
+    { name: 'WISP', px: [[11, 1], [11, 0], [12, 1], [12, 0]] },
+    { name: 'TWIN WISP', px: [[9, 1], [9, 0], [10, 0], [13, 1], [14, 0], [14, 1]] },
     { name: 'HALO', px: span(0, 9, 14) },
     { name: 'NONE', px: [] },
   ],
   gelid: [
-    { name: 'DROPLETS', px: [[9, 1], [12, 0], [14, 1]] },
-    { name: 'SPIKE', px: [[11, 1], [12, 1], [12, 0]] },
+    { name: 'DROPLETS', px: [[9, 1], [9, 0], [12, 0], [12, 1], [14, 1], [14, 0]] },
+    { name: 'SPIKE', px: [[11, 1], [12, 1], [11, 0], [12, 0]] },
     { name: 'TWIN DRIP', px: [[9, 1], [9, 0], [14, 1], [14, 0]] },
     { name: 'NONE', px: [] },
+  ],
+  robota: [
+    { name: 'ANTENNA', px: [[11, 1], [11, 0], [12, 0]] },
+    { name: 'DISH', px: span(1, 9, 14).concat([[11, 0], [12, 0]]) },
+    { name: 'SPIKES', px: [[8, 1], [8, 0], [11, 1], [11, 0], [14, 1], [14, 0]] },
+    { name: 'NONE', px: [] },
+  ],
+  oculid: [
+    { name: 'NONE', px: [] },
+    { name: 'FUZZ', px: [[8, 3], [9, 3], [13, 3], [14, 3]] },
+    { name: 'THIRD STALK', px: [[11, 3], [11, 2], [11, 1]] },
+    { name: 'HORNS', px: [[8, 3], [8, 2], [15, 3], [15, 2]] },
   ],
 };
 
@@ -482,6 +565,7 @@ function pal(species: string, look: Look, kit: Kit): Record<string, string> {
     e: '#f4f6fa', k: '#1a1e2e', m: '#8a3d33', c: '#7fd8ec', y: '#ffd76a',
     O: '#c9752e', Q: '#7d4315', P: '#e08a3c', g: '#4a5268', F: '#fff0bd',
     R: '#a4503c', r: '#c16a52', w: '#ece9e2', a: kit.fg,
+    B: 'rgba(190,225,255,0.75)', V: 'rgba(130,190,255,0.45)', U: 'rgba(160,215,255,0.25)',
   };
   const def = RIG[species];
   if (def?.cfg?.alpha) {
@@ -513,7 +597,8 @@ function buildMap(
   const SZ = RIG_SIZES[Math.max(0, Math.min(4, sizeIx))];
   const E = story ? ENERGIES.normal : ENERGIES[energy];
   // story acting: neutral for a beat, then the emotion takes over
-  const M = MOODS[story ? (f < 8 ? 'neutral' : story === 'bad' ? 'angry' : 'elated') : mood];
+  const moodKey: RigMood = story ? (f < 8 ? 'neutral' : story === 'bad' ? 'angry' : 'elated') : mood;
+  const M = MOODS[moodKey];
   const def = RIG[species] ?? RIG.terran;
   let map = cfg.map.map((r) => r.split(''));
   if (species === 'terran') {
@@ -527,6 +612,18 @@ function buildMap(
   M.edits.forEach(([x, y, ch]) => { map[y][x] = ch; });
   if (M.open && !E.bed && f >= 14 && f <= 16) {
     map[5][9] = 'k'; map[5][10] = 'e'; map[5][12] = 'k'; map[5][13] = 'e';
+  }
+  if (moodKey === 'angry' && (species === 'hexid' || species === 'robota')) {
+    // no baked brows + low-contrast crest color: draw full dark angry brows
+    map[3][9] = 'k'; map[3][13] = 'k'; map[4][10] = 'k'; map[4][12] = 'k';
+  }
+  if (species === 'nimbus' || species === 'oculid') {
+    // stalk eyes: moods must never eat the eyeball tops
+    [9, 10, 12, 13].forEach((x) => { if (map[4][x] === 's') map[4][x] = 'e'; });
+    if (moodKey === 'angry') { // floating angled brows above the stalks
+      map[3][9] = '.'; map[3][13] = '.';
+      map[2][9] = 'k'; map[3][10] = 'k'; map[3][12] = 'k'; map[2][13] = 'k';
+    }
   }
   for (let i = 0; i < SZ.l; i++) map.splice(cfg.legDup, 0, map[cfg.legDup].slice());
   for (let i = 0; i < SZ.t; i++) map.splice(cfg.torsoDup, 0, map[cfg.torsoDup - 1].slice());
@@ -603,8 +700,23 @@ function buildMap(
     if (low > armTop) map[low - 1][c] = 'a';
   }));
 
-  // gelid idle drips
+  // nimbus: tentacle wisps sway
+  if (species === 'nimbus' && !tornado && !E.bed) {
+    const rs = PADT + 19 + t, re = H - 7;
+    for (let y = rs; y <= re; y++) {
+      const ph = (y + Math.floor(f / 2)) % 4;
+      if (ph === 0 && map[y]) { map[y].pop(); map[y].unshift('.'); }
+      else if (ph === 2 && map[y]) { map[y].shift(); map[y].push('.'); }
+    }
+  }
+  // gelid: rings ripple vertically like water + idle side drips
   if (species === 'gelid' && !tornado && !E.bed) {
+    const rs = PADT + 16 + t, re = H - 6;
+    for (let y = rs; y <= re; y++) {
+      const ph = (y + Math.floor(f / 2)) % 4;
+      if (ph === 0 && map[y]) { map[y].pop(); map[y].unshift('.'); }
+      else if (ph === 2 && map[y]) { map[y].shift(); map[y].push('.'); }
+    }
     const ph = Math.floor(f / 2) % 6;
     if (ph < 4) { const x = PADL + 18, y2 = PADT + 11 + ph * 2; if (map[y2] && map[y2][x] === '.') map[y2][x] = 's'; }
   }
@@ -636,37 +748,40 @@ function buildMap(
     ball = null;
   }
 
-  if (!tornado) {
-    if (M.star) {
-      const big = Math.floor(f / 3) % 2, sx = PADL + 18, sy = PADT + 1;
-      if (big) { map[sy][sx + 1] = 'y'; map[sy + 1][sx] = 'y'; map[sy + 1][sx + 1] = 'e'; map[sy + 1][sx + 2] = 'y'; map[sy + 2][sx + 1] = 'y'; }
-      else map[sy + 1][sx + 1] = 'y';
-    }
-    if (M.cloud) {
-      const big = Math.floor(f / 3) % 2, cy = PADT + 1;
-      if (big) { for (let x = PADL + 2; x <= PADL + 6; x++) { map[cy][x] = 'g'; map[cy + 1][x] = 'g'; } map[cy][PADL + 2] = '.'; map[cy + 2][PADL + 3] = 'g'; map[cy + 2][PADL + 5] = 'g'; }
-      else { for (let x = PADL + 3; x <= PADL + 5; x++) map[cy + 1][x] = 'g'; }
-    }
-  }
-
-  if (E.sweat || (story === 'bad' && f >= 8)) {
-    const ph = Math.floor(f / 2) % 6;
-    if (ph < 4) { const x = cfg.sweatR + PADL, y2 = PADT + 3 + ph * 2; if (map[y2] && map[y2][x] === '.') map[y2][x] = 'c'; }
-  }
-
-  // ON FIRE: a flame ring hugging whatever silhouette this body has
+  // ON FIRE first — the ring must never eat mood icons, sweat or zzz
   if (fire) {
-    const solid = (y: number, x: number): boolean => !!(map[y] && map[y][x] && map[y][x] !== '.');
+    const solid = (y: number, x: number): boolean => !!(map[y] && map[y][x] && map[y][x] !== '.' && map[y][x] !== 'c');
     const ring: [number, number][] = [];
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
       if (map[y][x] === '.' && (solid(y + 1, x) || solid(y - 1, x) || solid(y, x + 1) || solid(y, x - 1))) ring.push([x, y]);
     const tips: [number, number][] = [];
     ring.forEach(([x, y]) => {
       const h2 = (x * 7 + y * 11 + f * 3) % 5;
-      if (h2 < 2) map[y][x] = 'e'; else if (h2 < 4) map[y][x] = 'F';
+      if (h2 < 2) map[y][x] = 'B'; else if (h2 < 4) map[y][x] = 'V';
       if (map[y - 1] && map[y - 1][x] === '.' && (x * 5 + y * 3 + f) % 4 === 0) tips.push([x, y - 1]);
     });
-    tips.forEach(([x, y]) => { map[y][x] = (x + f) % 2 ? 'F' : 'y'; });
+    tips.forEach(([x, y]) => { map[y][x] = (x + f) % 2 ? 'V' : 'U'; });
+  }
+
+  if (!tornado) {
+    if (M.star) {
+      const big = Math.floor(f / 3) % 2, sx = PADL + 18, sy = PADT + 1;
+      if (big) { map[sy][sx + 1] = 'y'; map[sy + 1][sx] = 'y'; map[sy + 1][sx + 1] = 'e'; map[sy + 1][sx + 2] = 'y'; map[sy + 2][sx + 1] = 'y'; }
+      else map[sy + 1][sx + 1] = 'y';
+    }
+    if (M.cloud) { // a little skull, pulsing like the star
+      const big = Math.floor(f / 3) % 2, cy = PADT, cx0 = PADL + 1;
+      const SK_BIG = ['.eeeee.', 'ekeeeke', 'eeekeee', '.eeeee.', '.e.e.e.'];
+      const SK_SM = ['..eee..', '.ekeke.', '..eee..'];
+      (big ? SK_BIG : SK_SM).forEach((row, ry) => row.split('').forEach((v, rx) => {
+        if (v !== '.' && map[cy + ry]) map[cy + ry][cx0 + rx] = v;
+      }));
+    }
+  }
+
+  if (E.sweat || (story === 'bad' && f >= 8)) {
+    const ph = Math.floor(f / 2) % 6;
+    if (ph < 4) { const x = cfg.sweatR + PADL, y2 = PADT + 3 + ph * 2; if (map[y2] && map[y2][x] === '.') map[y2][x] = 'c'; }
   }
 
   if (ball) {

@@ -498,6 +498,22 @@ kit-colored chips like the header chip, and if the two hues sit within
 40° the away chip inverts (bg↔fg). Proper home/away kits (the sprite lab
 already defines an away kit) noted as the real future fix.
 
+**v2.5 — SPRITE LAB v0.9 (Aug 23, 2026):** Thijs's updated lab (checked
+into `fromDesign/260823/`) ported whole: EIGHT species — ROBOTA
+(factory-built baller; UNIT-7 the booster droid is now one, tier 3, ATH
+22 + BRN 22) and OCULID (four-legged stalk-eyed bug, tier 2 pest: FRC 20,
+small) join the six; reworked Quadran (wide boxing-out lower arms,
+two-row tusks), Petran (no more brick — normal ball), Nimbus (stalk eyes
++ swaying tentacle wisps), Gelid (michelin-ring body that ripples
+vertically); richer femme edits + taller crests for everyone; the anger
+cloud is now a pulsing little SKULL; and ON FIRE is translucent
+blue-plasma drawn FIRST so mood icons, sweat and zzz stay flame-free.
+Scan pools updated (oculid in the nebula; robota in the outer rim).
+7,200-sheet stress across every species/mood/energy/fire/story/form
+combo passes. Also v2.4.3: the one-look scout report can be WAY off — a
+shared hype/slander bias (×0.6–1.5) plus wider noise at scout level 1
+(avg miss ~6, worst ~20 overall points).
+
 ## NEXT SESSION (pick up here)
 
 0. **HALFTIME (agreed direction):** split the sim into two halves — after

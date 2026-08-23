@@ -156,7 +156,7 @@ export function genSpecial(counter: { nextId: number }, kind: 'walkon' | 'gem' |
     return p;
   }
   if (kind === 'droid') {
-    const p = genPlayer(counter, 18, 2, 'petran');
+    const p = genPlayer(counter, 18, 2, 'robota');
     p.name = 'UNIT-7';
     p.special = 'droid';
     p.mood = 100; // it does not feel. probably.
