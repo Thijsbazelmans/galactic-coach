@@ -514,6 +514,25 @@ combo passes. Also v2.4.3: the one-look scout report can be WAY off — a
 shared hype/slander bias (×0.6–1.5) plus wider noise at scout level 1
 (avg miss ~6, worst ~20 overall points).
 
+**v2.6 — THE GENDER PASS (Aug 23, 2026):** Every player and prospect now
+has a form (masc/femme, ~50/50; old-save players default masc). The full
+text pass is CENTRAL, not per-story: `genderize()` in util rewrites
+he/him/his (any case, incl. ALL-CAPS button labels) at the pipeline
+level — queueStory (text + choice labels), resolveStory, item toasts
+(subject derived from the fx target), sim verdict lines, pro-departure
+notes, signing results, prospect blurbs (fixed at gen), and the UI
+strings (forget dialog, departures). Alumni carry their form into
+encounter stories. Special cases: the DEBT captain's speech genderizes
+by the TARGET's form; Minervva is canonically femme; the PREGNANCY story
+branches — masc keeps the cheerleader-is-pregnant original, femme gets
+her own version (she's pregnant, parallel choices/fx, its own outcomes).
+Sprites render their form (terran femme map + femme edits everywhere).
+Names: pool doubled to 201, all letters-only — dashes and numbers are
+planets-only now. Tips rewritten pronoun-neutral. GENDERLESS ('x' form,
+they/them) deliberately deferred to the story-writing session — verb
+agreement makes it a writing pass, not a token swap; Nimbus/Gelid/Robota
+are the natural candidates.
+
 ## NEXT SESSION (pick up here)
 
 0. **HALFTIME (agreed direction):** split the sim into two halves — after
@@ -521,10 +540,9 @@ shared hype/slander bias (×0.6–1.5) plus wider noise at scout level 1
    free lineup swaps, then H2. Box score dealt per half. This is the next
    engine swing; today's speech system was shaped so it slots in.
 
-1. **Femme players:** the renderer supports masc/femme (terran has its own
-   map + hairstyles; other species have femme edits) but all players
-   render masc because every story says "he". Decide: add a form field +
-   pronoun pass over the story registry, or keep masc-only.
+1. **Genderless 'x' form** (they/them — see v2.6 note) during the
+   story-writing session.
+
 2. **Thijs playtests v2.2 on phone.** Feel questions: (a) do the animated
    sprites read at card size / does the fire ring pop? (b) mood/energy
    bucket thresholds (20/40/65/85 mood, 15/40/70/90 energy) feel right?
