@@ -1123,8 +1123,7 @@ function drillRecap(d: (typeof DRILLS)[number]): string {
     player, before the building (and the week's stories) opens. */
 function stageWeekstart(s: GameState): string {
   return `<h2 class="gridhead">${weekLabel(s)} <span class="venuetag" style="background:var(--r35);color:var(--rbg)">WEEK START</span></h2>
-    ${gridHtml(s, false, 0)}
-    <div class="botstack"><div class="fourthrow slim"><div class="report">The weekend, settled. A small ⚡ bump means <b>stacked starts</b> — XP banks as you walk in.</div></div></div>`;
+    ${gridHtml(s, false, 0)}`;
 }
 
 function stagePractice(s: GameState): string {

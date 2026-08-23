@@ -854,6 +854,13 @@ exports into `fromDesign/<date>/` — read them from there.
       the team names + score animate in (home team first), THEN the
       cards take their places, stat stickers land, etc. — as today.
     - The same rope→dial transformation repeats for the second half.
+  - **NO EXPLANATION TEXT ON SCREENS** (law, partially applied Aug 23:
+    the WEEK START strip is already gone, as were the drag-instruction
+    strips). The stories carry plenty of reading; screens stay clean —
+    every how-it-works line moves into the game-start TUTORIAL, to be
+    built once the game is settled. Status/warning strips (SHIP
+    GROUNDED, the gassed-starters call-out) are not explanation and
+    stay.
 - **Away kits**: the sprite lab defines an away kit (light jersey) —
   dress the visiting roster in it (sprites + chips); replaces the
   hue-clash inversion hack on the matchup vs-row.
