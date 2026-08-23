@@ -106,8 +106,9 @@ async function main(): Promise<void> {
   if (!gc.state().trainedThisWeek) throw new Error('practice did not run');
   if (app.querySelector('[data-action="drill-run"]:not([disabled])')) throw new Error('practice should be once per week');
 
-  // galaxy (a regular nav button — clickable)
-  must('[data-action="to-galaxy"]', 'continue to galaxy');
+  // galaxy (nav buttons are hold-to-commit now — use the action handle)
+  if (!app.querySelector('[data-action="to-galaxy"]')) throw new Error('TO RECRUITING button missing');
+  anyWin.gcAction('to-galaxy', '');
   drain();
   if (state().phase !== 'galaxy') throw new Error(`expected galaxy, got ${state().phase}`);
   // recruiting: empty slot selected by default → DISCOVER; after the find,
@@ -123,7 +124,8 @@ async function main(): Promise<void> {
   if (app.querySelectorAll('[data-action="gx-run"]').length !== 2) throw new Error('SCOUT/RECRUIT buttons missing after discover');
 
   // matchup: plan chips render, unlearned chips locked
-  must('[data-action="to-matchup"]', 'continue to matchup');
+  if (!app.querySelector('[data-action="to-matchup"]')) throw new Error('TO MATCHUP button missing');
+  anyWin.gcAction('to-matchup', '');
   drain();
   if (state().phase !== 'matchup') throw new Error(`expected matchup, got ${state().phase}`);
   const chips = app.querySelectorAll('.planchip');

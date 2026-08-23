@@ -424,6 +424,21 @@ three jittered ghost kites under an SVG gaussian blur (the CSS filter
 path didn't render on Safari). Ability readout moved to the bottom-left
 of the card; the STATS-view sprite is dimmed hard behind the blurb.
 
+**v2.3.2:** The energy BLAST is now the one animation for every ⚡ spend —
+practice runs, story choices with a printed cost, opponent scouting, and
+the recruiting actions. Post-game deltas are STICKERS that land one by
+one (slot-order sweep) and STAY on the cards through the verdict. The
+nav is one language: a small plain BACK on the left when there's a back,
+and a single fixed-size hold-to-commit button that names the destination
+(TO RECRUITING · TO MATCHUP · PLAY · STANDINGS · NEXT WEEK · SIGNING DAY
+· SEND LETTERS · SEASON N). OUT tags stopped blinking. PRACTICE is
+squad-only: PERSONAL SESSION deleted, the discovered methods train the
+whole team (costs bumped: asteroid 2⚡ · meteor 3⚡ · cage 2⚡ · crypt 2⚡),
+and anyone under 40 energy sits out automatically — manual sit-outs are
+gone. Recruiting buttons now share the RUN anatomy («▶ VERB — VARIANT»
+with details beneath). POTENTIAL corner labels are label+number on one
+line (SKL 12/16), sides vertical baseline-in, numbers letter-sized.
+
 ## NEXT SESSION (pick up here)
 
 1. **Femme players:** the renderer supports masc/femme (terran has its own

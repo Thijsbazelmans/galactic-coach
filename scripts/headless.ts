@@ -29,7 +29,6 @@ import {
   toMatchup,
   toSigning,
   toggleProspect,
-  toggleSitout,
 } from '../src/engine/state';
 import type { GameState } from '../src/engine/types';
 
@@ -110,12 +109,9 @@ function playCareer(idx: number): CareerStats {
           // rest tired squads, otherwise train by budget
           const t = myTeam(s);
           const tired = t.players.filter((p) => p.energy < 40).length;
-          for (const p of t.players) if (p.energy < 25 && Math.random() < 0.7) toggleSitout(s, p.id);
           const adv = ['meteor', 'asteroid', 'sparring', 'filmroom'].filter((d) => s.unlockedDrills.includes(d));
-          const pupil = [...t.players].filter((p) => p.outWeeks === 0).sort((a, b) => ovr(b.pots) - ovr(a.pots))[0];
           if (tired >= 4) runDrill(s, 'rest');
-          else if (adv.length && s.energy >= 3 && Math.random() < 0.4 && pupil) runDrill(s, adv[Math.floor(Math.random() * adv.length)], pupil.id);
-          else if (s.energy >= 1 && Math.random() < 0.5 && pupil) runDrill(s, 'personal', pupil.id);
+          else if (adv.length && s.energy >= 4 && Math.random() < 0.5) runDrill(s, adv[Math.floor(Math.random() * adv.length)]);
           else runDrill(s, 'shootaround');
           drainQueue(s);
         }

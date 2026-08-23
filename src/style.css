@@ -263,9 +263,20 @@ button.hold.wiggle::after {
   align-items: center;
   gap: 8px;
 }
-.navbar button { font-size: 17px; font-weight: bold; padding: 14px 6px; margin: 0; }
-.navbar button.primary { flex: 0 0 calc((100% - 8px) / 3); margin-left: auto; }
-.navbar button:first-child:not(.primary) { flex: 0 0 64px; }
+.navbar button { margin: 0; }
+.navbar .navmain {
+  flex: 0 0 46%;
+  margin-left: auto;
+  height: 52px;
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.navbar .navback { flex: 0 0 auto; height: 52px; font-size: 12px; letter-spacing: 1px; padding: 0 14px; color: var(--r55); border-color: var(--rline); }
 .navnote { font-size: 14px; padding: 14px 0; }
 /* a popup is open: the way forward waits */
 .navbar.dimmed button { opacity: 0.3; pointer-events: none; }
@@ -410,9 +421,15 @@ button.hold.wiggle::after {
 .ksq .klabel.n { top: 17px; left: 50%; transform: translateX(-50%); }
 .ksq .klabel.s { bottom: 3px; left: 50%; transform: translateX(-50%); flex-direction: column-reverse; }
 .ksq .klabel.e { right: 2px; top: 50%; transform: translateY(-50%); }
-.ksq .klabel.e i { writing-mode: vertical-rl; }
+.ksq .klabel:not(.inline).e i { writing-mode: vertical-rl; }
 .ksq .klabel.w { left: 2px; top: 50%; transform: translateY(-50%); }
-.ksq .klabel.w i { writing-mode: vertical-rl; transform: rotate(180deg); }
+.ksq .klabel:not(.inline).w i { writing-mode: vertical-rl; transform: rotate(180deg); }
+/* label + number on ONE line; the side pairs run vertically as one piece */
+.ksq .klabel.inline { display: block; white-space: nowrap; }
+.ksq .klabel.inline b { display: inline; font-size: 9px; color: var(--r95); background: none; padding: 0; margin: 0; }
+.ksq .klabel.inline.e { writing-mode: vertical-rl; }
+.ksq .klabel.inline.w { writing-mode: vertical-rl; transform: translateY(-50%) rotate(180deg); }
+.ksq .klabel.inline.e i, .ksq .klabel.inline.w i { writing-mode: inherit; transform: none; }
 /* the center readout: ?? / a two-row range / the number */
 .kcenter {
   position: absolute;
@@ -559,6 +576,34 @@ button.hold.wiggle::after {
   pointer-events: none;
 }
 .floater.down { color: var(--r35); border-color: var(--r20); }
+
+/* post-game stickers: land one by one and STAY until you leave the screen */
+.stickers {
+  position: absolute;
+  left: 2px; top: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  z-index: 5;
+  pointer-events: none;
+}
+.sticker {
+  background: #000;
+  border: 1px solid var(--r55);
+  color: var(--r95);
+  font-size: 10px;
+  font-weight: bold;
+  padding: 1px 4px;
+  white-space: nowrap;
+  opacity: 0;
+  animation: stickin 0.3s forwards;
+}
+.sticker.down { color: var(--r55); border-color: var(--r20); }
+@keyframes stickin {
+  0% { opacity: 0; transform: translateY(6px) scale(1.3); }
+  100% { opacity: 1; transform: none; }
+}
 @keyframes floatup {
   0% { transform: translateY(6px); opacity: 0; }
   15% { opacity: 1; }

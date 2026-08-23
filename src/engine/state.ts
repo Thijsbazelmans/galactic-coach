@@ -573,7 +573,8 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
   } else if (d.target === 'rest') {
     participants = [];
   } else {
-    participants = t.players.filter((p) => p.outWeeks === 0 && !s.sitouts.includes(p.id));
+    // anyone under 40 energy sits out automatically — no martyrs
+    participants = t.players.filter((p) => p.outWeeks === 0 && p.energy >= 40);
     if (!participants.length) return null;
   }
   s.energy -= d.cost;

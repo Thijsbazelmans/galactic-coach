@@ -30,7 +30,6 @@ import {
   finalizeRoster,
   freshGame,
   isUtWeek,
-  lastLevelUps,
   letGoPro,
   load,
   myMatchup,
@@ -54,7 +53,6 @@ import {
   toPractice,
   toSigning,
   toggleProspect,
-  toggleSitout,
   toggleTips,
   useItem,
   utOpponent,
@@ -145,7 +143,6 @@ let coachOpen = false;
 let itemUi: string | null = null;
 let toast: string | null = null;
 let drillSheet = false;
-let drillPickOne: string | null = null;
 let selectedDrill = 'shootaround';
 let galaxySheet: 'discover' | 'scout' | 'recruit' | null = null;
 let selDiscover = 'home';
@@ -204,24 +201,7 @@ function slotOrderIds(): number[] {
   return myTeam(state).lineup.slots.filter((x): x is number => x !== null);
 }
 
-/** The spent ⚡ animates away over the header energy bar, one pop per cell. */
-function floatEnergy(n: number): void {
-  const bar = document.querySelector('.ebar');
-  if (!bar || n <= 0) return;
-  for (let i = 0; i < n; i++) {
-    floatTimers.push(
-      window.setTimeout(() => {
-        const el = document.createElement('div');
-        el.className = 'efloat';
-        el.textContent = '-1⚡';
-        bar.appendChild(el);
-        window.setTimeout(() => el.remove(), 700);
-      }, i * 150)
-    );
-  }
-}
-
-/** The RESULT version: huge, one blast per spent cell. */
+/** EVERY spent ⚡ blasts away over the energy bar — huge, one per cell. */
 function floatEnergyBig(n: number): void {
   const bar = document.querySelector('.ebar');
   if (!bar || n <= 0) return;
@@ -240,8 +220,8 @@ function floatEnergyBig(n: number): void {
 
 /** Drill results sweep the grid in slot order, one player at a time. */
 function floatDrill(out: { xpByPlayer: Map<number, number>; gainByPlayer: Map<number, string>; levelUps: LevelUp[] }, cost: number): void {
-  floatEnergy(cost);
-  const base = 250 + cost * 150;
+  floatEnergyBig(cost);
+  const base = 350 + cost * 300;
   slotOrderIds().forEach((pid, i) => {
     const msgs: { text: string; up?: boolean }[] = [];
     const g = out.gainByPlayer.get(pid);
@@ -332,8 +312,10 @@ function doResolve(key: string): void {
   const ev = currentStory(state);
   if (!ev) return;
   const snap = snapState();
+  const cost = ev.choices?.find((c) => c.key === key)?.cost ?? 0;
   const res = resolveStory(state, key);
   if (!res) return;
+  if (cost > 0) floatEnergyBig(cost);
   impact = buildImpact(snap, res.fx, res.resolved.playerId ?? ev.playerId);
   impactPlayed = false;
   const rBeats = splitBeats(res.resolved.resolvedText ?? '');
@@ -512,7 +494,7 @@ interface SqOpts {
 
 function squareKite(cur: AttrRec, o: SqOpts): string {
   const lab = (a: Attr, cls: string): string =>
-    `<span class="klabel ${cls}"><i>${ATTR_SHORT[a]}</i>${o.nums ? `<b>${o.nums[a]}</b>` : ''}</span>`;
+    `<span class="klabel ${o.nums ? 'inline' : ''} ${cls}"><i>${ATTR_SHORT[a]}</i>${o.nums ? ` <b>${o.nums[a]}</b>` : ''}</span>`;
   const fuzz = o.fuzz ?? 0;
   // an unscouted shape is a CLOUD, not a diamond: three jittered ghosts under
   // a real gaussian blur — nothing sharp survives
@@ -648,7 +630,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   return `<div class="pcard lens${l} sq ${out ? 'pout' : ''} ${opts.draggable && !out && l === 0 ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
       ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
     ${body}
-    ${out ? `<div class="ptag blink">OUT ${p.outWeeks}w</div>` : ''}
+    ${out ? `<div class="ptag">OUT ${p.outWeeks}w</div>` : ''}
     ${opts.sitout && l === 0 ? '<div class="ptag dimtag">SITS OUT</div>' : ''}
     ${opts.miscast && opts.miscast >= 8 && !out && l === 0 ? `<div class="ptag">MISCAST −${opts.miscast}%</div>` : ''}
     ${opts.tag ? `<div class="cardtag">${opts.tag}</div>` : ''}
@@ -784,7 +766,7 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0): string 
       const mult = p && r < 2 ? slotMult(p, c) : 1;
       return `<div class="gcell dropzone" data-zone="${idx}">
         ${p
-          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && s.sitouts.includes(p.id), miscast: Math.round((1 - mult) * 100) })
+          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, miscast: Math.round((1 - mult) * 100) })
           : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');
@@ -897,16 +879,14 @@ function stagePractice(s: GameState): string {
   let fourth: string;
   if (lens !== 0) {
     fourth = '';
-  } else if (drillPickOne) {
-    fourth = `<div class="fourthrow"><button class="bigctl blink" data-action="drill-cancel">TAP THE PLAYER — or tap here to cancel</button></div>`;
   } else if (s.trainedThisWeek) {
     fourth = `<div class="fourthrow"><div class="report">${esc(s.drillReport ?? 'Practice is done.')}</div></div>`;
   } else {
     const d = DRILLS.find((x) => x.id === selectedDrill)!;
     const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
     const recap = d.target === 'rest'
-      ? 'squad ⚡ up'
-      : `${gains || `+${d.xp[0]}–${d.xp[1]} XP`}${d.target === 'one' ? ' · ONE PLAYER' : ' · SQUAD'} · ${d.cost}⚡`;
+      ? 'squad ⚡ up · 0⚡'
+      : `${gains || `+${d.xp[0]}–${d.xp[1]} XP`} · SQUAD · ${d.cost}⚡`;
     fourth = `<div class="fourthrow actrow"><span class="actwrap runwrap">
       <button class="actmain hold" data-action="drill-run" ${s.energy < d.cost ? 'disabled' : ''}>
         <b>▶ RUN — ${d.name}</b><span class="actsub">${recap}</span>
@@ -918,10 +898,10 @@ function stagePractice(s: GameState): string {
 }
 
 /** [HOLD main action | ▾ variant picker] — the shared two-part button. */
-function actBtn(kind: 'discover' | 'scout' | 'recruit', label: string, sub: string, disabled: string | false, done: boolean): string {
+function actBtn(kind: 'discover' | 'scout' | 'recruit', verb: string, variant: string, sub: string, disabled: string | false, done: boolean): string {
   return `<span class="actwrap">
     <button class="actmain hold" data-action="gx-run" data-id="${kind}" ${disabled || done ? 'disabled' : ''}>
-      <b>${label}</b><span class="actsub">${done ? '✓ THIS WEEK' : disabled ? esc(disabled) : sub}</span>
+      <b>▶ ${verb} — ${variant}</b><span class="actsub">${done ? '✓ THIS WEEK' : disabled ? esc(disabled) : sub}</span>
     </button>
     <button class="actarrow" data-action="gx-sheet" data-id="${kind}">▾</button>
   </span>`;
@@ -946,12 +926,12 @@ function stageGalaxy(s: GameState): string {
   if (sel.kind === 'pr') {
     const pr = sel.pr;
     buttons =
-      actBtn('scout', 'SCOUT', `${sAct.name} · ${sAct.cost}⚡`,
+      actBtn('scout', 'SCOUT', sAct.name, `the cloud sharpens · ${sAct.cost}⚡`,
         (pr.scoutLevel >= 2 && 'KNOWN COLD') || (s.energy < sAct.cost && `NEED ${sAct.cost}⚡`), !!s.scoutActWk) +
-      actBtn('recruit', 'RECRUIT', `${rAct.name} · ${rAct.cost}⚡`,
+      actBtn('recruit', 'RECRUIT', rAct.name, `+${rAct.gain?.[0] ?? 0}–${rAct.gain?.[1] ?? 0}% commit · ${rAct.cost}⚡`,
         (pr.bannedWeeks > 0 && `BANNED ${pr.bannedWeeks}w`) || (s.energy < rAct.cost && `NEED ${rAct.cost}⚡`), !!s.recruitActWk);
   } else if (sel.kind === 'empty') {
-    buttons = actBtn('discover', 'DISCOVER', `${reg.name} · ${reg.cost}⚡`,
+    buttons = actBtn('discover', 'DISCOVER', reg.name, `one new name for the board · ${reg.cost}⚡`,
       (grounded && 'GROUNDED') || (s.energy < reg.cost && `NEED ${reg.cost}⚡`), !!s.discoveredWk);
   } else {
     buttons = '';
@@ -1137,37 +1117,43 @@ function stagePickTeam(s: GameState): string {
 
 // ---- nav (always there) ------------------------------------------------------------------------------------
 
+// One nav language everywhere: an optional small BACK on the left, and one
+// hold-to-commit button — always the same size — that names what's next.
+function navMain(label: string, action: string, disabled = false): string {
+  return `<button class="primary hold navmain" data-action="${action}" ${disabled ? 'disabled' : ''}>${label}</button>`;
+}
+function navBack(action: string): string {
+  return `<button class="navback" data-action="${action}">BACK</button>`;
+}
+
 function nav(s: GameState): string {
   if (currentStory(s)) return `<span class="navnote dim">the galaxy is talking…</span>`;
   switch (s.phase) {
     case 'pickTeam':
       return `<span class="navnote dim">choose your program above</span>`;
     case 'teamSelect':
-      return `<span></span><button class="primary hold" data-action="confirm-roster" ${poolSelected?.size === ROSTER_SIZE ? '' : 'disabled'}>
-        ${poolSelected?.size === ROSTER_SIZE ? '▶ START' : `PICK ${ROSTER_SIZE}`}</button>`;
+      return `<span></span>${navMain(poolSelected?.size === ROSTER_SIZE ? 'START' : `PICK ${ROSTER_SIZE}`, 'confirm-roster', poolSelected?.size !== ROSTER_SIZE)}`;
     case 'practice':
-      return `<span></span><button class="primary" data-action="to-galaxy">CONTINUE ▶</button>`;
+      return `<span></span>${navMain('TO RECRUITING', 'to-galaxy')}`;
     case 'galaxy':
-      return `<button data-action="to-practice">◀</button><button class="primary" data-action="to-matchup">CONTINUE ▶</button>`;
+      return `${navBack('to-practice')}${navMain('TO MATCHUP', 'to-matchup')}`;
     case 'matchup':
-      return `${isUtWeek(s) ? '<span></span>' : '<button data-action="to-galaxy">◀</button>'}
-        <button class="primary hold" data-action="play-game">▶ PLAY</button>`;
+      return `${isUtWeek(s) ? '<span></span>' : navBack('to-galaxy')}${navMain('PLAY', 'play-game')}`;
     case 'gamenight': {
       if (!s.lastResult || gnStage === 'beat') return `<span class="navnote dim">…</span>`;
-      if (gnStage === 'verdict') return `<span></span><button class="primary" data-action="gn-table">CONTINUE ▶</button>`;
-      return `<span></span><button class="primary" data-action="continue-result">NEXT WEEK ▶</button>`;
+      if (gnStage === 'verdict') return `<span></span>${navMain('STANDINGS', 'gn-table')}`;
+      return `<span></span>${navMain('NEXT WEEK', 'continue-result')}`;
     }
     case 'departures': {
       const unresolved = s.proDeparts.some((d) => !d.resolved);
-      return `<span></span><button class="primary" data-action="to-signing" ${unresolved ? 'disabled' : ''}>
-        ${unresolved ? 'YOUR STARS FIRST' : 'SIGNING DAY ▶'}</button>`;
+      return `<span></span>${navMain(unresolved ? 'YOUR STARS FIRST' : 'SIGNING DAY', 'to-signing', unresolved)}`;
     }
     case 'signing':
-      return `<span></span><button class="primary hold" data-action="do-signing">▶ SEND THE LETTERS</button>`;
+      return `<span></span>${navMain('SEND LETTERS', 'do-signing')}`;
     case 'growth':
-      return `<span></span><button class="primary hold" data-action="new-season">▶ SEASON ${s.season + 1}</button>`;
+      return `<span></span>${navMain(`SEASON ${s.season + 1}`, 'new-season')}`;
     case 'gameover':
-      return `<span></span><button class="primary hold" data-action="new-game-direct">▶ NEW GAME</button>`;
+      return `<span></span>${navMain('NEW GAME', 'new-game-direct')}`;
     default:
       return '';
   }
@@ -1415,19 +1401,7 @@ function animateProgress(): void {
     if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
     gnStage = 'verdict';
     render();
-    const order = slotOrderIds();
-    [...state.postGame].sort((a, b) => order.indexOf(a.playerId) - order.indexOf(b.playerId)).forEach((d, i) => {
-      const msgs: { text: string; up?: boolean }[] = [];
-      if (d.fire === 'lit') msgs.push({ text: '🔥 ON FIRE', up: true });
-      if (d.fire === 'out') msgs.push({ text: '🔥 the fire goes out', up: false });
-      if (d.xpGain > 0) msgs.push({ text: `+${d.xpGain} XP` });
-      if (d.energyP !== 0) msgs.push({ text: `${d.energyP > 0 ? '+' : ''}${d.energyP}⚡`, up: d.energyP > 0 });
-      if (d.mood !== 0) msgs.push({ text: `${d.mood > 0 ? '+' : ''}${d.mood} MOOD`, up: d.mood > 0 });
-      if (msgs.length) floatCard(d.playerId, msgs, 300 + i * 260);
-    });
-    lastLevelUps.forEach((lu, i) => {
-      floatCard(lu.playerId, [{ text: `★ LEVEL ${lu.level}`, up: true }], 1400 + i * 400);
-    });
+    // deltas land as STICKERS on the cards (rendered by gridHtml) and stay
   };
   progressTimer = window.setInterval(() => {
     tick++;
@@ -1646,15 +1620,17 @@ function executeAction(action: string, id: string): void {
 
     case 'drill-run': {
       const d = DRILLS.find((x) => x.id === selectedDrill)!;
-      if (d.target === 'one') {
-        drillPickOne = selectedDrill;
-        break;
-      }
-      drillPickOne = null;
       const out = runDrill(state, selectedDrill);
       if (out) floatDrill(out, d.cost);
       break;
     }
+
+    case 'to-practice': toPractice(state); break;
+    case 'to-galaxy': drillSheet = false; toGalaxy(state); break;
+    case 'to-matchup': galaxySheet = null; dropConfirm = null; toMatchup(state); break;
+    case 'to-signing': toSigning(state); break;
+    case 'gn-table': gnStage = 'table'; clearFloatTimers(); break;
+    case 'continue-result': gnStage = 'beat'; clearFloatTimers(); continueFromResult(state); break;
 
     case 'pr-drop': {
       actionDropProspect(state, Number(id));
@@ -1683,7 +1659,7 @@ function executeAction(action: string, id: string): void {
       break;
     }
 
-    case 'scout-opp': scoutOpponent(state); break;
+    case 'scout-opp': if (scoutOpponent(state)) floatEnergyBig(1); break;
     case 'play-game': gnStage = 'beat'; clearFloatTimers(); playGame(state); break;
 
     case 'convince-pro': convincePro(state, Number(id)); break;
@@ -1765,27 +1741,10 @@ app.addEventListener('click', (e) => {
       break;
     }
 
-    case 'to-practice': toPractice(state); break;
-    case 'to-galaxy': drillPickOne = null; drillSheet = false; toGalaxy(state); break;
-    case 'to-matchup': galaxySheet = null; dropConfirm = null; toMatchup(state); break;
-    case 'to-signing': toSigning(state); break;
-    case 'gn-table': gnStage = 'table'; clearFloatTimers(); break;
-    case 'continue-result': gnStage = 'beat'; clearFloatTimers(); continueFromResult(state); break;
-
     case 'card': {
       const pid = Number(id);
       if (currentStory(state)) break;
-      if (state.phase === 'practice') {
-        if (lens !== 0 && !drillPickOne) break;
-        if (drillPickOne) {
-          const d = DRILLS.find((x) => x.id === drillPickOne)!;
-          const out = runDrill(state, drillPickOne, pid);
-          drillPickOne = null;
-          if (out) floatDrill(out, d.cost);
-        } else {
-          toggleSitout(state, pid);
-        }
-      } else if (state.phase === 'teamSelect') {
+      if (state.phase === 'teamSelect') {
         if (poolSelected) {
           if (poolSelected.has(pid)) poolSelected.delete(pid);
           else if (poolSelected.size < ROSTER_SIZE) poolSelected.add(pid);
@@ -1822,7 +1781,6 @@ app.addEventListener('click', (e) => {
 
     case 'drill-sheet': drillSheet = true; break;
     case 'drill-sheet-close': if (e.target === el) drillSheet = false; break;
-    case 'drill-cancel': drillPickOne = null; break;
 
     case 'bag-item': itemUi = id; break;
     case 'item-close': itemUi = null; break;
