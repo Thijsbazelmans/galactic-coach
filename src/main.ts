@@ -633,12 +633,12 @@ function prospectCard(pr: Prospect, l: Lens): string {
       brHtml: ring,
     });
   } else {
-    // ABILITY: the cloud sharpens — ?? → a two-row range → the number (bottom-left)
+    // ABILITY: the cloud sharpens — ?? → XX? → XX (bottom-left)
     const seen = ovr(pr.seenAttrs);
     const bl = known >= 2
       ? `<b class="kovr" style="color:${vc(seen * 1.6)}">${seen}</b>`
       : known === 1
-        ? `<span class="krange">${Math.max(0, seen - 6)}<br/>–${seen + 6}</span>`
+        ? `<b class="kovr" style="color:${vc(seen * 1.6)}">${seen}?</b>`
         : `<span class="kovr prq">??</span>`;
     body = squareKite(pr.seenAttrs, {
       fuzz: known >= 2 ? 0 : known === 1 ? 1 : 2,
@@ -1029,14 +1029,36 @@ function stageGalaxy(s: GameState): string {
     <div class="fourthrow actcol">${buttons}</div>`;
 }
 
+function hue(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  if (mx === mn) return 0;
+  const d = mx - mn;
+  let h: number;
+  if (mx === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (mx === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+  return h * 360;
+}
+
 function stageMatchup(s: GameState): string {
   const m = myMatchup(s);
   const t = myTeam(s);
   const champ = isUtWeek(s) ? utOpponent(s) : null;
-  const oppName = champ ? champ.name : m ? `${m.opponent.planet} ${m.opponent.name}` : '?';
   const home = champ ? true : m?.home ?? true;
-  const awayName = home ? oppName : teamLabel(t);
-  const homeName = home ? teamLabel(t) : oppName;
+  const opp = champ
+    ? { name: champ.name, bg: champ.bg, fg: champ.fg }
+    : m
+      ? { name: m.opponent.name, bg: m.opponent.bg, fg: m.opponent.fg }
+      : { name: '?', bg: '#333', fg: '#ccc' };
+  const mine = { name: t.name, bg: t.bg, fg: t.fg };
+  const away = home ? opp : mine;
+  const homeT = home ? mine : opp;
+  // if the kits blur together, the away side plays in inverted colors
+  const clash = Math.min(Math.abs(hue(away.bg) - hue(homeT.bg)), 360 - Math.abs(hue(away.bg) - hue(homeT.bg))) < 40;
+  const awayChip = clash ? chip(away.name, away.fg, away.bg, true) : chip(away.name, away.bg, away.fg, true);
+  const homeChip = chip(homeT.name, homeT.bg, homeT.fg, true);
   const scoutBtn = s.scoutedOpp
     ? ''
     : `<button class="hold scoutbtn" data-action="scout-opp" ${s.energy < 1 ? 'disabled' : ''}>SCOUT<br/>1⚡</button>`;
@@ -1052,7 +1074,7 @@ function stageMatchup(s: GameState): string {
     </span></div>`;
   return `<h2 class="gridhead">MATCHUP</h2>
     ${gridHtml(s, true)}
-    <div class="mu-vs"><b>${esc(awayName)}</b> <span class="dim">@</span> <b>${esc(homeName)}</b></div>
+    <div class="mu-vs">${awayChip} <span class="dim">@</span> ${homeChip}</div>
     <div class="mu-bars">${teamBarsMatchup(s)}${scoutBtn}</div>
     ${speech}`;
 }
@@ -1128,7 +1150,7 @@ function stageTeamSelect(s: GameState): string {
   for (let r = 0; r < Math.ceil(sorted.length / 3); r++) {
     const cells = sorted.slice(r * 3, r * 3 + 3).map((p) => {
       const tag = returning.has(p.id) ? 'RETURNER' : commits.has(p.id) ? 'RECRUIT' : 'WALK-ON';
-      return `<div class="gcell">${playerCard(p, { tag, pick: poolSelected!.has(p.id), kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT })}</div>`;
+      return `<div class="gcell">${playerCard(p, { lens, tag, pick: poolSelected!.has(p.id), kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT })}</div>`;
     }).join('');
     rows.push(`<div class="gridrow"><div class="rowlabel"></div>${cells}</div>`);
   }
@@ -1169,7 +1191,7 @@ function stageSigning(s: GameState): string {
       const ability = pr.scoutLevel >= 2
         ? `<b style="color:${vc(seen * 1.6)}">${seen}</b>`
         : pr.scoutLevel === 1
-          ? `<b>${Math.max(0, seen - 6)}–${seen + 6}</b>`
+          ? `<b style="color:${vc(seen * 1.6)}">${seen}?</b>`
           : '<b class="dim">??</b>'
       const stars = pr.scoutLevel === 0 ? '<span class="dim">??</span>' : '★'.repeat(potStars(ovr(pr.seenPots)));
       return `<tr>
@@ -1424,7 +1446,7 @@ function render(): void {
   const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + speechSheetHtml(state) + gxResultHtml() + dropConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state);
   const modalOpen = drillSheet || speechSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet !== null || dropConfirm !== null || gxResult !== null;
   const navHtml = `<div class="navbar ${modalOpen ? 'dimmed' : ''}">${nav(state)}</div>`;
-  const lensHtml = (state.phase === 'practice' || state.phase === 'galaxy') && !ev ? lensBar() : '';
+  const lensHtml = (state.phase === 'practice' || state.phase === 'galaxy' || state.phase === 'teamSelect') && !ev ? lensBar() : '';
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
     ? `<div class="midwrap"><div class="middle solo">${middle}</div>${overlays}</div>${navHtml}`
     : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${overlays}</div>${bagBar(state)}${lensHtml}${navHtml}`;
@@ -1758,7 +1780,7 @@ function executeAction(action: string, id: string): void {
         if (text !== null) {
           gxStickers = gxStickers ?? new Map();
           if (id === 'scout') {
-            gxStickers.set(sel.pr.id, [{ text: sel.pr.scoutLevel >= 2 ? 'KNOWN COLD' : 'THE CLOUD THINS', up: true }]);
+            gxStickers.set(sel.pr.id, [{ text: 'SCOUTED', up: true }]);
           } else {
             const dlt = sel.pr.commitPct - before;
             gxStickers.set(sel.pr.id, [{ text: `${dlt >= 0 ? '+' : ''}${dlt}% COMMIT`, up: dlt >= 0 }]);

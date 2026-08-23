@@ -283,7 +283,7 @@ button.hold.wiggle::after {
 
 /* ---- the grid (IS the lineup) -------------------------------------------------------- */
 
-.grid { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.grid { flex: none; display: flex; flex-direction: column; }
 .colhead { display: flex; gap: 5px; flex: none; }
 .colhead span { flex: 1; text-align: center; font-size: 10px; letter-spacing: 2px; color: var(--r35); }
 .colhead .rowlabel { flex: none; transform: none; writing-mode: horizontal-tb; }

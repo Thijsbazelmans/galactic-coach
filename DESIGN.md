@@ -488,6 +488,16 @@ out the back) headlines either an uninspiring-travel beat (5 flavors) or
 one of the existing voyage/alumni/debt stories — travel no longer fires
 on PLAY.
 
+**v2.4.2 (from phone screenshots):** Root cause of the "stats fall off"
+found — `.grid` was flex-squeezed and its content painted over whatever
+came after it (first bar row, the AWAY @ HOME line). Grid is natural
+height now. Lens selector (ABILITIES/STATS/POTENTIAL) shows on TRYOUTS.
+Scout sticker says SCOUTED; ability certainty is ?? → XX? → XX (the
+two-row range died). Matchup names: planet dropped, both teams render as
+kit-colored chips like the header chip, and if the two hues sit within
+40° the away chip inverts (bg↔fg). Proper home/away kits (the sprite lab
+already defines an away kit) noted as the real future fix.
+
 ## NEXT SESSION (pick up here)
 
 0. **HALFTIME (agreed direction):** split the sim into two halves — after
