@@ -982,11 +982,19 @@ exports into `fromDesign/<date>/` — read them from there.
     deep; recruiting — LETTERS 1⚡ all 9 small · OPEN HOUSE 2⚡ top 6 ·
     THE DINNER 3⚡ TARGETS only, big swings. Still ONE action per week.
     Picker recaps print the scope («ALL 9» / «TOP 6» / «TARGETS»).
-  - Open questions (settle in-session): do LAST RESORTS decay commit
-    FASTER (kids can tell — extends the "kids notice silence" law, makes
-    row placement a cost, not just a filter)? Do signing-day letter
-    penalties read the rows (TARGETS at full strength, penalties biting
-    downward) so the whole recruiting arc lives in one spatial metaphor?
+  - DECIDED: **LAST RESORTS decay commit faster** (kids can tell —
+    extends the "kids notice silence" law; row placement is a cost, not
+    just a filter). Still open: do signing-day letter penalties read the
+    rows (TARGETS at full strength, penalties biting downward)?
+  - **THE SCOPE PREVIEW (law, and it generalizes).** Faster decay (and
+    row-scoped actions generally) demand a crystal-clear read of WHO is
+    affected: the ▾ picker defaults to the free goes-for-everyone option;
+    the moment you select a scoped method, the ACTION BUTTON BLINKS in
+    sync with every impacted player card while everything else goes dim —
+    the scope is visible before you commit. This same tactic opens
+    design room on PRACTICE too (row-/group-scoped drills: starters-only
+    conditioning, bench-only reps, etc.) and anywhere else an action has
+    a target set.
 - **THE STORY SESSION (dedicated session, Thijs-requested):** stories and
   story flow only, nothing else. On the slate:
   - **Player acting driven by what the PLAYER wants, not generic worry.**
