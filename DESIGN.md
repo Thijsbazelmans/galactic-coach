@@ -835,6 +835,10 @@ exports into `fromDesign/<date>/` — read them from there.
     sheets — hide them (or one collapsed hint at most).
   - Picker sheets that overflow must clearly SHOW they scroll (visible
     affordance — fade edge / scrollbar / peeking half-row).
+  - Stickers pop ONCE per action: after a drill (etc.) the stickers land
+    with their animation, but switching lens (STATS/POTENTIAL and back)
+    should NOT replay them — once seen, they just disappear. Practice was
+    run, results were seen.
 - **Away kits**: the sprite lab defines an away kit (light jersey) —
   dress the visiting roster in it (sprites + chips); replaces the
   hue-clash inversion hack on the matchup vs-row.
