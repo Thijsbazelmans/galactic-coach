@@ -353,6 +353,13 @@ die again (SAVE_VERSION 14); fresh season 1.**
   career totals → STATS lens footer; energy/mood/size/species → the
   sprite itself. Names are no longer underlined doors.
 
+**v2.2.1 polish (Thijs's ramble, same day):** header regrouped — energy
+cells left / job-security bar right on one row, `S1 · WEEK 1/10 · 0–0` on
+the second, ? and ⚙ stacked vertically far right; job-bar icons are now
+A+ (school) and $ (boosters); tryouts lost the TAP-TO-PICK bar (the lit
+card edge + the PICK 9 button carry it); compass corner labels grew to
+9px bold with the side pair (ATH/BRN) turned vertical.
+
 ## NEXT SESSION (pick up here)
 
 1. **Femme players:** the renderer supports masc/femme (terran has its own

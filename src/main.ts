@@ -440,7 +440,7 @@ interface SqOpts {
 
 function squareKite(cur: AttrRec, o: SqOpts): string {
   const lab = (a: Attr, cls: string): string =>
-    `<span class="klabel ${cls}">${ATTR_SHORT[a]}${o.nums ? `<b>${o.nums[a]}</b>` : ''}</span>`;
+    `<span class="klabel ${cls}"><i>${ATTR_SHORT[a]}</i>${o.nums ? `<b>${o.nums[a]}</b>` : ''}</span>`;
   return `<div class="ksq ${o.fuzz ? `fuzzy${o.fuzz}` : ''}">
     <svg class="ksvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       <line class="k-axis" x1="50" y1="4" x2="50" y2="96"/>
@@ -569,7 +569,6 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
     ${out ? `<div class="ptag blink">OUT ${p.outWeeks}w</div>` : ''}
     ${opts.sitout && l === 0 ? '<div class="ptag dimtag">SITS OUT</div>' : ''}
     ${opts.miscast && opts.miscast >= 8 && !out && l === 0 ? `<div class="ptag">MISCAST −${opts.miscast}%</div>` : ''}
-    ${opts.pick !== undefined ? `<div class="picktag ${opts.pick ? 'on' : ''}">${opts.pick ? '☑ ON THE SQUAD' : '☐ TAP TO PICK'}</div>` : ''}
     ${opts.tag ? `<div class="cardtag">${opts.tag}</div>` : ''}
   </div>`;
 }
@@ -598,17 +597,17 @@ function prospectCard(pr: Prospect): string {
 // ---- header (always there) ---------------------------------------------------------------------
 
 // JOB SECURITY: a bright bar the darkness eats from both ends —
-// scholar cap = the school's heat (left), shades = the boosters' (right).
+// A+ = the school's heat (left), $ = the boosters' (right).
 function jobBar(s: GameState): string {
   const danger = s.heatS + s.heatB >= 75;
   return `<div class="jobbar ${danger ? 'blink' : ''}" title="job security — school heat ${s.heatS} · booster heat ${s.heatB}">
-    <img class="jicon" src="${iconUrl('cap', ramp(0.75))}" alt=""/>
+    <img class="jicon" src="${iconUrl('aplus', ramp(0.75))}" alt=""/>
     <div class="jtrack">
       <div class="jdark l" style="width:${s.heatS}%"></div>
       <div class="jdark r" style="width:${s.heatB}%"></div>
       <span class="jlabel">JOB SECURITY</span>
     </div>
-    <img class="jicon" src="${iconUrl('shades', ramp(0.75))}" alt=""/>
+    <img class="jicon" src="${iconUrl('dollar', ramp(0.75))}" alt=""/>
   </div>`;
 }
 
@@ -618,18 +617,19 @@ function headerHtml(s: GameState): string {
     `<span class="ecell ${i < s.energy ? 'on' : ''}" style="${i < s.energy ? `background:${ramp(0.35 + 0.55 * (i / CACHE_MAX))}` : ''}"></span>`
   ).join('');
   return `<div class="topbar">
-    <div class="hrow hrow1">
-      ${chip(t.name, t.bg, t.fg)}
-      <span class="seasoninfo">S<b>${Math.max(1, s.season)}</b></span>
-      ${jobBar(s)}
-      <span class="hbtns">
-        <button class="hbtn" data-action="help">?</button>
-        <button class="hbtn" data-action="coach-open">⚙</button>
-      </span>
+    <div class="topmain">
+      <div class="hrow hrow1">
+        ${chip(t.name, t.bg, t.fg)}
+        <span class="ecache ${s.energy === 0 ? 'blink' : ''}" title="power cells ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">${cells}⚡</span>
+        ${jobBar(s)}
+      </div>
+      <div class="hrow hrow2">
+        <span class="weeklab">S<b>${Math.max(1, s.season)}</b> · <b>${weekLabel(s)}</b> · ${t.wins}–${t.losses}</span>
+      </div>
     </div>
-    <div class="hrow hrow2">
-      <span class="weeklab"><b>${weekLabel(s)}</b> · ${t.wins}–${t.losses}</span>
-      <span class="ecache ${s.energy === 0 ? 'blink' : ''}" title="power cells ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">${cells}⚡</span>
+    <div class="hbtns-col">
+      <button class="hbtn" data-action="help">?</button>
+      <button class="hbtn" data-action="coach-open">⚙</button>
     </div>
   </div>`;
 }

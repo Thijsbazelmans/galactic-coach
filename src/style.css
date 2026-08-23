@@ -154,17 +154,19 @@ button.hold.wiggle::after {
 
 .topbar {
   flex: none;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
   background: var(--rpanel);
   border-bottom: 1px solid var(--rline);
   padding: calc(6px + env(safe-area-inset-top)) 10px 6px;
 }
+.topmain { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 5px; }
 .hrow { display: flex; align-items: center; gap: 8px; }
 .hrow1 { font-size: 15px; }
-.hrow2 { margin-top: 5px; font-size: 12px; gap: 8px; }
-.rec b, .seasoninfo b { color: var(--r95); }
-.seasoninfo { white-space: nowrap; }
-.hbtns { margin-left: auto; display: flex; gap: 4px; }
-.hbtn { font-size: 15px; padding: 4px 8px; margin: 0; border-color: var(--rline); }
+.hrow2 { font-size: 12px; gap: 8px; }
+.hbtns-col { flex: none; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+.hbtn { font-size: 14px; padding: 2px 9px; margin: 0; border-color: var(--rline); }
 
 .chip {
   padding: 2px 8px;
@@ -178,7 +180,7 @@ button.hold.wiggle::after {
 }
 .chip.small { font-size: 12px; padding: 1px 6px; }
 
-.ecache { white-space: nowrap; margin-left: auto; }
+.ecache { white-space: nowrap; flex: none; }
 .ecell {
   display: inline-block;
   width: 8px; height: 13px;
@@ -188,7 +190,7 @@ button.hold.wiggle::after {
 }
 
 /* JOB SECURITY: bright bar, darkness eats in from both sides */
-.jobbar { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+.jobbar { display: flex; align-items: center; gap: 4px; flex: 1 1 auto; min-width: 76px; max-width: 46%; margin-left: auto; }
 .jicon { width: 11px; height: 11px; image-rendering: pixelated; flex: none; }
 .jtrack { position: relative; flex: 1; min-width: 56px; height: 14px; background: var(--r75); overflow: hidden; }
 .jdark { position: absolute; top: 0; bottom: 0; background: var(--rbg); }
@@ -387,7 +389,6 @@ button.hold.wiggle::after {
 .kpot { display: flex; flex-direction: column; align-items: center; line-height: 1.1; background: rgba(0, 0, 0, 0.72); border: 1px solid var(--r35); padding: 2px 5px; gap: 1px; }
 .kpot i { font-style: normal; font-size: 6px; letter-spacing: 1px; color: var(--r35); }
 .kpot b { font-size: 13px; }
-.ksq .klabel.n { top: 17px; }
 .ksq.fuzzy1 polygon { filter: blur(1.5px); }
 .ksq.fuzzy2 polygon { filter: blur(3.5px); }
 
@@ -404,7 +405,17 @@ button.hold.wiggle::after {
 .k-start { fill: none; stroke: var(--r35); stroke-width: 1; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
 .k-cur { fill: var(--r75); fill-opacity: 0.45; stroke: var(--r95); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .klabel { position: absolute; font-size: 6px; letter-spacing: 0.5px; color: var(--r35); line-height: 1; pointer-events: none; text-align: center; }
+.klabel i { font-style: normal; }
 .klabel b { display: block; font-size: 8px; color: var(--r75); margin-top: 1px; background: rgba(0, 0, 0, 0.6); padding: 0 1px; }
+/* on the full-square card the labels earn real presence: bigger, bolder,
+   and the side pair turns 90° to hug the edges */
+.ksq .klabel { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 9px; font-weight: bold; letter-spacing: 1.5px; color: var(--r55); z-index: 1; }
+.ksq .klabel.n { top: 17px; left: 50%; transform: translateX(-50%); }
+.ksq .klabel.s { bottom: 3px; left: 50%; transform: translateX(-50%); flex-direction: column-reverse; }
+.ksq .klabel.e { right: 2px; top: 50%; transform: translateY(-50%); }
+.ksq .klabel.e i { writing-mode: vertical-rl; }
+.ksq .klabel.w { left: 2px; top: 50%; transform: translateY(-50%); }
+.ksq .klabel.w i { writing-mode: vertical-rl; transform: rotate(180deg); }
 .klabel.n { top: 1px; left: 50%; transform: translateX(-50%); }
 .klabel.s { bottom: 1px; left: 50%; transform: translateX(-50%); }
 .klabel.w { left: 1px; top: 50%; transform: translateY(-50%); }
@@ -473,7 +484,7 @@ button.hold.wiggle::after {
 }
 .ptag.dimtag { color: var(--r35); border-style: dashed; border-color: var(--r35); }
 
-.cardtag, .picktag {
+.cardtag {
   font-size: 10px;
   letter-spacing: 1px;
   margin-top: 2px;
@@ -484,8 +495,6 @@ button.hold.wiggle::after {
   align-self: flex-start;
   flex: none;
 }
-.picktag { width: 100%; text-align: center; padding: 4px 2px; border: 1px solid var(--rline); background: transparent; color: var(--r55); align-self: stretch; }
-.picktag.on { color: var(--r95); border-color: var(--r95); }
 
 
 /* change = a floater on a black tag */

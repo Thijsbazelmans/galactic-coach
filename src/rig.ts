@@ -721,7 +721,7 @@ export function rigSpriteHtml(v: RigView, kit: Kit, scale: number, cls = ''): st
 
 // ---- single-color pixel stat icons (unchanged) --------------------------------
 
-type IconKind = 'bolt' | 'cap' | 'shades';
+type IconKind = 'bolt' | 'aplus' | 'dollar';
 
 const ICON_PIXELS: Record<IconKind, string[]> = {
   // thunderbolt
@@ -736,29 +736,29 @@ const ICON_PIXELS: Record<IconKind, string[]> = {
     '.XXX.....',
     '.XX......',
   ],
-  // scholar cap (the school side of job security)
-  cap: [
+  // A+ (the school side of job security)
+  aplus: [
     '.........',
-    '.........',
-    '....X....',
-    '.XXXXXXX.',
-    'XXXXXXXXX',
-    '..XXXXX..',
-    '...XXX...',
+    '.XX....X.',
+    'X..X..XXX',
+    'X..X...X.',
+    'XXXX.....',
+    'X..X.....',
+    'X..X.....',
     '.........',
     '.........',
   ],
-  // booster in sunglasses (the money side of job security)
-  shades: [
+  // $ (the money side of job security)
+  dollar: [
+    '....X....',
     '..XXXXX..',
-    '.X.....X.',
-    'X.......X',
-    'X.XXXXX.X',
-    'X.XX.XX.X',
-    'X.......X',
-    'X..XXX..X',
-    '.X.....X.',
+    '.X..X..X.',
+    '.X..X....',
     '..XXXXX..',
+    '....X..X.',
+    '.X..X..X.',
+    '..XXXXX..',
+    '....X....',
   ],
 };
 
