@@ -959,6 +959,11 @@ exports into `fromDesign/<date>/` — read them from there.
     distribution: heavily skewed terran, a slim chance per slot of a
     quadran/hexid/petran, a minimal chance of an oculid/robota/gelid,
     and a **1/1000** shot at a nimbus just sitting on your opening board.
+  - **The scouting card ALWAYS names the species** — even on a total
+    stranger (species is free information: you can see what someone is;
+    scouting is for how good they are). Matters double once species
+    carry band odds + shape profiles: reading «NIMBUS» on an unscouted
+    card should quicken the pulse.
   - **Compass shape profiles**: terran and nimbus are balanced in all
     four directions; the other six species each get one of six distinct
     1–2-axis biases built from the opposing pairs — e.g. profile 1:
