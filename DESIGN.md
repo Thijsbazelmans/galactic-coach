@@ -854,6 +854,12 @@ exports into `fromDesign/<date>/` — read them from there.
       the team names + score animate in (home team first), THEN the
       cards take their places, stat stickers land, etc. — as today.
     - The same rope→dial transformation repeats for the second half.
+  - WEEK START should not sticker the MOOD DRIFT: after a win the recap
+    reads "starters −3, bench +1" — that's just the 75-baseline
+    mean-reversion (the +8 win boost showed on the verdict; Monday's −3
+    is the euphoria fading, and the bench's +1 is the climb capping at
+    75). Drift is bookkeeping, not news — show only XP + ⚡ recovery on
+    WEEK START (mood stickers only for real events, if ever).
   - **NO EXPLANATION TEXT ON SCREENS** (law, partially applied Aug 23:
     the WEEK START strip is already gone, as were the drag-instruction
     strips). The stories carry plenty of reading; screens stay clean —
