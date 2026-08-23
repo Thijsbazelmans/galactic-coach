@@ -313,7 +313,7 @@ export function genSchedule(teamCount: number): [number, number][][] {
 
 // ---- the Universal Tournament -------------------------------------------------------
 
-export function genChamps(myPower: number, season: number): ChampTeam[] {
+export function genChamps(myPower: number, _season: number): ChampTeam[] {
   const names = [...CHAMP_NAMES];
   const champs: ChampTeam[] = [];
   for (let i = 0; i < 7; i++) {
