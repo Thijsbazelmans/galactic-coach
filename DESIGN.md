@@ -969,6 +969,24 @@ exports into `fromDesign/<date>/` — read them from there.
     1–2-axis biases built from the opposing pairs — e.g. profile 1:
     balanced horizontal, skewed toward BRN vertically; profile 2: skewed
     ATH horizontally AND FRC vertically; etc. Six species, six profiles.
+- **THE PRIORITY BOARD (recruiting v3 — discussion stage, talk more
+  before building).** Board-wide scout/recruit-all-9 feels off; the
+  elegant fix reuses the game's core metaphor: **the board IS a lineup**.
+  - Rows are priority tiers — **TARGETS / BACKUPS / LAST RESORTS** —
+    dragged exactly like the squad grid, any time (the drag IS the
+    targeting; no highlight/selection UI). CUTS stays the transient 4th
+    row during search swaps.
+  - Techniques become an **intensity pyramid reading the rows** (effort
+    per head × heads ≈ constant): scouting — FILM NIGHT 1⚡ all 9 ×1
+    facet · ROAD TRIP 2⚡ top 6 ×~2 · PRIVATE WORKOUT 3⚡ TARGETS only,
+    deep; recruiting — LETTERS 1⚡ all 9 small · OPEN HOUSE 2⚡ top 6 ·
+    THE DINNER 3⚡ TARGETS only, big swings. Still ONE action per week.
+    Picker recaps print the scope («ALL 9» / «TOP 6» / «TARGETS»).
+  - Open questions (settle in-session): do LAST RESORTS decay commit
+    FASTER (kids can tell — extends the "kids notice silence" law, makes
+    row placement a cost, not just a filter)? Do signing-day letter
+    penalties read the rows (TARGETS at full strength, penalties biting
+    downward) so the whole recruiting arc lives in one spatial metaphor?
 - **THE STORY SESSION (dedicated session, Thijs-requested):** stories and
   story flow only, nothing else. On the slate:
   - **Player acting driven by what the PLAYER wants, not generic worry.**
