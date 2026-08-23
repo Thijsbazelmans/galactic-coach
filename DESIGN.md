@@ -869,6 +869,15 @@ exports into `fromDesign/<date>/` — read them from there.
     is the euphoria fading, and the bench's +1 is the climb capping at
     75). Drift is bookkeeping, not news — show only XP + ⚡ recovery on
     WEEK START (mood stickers only for real events, if ever).
+  - Running a practice makes something SHIFT slightly in the practice
+    screen's UI — repro and pin it down (suspects: the RUN button's sub
+    line swap to «✓ THIS WEEK», the team-bar fills re-rendering, the
+    sticker sweep). Clean it up: nothing may move except the stickers.
+  - Players still out injured appear ALREADY RETURNED on the WEEK START
+    screen — but the CLEARED TO PLAY story only tells you afterwards
+    (stories fire when you walk into the building). Fix: move the
+    `outWeeks` decrement + un-sinking out of startWeek into beginWeek,
+    so WEEK START still shows them absent and the return NEWS is news.
   - **NO EXPLANATION TEXT ON SCREENS** (law, partially applied Aug 23:
     the WEEK START strip is already gone, as were the drag-instruction
     strips). The stories carry plenty of reading; screens stay clean —
@@ -876,6 +885,24 @@ exports into `fromDesign/<date>/` — read them from there.
     built once the game is settled. Status/warning strips (SHIP
     GROUNDED, the gassed-starters call-out) are not explanation and
     stay.
+- **THE STORY SESSION (dedicated session, Thijs-requested):** stories and
+  story flow only, nothing else. On the slate:
+  - **Player acting driven by what the PLAYER wants, not generic worry.**
+    A player celebrates (elated) the moment you pick the choice that
+    keeps him playing, and goes mad at the choice that sidelines him —
+    the reaction lands at CHOICE time. Needs per-choice metadata (what
+    does the player want here?).
+  - **Delayed-outcome stories hold the tension**: sent to another school
+    / Xarter / a booster practice → he stays NERVOUS (worried) until the
+    result beat lands, THEN elated if it helped, mad if it did nothing.
+    Acting follows the story arc, not the tag.
+  - **The dean & the booster barely ever appear** — they're gated behind
+    heat thresholds (interfere ≥50, summons ≥75), so a clean program
+    never meets them. Give both a regular presence: weekly-pool
+    check-ins, small asks, favors, their illustrations doing the acting.
+  - Plus the parked story work: more stories, femme-specific arcs,
+    pregnancy long-arc, cut_revenge variants, more item-granting
+    outcomes, genderless 'x' form, premium/halftime-only speeches.
 - **Away kits**: the sprite lab defines an away kit (light jersey) —
   dress the visiting roster in it (sprites + chips); replaces the
   hue-clash inversion hack on the matchup vs-row.
