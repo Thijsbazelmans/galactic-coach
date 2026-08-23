@@ -424,6 +424,7 @@ export function resolveStory(s: GameState, choiceKey: string): { resolved: Story
 export function dismissStory(s: GameState): void {
   s.queue.shift();
   if (!s.queue.length && s.phase === 'stories') {
+    if (isUtWeek(s)) rollTravel(s);
     s.phase = isUtWeek(s) ? 'matchup' : 'practice';
     maybeTip(s, isUtWeek(s) ? 'matchup' : 'practice');
   }
@@ -829,9 +830,33 @@ export function useItem(s: GameState, itemId: string, ctxData: Record<string, un
 
 // ---- game night ----------------------------------------------------------------------------
 
+/** Away weeks open with the bus: a voyage story, a debt snare, or plain void. */
+export function rollTravel(s: GameState): void {
+  if (s.voyageRolled) return;
+  const m = myMatchup(s);
+  const away = isUtWeek(s) || (m ? !m.home : false);
+  if (!away) return;
+  s.voyageRolled = true;
+  if (s.energy === 0 && roll(10)) {
+    queueStory(s, 'debt', 'start', null);
+  } else if (roll(25)) {
+    if (s.alumni.length && roll(10)) {
+      const alum = pick(s.alumni);
+      queueStory(s, alum.exit === 'void' ? 'alum_void' : roll(50) ? 'alum_gold' : 'alum_dark', 'start', null, {
+        alumName: alum.name, exit: alum.exit, season: alum.season,
+      });
+    } else {
+      queueStory(s, pick(VOYAGE_POOL), 'start', null);
+    }
+  } else {
+    queueStory(s, 'travel', 'start', null);
+  }
+}
+
 export function toMatchup(s: GameState): void {
   if (s.phase === 'stories' && s.queue.length) return;
   normalizeLineup(myTeam(s));
+  rollTravel(s);
   s.phase = 'matchup';
   maybeTip(s, 'matchup');
   save(s);
@@ -855,25 +880,6 @@ export function playGame(s: GameState): void {
   if (!s.speechWk) return; // no tip-off before the speech
   s.phase = 'gamenight';
   s.lastResult = null;
-  if (!s.voyageRolled) {
-    s.voyageRolled = true;
-    const m = myMatchup(s);
-    const away = isUtWeek(s) || (m ? !m.home : false);
-    if (away) {
-      if (s.energy === 0 && roll(10)) {
-        queueStory(s, 'debt', 'start', null);
-      } else if (roll(25)) {
-        if (s.alumni.length && roll(10)) {
-          const alum = pick(s.alumni);
-          queueStory(s, alum.exit === 'void' ? 'alum_void' : roll(50) ? 'alum_gold' : 'alum_dark', 'start', null, {
-            alumName: alum.name, exit: alum.exit, season: alum.season,
-          });
-        } else {
-          queueStory(s, pick(VOYAGE_POOL), 'start', null);
-        }
-      }
-    }
-  }
   if (!s.queue.length && !s.end) simWeek(s);
   save(s);
 }

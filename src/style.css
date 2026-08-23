@@ -443,6 +443,7 @@ button.hold.wiggle::after {
   line-height: 1.15;
 }
 .prq { color: var(--r55); letter-spacing: 2px; }
+.busimg { display: block; width: 168px; margin: 14px auto 4px; image-rendering: pixelated; flex: none; }
 .krange { color: var(--r75); font-size: 12px; }
 /* potential stars, olympic-ring stack: two up top, three below */
 .prstars { position: static; display: flex; flex-direction: column; align-items: center; line-height: 1; font-size: 12px; color: var(--r95); background: rgba(0, 0, 0, 0.72); padding: 2px 4px; letter-spacing: 2px; }
@@ -628,7 +629,7 @@ button.hold.wiggle::after {
 
 .tbars { flex: none; margin: 3px 0 2px 17px; display: flex; flex-direction: column; gap: 0; }
 .tbar { display: flex; align-items: center; gap: 6px; height: 13px; }
-.tbl { flex: 0 0 88px; font-size: 9px; letter-spacing: 1px; color: var(--r55); font-weight: bold; }
+.tbl { flex: 0 0 76px; font-size: 9px; letter-spacing: 1px; color: var(--r55); font-weight: bold; }
 .tbtrack { flex: 1; min-width: 0; height: 8px; background: var(--r20); position: relative; overflow: hidden; display: flex; }
 .tbfill { height: 100%; transition: width 0.4s; }
 .tbtrack.tug .tbopp { height: 100%; margin-left: auto; transition: width 0.4s; opacity: 0.85; }
@@ -647,11 +648,8 @@ button.hold.wiggle::after {
 .mu-bars { flex: none; display: flex; align-items: stretch; gap: 6px; }
 .mu-bars .tbars { flex: 1; min-width: 0; margin-right: 0; }
 .mu-bars .scoutbtn { flex: 0 0 56px; margin: 3px 8px 2px 0; font-size: 11px; font-weight: bold; line-height: 1.3; padding: 4px 2px; }
-.tbars.mu .tblc { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.tbars.mu .tbl { flex: none; font-size: 8px; }
-.tbars.mu .tbar { height: auto; padding: 1px 0; }
-.tbars.mu .tbar.big .tbl { font-size: 9px; }
-.tbars.mu .tbv { flex: 0 0 32px; }
+.tbars.mu .tbl { flex: 0 0 76px; }
+.tbars.mu .tbv { flex: 0 0 30px; }
 .tbars.mu .tbv.opp { text-align: left; }
 .tbtrack.rtl { justify-content: flex-end; }
 .actcol { display: flex; flex-direction: column; gap: 5px; }

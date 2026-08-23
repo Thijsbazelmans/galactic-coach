@@ -726,6 +726,50 @@ export function rigSpriteHtml(v: RigView, kit: Kit, scale: number, cls = ''): st
   return `<span class="rig ${cls}" style="width:${w}px;height:${h}px;--rigshift:-${w * FRAMES}px;--rigdur:${FRAMES * FRAME_MS}ms;background-image:url(${sheet.url});background-size:${w * FRAMES}px ${h}px"></span>`;
 }
 
+// ---- the team bus: a spaceship with a jersey-stripe soul ----------------------
+// Shown on travel beats. Body in kit color, trim stripe in the accent, flame out
+// the back, cockpit up front. One hand-placed map, cached per kit.
+
+const BUS_MAP = [
+  '............................',
+  '.......bbbbbbbbbbbbbbbbb....',
+  '.....bbbbbbbbbbbbbbbbbbbb...',
+  '....btttttttttttttttttbbbb..',
+  '....bwwbbwwbbwwbbwwbbbccbb..',
+  '....bwwbbwwbbwwbbwwbbbccbb..',
+  '....bbbbbbbbbbbbbbbbbbbbbb..',
+  'Ffff.bBBBBBBBBBBBBBBBBBBb...',
+  '.fF...bbb....bbb....bbb.....',
+  '.......kk.....kk.....kk.....',
+];
+
+const busCache = new Map<string, string>();
+
+export function busUrl(kit: Kit): string {
+  const key = `${kit.bg}|${kit.fg}`;
+  const hit = busCache.get(key);
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  c.width = BUS_MAP[0].length;
+  c.height = BUS_MAP.length;
+  const ctx = c.getContext('2d')!;
+  const colors: Record<string, string> = {
+    b: kit.bg, B: mul(kit.bg, 0.6), t: kit.fg, w: '#cfeaf5', c: '#f4f6fa',
+    f: '#e08a3c', F: '#ffd76a', k: '#1a1e2e',
+  };
+  BUS_MAP.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (ch === '.') continue;
+      ctx.fillStyle = colors[ch] ?? '#ff00ff';
+      ctx.fillRect(x, y, 1, 1);
+    }
+  });
+  const url = c.toDataURL();
+  busCache.set(key, url);
+  return url;
+}
+
 // ---- single-color pixel stat icons (unchanged) --------------------------------
 
 type IconKind = 'bolt' | 'aplus' | 'dollar' | 'alert';

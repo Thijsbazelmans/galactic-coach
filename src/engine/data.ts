@@ -1973,6 +1973,14 @@ export const TIPS: Record<string, string> = {
     "Season's over, coach. Seniors walk, stars flirt with the pros — one conversation each, odds printed as always. And every offseason the question waits at the bottom: walk away with your legacy, or go again.",
 };
 
+// the road: an away week always opens with the bus
+STORIES.push({
+  id: 'travel',
+  kind: 'coach',
+  beat: (_b, ctx) => ({ tag: 'THE ROAD', text: (ctx.data.text as string) ?? pick(TRAVEL_FLAVOR) }),
+  resolve: () => ({ text: '' }),
+});
+
 // a tap-through announcement: text in, nothing decided
 STORIES.push({
   id: 'notice',
@@ -2019,3 +2027,12 @@ export function weeklyPool(s: GameState): StoryDef[] {
 }
 
 export const VOYAGE_POOL = ['vendor', 'bus_prospect', 'omen'];
+
+/** Away weeks: most trips are just... space. The bus hums. */
+export const TRAVEL_FLAVOR = [
+  'Travel was uninspiring. The void between planets is famously boring; the team sleeps in shifts and argues about the aux cable.',
+  'Eleven hours of warp. Somebody brought a deck of cards with 51 cards in it. The mystery of the missing card outlasts the trip.',
+  'The team bus hits light speed on schedule for once. The driver takes the applause with one modest antenna.',
+  'A quiet ride. The rookies watch the stars go by; the seniors have seen stars before and sleep like cargo.',
+  'The autopilot plays smooth jazz for six parsecs. Nobody knows how to turn it off. The team arrives strangely calm.',
+];

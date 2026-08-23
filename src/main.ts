@@ -50,7 +50,6 @@ import {
   starters,
   toGalaxy,
   toMatchup,
-  toPractice,
   toSigning,
   toggleProspect,
   toggleTips,
@@ -62,7 +61,7 @@ import {
 import type { Attr, AttrRec, GameState, PlanId, Player, Prospect, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, ovr, perGame, potStars } from './engine/util';
-import { PRACTICE_KIT, energyBucket, iconUrl, moodBucket, rigSpriteHtml, type Kit, type RigView } from './rig';
+import { PRACTICE_KIT, busUrl, energyBucket, iconUrl, moodBucket, rigSpriteHtml, type Kit, type RigView } from './rig';
 
 const VERSION = 'v2.0';
 
@@ -177,25 +176,6 @@ function chip(label: string, bg: string, fg: string, small = false): string {
 
 // ---- floaters -------------------------------------------------------------------------
 
-function floatCard(pid: number, msgs: { text: string; up?: boolean }[], startDelay = 0): void {
-  msgs.forEach((m, i) => {
-    floatTimers.push(
-      window.setTimeout(() => {
-        document.querySelectorAll(`[data-pid="${pid}"]`).forEach((card) => {
-          const el = document.createElement('div');
-          el.className = `floater ${m.up === false ? 'down' : m.up ? 'up' : ''}`;
-          el.textContent = m.text;
-          (el as HTMLElement).style.left = `${8 + (i % 2) * 30}px`;
-          card.appendChild(el);
-          card.classList.add('flash');
-          window.setTimeout(() => el.remove(), 1600);
-          window.setTimeout(() => card.classList.remove('flash'), 600);
-        });
-      }, startDelay + i * 420)
-    );
-  });
-}
-
 /** Team-wide changes land top-left → across the starters, then the bench, then
     the reserves — the same sweep every time. */
 function slotOrderIds(): number[] {
@@ -219,19 +199,23 @@ function floatEnergyBig(n: number): void {
   }
 }
 
-/** Drill results sweep the grid in slot order, one player at a time. */
-function floatDrill(out: { xpByPlayer: Map<number, number>; gainByPlayer: Map<number, string>; levelUps: LevelUp[] }, cost: number): void {
+/** Drill results become STICKERS on the cards — swept in slot order, and they
+    stay until you leave the screen. */
+let drillStickers: Map<number, { text: string; up?: boolean }[]> | null = null;
+let gxStickers: Map<number, { text: string; up?: boolean }[]> | null = null;
+
+function stickDrill(out: { xpByPlayer: Map<number, number>; gainByPlayer: Map<number, string>; levelUps: LevelUp[] }, cost: number): void {
   floatEnergyBig(cost);
-  const base = 350 + cost * 300;
-  slotOrderIds().forEach((pid, i) => {
+  drillStickers = new Map();
+  slotOrderIds().forEach((pid) => {
     const msgs: { text: string; up?: boolean }[] = [];
     const g = out.gainByPlayer.get(pid);
     if (g) msgs.push({ text: g, up: true });
     const xp = out.xpByPlayer.get(pid);
     if (xp) msgs.push({ text: `+${xp} XP` });
-    if (msgs.length) floatCard(pid, msgs, base + i * 240);
+    if (out.levelUps.some((lu) => lu.playerId === pid)) msgs.push({ text: '★ LEVEL UP', up: true });
+    if (msgs.length) drillStickers!.set(pid, msgs);
   });
-  out.levelUps.forEach((lu, i) => floatCard(lu.playerId, [{ text: `★ LEVEL ${lu.level}`, up: true }], base + 9 * 240 + i * 300));
 }
 
 // ---- the impact reveal: snapshot → resolve → diff → animate -----------------------
@@ -538,6 +522,9 @@ interface CardOpts {
   kit?: Kit;
   /** story acting: sprite state comes from the news, not the meters */
   story?: 'good' | 'bad';
+  /** results land one by one and STAY until you leave the screen */
+  stickers?: { text: string; up?: boolean }[];
+  stickerDelay?: number;
   tag?: string;
   inert?: boolean;
   draggable?: boolean;
@@ -603,6 +590,8 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   return `<div class="pcard lens${l} sq ${out ? 'pout' : ''} ${opts.draggable && !out && l === 0 ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''}"
       ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
     ${body}
+    ${opts.stickers?.length ? `<div class="stickers">${opts.stickers.map((st, i) =>
+      `<div class="sticker ${st.up === false ? 'down' : ''}" style="animation-delay:${(opts.stickerDelay ?? 0) + i * 220}ms">${esc(st.text)}</div>`).join('')}</div>` : ''}
     ${out ? `<div class="ptag">OUT ${p.outWeeks}w</div>` : ''}
     ${opts.sitout && l === 0 ? '<div class="ptag dimtag">SITS OUT</div>' : ''}
     ${opts.miscast && opts.miscast >= 8 && !out && l === 0 ? `<div class="ptag">MISCAST −${opts.miscast}%</div>` : ''}
@@ -659,8 +648,11 @@ function prospectCard(pr: Prospect, l: Lens): string {
       brHtml: ring,
     });
   }
+  const stick = gxStickers?.get(pr.id);
   return `<div class="pcard prospect sq ${selProspect === pr.id ? 'selpr' : ''}" data-action="pr-select" data-id="${pr.id}" data-pid="p${pr.id}">
     ${body}
+    ${stick?.length ? `<div class="stickers">${stick.map((st, i) =>
+      `<div class="sticker ${st.up === false ? 'down' : ''}" style="animation-delay:${i * 220}ms">${esc(st.text)}</div>`).join('')}</div>` : ''}
     ${pr.bannedWeeks > 0 ? `<div class="ptag blink">BANNED ${pr.bannedWeeks}w</div>` : ''}
   </div>`;
 }
@@ -730,16 +722,41 @@ const ROW_LABELS = ['START', 'BENCH', 'RES'];
 function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0): string {
   const t = myTeam(s);
   const isPractice = s.phase === 'practice';
+  const showGame = s.phase === 'gamenight' && !!s.lastResult && gnStage !== 'beat';
+  const showDrill = isPractice && s.trainedThisWeek && drillStickers !== null;
   const colHead = `<div class="colhead"><span class="rowlabel"></span>${COL_LABELS.map((c) => `<span>${c}</span>`).join('')}</div>`;
   const rows: string[] = [];
+  let sweep = 0;
   for (let r = 0; r < 3; r++) {
     const cells = [0, 1, 2].map((c) => {
       const idx = r * 3 + c;
       const p = slotPlayer(t, idx);
       const mult = p && r < 2 ? slotMult(p, c) : 1;
+      let stickers: { text: string; up?: boolean }[] | undefined;
+      let stickerDelay = 0;
+      if (p && showGame) {
+        const d = s.postGame.find((x) => x.playerId === p.id);
+        if (d) {
+          stickers = [];
+          if (d.fire === 'lit') stickers.push({ text: '🔥 ON FIRE', up: true });
+          if (d.fire === 'out') stickers.push({ text: '🔥 out', up: false });
+          if (d.xpGain > 0) stickers.push({ text: `+${d.xpGain} XP` });
+          if (d.energyP !== 0) stickers.push({ text: `${d.energyP > 0 ? '+' : ''}${d.energyP}⚡`, up: d.energyP > 0 });
+          if (d.mood !== 0) stickers.push({ text: `${d.mood > 0 ? '+' : ''}${d.mood} MOOD`, up: d.mood > 0 });
+          stickerDelay = 300 + sweep * 260;
+          sweep++;
+        }
+      } else if (p && showDrill) {
+        const msgs = drillStickers!.get(p.id);
+        if (msgs?.length) {
+          stickers = msgs;
+          stickerDelay = 350 + sweep * 240;
+          sweep++;
+        }
+      }
       return `<div class="gcell dropzone" data-zone="${idx}">
         ${p
-          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, miscast: Math.round((1 - mult) * 100) })
+          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, miscast: Math.round((1 - mult) * 100), stickers, stickerDelay })
           : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');
@@ -798,6 +815,8 @@ function storySentiment(tag: string): 'good' | 'bad' {
 function storyPanel(s: GameState): string {
   const ev = currentStory(s)!;
   const p = ev.playerId !== null ? myTeam(s).players.find((x) => x.id === ev.playerId) : undefined;
+  const t0 = myTeam(s);
+  const bus = /THE ROAD|VOYAGE/.test(ev.tag) ? `<img class="busimg" src="${busUrl({ bg: t0.bg, fg: t0.fg })}" alt=""/>` : '';
   if (storyMode === 'impact') {
     return `<div class="storypanel" data-action="story-tap" id="storypanel">
       <span class="tag">${esc(ev.tag)}</span>
@@ -825,7 +844,7 @@ function storyPanel(s: GameState): string {
     }
     return `<div class="storypanel" data-action="story-tap" id="storypanel">
       <span class="tag">${esc(ev.tag)}</span>
-      ${p ? `<div class="modalcard">${playerCard(p, { inert: true, story: storySentiment(ev.tag) })}</div>` : ''}
+      ${p ? `<div class="modalcard">${playerCard(p, { inert: true, story: storySentiment(ev.tag) })}</div>` : bus}
       ${inChoices
         ? `<div class="typebox">${esc(beats[beats.length - 1])}</div>`
         : `<div class="typebox" id="typebox"></div>`}
@@ -835,6 +854,7 @@ function storyPanel(s: GameState): string {
   // a single typed beat, center stage (this layout never gains elements mid-read)
   return `<div class="storypanel" data-action="story-tap" id="storypanel">
     <span class="tag">${esc(ev.tag)}</span>
+    ${bus}
     <div class="typebox beatbox" id="typebox"></div>
     <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap</div></div>
   </div>`;
@@ -875,8 +895,8 @@ function teamBarsPractice(s: GameState): string {
     const rank = 1 + all.filter((x) => x.id !== t.id && val(x.sums) > val(mine)).length;
     return `<div class="tbar ${a === 'all' ? 'big' : ''}">
       <span class="tbl">${label}</span>
-      <span class="tbtrack"><span class="tbfill" style="width:${Math.min(100, (val(mine) / max) * 100)}%;background:${t.bg}"></span></span>
       <b class="tbv">${val(mine)}</b>
+      <span class="tbtrack"><span class="tbfill" style="width:${Math.min(100, (val(mine) / max) * 100)}%;background:${t.bg}"></span></span>
       <span class="tbr">${ordinal(rank)}</span>
     </div>`;
   }).join('');
@@ -928,8 +948,9 @@ function teamBarsMatchup(s: GameState): string {
     const left = home ? oppNum : myNum;
     const right = home ? myNum : oppNum;
     return `<div class="tbar ${big ? 'big' : ''}">
+      <span class="tbl">${label}</span>
       ${left}
-      <span class="tblc"><span class="tbl">${label}</span>${track}</span>
+      ${track}
       ${right}
     </div>`;
   }).join('');
@@ -1201,10 +1222,6 @@ function stagePickTeam(s: GameState): string {
 function navMain(label: string, action: string, disabled = false): string {
   return `<button class="primary hold navmain" data-action="${action}" ${disabled ? 'disabled' : ''}>${label}</button>`;
 }
-function navBack(action: string): string {
-  return `<button class="navback" data-action="${action}">BACK</button>`;
-}
-
 function nav(s: GameState): string {
   if (currentStory(s)) return `<span class="navnote dim">the galaxy is talking…</span>`;
   switch (s.phase) {
@@ -1215,9 +1232,9 @@ function nav(s: GameState): string {
     case 'practice':
       return `<span></span>${navMain('TO RECRUITING', 'to-galaxy')}`;
     case 'galaxy':
-      return `${navBack('to-practice')}${navMain('TO MATCHUP', 'to-matchup')}`;
+      return `<span></span>${navMain('TO MATCHUP', 'to-matchup')}`;
     case 'matchup':
-      return `${isUtWeek(s) ? '<span></span>' : navBack('to-galaxy')}${navMain(s.speechWk ? 'PLAY' : 'SPEECH FIRST', 'play-game', !s.speechWk)}`;
+      return `<span></span>${navMain(s.speechWk ? 'PLAY' : 'SPEECH FIRST', 'play-game', !s.speechWk)}`;
     case 'gamenight': {
       if (!s.lastResult || gnStage === 'beat') return `<span class="navnote dim">…</span>`;
       if (gnStage === 'verdict') return `<span></span>${navMain('STANDINGS', 'gn-table')}`;
@@ -1700,16 +1717,15 @@ function executeAction(action: string, id: string): void {
     case 'drill-run': {
       const d = DRILLS.find((x) => x.id === selectedDrill)!;
       const out = runDrill(state, selectedDrill);
-      if (out) floatDrill(out, d.cost);
+      if (out) stickDrill(out, d.cost);
       break;
     }
 
-    case 'to-practice': toPractice(state); break;
-    case 'to-galaxy': drillSheet = false; toGalaxy(state); break;
-    case 'to-matchup': galaxySheet = null; dropConfirm = null; toMatchup(state); break;
+    case 'to-galaxy': drillSheet = false; drillStickers = null; toGalaxy(state); break;
+    case 'to-matchup': galaxySheet = null; dropConfirm = null; gxStickers = null; toMatchup(state); break;
     case 'to-signing': toSigning(state); break;
     case 'gn-table': gnStage = 'table'; clearFloatTimers(); break;
-    case 'continue-result': gnStage = 'beat'; clearFloatTimers(); continueFromResult(state); break;
+    case 'continue-result': gnStage = 'beat'; clearFloatTimers(); drillStickers = null; gxStickers = null; continueFromResult(state); break;
 
     case 'pr-drop': {
       actionDropProspect(state, Number(id));
@@ -1724,7 +1740,12 @@ function executeAction(action: string, id: string): void {
         const text = actionScan(state, selDiscover);
         if (text !== null) {
           const fresh = state.prospects[state.prospects.length - 1];
-          if (fresh) { selProspect = fresh.id; selEmpty = false; }
+          if (fresh) {
+            selProspect = fresh.id;
+            selEmpty = false;
+            gxStickers = gxStickers ?? new Map();
+            gxStickers.set(fresh.id, [{ text: 'NEW', up: true }]);
+          }
           gxResult = { text, cost: reg.cost, played: false };
         }
       } else {
@@ -1732,8 +1753,18 @@ function executeAction(action: string, id: string): void {
         if (sel.kind !== 'pr') break;
         const actId = id === 'scout' ? selScout : selRecruit;
         const act = PROSPECT_ACTS.find((a) => a.id === actId)!;
+        const before = sel.pr.commitPct;
         const text = actionProspect(state, sel.pr.id, actId);
-        if (text !== null) gxResult = { text, cost: act.cost, played: false };
+        if (text !== null) {
+          gxStickers = gxStickers ?? new Map();
+          if (id === 'scout') {
+            gxStickers.set(sel.pr.id, [{ text: sel.pr.scoutLevel >= 2 ? 'KNOWN COLD' : 'THE CLOUD THINS', up: true }]);
+          } else {
+            const dlt = sel.pr.commitPct - before;
+            gxStickers.set(sel.pr.id, [{ text: `${dlt >= 0 ? '+' : ''}${dlt}% COMMIT`, up: dlt >= 0 }]);
+          }
+          gxResult = { text, cost: act.cost, played: false };
+        }
       }
       break;
     }

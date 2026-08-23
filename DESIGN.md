@@ -475,6 +475,19 @@ unweighted until the speech lands, then your rope visibly shifts (plan
 attr ×2.5); premium energy-costing dual-attribute speeches (+BRN & +FRC)
 are design space for the story/knowledge pool.
 
+**v2.4.1:** Bar rows are single lines — PRACTICE: label · number · bar ·
+rank; MATCHUP: label · away number · tug · home number (ropes no longer
+span the screen). Stickers are now universal AND a regression got fixed:
+the post-game sticker rendering had silently never landed (an aborted
+edit two rounds back), so games showed no card feedback — restored, plus
+practice results and recruiting results (NEW / THE CLOUD THINS / ±% 
+COMMIT) all stick to their cards until you leave the screen. BACK buttons
+removed — the week is strictly forward again. And away weeks open with
+THE ROAD: on the way to the matchup a pixel TEAM BUS (kit-colored, flame
+out the back) headlines either an uninspiring-travel beat (5 flavors) or
+one of the existing voyage/alumni/debt stories — travel no longer fires
+on PLAY.
+
 ## NEXT SESSION (pick up here)
 
 0. **HALFTIME (agreed direction):** split the sim into two halves — after
