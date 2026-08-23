@@ -925,6 +925,39 @@ exports into `fromDesign/<date>/` — read them from there.
     built once the game is settled. Status/warning strips (SHIP
     GROUNDED, the gassed-starters call-out) are not explanation and
     stay.
+- **THE GROWTH & SPECIES SESSION (dedicated session, Thijs-specced Aug
+  23 — this absorbs the old "species design session"):**
+  - **Level-ups never hit a dead end.** Placing banked points: an
+    attribute with room takes points freely up to its potential; an
+    attribute AT its potential can still take exactly **+1 per level-up**
+    (never more) — nothing is ever completely un-elevatable. Example
+    (+3 to place): SKL has room → can take all 3; BRN has 2 of room →
+    max 2; FRC/ATH are at potential → max 1 each. (Open: does the +1
+    past potential drag the potential up with it, and do species caps
+    also yield +1 or stay hard? Decide in-session.)
+  - **Starting levels.** Scouted freshman recruits ALWAYS join at level
+    0. Walk-ons roll by class: So 2–6 · Jr 4–8 · Sr 6–10 (Fr walk-on:
+    decide, presumably 0–2). EVERY new addition starts at 0 XP.
+    Returners keep their level + XP (summer growth as-is).
+  - **Potential tiers per species.** Every player's potential OVR lands
+    in one of five bands: 0–19 / 20–39 / 40–59 / 60–79 / 80–99. Each
+    species gets a band distribution — e.g. terran 38/30/20/10/2 and
+    nimbus the exact reverse 2/10/20/30/38; the rest sit between.
+    NOTHING is set in stone and **no chance is ever 0**: a 99-potential
+    terran can walk out of the rec center; a found nimbus can still be
+    a dud.
+  - **Species rarity**: terran most common; quadran/hexid/petran pretty
+    common; oculid/robota/gelid fairly rare; nimbus very rare.
+  - **Search regions = rarity dials**: rec center → terrans only; home
+    world → small chance of anything rarer; further out → higher rarity
+    odds; OUTER RIM → the only place nimbus appear + best rare odds.
+    Region shifts WHO you find, never how good they are (the band roll
+    is the species').
+  - **Compass shape profiles**: terran and nimbus are balanced in all
+    four directions; the other six species each get one of six distinct
+    1–2-axis biases built from the opposing pairs — e.g. profile 1:
+    balanced horizontal, skewed toward BRN vertically; profile 2: skewed
+    ATH horizontally AND FRC vertically; etc. Six species, six profiles.
 - **THE STORY SESSION (dedicated session, Thijs-requested):** stories and
   story flow only, nothing else. On the slate:
   - **Player acting driven by what the PLAYER wants, not generic worry.**
