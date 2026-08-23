@@ -854,6 +854,15 @@ exports into `fromDesign/<date>/` — read them from there.
       the team names + score animate in (home team first), THEN the
       cards take their places, stat stickers land, etc. — as today.
     - The same rope→dial transformation repeats for the second half.
+  - **THE NUMBER CASCADE (results must be SEEN).** Verified: a landed
+    speech's +2/player does flow into OVERALL (rope +~6 pts ≈ 50%→60%
+    win share vs an equal team — mechanically real, visually invisible).
+    Every result like it needs an eye-drawing cascade: "everyone plays
+    with +2 SKILL tonight" → each card's individual number ticks up →
+    the team SKILL bar/number climbs → the OVERALL number climbs, in
+    sequence, each pulling the eye. Go QUITE EXTREME on these — if the
+    numbers don't visibly move, nothing feels like it changed. (If it
+    still feels weak once animated, the knob is PlanDef.boost 2→3.)
   - WEEK START should not sticker the MOOD DRIFT: after a win the recap
     reads "starters −3, bench +1" — that's just the 75-baseline
     mean-reversion (the +8 win boost showed on the verdict; Monday's −3
