@@ -3,7 +3,7 @@
 // Definition of done (SPEC §16): survives full careers without error and
 // reports skill curves, UT reach, ending causes, and energy starvation.
 
-import { PLANS, speciesById } from '../src/engine/data';
+import { PLANS } from '../src/engine/data';
 import { LEVEL_CAP, ROSTER_SIZE, newGameState } from '../src/engine/gen';
 import { meterMult, normalizeLineup } from '../src/engine/sim';
 import { ATTRS, bestAttr, ovr, sizeIndex } from '../src/engine/util';
@@ -60,12 +60,12 @@ function checkInvariants(s: GameState): void {
   if (s.heatS < 0 || s.heatB < 0 || s.heatS + s.heatB > 100) throw new Error(`hot seat broken: ${s.heatS}/${s.heatB}`);
   if (s.bag.length > 5) throw new Error(`bag overflow: ${s.bag.length}`);
   for (const p of t.players) {
-    const caps = speciesById(p.speciesId).attrCaps;
+    // species caps are DEAD — the 0–25 scale and level 10 are the only walls
     for (const a of ATTRS) {
-      if (p.attrs[a] < 0 || p.attrs[a] > 25 || p.attrs[a] > caps[a]) throw new Error(`attr ${a} broken for ${p.name}: ${p.attrs[a]} (cap ${caps[a]})`);
-      if (p.pots[a] < p.attrs[a] || p.pots[a] > caps[a]) throw new Error(`pot ${a} broken for ${p.name}: ${p.attrs[a]}/${p.pots[a]} (cap ${caps[a]})`);
+      if (p.attrs[a] < 0 || p.attrs[a] > 25) throw new Error(`attr ${a} broken for ${p.name}: ${p.attrs[a]}`);
+      if (p.pots[a] < p.attrs[a] || p.pots[a] > 25) throw new Error(`pot ${a} broken for ${p.name}: ${p.attrs[a]}/${p.pots[a]}`);
     }
-    if (ovr(p.attrs) > 99) throw new Error(`overall broken for ${p.name}: ${ovr(p.attrs)}`);
+    if (ovr(p.attrs) > 100) throw new Error(`overall broken for ${p.name}: ${ovr(p.attrs)}`);
     if (p.stats.gp < 0 || p.stats.pts < 0) throw new Error(`stats broken for ${p.name}`);
     if (p.level > LEVEL_CAP) throw new Error(`level overflow ${p.name}`);
     if (p.energy < 0 || p.energy > 100 || p.mood < 0 || p.mood > 100) throw new Error(`meters broken for ${p.name}`);

@@ -24,7 +24,7 @@ export type Attr = 'skl' | 'ath' | 'frc' | 'brn';
 export type AttrRec = Record<Attr, number>;
 
 /** Speech ids (the old tactics are speeches now; premium ones come from stories). */
-export type PlanId = 'showtime' | 'rungun' | 'lockdown' | 'clockwork' | 'warcry' | 'zenmind';
+export type PlanId = 'showtime' | 'rungun' | 'lockdown' | 'clockwork' | 'warcry' | 'zenmind' | 'stardust' | 'engine';
 
 /** A landed speech: the room ignited — every player plays +amt in that attribute. */
 export interface SpeechFx {
@@ -45,17 +45,24 @@ export interface StatLine {
   mvp: number;
 }
 
-// ---- species (interface only — real species design is its own session) ------
+// ---- species (THE GROWTH & SPECIES rework) -----------------------------------
+// Hard attr caps are DEAD: a species shapes WHERE the talent points (bias) and
+// HOW MUCH ceiling the galaxy deals it (band odds). The only hard walls left
+// are the 0–25 attribute scale and level 10.
 
 export interface SpeciesDef {
   id: string;
   name: string;
   tier: 1 | 2 | 3;
-  /** hard per-attribute ceiling (0–25) — no member ever exceeds these */
-  attrCaps: AttrRec;
+  /** compass shape profile: the 0–2 attributes this species leans into.
+      terran & nimbus are balanced (empty). Six species, six distinct biases. */
+  bias: Attr[];
+  /** potential-band odds (%, sums 100) over 0–19/20–39/40–59/60–79/80–99 */
+  bands: [number, number, number, number, number];
   heightRange: [number, number];
   weightRange: [number, number];
   desc: string;
+  /** 0 = everywhere · 1 = pretty common · 2 = fairly rare · 3 = very rare */
   rarity: number;
 }
 
@@ -67,8 +74,8 @@ export interface Player {
   speciesId: string;
   /** 0=Fr 1=So 2=Jr 3=Sr */
   classYear: number;
-  /** body form + pronouns (she/her for femme); old saves default to masc */
-  form?: 'masc' | 'femme';
+  /** body form + pronouns: femme she/her, x they/them (nimbus/gelid/robota) */
+  form?: 'masc' | 'femme' | 'x';
   jersey: number;
   heightCm: number;
   weightKg: number;
@@ -96,6 +103,9 @@ export interface Player {
   dnp: number;
   /** consecutive games STARTED — the weekend recovery shrinks as it stacks */
   startStreak?: number;
+  /** a delayed-outcome story is hanging over him — the sprite stays NERVOUS
+      (worried) until the result beat lands */
+  tense?: boolean;
   walkOn?: boolean;
   gem?: boolean;
   special?: 'daughter' | 'droid';
@@ -132,7 +142,7 @@ export interface Prospect {
   id: number;
   name: string;
   speciesId: string;
-  form?: 'masc' | 'femme';
+  form?: 'masc' | 'femme' | 'x';
   heightCm: number;
   weightKg: number;
   /** the truth (hidden until scouted) */
@@ -164,6 +174,10 @@ export interface StoryChoiceView {
   down?: OddsTail;
   itemId?: string; // set when this button is an injected bag item
   disabled?: string; // printed reason
+  /** what the PLAYER wants: his reaction lands the moment you pick —
+      'love' = this keeps him playing/going (elated), 'hate' = it sidelines
+      him (mad). Undefined = the outcome decides the acting. */
+  want?: 'love' | 'hate';
 }
 
 /** A materialized popup, fully serializable. Behavior lives in data.ts by defId. */
@@ -206,6 +220,9 @@ export interface Fx {
   teamEnergyP?: number;
   outWeeks?: number;
   outReason?: string;
+  /** a delayed outcome hangs over him: he stays NERVOUS until the result
+      beat lands (cleared automatically when his next story resolves) */
+  tense?: boolean;
   coachEnergy?: number;
   heatS?: number;
   heatB?: number;
@@ -228,7 +245,7 @@ export interface Fx {
 export interface Alumnus {
   name: string;
   speciesId: string;
-  form?: 'masc' | 'femme';
+  form?: 'masc' | 'femme' | 'x';
   ovr: number;
   /** how he left: 'pro' | 'grad' | 'void' */
   exit: 'pro' | 'grad' | 'void';
@@ -292,6 +309,12 @@ export interface HalftimeState {
   oppName: string;
   /** halftime energy drains by player id (negative), folded into postGame */
   drains: Record<number, number>;
+  /** THE FORM ROLL: a real hidden per-game roll the halftime stickers reveal —
+      1 = STANDOUT! (plays +15%, the hot night teaches him something),
+      -1 = OFF DAY (plays −15%). Rolled for the H1 floor, holds all game. */
+  forms?: Record<number, 1 | -1>;
+  /** what the STANDOUT bump landed, per player ("+1 ATH") — for the sticker */
+  formGain?: Record<number, string>;
 }
 
 export interface PlayerDeltas {
@@ -418,7 +441,6 @@ export interface GameState {
   speechFx?: SpeechFx | null;
   speechFxH2?: SpeechFx | null;
   sitouts: number[];
-  scoutedOpp: boolean;
   drillReport: string | null;
   voyageRolled: boolean;
 

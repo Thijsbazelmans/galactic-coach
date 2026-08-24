@@ -810,250 +810,160 @@ team color as the accent (bus stripe, saucer lights, the booster's tie):
   verdict (angry+sweat / elated) on the resolved beats — before the
   numbers land in the impact panel.
 
+## v4.0 — THE OVERHAUL (Aug 23, 2026 — the full-season playtest cashed in)
+
+Thijs played a full season on v3.2.x, dictated the work list, and called
+the overhaul. All four backlog blocks shipped in one swing (SAVE_VERSION
+16, old saves die):
+
+**THE CARD REWORK.** Lens deck is **ROSTER / STATS / ABILITIES** (old
+ABILITIES→ROSTER, old POTENTIAL→ABILITIES). ROSTER is the default and
+the compass is GONE from it: two tapered LED gauges hug the card edges —
+ENERGY left (outlined bolt), MOOD right (outlined face), icons colored
+by value and blinking under 25%, top ~1/3 card width tapering to ~1/8,
+ending above the OVR / LVL corners (`edgeGauge` in main.ts, `iconOutlinedUrl`
+in rig.ts). Gauges appear ONLY on ROSTER. Stickers: ONE main slot under
+the name; all others land ON the stat they change (+XP on the ring, +SKL
+on OVERALL, ⚡/MOOD on their gauges — `Sticker.anchor`). RES→RESERVES.
+Practice team bars now run the MATCH weighting (75/25, unavailable = 0 —
+`matchAttrs` everywhere) and the RUN row ghosts (space kept, so the bars
+never move) on non-ROSTER lenses; training runs only from ROSTER. The
+matchup/halftime grids lock to ROSTER. Recruiting deck is **BIG BOARD /
+STATS / POTENTIAL**: BIG BOARD has no compass (sprite + masked rating +
+commit ring), POTENTIAL shows the cloud of CURRENT skills with the
+ceiling as STARS in its center. Story popups pick their backdrop per
+story (`StoryDef.card`): ABILITIES behind growth stories, the gauges for
+everything else.
+
+**THE ANIMATION BUILD.** Every screen CHANGE builds in stages — title
+first, content next, action button last (`.build` classes keyed on a
+screen-change check; re-renders of the same screen appear instantly).
+HALFTIME builds long-form: header → score (home chip first) → card rows
+→ stickers → ropes → speech → button. Game night: hitting PLAY captures
+the OVERALL rope's rect and the rope GROWS into the big game dial (FLIP
+transform), «TIP OFF» lands, then the needle sweeps — same on the second
+half.
+
+**THE NUMBER CASCADE.** Results must be SEEN. Any change that moves the
+ropes (drag-swap, drill, landed speech) snapshots the bars, winds the
+fresh render back, then counts each row forward with a flash — OVERALL
+last and loudest (`captureBars`/`cascadeBars`). A landed speech chains:
++2 SKL pops card-by-card across the floor, THEN the attribute bar
+climbs, THEN OVERALL. Ropes (matchup rows, OVERALL, the game dial) all
+carry a **center mark** at the 50/50 tick.
+
+**THE OPPONENT SCOUT IS DEAD.** Bars are always visible for free — the
+matchup screen is a lineup-tuning screen and tuning needs a visible
+opponent. `scoutedOpp` plumbing is gone; the UT SCOUTING REPORT beat
+stays as flavor; the omen now fully reveals a random board name instead.
+
+**THE FORM ROLL (halftime stickers).** A real hidden per-game roll at
+tip-off (10% hot / 10% cold per floor player): STANDOUT! plays +15% all
+game AND banks +1 attribute on the spot (the hot night teaches him
+something — sticker shows the gain); OFF DAY plays −15%. TIRED blinks on
+any floor tank ≤30⚡ (the gassed strip is gone). All three are halftime
+card stickers; the rope, the box-score dealing and the halftime bars all
+read the roll, so swaps are the honest answer. (AI floor players get the
+same +1 drip post-game — fairness law.) Stickers everywhere now pop
+ONCE per action: re-renders show them landed; once seen, report
+stickers persist statically and practice/board stickers disappear.
+
+**PICKER LAWS.** Pickers default to the FREE option every week (TEAM
+REST / LOCAL REC CENTER); undiscovered methods are hidden (one collapsed
+hint per sheet); overflowing sheets show a sticky ▼ fade that clears at
+the bottom. THE SCOPE PREVIEW: selecting a row-scoped action blinks the
+run button in sync with every impacted card while the rest dims — on the
+board (TOP 6 / TARGETS) and on practice (squad drills preview the actual
+participants).
+
+**WEEK START & RETURNS.** The Monday report shows only XP + ⚡ recovery
+(mood drift is bookkeeping, not news). My injured tick down in
+`beginWeek` now, not `startWeek` — WEEK START still shows them absent
+and CLEARED TO PLAY is news when you walk into the building.
+
+**GROWTH & SPECIES.** Hard species caps are DEAD — the 0–25 scale and
+level 10 are the only walls. Level-ups never dead-end: an attribute with
+room takes points up to its potential; an attribute AT potential takes
+exactly +1 and DRAGS the potential up with it. Every player's potential
+OVR rolls one of five bands (0–19…80–99) from species odds: terran
+38/30/20/10/2, nimbus the exact mirror, specialists 20/28/26/18/8, the
+rare trio 10/20/25/25/20 — no chance is ever 0. Shape comes from six
+distinct 1–2-axis bias profiles (hexid ATH · petran FRC · quadran
+ATH+FRC · oculid BRN · robota SKL · gelid SKL+BRN; terran and nimbus
+balanced). Rarity: terran everywhere · quadran/hexid/petran common ·
+oculid/robota/gelid fairly rare · nimbus very rare. Regions are RARITY
+DIALS only (who, never how good): rec center terran-only, home world a
+whisper of else, nebula specialists, OUTER RIM the charted home of the
+nimbus (the discovered deep core also reaches them, best rare odds +
+two-name chance). The opening board rolls its own skew with a 1/1000
+nimbus. The scouting card ALWAYS names the species (rare blood reads
+bright, nimbus blinks). Levels: scouted recruits always join at 0;
+walk-ons roll Fr 0 · So 2–6 · Jr 4–8 · Sr 6–10; everyone starts 0 XP;
+level 10 stops XP cold. Current = level-scaled fraction of potential
+(`currentFromPots`). AI teams refill with any-class transfer bodies (not
+level-0 freshmen) or my recruiting becomes a pure handicap.
+
+**THE PRIORITY BOARD (recruiting v3).** The board IS a lineup: rows are
+TARGETS / BACKUPS / LAST RESORTS, dragged like the squad grid any time
+(the drag is the targeting; empty-slot reorders work). Techniques are an
+intensity pyramid reading the rows — FILM NIGHT 1⚡ all 9 ×1 facet ·
+ROAD TRIP 2⚡ top 6 ×~2 · PRIVATE WORKOUT 3⚡ TARGETS deep; HOLO-LETTERS
+1⚡ all 9 · OPEN HOUSE 2⚡ top 6 · THE DINNER 3⚡ TARGETS, big swings.
+Still ONE action/week; recaps print the scope («ALL 9»/«TOP 6»/
+«TARGETS»). LAST RESORTS decay commit ×2 (kids can tell). Signing-day
+letter penalties do NOT read the rows yet (left open on purpose).
+
+**THE STORY SESSION.** Player acting is driven by what the PLAYER wants:
+choices carry `want` ('love'/'hate') and the reaction lands at CHOICE
+time — elated when you keep him playing, mad when you sideline him.
+Delayed outcomes hold the tension: `p.tense` keeps the sprite NERVOUS
+(worried) on the grid until the result beat lands (festival, the frozen
+one's promise, the season-first pregnancy path; cleared automatically
+when his next story resolves). The dean & the booster got a regular
+presence: weekly check-ins with small asks and favors (`dean_visit`,
+`booster_gift`), illustrations acting. New content: the pregnancy
+long-arc pays off in THE NEWBORN (~7 weeks later, either form); a
+femme-only arc (`runaway_sister`, `StoryDef.forms`); three cut_revenge
+variants (crossed-out shoes / the rival stream quote / the thank-you
+letter); two new premium speeches (STARDUST skl · THE ENGINE ath) in the
+knowledge pool (10 unlockables now). **Genderless 'x' form** (they/them)
+ships: nimbus/gelid/robota are always 'x'; `genderize` handles pronouns
++ auxiliaries + a de-conjugation sweep ("he nods"→"they nod",
+"he's heard"→"they've heard"); x renders the base chassis.
+
+Balance after the rework (26-season harness): **~64% regular-season win
+rate · ~3.2–3.7 UT titles/career** — the v3.2 arc held through the
+generation rework after two counterweights (AI transfer refill, AI
+summer growth 2+rand(3), league-wide STANDOUT drip).
+
 ## NEXT SESSION (pick up here)
 
-Fresh-session state: the game is **v3.2** (polish pass + baseline +
-weekend rhythm + career arc + illustrated galaxy) — see the entries
-above. Engine `src/engine/` (types/data/gen/sim/state/util), UI
-`src/main.ts` + `src/rig.ts` + `src/style.css`. SAVE_VERSION 15.
-Tests: `npx tsx scripts/headless.ts N` (full careers; ~58% baseline) and
+Fresh-session state: the game is **v4.0 — THE OVERHAUL** (see the entry
+above; everything from the full-season playtest list is in). Engine
+`src/engine/` (types/data/gen/sim/state/util), UI `src/main.ts` +
+`src/rig.ts` + `src/style.css`. SAVE_VERSION 16.
+Tests: `npx tsx scripts/headless.ts N` (full careers; ~64% baseline) and
 `npx tsx scripts/uismoke.ts` (boots the real UI in happy-dom; nav and
 choices are hold-buttons that ignore clicks — drive them via the
-`window.gcAction(action, id)` dev handle). Thijs drops Claude-Designer
-exports into `fromDesign/<date>/` — read them from there.
+`window.gcAction(action, id)` dev handle; picker picks route through
+`executeAction` too). Thijs drops Claude-Designer exports into
+`fromDesign/<date>/` — read them from there.
+
+**Calls Claude made inside the overhaul (Thijs to veto):**
+- OFF DAY is the REAL form roll (not presentational) — it made halftime
+  swaps honest, as your note hoped.
+- The deep core still reaches nimbus (outer rim is the only CHARTED sky
+  with them) — otherwise the discovered region would be strictly worse.
+- Signing-day letter penalties don't read the board rows yet (the open
+  half of the priority-board question).
+- The omen's new reward: one random board name fully revealed.
 
 ### Backlog (in rough priority)
 
-- **Thijs's playtest notes (Aug 23, in the order he made them — the
-  work list for THE NEXT OVERHAUL. He has now played a FULL season on
-  v3.2.x; ship these when he calls the overhaul, not before. A fresh
-  session starts by reading this whole block plus the three session
-  blocks below it: GROWTH & SPECIES, PRIORITY BOARD, STORY SESSION.)**
-  - ~~ABILITIES view: dim the compass kite and labels~~ — SUPERSEDED by
-    THE CARD REWORK (last note in this list): the compass leaves the
-    default view entirely.
-  - The practice / recruiting ▾ pickers should DEFAULT to the free option
-    (TEAM REST, LOCAL REC CENTER) every week — spending energy should
-    always require going into the menu deliberately.
-  - Stop listing every undiscovered method as a ▓▓▓▓ row in the picker
-    sheets — hide them (or one collapsed hint at most).
-  - Picker sheets that overflow must clearly SHOW they scroll (visible
-    affordance — fade edge / scrollbar / peeking half-row).
-  - Stickers pop ONCE per action: after a drill (etc.) the stickers land
-    with their animation, but switching lens (STATS/POTENTIAL and back)
-    should NOT replay them — once seen, they just disappear. Practice was
-    run, results were seen.
-  - **THE ANIMATION BUILD (screen transitions, the big one).** Every
-    screen switch gets a little build so it's always clear where you are
-    and what's happening. The general law: the HEADER/title appears
-    first (you know where you are), then the rest of the screen builds
-    in, and the ACTION BUTTON lands last (you know where to go next).
-    The game-night sequence is the showcase:
-    - Hit PLAY (H1): everything in the middle disappears (top menu, THE
-      BAG and the bottom button stay, as always) EXCEPT the OVERALL
-      rope — which GROWS and repositions itself to the middle of the
-      screen, becoming the game-play dial. Then «TIP OFF», the needle
-      sweeps, lands on a color.
-    - HALFTIME: the dial disappears, the HALFTIME header appears, then
-      the team names + score animate in (home team first), THEN the
-      cards take their places, stat stickers land, etc. — as today.
-    - The same rope→dial transformation repeats for the second half.
-  - **THE NUMBER CASCADE (results must be SEEN).** Verified: a landed
-    speech's +2/player does flow into OVERALL (rope +~6 pts ≈ 50%→60%
-    win share vs an equal team — mechanically real, visually invisible).
-    Every result like it needs an eye-drawing cascade: "everyone plays
-    with +2 SKILL tonight" → each card's individual number ticks up →
-    the team SKILL bar/number climbs → the OVERALL number climbs, in
-    sequence, each pulling the eye. Go QUITE EXTREME on these — if the
-    numbers don't visibly move, nothing feels like it changed. (If it
-    still feels weak once animated, the knob is PlanDef.boost 2→3.)
-  - WEEK START should not sticker the MOOD DRIFT: after a win the recap
-    reads "starters −3, bench +1" — that's just the 75-baseline
-    mean-reversion (the +8 win boost showed on the verdict; Monday's −3
-    is the euphoria fading, and the bench's +1 is the climb capping at
-    75). Drift is bookkeeping, not news — show only XP + ⚡ recovery on
-    WEEK START (mood stickers only for real events, if ever).
-  - Running a practice makes something SHIFT slightly in the practice
-    screen's UI — repro and pin it down (suspects: the RUN button's sub
-    line swap to «✓ THIS WEEK», the team-bar fills re-rendering, the
-    sticker sweep). Clean it up: nothing may move except the stickers.
-  - Players still out injured appear ALREADY RETURNED on the WEEK START
-    screen — but the CLEARED TO PLAY story only tells you afterwards
-    (stories fire when you walk into the building). Fix: move the
-    `outWeeks` decrement + un-sinking out of startWeek into beginWeek,
-    so WEEK START still shows them absent and the return NEWS is news.
-  - **KILL THE OPPONENT SCOUT (1⚡).** H1 reveals everything anyway; the
-    counter-pick payoff died with the tactics wheel. Direction (Claude's
-    rec, Thijs to veto): opponent bars ALWAYS visible for free — the
-    matchup screen is a lineup-tuning screen and tuning needs a visible
-    opponent. Scout button + `scoutedOpp` plumbing die; the UT SCOUTING
-    REPORT beat stays as flavor; the omen story needs a new reward
-    (story session).
-  - **Lineup changes must move the stats BOLDLY**: on every drag-swap in
-    matchup/halftime the affected bars + OVERALL visibly animate (count,
-    flash — part of THE NUMBER CASCADE). Right now the shift is a silent
-    width transition you have to squint at.
-  - **Halftime warnings become CARD STICKERS**: the gassed-starters strip
-    is good info in the wrong place (it costs a row and risks scroll) —
-    replace it with a blinking «TIRED» sticker on the gassed player's own
-    card. And add an «OFF DAY» sticker for a player shooting way below
-    his level at the half (today that's just a quiet low stat line).
-    Open design question: is OFF DAY purely presentational (low H1 line
-    vs expectation → sticker) or a real hidden per-game form roll the
-    sticker reveals? The roll version gives halftime swaps another
-    honest reason to exist.
-  - **…and the mirror: «STANDOUT!»** — a player playing way above his
-    level at the half gets the sticker WITH a real ability bump attached
-    (the hot night teaches him something). Together with OFF DAY this
-    makes per-game form a two-tailed roll: ride the hot hand / bench the
-    cold one, both visible on the cards at halftime. (Note ON FIRE
-    already exists at 25+ pts across the full game — STANDOUT is the
-    half-time read and should feed it, not duplicate it.)
-  - **The ropes need a CENTER MARK**: a tick at the 50/50 point on every
-    tug-of-war rope (matchup rows, OVERALL, the big game dial) so a tight
-    rope instantly reads as "slightly better" or "slightly worse" instead
-    of a coin-flip guess.
-  - ~~TEAM MOOD + TEAM ENERGY readout~~ — SUPERSEDED by THE CARD REWORK
-    (last note in this list): per-card energy/mood gauges on the default
-    view negate the need for any team-level mood/energy bar.
-  - **NO EXPLANATION TEXT ON SCREENS** (law, partially applied Aug 23:
-    the WEEK START strip is already gone, as were the drag-instruction
-    strips). The stories carry plenty of reading; screens stay clean —
-    every how-it-works line moves into the game-start TUTORIAL, to be
-    built once the game is settled. Status/warning strips (SHIP
-    GROUNDED, the gassed-starters call-out) are not explanation and
-    stay.
-  - **THE CARD REWORK (the big one — after the full-season playtest;
-    per-player gauges return, the lens deck reshuffles).**
-    - **Lens renames**: the POTENTIAL view becomes **ABILITIES**; the
-      current ABILITIES view becomes **ROSTER**. Deck: ROSTER / STATS /
-      ABILITIES.
-    - **ROSTER view (the new default)**: the compass is REMOVED
-      entirely. In its place, two tapered LED gauges hug the card edges
-      — wider at the top, narrower at the bottom:
-      · LEFT edge = ENERGY, with a little lightning bolt overlaying it
-        (black outline). · RIGHT edge = MOOD, with a little face
-        overlaying it (black outline).
-      · Bolt + face change color with the value — brighter when high,
-        darker when low — and BLINK below 25%.
-      · Geometry: gauge top sits one line-height below the name and is
-        **1/3 of the card width**; it tapers to **1/8 of the card
-        width** at the bottom, which ends just above the LVL/XP
-        indicator on its respective side.
-    - **The sticker system**: exactly ONE main sticker slot lives just
-      under the name, above the gauges — the most important sticker
-      goes there. ALL other stickers stick ON TOP of the stat they
-      change: «+8 XP» overlaps the LVL/XP gauge, «+3 SKL» sits on the
-      OVERALL number, «−12 MOOD» sits on the mood gauge, and so forth.
-    - The team gauges below the 3×3 must NOT move when switching to the
-      ABILITIES or STATS views. Training can only be RUN from the
-      ROSTER view — never from the alternate views.
-    - Row label **RES → RESERVES**.
-    - **Team ability gauges below the grid reflect the MATCH weighting**:
-      starters ×75% + bench ×25% only — never the whole team — and
-      unavailable players still sitting in a starter/bench slot add
-      NOTHING to the numbers. (The practice-screen bars currently sum
-      all nine raw; align them with the matchup math.)
-    - The energy/mood gauges appear ONLY on ROSTER — not on STATS, not
-      on ABILITIES.
-    - **Recruiting deck**: the first view is renamed **BIG BOARD** and
-      loses its compass too. On the recruiting POTENTIAL view, the
-      cloud shown is now the cloud of CURRENT skills (not potential) —
-      potential itself reads as STARS in the center of that cloud.
-    - **The matchup/lineup screen shows ROSTER-view cards with NO lens
-      switching** — stats and potential aren't relevant when setting a
-      lineup for tonight.
-    - **Story mode picks per story**: whichever matters for that story —
-      the ABILITIES view behind the acting sprite, or the energy/mood
-      gauges beside it.
-- **THE GROWTH & SPECIES SESSION (dedicated session, Thijs-specced Aug
-  23 — this absorbs the old "species design session"):**
-  - **Level-ups never hit a dead end.** Placing banked points: an
-    attribute with room takes points freely up to its potential; an
-    attribute AT its potential can still take exactly **+1 per level-up**
-    (never more) — nothing is ever completely un-elevatable. Example
-    (+3 to place): SKL has room → can take all 3; BRN has 2 of room →
-    max 2; FRC/ATH are at potential → max 1 each. DECIDED: the +1 past
-    potential DRAGS the potential up with it (overall potential rises
-    too), and species caps are similarly soft — they yield the same way.
-    The only hard wall is level 10.
-  - **Starting levels.** Scouted freshman recruits ALWAYS join at level
-    0. Walk-ons roll by class: Fr 0 · So 2–6 · Jr 4–8 · Sr 6–10. EVERY
-    new addition starts at 0 XP. Returners keep their level + XP (summer
-    growth as-is). LEVEL 10 stays the hard max — a level-10 player stops
-    gaining XP entirely.
-  - **Potential tiers per species.** Every player's potential OVR lands
-    in one of five bands: 0–19 / 20–39 / 40–59 / 60–79 / 80–99. Each
-    species gets a band distribution — e.g. terran 38/30/20/10/2 and
-    nimbus the exact reverse 2/10/20/30/38; the rest sit between.
-    NOTHING is set in stone and **no chance is ever 0**: a 99-potential
-    terran can walk out of the rec center; a found nimbus can still be
-    a dud.
-  - **Species rarity**: terran most common; quadran/hexid/petran pretty
-    common; oculid/robota/gelid fairly rare; nimbus very rare.
-  - **Search regions = rarity dials**: rec center → terrans only; home
-    world → small chance of anything rarer; further out → higher rarity
-    odds; OUTER RIM → the only place nimbus appear + best rare odds.
-    Region shifts WHO you find, never how good they are (the band roll
-    is the species').
-  - **The season-opening board (the 9 strangers)** rolls its own species
-    distribution: heavily skewed terran, a slim chance per slot of a
-    quadran/hexid/petran, a minimal chance of an oculid/robota/gelid,
-    and a **1/1000** shot at a nimbus just sitting on your opening board.
-  - **The scouting card ALWAYS names the species** — even on a total
-    stranger (species is free information: you can see what someone is;
-    scouting is for how good they are). Matters double once species
-    carry band odds + shape profiles: reading «NIMBUS» on an unscouted
-    card should quicken the pulse.
-  - **Compass shape profiles**: terran and nimbus are balanced in all
-    four directions; the other six species each get one of six distinct
-    1–2-axis biases built from the opposing pairs — e.g. profile 1:
-    balanced horizontal, skewed toward BRN vertically; profile 2: skewed
-    ATH horizontally AND FRC vertically; etc. Six species, six profiles.
-- **THE PRIORITY BOARD (recruiting v3 — discussion stage, talk more
-  before building).** Board-wide scout/recruit-all-9 feels off; the
-  elegant fix reuses the game's core metaphor: **the board IS a lineup**.
-  - Rows are priority tiers — **TARGETS / BACKUPS / LAST RESORTS** —
-    dragged exactly like the squad grid, any time (the drag IS the
-    targeting; no highlight/selection UI). CUTS stays the transient 4th
-    row during search swaps.
-  - Techniques become an **intensity pyramid reading the rows** (effort
-    per head × heads ≈ constant): scouting — FILM NIGHT 1⚡ all 9 ×1
-    facet · ROAD TRIP 2⚡ top 6 ×~2 · PRIVATE WORKOUT 3⚡ TARGETS only,
-    deep; recruiting — LETTERS 1⚡ all 9 small · OPEN HOUSE 2⚡ top 6 ·
-    THE DINNER 3⚡ TARGETS only, big swings. Still ONE action per week.
-    Picker recaps print the scope («ALL 9» / «TOP 6» / «TARGETS»).
-  - DECIDED: **LAST RESORTS decay commit faster** (kids can tell —
-    extends the "kids notice silence" law; row placement is a cost, not
-    just a filter). Still open: do signing-day letter penalties read the
-    rows (TARGETS at full strength, penalties biting downward)?
-  - **THE SCOPE PREVIEW (law, and it generalizes).** Faster decay (and
-    row-scoped actions generally) demand a crystal-clear read of WHO is
-    affected: the ▾ picker defaults to the free goes-for-everyone option;
-    the moment you select a scoped method, the ACTION BUTTON BLINKS in
-    sync with every impacted player card while everything else goes dim —
-    the scope is visible before you commit. This same tactic opens
-    design room on PRACTICE too (row-/group-scoped drills: starters-only
-    conditioning, bench-only reps, etc.) and anywhere else an action has
-    a target set.
-- **THE STORY SESSION (dedicated session, Thijs-requested):** stories and
-  story flow only, nothing else. On the slate:
-  - **Player acting driven by what the PLAYER wants, not generic worry.**
-    A player celebrates (elated) the moment you pick the choice that
-    keeps him playing, and goes mad at the choice that sidelines him —
-    the reaction lands at CHOICE time. Needs per-choice metadata (what
-    does the player want here?).
-  - **Delayed-outcome stories hold the tension**: sent to another school
-    / Xarter / a booster practice → he stays NERVOUS (worried) until the
-    result beat lands, THEN elated if it helped, mad if it did nothing.
-    Acting follows the story arc, not the tag.
-  - **The dean & the booster barely ever appear** — they're gated behind
-    heat thresholds (interfere ≥50, summons ≥75), so a clean program
-    never meets them. Give both a regular presence: weekly-pool
-    check-ins, small asks, favors, their illustrations doing the acting.
-  - Plus the parked story work: more stories, femme-specific arcs,
-    pregnancy long-arc, cut_revenge variants, more item-granting
-    outcomes, genderless 'x' form, premium/halftime-only speeches.
+- **THE NEXT OVERHAUL (Aug 23 playtest list + the three session blocks:
+  GROWTH & SPECIES, PRIORITY BOARD, STORY SESSION) — SHIPPED, all of it,
+  as v4.0.** See the v4.0 entry above for what landed and the four calls
+  Claude made that Thijs can still veto.
 - **Away kits**: the sprite lab defines an away kit (light jersey) —
   dress the visiting roster in it (sprites + chips); replaces the
   hue-clash inversion hack on the matchup vs-row.
@@ -1061,29 +971,29 @@ exports into `fromDesign/<date>/` — read them from there.
   that hand you a player while the roster is full should reuse the 3×4
   swap grid (the mechanic + confirm dialog exist; only the story hook is
   missing).
-- **More story speeches** (the two premium ones are seeds; halftime-only
-  speeches remain design space).
-- **Genderless 'x' form** (they/them) — during the story-writing session;
-  verb agreement makes it a writing pass. Candidates: Nimbus/Gelid/Robota.
-- **Story-writing session** (more stories, femme-specific arcs beyond the
-  pregnancy variant, pregnancy long-arc consequences, more cut_revenge
-  variants, more item-granting outcomes).
-- **Species design session**: attr caps are provisional; two-cap tier-3
-  consequences (fragility) barely expressed.
+- **Priority board, open half**: should signing-day letter penalties
+  read the rows (TARGETS at full strength, penalties biting downward)?
+  Decided not to build until discussed.
+- **Halftime-only speeches** (design space; STARDUST and THE ENGINE
+  shipped as regular premium speeches in v4.0).
+- **Row-/group-scoped practice drills** (starters-only conditioning,
+  bench-only reps) — THE SCOPE PREVIEW law already supports them.
+- **More stories, always**: further femme arcs, more x-form-flavored
+  stories for the three x species, more item-granting outcomes.
 - **Succinct tutorial**: auto-tips are OFF by default; the ? tips were
-  rewritten for v3.0 but the real onboarding is still undesigned.
-- **SPEC.md rewrite**: it still describes the dead v1.0 axis model (and
-  now also a dead tactics wheel).
-- **Balance watch**: post-v3.2 baseline ~62% win rate / ~3–3.5 titles per
-  career in streaks (first ring S4–8, none in S1–3 over 36 harness
-  seasons). Knobs: THE CAREER ARC (champ base 0.84 of restedPower,
-  knowledge edge −0.015/unlock cap −0.12, hunted tax +0.045/title cap 3),
-  meter economy (baseline 75, half-drain 15–29 starters, weekend bump
-  40−12×streak, mood drift +5/−3, AI campus-life tax), story mood scale
-  (×1.5 / ×1.25 team), role-weighted game moods, recruit gain ranges +
-  decay 1, signing letter penalties, speech odds (10/5, +2, backfire −25),
-  SHARP 6, ON FIRE 25/12/×1.2, dream-lab 50% ceiling chance, rec-center
-  offense odds (5%).
+  refreshed for v4.0 but the real onboarding is still undesigned.
+- **SPEC.md rewrite**: it still describes the dead v1.0 axis model, the
+  dead tactics wheel — and now also dead species caps.
+- **Balance watch**: post-v4.0 baseline ~64% win rate / ~3.2–3.7 titles
+  per career. Knobs: THE CAREER ARC (champ base 0.84 of restedPower,
+  knowledge edge −0.015/unlock cap −0.12 — 10 unlockables now, hunted
+  tax +0.045/title cap 3), species band odds + bias weights (~2.1×),
+  `currentFromPots` level curve (0.32 + 0.065/level), the form roll
+  (10/10, ×1.15/×0.85, +1 STANDOUT bump + AI drip), AI transfer refill +
+  summer growth (2+rand(3)), meter economy (baseline 75, half-drain
+  15–29, weekend bump 40−12×streak, campus-life tax), story mood scale
+  (×1.5 / ×1.25), LAST RESORTS decay ×2, signing letter penalties,
+  speech odds (10/5 +2; premium 25/5 +3), SHARP 6, ON FIRE 25/12/×1.2.
 - **Alumni/career surfacing**: careers + MVP counts accumulate but only
   the STATS lens shows them; a legacy/records screen is unbuilt.
 

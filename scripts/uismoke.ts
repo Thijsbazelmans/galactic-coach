@@ -74,18 +74,21 @@ async function main(): Promise<void> {
   drain();
   if (state().phase !== 'practice') throw new Error(`expected practice, got ${state().phase}`);
 
-  // the three lenses render
+  // the three lenses render: ROSTER / STATS / ABILITIES
   if (!app.innerHTML.includes('lensbar')) throw new Error('lens bar missing');
+  if (!app.innerHTML.includes('ROSTER')) throw new Error('ROSTER lens name missing');
   (app.querySelectorAll('[data-action="lens-set"]')[1] as unknown as { click: () => void }).click();
   if (!app.innerHTML.includes('stcol')) throw new Error('stats lens did not render');
   (app.querySelectorAll('[data-action="lens-set"]')[2] as unknown as { click: () => void }).click();
-  if (!app.innerHTML.includes('kpot')) throw new Error('potential lens did not render');
+  if (!app.innerHTML.includes('kpot')) throw new Error('abilities lens did not render');
+  if (!app.innerHTML.includes('k-pot')) throw new Error('potential outline missing on ABILITIES');
   must('[data-action="lens-set"]', 'lens set 0');
 
-  // the square card: kite, OVR bottom-left, XP ring bottom-right
+  // the ROSTER card: edge gauges, OVR bottom-left, XP ring bottom-right, NO kite
   if (!app.innerHTML.includes('kovr')) throw new Error('card OVR missing');
   if (!app.innerHTML.includes('kring')) throw new Error('XP ring missing');
-  if (!app.innerHTML.includes('k-pot')) throw new Error('potential outline missing');
+  if (!app.innerHTML.includes('gauge gl')) throw new Error('energy gauge missing');
+  if (!app.innerHTML.includes('gauge gr')) throw new Error('mood gauge missing');
   if (!app.innerHTML.includes('ksprite')) throw new Error('centered sprite missing');
 
   // MANDATORY practice: the nav is dimmed until the drill runs
@@ -103,15 +106,21 @@ async function main(): Promise<void> {
   anyWin.gcAction('to-galaxy', '');
   drain();
   if (state().phase !== 'galaxy') throw new Error(`expected galaxy, got ${state().phase}`);
-  // the board opens FULL: nine strangers, all ??'s
+  // the board opens FULL: nine strangers, all ??'s, priority rows labeled
   const prospects = (gc.state() as any).prospects;
   if (prospects.length !== 9) throw new Error(`expected 9 prospects on the board, got ${prospects.length}`);
   if (prospects.some((p: any) => p.seenSkill || p.seenPot || p.digits > 0)) throw new Error('fresh prospects should be total strangers');
   if (!app.innerHTML.includes('prq')) throw new Error('?? masks missing on the board');
+  if (!app.innerHTML.includes('TARGETS')) throw new Error('priority-board row labels missing');
+  // the species is always named — free information
+  if (!app.innerHTML.includes('TERRAN')) throw new Error('species names missing on the board');
+  // the picker defaults to the FREE option (LOCAL REC CENTER)
+  if (!app.innerHTML.includes('LOCAL REC CENTER')) throw new Error('free option not the default');
   // mandatory action: nav dimmed until one lands
   anyWin.gcAction('to-matchup', '');
   if (state().phase !== 'galaxy') throw new Error('left recruiting without an action');
-  // run the default SCOUT ALL — every prospect gains a facet
+  // pick FILM NIGHT (all 9) and run it — every prospect gains a facet
+  anyWin.gcAction('gx-pick', 'filmnight');
   anyWin.gcAction('gx-run', '');
   if (!(gc.state() as any).galaxyActWk) throw new Error('galaxy action did not land');
   if (!prospects.some((p: any) => p.seenSkill || p.seenPot || p.digits > 0)) throw new Error('scout revealed nothing');
@@ -136,7 +145,9 @@ async function main(): Promise<void> {
   click('[data-action="toast-tap"]');
   click('[data-action="toast-tap"]');
   if (!app.innerHTML.includes('tbars mu')) throw new Error('matchup bars missing')
-  if (!app.innerHTML.includes('scoutbtn')) throw new Error('scout button missing');
+  // the opponent scout is DEAD: their bars are simply there, for free
+  if (!app.innerHTML.includes('tbopp')) throw new Error('opponent bars not visible for free');
+  if (app.innerHTML.includes('scoutbtn')) throw new Error('the scout button should be gone');
 
   // play the game → FIRST HALF needle, then HALFTIME
   anyWin.gcAction('play-game', '');

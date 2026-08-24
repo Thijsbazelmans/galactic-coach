@@ -7,16 +7,15 @@ import {
   DEITY_NAMES,
   PLANS,
   PROSPECT_BLURBS,
-  SPECIES,
+  SPECIES_ODDS,
   STARTING_PLANS,
   TEAM_TEMPLATES,
-  galaxyActById,
   speciesById,
 } from './data';
 import type { AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
 export const UT_WEEKS = 3; // QF, SF, THE UNIVERSAL FINAL
 export const ROSTER_SIZE = 9;
@@ -55,48 +54,76 @@ export function genName(taken?: Set<string>): string {
   return pick(DEITY_NAMES);
 }
 
-// ---- attribute rolls --------------------------------------------------------
+// ---- attribute rolls (THE GROWTH & SPECIES rework) --------------------------
+// Every player's potential OVERALL lands in one of five bands; each species
+// carries the band odds (terran and nimbus are exact mirrors). The potential
+// is distributed along the species' compass shape profile; the current
+// attributes are a level-scaled fraction of the potential. The only hard
+// walls anywhere are the 0–25 scale and level 10.
 
-/** Distribute a target OVERALL across the four attributes, shaped by the
-    species caps plus personal variation — members actually express their species. */
-function rollAttrs(caps: AttrRec, target: number): AttrRec {
+const BANDS: [number, number][] = [[0, 19], [20, 39], [40, 59], [60, 79], [80, 99]];
+
+/** Roll a potential OVERALL from the species' band odds; shift nudges the
+    landed band (gems up, rec-center bodies down) but never off the scale. */
+export function rollPotOvr(speciesId: string, shift = 0): number {
+  const sp = speciesById(speciesId);
+  let r = Math.random() * 100;
+  let ix = 0;
+  for (let i = 0; i < 5; i++) {
+    r -= sp.bands[i];
+    if (r <= 0) { ix = i; break; }
+    if (i === 4) ix = 4;
+  }
+  ix = clamp(ix + shift, 0, 4);
+  const [lo, hi] = BANDS[ix];
+  return lo + rand(hi - lo + 1);
+}
+
+/** Distribute a target OVERALL across the four attributes along the species
+    shape profile (biased attrs pull ~2×) plus personal variation. */
+function distribute(speciesId: string, target: number): AttrRec {
+  const sp = speciesById(speciesId);
   const w = zeroAttrs();
   let tw = 0;
   for (const a of ATTRS) {
-    w[a] = Math.pow(Math.max(1, caps[a]), 1.4) * (0.6 + Math.random() * 0.8);
+    w[a] = (sp.bias.includes(a) ? 2.1 : 1) * (0.6 + Math.random() * 0.8);
     tw += w[a];
   }
-  const attrs = zeroAttrs();
-  for (const a of ATTRS) attrs[a] = clamp(Math.round((w[a] / tw) * target), 0, caps[a]);
-  // spend the clamped/rounded remainder wherever there's room
-  let left = target - ovr(attrs);
+  const out = zeroAttrs();
+  for (const a of ATTRS) out[a] = clamp(Math.round((w[a] / tw) * target), 0, 25);
+  let left = target - ovr(out);
   let guard = 0;
-  while (left > 0 && guard++ < 60) {
-    const room = ATTRS.filter((a) => attrs[a] < caps[a]);
+  while (left > 0 && guard++ < 120) {
+    const room = ATTRS.filter((a) => out[a] < 25);
     if (!room.length) break;
-    attrs[pick(room)]++;
+    out[pick(room)]++;
     left--;
+  }
+  while (left < 0 && guard++ < 120) {
+    const room = ATTRS.filter((a) => out[a] > 0);
+    if (!room.length) break;
+    out[pick(room)]--;
+    left++;
+  }
+  return out;
+}
+
+/** Where he is now: a level-scaled fraction of where he can go. */
+function currentFromPots(pots: AttrRec, level: number): AttrRec {
+  const f = clamp(0.32 + 0.065 * level + (Math.random() * 0.12 - 0.06), 0.15, 1);
+  const attrs = zeroAttrs();
+  for (const a of ATTRS) {
+    attrs[a] = clamp(Math.round(pots[a] * clamp(f + (Math.random() * 0.14 - 0.07), 0.1, 1)), 0, pots[a]);
   }
   return attrs;
 }
 
-/** Personal ceilings: current + a rolled headroom per attribute, inside caps.
-    A lopsided roll here is a lopsided potential square — that's the design. */
-function rollPots(caps: AttrRec, attrs: AttrRec, headroom: number): AttrRec {
-  const pots = zeroAttrs();
-  for (const a of ATTRS) pots[a] = clamp(attrs[a] + rand(headroom + 1), attrs[a], caps[a]);
-  // guarantee SOME road ahead if the species allows it
-  let guard = 0;
-  while (ovr(pots) - ovr(attrs) < 3 && guard++ < 20) {
-    const room = ATTRS.filter((a) => pots[a] < caps[a]);
-    if (!room.length) break;
-    pots[pick(room)]++;
-  }
-  return pots;
-}
+/** Nimbus, gelid and robota are genderless — they/them. */
+const X_SPECIES = new Set(['nimbus', 'gelid', 'robota']);
 
-function capSum(speciesId: string): number {
-  return ovr(speciesById(speciesId).attrCaps);
+export function formFor(speciesId: string): 'masc' | 'femme' | 'x' {
+  if (X_SPECIES.has(speciesId)) return 'x';
+  return Math.random() < 0.5 ? 'femme' : 'masc';
 }
 
 function rollBody(speciesId: string): { heightCm: number; weightKg: number } {
@@ -107,30 +134,45 @@ function rollBody(speciesId: string): { heightCm: number; weightKg: number } {
   };
 }
 
-// ---- players -----------------------------------------------------------------
-
-function levelForClass(classYear: number): number {
-  return Math.min(LEVEL_CAP, classYear * 2 + rand(3));
+/** Weighted species roll from an odds table (data.ts SPECIES_ODDS). */
+export function rollSpecies(odds: [string, number][]): string {
+  const total = odds.reduce((a, [, w]) => a + w, 0);
+  let r = Math.random() * total;
+  for (const [id, w] of odds) {
+    r -= w;
+    if (r <= 0) return id;
+  }
+  return odds[0][0];
 }
 
-const CLASS_HEADROOM = [9, 7, 5, 3];
+/** The league at large: terrans everywhere, one nimbus per blue moon. */
+const LEAGUE_ODDS: [string, number][] = [
+  ['terran', 56], ['quadran', 11], ['hexid', 11], ['petran', 11],
+  ['oculid', 3], ['robota', 3], ['gelid', 3], ['nimbus', 2],
+];
 
-export function genPlayer(counter: { nextId: number }, quality: number, classYear?: number, speciesId?: string, taken?: Set<string>): Player {
-  const pool = SPECIES.filter((sp) => sp.rarity <= 1);
-  const sp = speciesId ? speciesById(speciesId) : pick(pool);
+// ---- players -----------------------------------------------------------------
+
+/** Starting levels by class: Fr 0 · So 2–6 · Jr 4–8 · Sr 6–10. */
+function levelForClass(classYear: number): number {
+  if (classYear <= 0) return 0;
+  return Math.min(LEVEL_CAP, classYear * 2 + rand(5));
+}
+
+export function genPlayer(counter: { nextId: number }, bandShift: number, classYear?: number, speciesId?: string, taken?: Set<string>): Player {
+  const spId = speciesId ?? rollSpecies(LEAGUE_ODDS);
   const cy = classYear ?? rand(4);
   const level = levelForClass(cy);
-  const target = clamp(Math.round((22 + quality + rand(18) + level * 3) * 0.55), 6, capSum(sp.id) - 2);
-  const attrs = rollAttrs(sp.attrCaps, target);
-  const pots = rollPots(sp.attrCaps, attrs, CLASS_HEADROOM[Math.min(cy, 3)]);
+  const pots = distribute(spId, rollPotOvr(spId, bandShift));
+  const attrs = currentFromPots(pots, level);
   return {
     id: counter.nextId++,
     name: genName(taken),
-    speciesId: sp.id,
+    speciesId: spId,
     classYear: cy,
-    form: Math.random() < 0.5 ? 'femme' : 'masc',
+    form: formFor(spId),
     jersey: rand(56),
-    ...rollBody(sp.id),
+    ...rollBody(spId),
     attrs,
     pots,
     startAttrs: copyAttrs(attrs),
@@ -148,43 +190,30 @@ export function genPlayer(counter: { nextId: number }, quality: number, classYea
 
 export function genWalkOn(counter: { nextId: number }, taken?: Set<string>): Player {
   const gem = Math.random() < 0.12;
-  const p = genPlayer(counter, gem ? 14 + rand(8) : -12 + rand(6), rand(4), undefined, taken);
+  const p = genPlayer(counter, gem ? 2 : -1, rand(4), undefined, taken);
   p.walkOn = true;
   p.gem = gem;
-  if (gem) {
-    const caps = speciesById(p.speciesId).attrCaps;
-    for (const a of ATTRS) p.pots[a] = clamp(caps[a] - rand(3), p.attrs[a], caps[a]);
-  }
   return p;
 }
 
 export function genSpecial(counter: { nextId: number }, kind: 'walkon' | 'gem' | 'daughter' | 'droid', taken?: Set<string>): Player {
   if (kind === 'daughter') {
-    const p = genPlayer(counter, 12, 1, 'terran');
+    const p = genPlayer(counter, 1, 1, 'terran');
     p.name = 'Minervva';
     p.form = 'femme';
     p.special = 'daughter';
-    const caps = speciesById('terran').attrCaps;
-    for (const a of ATTRS) p.pots[a] = clamp(p.attrs[a] + 5, p.attrs[a], caps[a]);
     return p;
   }
   if (kind === 'droid') {
-    const p = genPlayer(counter, 18, 2, 'robota');
+    const p = genPlayer(counter, 1, 2, 'robota');
     p.name = 'UNIT-7';
     p.special = 'droid';
     p.mood = 100; // it does not feel. probably.
     return p;
   }
-  const p = genWalkOn(counter, taken);
-  if (kind === 'gem') {
-    p.gem = true;
-    const caps = speciesById(p.speciesId).attrCaps;
-    for (const a of ATTRS) {
-      p.attrs[a] = clamp(p.attrs[a] + 2, 0, caps[a]);
-      p.pots[a] = clamp(caps[a] - rand(2), p.attrs[a], caps[a]);
-    }
-    p.startAttrs = copyAttrs(p.attrs);
-  }
+  const p = genPlayer(counter, kind === 'gem' ? 2 : -1, rand(4), undefined, taken);
+  p.walkOn = true;
+  p.gem = kind === 'gem';
   return p;
 }
 
@@ -197,31 +226,29 @@ export function observe(pr: Prospect): void {
   // ABILITY sharpens toward truth; POTENTIAL keeps at least ±1 of projection
   // until he actually signs. Early reads can be WAY off: one shared
   // hype/slander bias (×0.6–1.5) on top of per-attribute noise.
-  const caps = speciesById(pr.speciesId).attrCaps;
   const bias = pr.scoutLevel <= 1 ? 0.6 + Math.random() * 0.9 : 1;
   const fuzz = Math.max(0, 4 - pr.scoutLevel);
   const potFuzz = Math.max(1, fuzz);
   for (const a of ATTRS) {
-    pr.seenAttrs[a] = fuzz ? clamp(Math.round(pr.attrs[a] * bias) + rand(fuzz * 2 + 1) - fuzz, 0, caps[a]) : pr.attrs[a];
-    pr.seenPots[a] = clamp(Math.round(pr.pots[a] * bias) + rand(potFuzz * 2 + 1) - potFuzz, pr.seenAttrs[a], caps[a]);
+    pr.seenAttrs[a] = fuzz ? clamp(Math.round(pr.attrs[a] * bias) + rand(fuzz * 2 + 1) - fuzz, 0, 25) : pr.attrs[a];
+    pr.seenPots[a] = clamp(Math.round(pr.pots[a] * bias) + rand(potFuzz * 2 + 1) - potFuzz, pr.seenAttrs[a], 25);
   }
 }
 
-export function genProspect(counter: { nextId: number }, seasonNo: number, searchId: string, taken?: Set<string>): Prospect {
-  const act = galaxyActById(searchId);
-  const pool = act.pool ?? ['terran'];
-  const sp = speciesById(pick(pool));
-  const quality = 4 + rand(12) + Math.min(seasonNo, 5) + (act.skillBonus ?? 0);
-  const target = clamp(Math.round((18 + quality + rand(14)) * 0.55), 6, capSum(sp.id) - 4);
-  const attrs = rollAttrs(sp.attrCaps, target);
-  const pots = rollPots(sp.attrCaps, attrs, 7 + Math.round((act.potBonus ?? 0) * 0.4));
-  const form: 'masc' | 'femme' = Math.random() < 0.5 ? 'femme' : 'masc';
+/** A prospect from a region's rarity dial. The region shifts WHO you find,
+    never how good they are — the band roll is the species'. */
+export function genProspect(counter: { nextId: number }, _seasonNo: number, searchId: string, taken?: Set<string>): Prospect {
+  const odds = SPECIES_ODDS[searchId] ?? SPECIES_ODDS.home;
+  const spId = rollSpecies(odds);
+  const pots = distribute(spId, rollPotOvr(spId));
+  const attrs = currentFromPots(pots, 0);
+  const form = formFor(spId);
   const pr: Prospect = {
     id: counter.nextId++,
     name: genName(taken),
-    speciesId: sp.id,
+    speciesId: spId,
     form,
-    ...rollBody(sp.id),
+    ...rollBody(spId),
     attrs,
     pots,
     scoutLevel: 0,
@@ -240,6 +267,7 @@ export function genProspect(counter: { nextId: number }, seasonNo: number, searc
   return pr;
 }
 
+/** Scouted freshman recruits ALWAYS join at level 0, 0 XP. */
 export function prospectToPlayer(pr: Prospect): Player {
   return {
     id: pr.id,
@@ -255,7 +283,7 @@ export function prospectToPlayer(pr: Prospect): Player {
     startAttrs: copyAttrs(pr.attrs),
     stats: zeroStats(),
     career: zeroStats(),
-    level: rand(2),
+    level: 0,
     xp: 0,
     energy: METER_BASELINE - 5 + rand(11),
     mood: METER_BASELINE - 5 + rand(11),
@@ -282,7 +310,7 @@ export function emptyLineup(): Lineup {
 function genTeam(counter: { nextId: number }, idx: number, taken: Set<string>): Team {
   const t = TEAM_TEMPLATES[idx];
   const players: Player[] = [];
-  for (let i = 0; i < ROSTER_SIZE; i++) players.push(genPlayer(counter, rand(10), undefined, undefined, taken));
+  for (let i = 0; i < ROSTER_SIZE; i++) players.push(genPlayer(counter, 0, undefined, undefined, taken));
   ensureUniqueJerseys(players);
   return {
     id: idx,
@@ -393,7 +421,6 @@ export function newGameState(): GameState {
     speechFx: null,
     speechFxH2: null,
     sitouts: [],
-    scoutedOpp: false,
     drillReport: null,
     voyageRolled: false,
     plan: 'showtime',

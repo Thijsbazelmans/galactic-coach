@@ -30,6 +30,7 @@ import {
   SELECT_POOL_SIZE,
   ensureUniqueJerseys,
   genChamps,
+  genPlayer,
   genProspect,
   genSchedule,
   genSpecial,
@@ -247,23 +248,24 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
       normalizeLineup(t);
       continue;
     }
-    const caps = speciesById(p.speciesId).attrCaps;
     if (fx.attr) {
       for (const a of ATTRS) {
         const d = fx.attr[a];
         if (!d) continue;
-        p.attrs[a] = d > 0 ? clamp(p.attrs[a] + d, 0, Math.max(p.attrs[a], p.pots[a])) : clamp(p.attrs[a] + d, 0, caps[a]);
+        p.attrs[a] = d > 0 ? clamp(p.attrs[a] + d, 0, Math.max(p.attrs[a], p.pots[a])) : clamp(p.attrs[a] + d, 0, 25);
       }
     }
     if (fx.potAttr) {
+      // ceilings are soft everywhere now — only the 25 scale stands
       for (const a of ATTRS) {
         const d = fx.potAttr[a];
         if (!d) continue;
-        p.pots[a] = clamp(p.pots[a] + d, p.attrs[a], caps[a]);
+        p.pots[a] = clamp(p.pots[a] + d, p.attrs[a], 25);
       }
     }
     if (fx.anyAttr) bumpAny(p, fx.anyAttr);
-    if (fx.anyPot) bumpAnyPot(p, caps, fx.anyPot);
+    if (fx.anyPot) bumpAnyPot(p, fx.anyPot);
+    if (fx.tense !== undefined) p.tense = fx.tense;
     if (fx.levelDelta) {
       if (fx.levelDelta > 0) {
         for (let i = 0; i < fx.levelDelta && p.level < LEVEL_CAP; i++) {
@@ -356,8 +358,8 @@ export function queueStory(
   // the story speaks the player's pronouns — text AND button labels
   const gform = (playerId !== null
     ? myTeam(s).players.find((p) => p.id === playerId)?.form
-    : (data.alumForm as 'masc' | 'femme' | undefined)) ?? undefined;
-  if (gform === 'femme') {
+    : (data.alumForm as 'masc' | 'femme' | 'x' | undefined)) ?? undefined;
+  if (gform === 'femme' || gform === 'x') {
     ev.text = genderize(ev.text, gform);
     ev.choices?.forEach((c) => { c.label = genderize(c.label, gform); });
   }
@@ -405,7 +407,13 @@ export function resolveStory(s: GameState, choiceKey: string): { resolved: Story
   }
 
   const rpid = res.fx?.find((f) => f.playerId !== undefined)?.playerId ?? ev.playerId;
-  const rform = (rpid !== null ? myTeam(s).players.find((p) => p.id === rpid)?.form : (ev.data?.alumForm as 'masc' | 'femme' | undefined)) ?? undefined;
+  const rform = (rpid !== null ? myTeam(s).players.find((p) => p.id === rpid)?.form : (ev.data?.alumForm as 'masc' | 'femme' | 'x' | undefined)) ?? undefined;
+  // a story about him resolving releases the held breath (the fx below may
+  // hold it again — delayed outcomes keep him NERVOUS until the result beat)
+  if (ev.playerId !== null) {
+    const tp = myTeam(s).players.find((p) => p.id === ev.playerId);
+    if (tp) tp.tense = false;
+  }
   // story consequences swing harder than item effects (items print exact numbers)
   applyFx(s, res.fx, ev.playerId, !choice?.itemId);
   ev.resolvedText = genderize(res.text, rform);
@@ -467,7 +475,6 @@ function startWeek(s: GameState): void {
   s.speechFxH2 = null;
   s.halftime = null;
   s.sitouts = [];
-  s.scoutedOpp = false;
   s.drillReport = null;
   s.voyageRolled = false;
   s.pregameFlags = {};
@@ -483,9 +490,13 @@ function startWeek(s: GameState): void {
 
   s.weekRecap = [];
   for (const team of s.teams) {
+    const mine = team.id === s.myTeamId;
     for (const p of team.players) {
-      if (p.outWeeks > 0 && --p.outWeeks === 0) {
-        if (team.id === s.myTeamId) {
+      // MY injured tick down in beginWeek instead when a WEEK START screen is
+      // coming — the Monday report still shows them absent, and the CLEARED TO
+      // PLAY story is NEWS when you walk into the building, not a recap.
+      if (p.outWeeks > 0 && (!mine || !hadGame) && --p.outWeeks === 0) {
+        if (mine) {
           defer('notice', 'start', p.id, {
             tag: 'CLEARED TO PLAY',
             text: `${p.name} is back from ${p.outReason || 'the long absence'} and cleared to play. The first dunk back is always the loudest.`,
@@ -531,10 +542,12 @@ function startWeek(s: GameState): void {
     }
   }
 
-  for (const pr of s.prospects) {
-    pr.commitPct = Math.max(0, pr.commitPct - COMMIT_DECAY);
+  // kids notice silence — and the LAST RESORTS row can tell it's the last
+  // resorts row: commitment decays twice as fast down there
+  s.prospects.forEach((pr, ix) => {
+    pr.commitPct = Math.max(0, pr.commitPct - (ix >= 6 ? COMMIT_DECAY * 2 : COMMIT_DECAY));
     if (pr.bannedWeeks > 0) pr.bannedWeeks--;
-  }
+  });
 
   // scheduled beats come due
   for (const fb of [...s.futureBeats]) {
@@ -557,7 +570,6 @@ function startWeek(s: GameState): void {
         tag: 'SCOUTING REPORT',
         text: `${champ.name.toUpperCase()}\n\n"${champ.gimmick}" — that's the word from three systems over. The scout's read: they live in ${planById(champ.plan).name}. ${weekLabel(s)}. Win or go home.`,
       });
-      s.scoutedOpp = true;
     }
   } else {
     // 1 weekly story, 25% a second one
@@ -574,7 +586,7 @@ function startWeek(s: GameState): void {
         if (r <= 0) { def = d; break; }
       }
       if (def.kind === 'player') {
-        const candidates = t.players.filter((p) => p.outWeeks === 0 && !used.has(p.id));
+        const candidates = t.players.filter((p) => p.outWeeks === 0 && !used.has(p.id) && (!def.forms || def.forms.includes(p.form ?? 'masc')));
         if (!candidates.length) continue;
         const p = pick(candidates);
         used.add(p.id);
@@ -599,11 +611,22 @@ function startWeek(s: GameState): void {
   save(s);
 }
 
-/** WEEK START → the building: bank the weekend's XP (level-ups knock first),
-    then the week's stories fire, then the week proper. */
+/** WEEK START → the building: the injured tick down NOW (the Monday report
+    showed them absent; the return is news when you walk in), the weekend's
+    XP banks (level-ups knock first), then the week's stories fire. */
 export function beginWeek(s: GameState): void {
   if (s.phase !== 'weekstart' || s.queue.length) return;
   const t = myTeam(s);
+  for (const p of t.players) {
+    if (p.outWeeks > 0 && --p.outWeeks === 0) {
+      queueStory(s, 'notice', 'start', p.id, {
+        tag: 'CLEARED TO PLAY',
+        text: `${p.name} is back from ${p.outReason || 'the long absence'} and cleared to play. The first dunk back is always the loudest.`,
+      });
+      p.outReason = '';
+    }
+  }
+  normalizeLineup(t);
   for (const row of s.weekRecap ?? []) {
     if (row.xpGain <= 0) continue;
     const p = t.players.find((x) => x.id === row.playerId);
@@ -694,8 +717,7 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
       }
       // ceiling work: the dream lab raises where a player can GO
       if (d.potChance && roll(d.potChance)) {
-        const caps = speciesById(p.speciesId).attrCaps;
-        if (bumpAnyPot(p, caps, 1)) {
+        if (bumpAnyPot(p, 1)) {
           const bit = '+1 CEILING';
           gainByPlayer.set(p.id, gainByPlayer.has(p.id) ? `${gainByPlayer.get(p.id)} ${bit}` : bit);
           gainNotes.push(`${p.name} ${bit}`);
@@ -805,10 +827,14 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
   let text: string;
   let art: GalaxyResult['art'];
   const r = Math.random() * 100;
+  // THE PRIORITY BOARD: the action reads the rows top-down — all 9, the top
+  // 6, or the TARGETS row alone
+  const scoped = s.prospects.slice(0, act.scope ?? 9);
+  const scopeWord = act.scope === 3 ? 'THE TARGETS' : act.scope === 6 ? 'the top six' : 'all nine';
 
   if (act.kind === 'scout') {
     let revealed = 0;
-    for (const pr of s.prospects) {
+    for (const pr of scoped) {
       const n = act.reveals![0] + rand(act.reveals![1] - act.reveals![0] + 1);
       const msgs: { text: string; up?: boolean }[] = [];
       for (let i = 0; i < n; i++) {
@@ -824,8 +850,8 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
       }
     }
     text = revealed
-      ? `${act.name}: nine reports come back. ${revealed} new piece${revealed === 1 ? '' : 's'} of the truth land on the board.`
-      : `${act.name}: the reports come back saying what you already knew. The board is read cold.`;
+      ? `${act.name}: the reports on ${scopeWord} come back. ${revealed} new piece${revealed === 1 ? '' : 's'} of the truth land${revealed === 1 ? 's' : ''} on the board.`
+      : `${act.name}: the reports on ${scopeWord} come back saying what you already knew. Read cold.`;
     if (r < act.down.pct) {
       if (act.down.cls === 'SCANDAL') {
         queueStory(s, 'scandal', 'start', null, { cause: 'Hosting nine amateurs in your gym with travel paid is, the league notes, EXACTLY the thing the rulebook is about.' });
@@ -837,8 +863,8 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
         s.energy = clamp(s.energy - 1, 0, CACHE_MAX);
         text += ' The feed subscriptions auto-renewed. Of course they did. (−1⚡)';
       }
-    } else if (r < act.down.pct + act.up.pct && s.prospects.length) {
-      const lucky = pick(s.prospects);
+    } else if (r < act.down.pct + act.up.pct && scoped.length) {
+      const lucky = pick(scoped);
       revealAll(lucky);
       per.set(lucky.id, [{ text: 'LOCKED COLD', up: true }]);
       text += ` And ${lucky.name} does the ONE thing that tells you everything. Locked, cold.`;
@@ -846,7 +872,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
   } else if (act.kind === 'recruit') {
     let ups = 0;
     let downs = 0;
-    for (const pr of s.prospects) {
+    for (const pr of scoped) {
       if (pr.bannedWeeks > 0) {
         per.set(pr.id, [{ text: 'NO CONTACT', up: false }]);
         continue;
@@ -863,7 +889,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
         ups++;
       }
     }
-    text = `${act.name}: the whole board hears from you. ${ups} name${ups === 1 ? '' : 's'} lean${ups === 1 ? 's' : ''} in${downs ? `, ${downs} lean${downs === 1 ? 's' : ''} away` : ''}.`;
+    text = `${act.name}: ${scopeWord === 'all nine' ? 'the whole board hears' : `${scopeWord} hear`} from you. ${ups} name${ups === 1 ? '' : 's'} lean${ups === 1 ? 's' : ''} in${downs ? `, ${downs} lean${downs === 1 ? 's' : ''} away` : ''}.`;
     if (r < act.down.pct) {
       if (act.down.cls === 'SCANDAL') {
         queueStory(s, 'scandal', 'start', null, { cause: 'The gala photos reach the league office before the dessert course ends. Twelve courses of evidence.' });
@@ -873,11 +899,11 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
         text += ' It gets loud at the punch bowl...';
       }
     } else if (r < act.down.pct + act.up.pct) {
-      for (const pr of s.prospects) {
+      for (const pr of scoped) {
         if (pr.bannedWeeks > 0) continue;
         pr.commitPct = clamp(pr.commitPct + 5, 0, 95);
       }
-      text += ' And the night goes LEGENDARY — the whole board talks about it for a week. +5% everywhere.';
+      text += ` And the night goes LEGENDARY — ${scopeWord === 'all nine' ? 'the whole board talks' : `${scopeWord} talk`} about it for a week. +5% across it.`;
     }
   } else {
     // search: new talent — a full board means somebody must go
@@ -904,12 +930,12 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
       if (s.prospects.length && roll(50)) {
         const gone = pick(s.prospects.filter((p) => !s.pendingRecruits.includes(p)) as Prospect[]);
         s.prospects = s.prospects.filter((p) => p.id !== gone.id);
-        text += ` Word gets around that you spent the week at the REC CENTER. ${gone.name} takes it personally and takes ${gone.form === 'femme' ? 'her' : 'his'} name off your board.`;
+        text += ` Word gets around that you spent the week at the REC CENTER. ${gone.name} takes it personally and takes ${gone.form === 'femme' ? 'her' : gone.form === 'x' ? 'their' : 'his'} name off your board.`;
       } else {
         const t = myTeam(s);
         const p = pick(t.players);
         p.mood = clamp(p.mood - 15, 0, 100);
-        text += ` ${p.name} hears where you went looking for ${p.form === 'femme' ? 'her' : 'his'} replacement and takes it personally.`;
+        text += ` ${p.name} hears where you went looking for ${p.form === 'femme' ? 'her' : p.form === 'x' ? 'their' : 'his'} replacement and takes it personally.`;
       }
     } else if (act.id !== 'reccenter') {
       if (s.energy === 0 && roll(10)) {
@@ -959,11 +985,17 @@ export function swapBoardSlot(s: GameState, from: number, to: number): void {
     set(from, b);
     set(to, a);
   } else if (a && !b) {
-    // moving into an empty slot: only meaningful across the rows
-    if ((from < 9) === (to < 9)) return;
-    set(from, null);
-    if (to < 9) s.prospects.push(a);
-    else s.pendingRecruits.push(a);
+    if ((from < 9) === (to < 9)) {
+      // an empty slot inside the board: reorder — the drag IS the targeting
+      if (from < 9) {
+        s.prospects.splice(from, 1);
+        s.prospects.splice(Math.min(to, s.prospects.length), 0, a);
+      }
+    } else {
+      set(from, null);
+      if (to < 9) s.prospects.push(a);
+      else s.pendingRecruits.push(a);
+    }
   }
   save(s);
 }
@@ -1012,14 +1044,6 @@ export function deliverSpeech(s: GameState, plan: PlanId): string | null {
   s.speechFx = out.fx;
   save(s);
   return out.text;
-}
-
-export function scoutOpponent(s: GameState): boolean {
-  if (s.scoutedOpp || s.energy < 1) return false;
-  s.energy--;
-  s.scoutedOpp = true;
-  save(s);
-  return true;
 }
 
 /** Which item contexts the current phase accepts ('mood' is always welcome). */
@@ -1126,6 +1150,7 @@ function aiPostGame(t: Team, won: boolean, halfAlreadySpent: boolean): void {
   const bn = new Set(benchPlayers(t).map((p) => p.id));
   for (const p of t.players) {
     if (p.outWeeks > 0) continue;
+    const floor = st.has(p.id) || bn.has(p.id);
     if (st.has(p.id)) {
       p.energy = clamp(p.energy - (15 + rand(15)) - (halfAlreadySpent ? 0 : 15 + rand(15)), 0, 100);
       p.mood = clamp(p.mood + (won ? 8 : -3), 0, 100);
@@ -1138,6 +1163,8 @@ function aiPostGame(t: Team, won: boolean, halfAlreadySpent: boolean): void {
       p.mood = clamp(p.mood + (won ? 2 : -8), 0, 100);
       p.startStreak = 0;
     }
+    // the other gyms have hot nights too: the STANDOUT drip lands league-wide
+    if (floor && roll(10)) bumpAny(p, 1);
     if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
   }
 }
@@ -1430,15 +1457,17 @@ function endSeason(s: GameState, utNote: string | null): void {
     team.players = team.players.filter((p) => p.classYear < 3 && ovr(p.attrs) < PRO_OVR);
     for (const p of team.players) {
       p.classYear++;
-      bumpAny(p, 1 + rand(3));
+      bumpAny(p, 2 + rand(3));
       p.energy = METER_BASELINE - 3 + rand(9);
       p.mood = clamp(p.mood + 15, 60, 85);
       p.outWeeks = 0; p.outReason = '';
     }
     const counter = { nextId: s.nextId };
     const names = takenNames(s);
+    // the other programs refill with playable bodies (transfers, any class) —
+    // not just level-0 freshmen, or MY recruiting becomes a pure handicap
     while (team.players.length < ROSTER_SIZE) {
-      team.players.push(prospectToPlayer(genProspect(counter, s.season, Math.random() < 0.3 ? 'outerrim' : 'nebula', names)));
+      team.players.push(genPlayer(counter, 0, rand(4), undefined, names));
     }
     s.nextId = counter.nextId;
     ensureUniqueJerseys(team.players);
@@ -1477,7 +1506,7 @@ export function letGoPro(s: GameState, playerId: number): void {
   if (!d || !p) return;
   d.resolved = true;
   d.staying = false;
-  d.note = `You shake his hand and tell him to make the galaxy proud. Draft night will have your program's name in it.`;
+  d.note = genderize(`You shake his hand and tell him to make the galaxy proud. Draft night will have your program's name in it.`, p.form);
   departPro(s, p);
   save(s);
 }
@@ -1545,9 +1574,10 @@ export function resolveSigning(s: GameState): void {
     const bump = bumpAny(p, 1 + rand(3));
     let driftNote = '';
     if (roll(25)) {
-      // his body keeps leaning into what his species is
+      // his body keeps leaning into what his species is (balanced species
+      // lean into whatever HE already is)
       const sp = speciesById(p.speciesId);
-      const a = bestAttr(sp.attrCaps);
+      const a = sp.bias.length ? pick(sp.bias) : bestAttr(p.pots);
       const before = p.attrs[a];
       p.attrs[a] = Math.min(p.pots[a], p.attrs[a] + 2);
       if (p.attrs[a] > before) driftNote = ` — and his body kept leaning into what it is (+${p.attrs[a] - before} ${a.toUpperCase()})`;
@@ -1618,14 +1648,14 @@ export function startNewSeason(s: GameState): void {
   s.proDeparts = [];
   s.ut = null;
   normalizeLineup(myTeam(s)); // keeps the arrangement from the selection grid
-  // a FULL board of nine total strangers — the season's recruiting raw material
+  // a FULL board of nine total strangers — the season's recruiting raw
+  // material, rolled on the opening distribution: heavily terran, a slim
+  // chance per slot of a specialist, and a 1-in-1000 nimbus just sitting there
   s.prospects = [];
   s.pendingRecruits = [];
   const counter = { nextId: s.nextId };
   const names = takenNames(s);
-  const regions = ['home', 'home', 'nebula', 'nebula', 'nebula', 'outerrim', 'outerrim'];
-  if (s.unlockedRegions.includes('deepcore')) regions.push('deepcore');
-  for (let i = 0; i < MAX_PROSPECTS; i++) s.prospects.push(genProspect(counter, s.season, pick(regions), names));
+  for (let i = 0; i < MAX_PROSPECTS; i++) s.prospects.push(genProspect(counter, s.season, 'opening', names));
   s.nextId = counter.nextId;
   startWeek(s);
 }

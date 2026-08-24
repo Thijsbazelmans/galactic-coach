@@ -6,7 +6,16 @@
 
 import { ATTR_STAT, planById } from './data';
 import type { AttrRec, BoxRow, ChampTeam, GameState, MyGameResult, PlanId, Player, SpeechFx, Team } from './types';
-import { ATTRS, attrEff, clamp, ovr, rand, sizeIndex, zeroAttrs } from './util';
+import { ATTRS, attrEff, clamp, ovr, pick, rand, roll, sizeIndex, zeroAttrs } from './util';
+
+/** THE FORM ROLL: hot/cold nights per player, rolled at tip-off. */
+export type Forms = Record<number, 1 | -1>;
+const FORM_MULT = { [1]: 1.15, [-1]: 0.85 } as const;
+
+function formMult(forms: Forms | undefined, pid: number): number {
+  const f = forms?.[pid];
+  return f ? FORM_MULT[f] : 1;
+}
 
 export const COL_LABELS = ['BACKCOURT', 'WING', 'FRONTCOURT'];
 
@@ -128,14 +137,15 @@ function playerCond(p: Player, col: number): number {
   return meterMult(p.energy) * meterMult(p.mood) * slotMult(p, col) * (p.onFire ? 1.2 : 1);
 }
 
-/** Per-attribute weighted team values (the four rope rows). fx = a landed speech. */
-export function matchAttrs(t: Team, fx: SpeechFx | null = null): AttrRec {
+/** Per-attribute weighted team values (the four rope rows). fx = a landed
+    speech; forms = tonight's hot/cold rolls (game night only). */
+export function matchAttrs(t: Team, fx: SpeechFx | null = null, forms?: Forms): AttrRec {
   const out = zeroAttrs();
   for (let c = 0; c < 3; c++) {
     for (const [row, w] of [[0, 0.75], [1, 0.25]] as [number, number][]) {
       const p = slotPlayer(t, row * 3 + c);
       if (!p || !available(p)) continue;
-      const cond = playerCond(p, c) * w;
+      const cond = playerCond(p, c) * w * formMult(forms, p.id);
       for (const a of ATTRS) out[a] += (p.attrs[a] + (fx && a === fx.attr ? fx.amt : 0)) * cond;
     }
   }
@@ -144,8 +154,8 @@ export function matchAttrs(t: Team, fx: SpeechFx | null = null): AttrRec {
 }
 
 /** The whole rope: the four rows added up. */
-export function teamPower(t: Team, fx: SpeechFx | null = null): number {
-  return ovr(matchAttrs(t, fx));
+export function teamPower(t: Team, fx: SpeechFx | null = null, forms?: Forms): number {
+  return ovr(matchAttrs(t, fx, forms));
 }
 
 /** Meter-neutral strength: the same rope with everyone standing at the
@@ -223,10 +233,10 @@ function dealStat(pool: { p: Player; w: number }[], total: number, weigh: (p: Pl
 
 /** Deal ONE HALF of my box score (reb/stl/ast pools halved). Season stats are
     NOT written here — they commit once, on the merged full-game rows. */
-export function dealHalfBox(me: Team, myScore: number, plan: PlanId): BoxRow[] {
+export function dealHalfBox(me: Team, myScore: number, plan: PlanId, forms?: Forms): BoxRow[] {
   const pool = [
-    ...starters(me).filter(available).map((p) => ({ p, w: 3 })),
-    ...benchPlayers(me).filter(available).map((p) => ({ p, w: 1 })),
+    ...starters(me).filter(available).map((p) => ({ p, w: 3 * formMult(forms, p.id) })),
+    ...benchPlayers(me).filter(available).map((p) => ({ p, w: 1 * formMult(forms, p.id) })),
   ];
   if (!pool.length) return [];
   const speechAttr = planById(plan).attr;
@@ -335,10 +345,11 @@ function halfRope(
   opp: Team | null,
   champ: ChampTeam | null,
   home: boolean,
-  fx: SpeechFx | null
+  fx: SpeechFx | null,
+  forms?: Forms
 ): { mine: number; theirs: number } {
   const [vm, vt] = champ ? [1, 1] : home ? [1.03, 1] : [1, 1.03];
-  let mine = teamPower(me, fx) * vm;
+  let mine = teamPower(me, fx, forms) * vm;
   let theirs = (champ ? champ.power : teamPower(opp!)) * vt;
   if (s.pregameFlags.wallet) mine *= 1.03; // the whistle leans your way
   if (s.pregameFlags.cloak) theirs *= 0.95; // they prepared for the wrong team
@@ -346,15 +357,35 @@ function halfRope(
   return { mine, theirs };
 }
 
-/** THE FIRST HALF: rope → needle → half score + half box, then the locker room
-    — starters shed half the game drain (both benches too) so the halftime rope
-    is honest. */
+/** THE FIRST HALF: the form roll → rope → needle → half score + half box, then
+    the locker room — starters shed half the game drain (both benches too) so
+    the halftime rope is honest, and the night's STANDOUT/OFF DAY rolls are on
+    the cards. */
 export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null, home: boolean): void {
-  const { mine, theirs } = halfRope(s, me, opp, champ, home, s.speechFx ?? null);
+  // THE FORM ROLL: each floor player can catch a hot night (STANDOUT!, +15%,
+  // and the hot hand teaches him something) or a cold one (OFF DAY, −15%).
+  // A real hidden roll — the halftime stickers reveal it; swaps answer it.
+  const forms: Forms = {};
+  const formGain: Record<number, string> = {};
+  for (const p of [...starters(me), ...benchPlayers(me)]) {
+    if (!available(p)) continue;
+    if (roll(10)) {
+      forms[p.id] = 1;
+      const room = ATTRS.filter((a) => p.attrs[a] < p.pots[a]);
+      if (room.length) {
+        const a = pick(room);
+        p.attrs[a]++;
+        formGain[p.id] = `+1 ${a.toUpperCase()}`;
+      }
+    } else if (roll(10)) {
+      forms[p.id] = -1;
+    }
+  }
+  const { mine, theirs } = halfRope(s, me, opp, champ, home, s.speechFx ?? null, forms);
   const share = winShare(mine, theirs);
   const u = Math.random();
   const sc = halfScores(share, u);
-  const box = dealHalfBox(me, sc.my, s.plan);
+  const box = dealHalfBox(me, sc.my, s.plan, forms);
   // a half BURNS: 15–29⚡ for a starter (a bad night runs anyone empty), 8–15
   // for the bench — the locker room is where you notice who has nothing left
   const drains: Record<number, number> = {};
@@ -385,6 +416,8 @@ export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: Cha
     home,
     oppName: champ ? champ.name : `${opp!.planet} ${opp!.name}`,
     drains,
+    forms,
+    formGain,
   };
 }
 
@@ -393,7 +426,7 @@ export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: Cha
 export function simMyGameH2(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null): SimOutcome {
   const ht = s.halftime!;
   const myPlan = s.planH2 ?? s.plan;
-  const { mine, theirs } = halfRope(s, me, opp, champ, ht.home, s.speechFxH2 ?? null);
+  const { mine, theirs } = halfRope(s, me, opp, champ, ht.home, s.speechFxH2 ?? null, ht.forms);
   const share = winShare(mine, theirs);
   const u = Math.random();
   const sc = halfScores(share, u);
@@ -402,7 +435,7 @@ export function simMyGameH2(s: GameState, me: Team, opp: Team | null, champ: Cha
   // the halves can cancel exactly — the last possession goes to the H2 winner
   if (myTot === oppTot) { if (sc.won) myTot += 1; else oppTot += 1; }
   const won = myTot > oppTot;
-  const box = mergeBox(ht.box, dealHalfBox(me, sc.my, myPlan));
+  const box = mergeBox(ht.box, dealHalfBox(me, sc.my, myPlan, ht.forms));
   const mvpId = commitBox(me, box);
   const { wheelLine, heroLine } = verdictLines(me, myPlan, won, ht.myH1, ht.oppH1);
   return {

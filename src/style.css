@@ -611,17 +611,23 @@ button.hold.wiggle::after {
 }
 .floater.down { color: var(--r35); border-color: var(--r20); }
 
-/* post-game stickers: land one by one and STAY until you leave the screen */
+/* stickers: ONE main slot under the name; every other sticker lands ON the
+   stat it changes (+XP on the ring, +SKL on the OVERALL, −MOOD on the mood
+   gauge). They pop ONCE per action — a re-render shows them landed (or not
+   at all, once seen). */
 .stickers {
   position: absolute;
-  left: 2px; top: 18px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 2px;
   z-index: 5;
   pointer-events: none;
 }
+.stickers.anch-main { left: 50%; top: 16px; transform: translateX(-50%); align-items: center; }
+.stickers.anch-xp { right: 1px; bottom: 30px; align-items: flex-end; }
+.stickers.anch-ovr { left: 1px; bottom: 24px; align-items: flex-start; }
+.stickers.anch-energy { left: 1px; top: 38%; align-items: flex-start; }
+.stickers.anch-mood { right: 1px; top: 38%; align-items: flex-end; }
 .sticker {
   background: #000;
   border: 1px solid var(--r55);
@@ -634,6 +640,9 @@ button.hold.wiggle::after {
   animation: stickin 0.3s forwards;
 }
 .sticker.down { color: var(--r55); border-color: var(--r20); }
+.sticker.landed { animation: none; opacity: 1; }
+.sticker.blink { animation: stickin 0.3s forwards, blink 1s steps(2, start) infinite; }
+.sticker.landed.blink { animation: blink 1s steps(2, start) infinite; }
 @keyframes stickin {
   0% { opacity: 0; transform: translateY(6px) scale(1.3); }
   100% { opacity: 1; transform: none; }
@@ -946,3 +955,135 @@ button.hold.wiggle::after {
 .itemcard b { color: var(--r95); }
 
 .scanpod { cursor: pointer; }
+
+/* ---- THE CARD REWORK: tapered edge gauges on the ROSTER view --------------- */
+/* LEFT = ENERGY (bolt), RIGHT = MOOD (face): 1/3 of the card wide at the top,
+   tapering to 1/8 at the bottom, ending just above the OVR / LVL corner. */
+
+.gauge {
+  position: absolute;
+  top: 25%;
+  bottom: 33%;
+  width: 33.3%;
+  z-index: 1;
+  pointer-events: none;
+}
+.gauge.gl { left: 0; }
+.gauge.gr { right: 0; }
+.gauge svg { display: block; width: 100%; height: 100%; }
+.gauge .gbg { fill: var(--r20); fill-opacity: 0.55; }
+.gauge .gsegs line { stroke: #000; stroke-width: 2; vector-effect: non-scaling-stroke; opacity: 0.7; }
+.gauge .gicon {
+  position: absolute;
+  top: 6px;
+  width: 22px;
+  height: 22px;
+  image-rendering: pixelated;
+}
+.gauge.gl .gicon { left: 15%; }
+.gauge.gr .gicon { right: 15%; }
+
+/* ---- THE SCOPE PREVIEW: the action button blinks in sync with every card
+   it will touch; everything outside the scope dims ------------------------- */
+
+.scopehl { animation: scopeblink 1.1s steps(2, start) infinite; }
+.pcard.scopehl { outline: 2px solid var(--r95); outline-offset: -2px; animation: scopeblink 1.1s steps(2, start) infinite; }
+.pcard.scopedim { opacity: 0.35; }
+@keyframes scopeblink {
+  50% { outline-color: transparent; box-shadow: inset 0 0 0 200px rgba(255, 255, 255, 0.08); }
+}
+button.actmain.scopehl { border-color: var(--r95); }
+
+/* ---- THE NUMBER CASCADE: counted rows flash as they land ------------------- */
+
+.tbar.cascflash { animation: cascpop 0.5s; }
+.tbar.cascflash .tbv { color: #fff; }
+.tbar.cascbig { animation: cascpop-big 0.7s; }
+.tbar.cascbig .tbv { color: #fff; }
+@keyframes cascpop {
+  25% { transform: scale(1.06); }
+  60% { transform: scale(0.99); }
+}
+@keyframes cascpop-big {
+  20% { transform: scale(1.12); }
+  55% { transform: scale(0.97); }
+}
+
+/* ---- THE ANIMATION BUILD: header first, content next, the button last ------ */
+
+@keyframes bfade {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: none; }
+}
+.build .middle h2, .build .middle h1, .build .storypanel .tag { animation: bfade 0.18s both; }
+.build .middle .grid,
+.build .middle .halfline,
+.build .middle .needle-stage,
+.build .middle .report,
+.build .middle table,
+.build .middle .teampick,
+.build .storypanel .scenebox,
+.build .storypanel .modalcard,
+.build .storypanel .typebox { animation: bfade 0.24s 0.14s both; }
+.build .middle .botstack, .build .lensbar { animation: bfade 0.24s 0.3s both; }
+.build .navbar .navmain { animation: bfade 0.26s 0.48s both; }
+/* HALFTIME builds slower and in order: header → score (home first) → cards →
+   stickers (their own delays) → the ropes → the speech → the button */
+.build-half .middle .halfline { animation: bfade 0.3s 0.2s both; }
+.build-half .middle .halfline .chip:last-child { animation: bfade 0.25s 0.25s both; }
+.build-half .middle .halfline .chip:first-child { animation: bfade 0.25s 0.45s both; }
+.build-half .middle .grid .gridrow:nth-child(2) { animation: bfade 0.25s 0.6s both; }
+.build-half .middle .grid .gridrow:nth-child(3) { animation: bfade 0.25s 0.75s both; }
+.build-half .middle .grid .gridrow:nth-child(4) { animation: bfade 0.25s 0.9s both; }
+.build-half .middle .botstack { animation: bfade 0.3s 1.15s both; }
+.build-half .navbar .navmain { animation: bfade 0.3s 1.4s both; }
+
+/* ---- center marks: the 50/50 tick on every tug rope and the game dial ------ */
+
+.tbtrack.tug::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--r95);
+  opacity: 0.8;
+  transform: translateX(-1px);
+  z-index: 2;
+}
+.bigrope::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -7px;
+  bottom: -7px;
+  width: 2px;
+  background: var(--r95);
+  opacity: 0.9;
+  transform: translateX(-1px);
+}
+
+/* ---- picker sheets: hidden knowledge is a single collapsed hint; overflow
+   clearly shows it scrolls ------------------------------------------------- */
+
+.sheethint { font-size: 11px; letter-spacing: 1px; padding: 8px 2px 2px; }
+.scrollmore {
+  position: sticky;
+  bottom: -14px;
+  margin: 0 -14px;
+  padding: 2px 0 4px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--r95);
+  background: linear-gradient(transparent, var(--rbg) 55%);
+  display: none;
+  pointer-events: none;
+}
+.modal.canscroll .scrollmore { display: block; animation: blink 1.4s steps(2, start) infinite; }
+
+/* training runs only from ROSTER — the row keeps its space, ghosted */
+.fourthrow.ghostrow { visibility: hidden; }
+
+/* the species name is free information — rare blood reads LOUD */
+.kyear.sprare { color: var(--r95); }

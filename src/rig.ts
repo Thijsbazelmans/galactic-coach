@@ -535,7 +535,8 @@ export interface RigView {
   mood: RigMood;
   energy: RigEnergy;
   fire: boolean;
-  form?: 'masc' | 'femme';
+  /** x (they/them) renders the base chassis — the x species share one body */
+  form?: 'masc' | 'femme' | 'x';
   /** story acting: the STATE comes from the news, not the meters — worried
       (sweating) while the question hangs, then the verdict. The player
       walks in neutral and breaks into the emotion (bad = angry + sweat,
@@ -809,7 +810,7 @@ const FRAME_MS = 190;
 const sheetCache = new Map<string, { url: string; w: number; h: number }>();
 
 function buildSheet(v: RigView, kit: Kit): { url: string; w: number; h: number } {
-  const form = v.form ?? 'masc';
+  const form = v.form === 'femme' ? 'femme' : 'masc';
   const look = lookFor(v.id, v.speciesId, form);
   const P = pal(v.speciesId, look, kit);
   const sizeIx = sizeIndex(v);
@@ -897,7 +898,7 @@ export function busUrl(kit: Kit): string {
 
 // ---- single-color pixel stat icons (unchanged) --------------------------------
 
-type IconKind = 'bolt' | 'aplus' | 'dollar' | 'alert';
+type IconKind = 'bolt' | 'aplus' | 'dollar' | 'alert' | 'face';
 
 const ICON_PIXELS: Record<IconKind, string[]> = {
   // low-cells warning
@@ -948,6 +949,18 @@ const ICON_PIXELS: Record<IconKind, string[]> = {
     '..XXXXX..',
     '....X....',
   ],
+  // the mood face (the card's right-edge gauge)
+  face: [
+    '..XXXXX..',
+    '.X.....X.',
+    'X..X.X..X',
+    'X..X.X..X',
+    'X.......X',
+    'X.X...X.X',
+    '.X.XXX.X.',
+    '..X...X..',
+    '...XXX...',
+  ],
 };
 
 const iconCache = new Map<string, string>();
@@ -963,6 +976,32 @@ export function iconUrl(kind: IconKind, color = '#7dfc9a'): string {
   ctx.fillStyle = color;
   ICON_PIXELS[kind].forEach((row, y) => {
     for (let x = 0; x < row.length; x++) if (row[x] === 'X') ctx.fillRect(x, y, 1, 1);
+  });
+  const url = c.toDataURL();
+  iconCache.set(key, url);
+  return url;
+}
+
+/** The same glyph with a 1px BLACK OUTLINE around it — the bolt/face that
+    overlay the card-edge gauges. */
+export function iconOutlinedUrl(kind: IconKind, color = '#7dfc9a'): string {
+  const key = `o|${kind}|${color}`;
+  const hit = iconCache.get(key);
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  c.width = 11;
+  c.height = 11;
+  const ctx = c.getContext('2d')!;
+  const px = ICON_PIXELS[kind];
+  const on = (x: number, y: number): boolean => !!px[y] && px[y][x] === 'X';
+  ctx.fillStyle = '#000';
+  for (let y = -1; y < 10; y++) for (let x = -1; x < 10; x++) {
+    if (on(x, y)) continue;
+    if (on(x + 1, y) || on(x - 1, y) || on(x, y + 1) || on(x, y - 1)) ctx.fillRect(x + 1, y + 1, 1, 1);
+  }
+  ctx.fillStyle = color;
+  px.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) if (row[x] === 'X') ctx.fillRect(x + 1, y + 1, 1, 1);
   });
   const url = c.toDataURL();
   iconCache.set(key, url);
