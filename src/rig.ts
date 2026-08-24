@@ -540,8 +540,9 @@ export interface RigView {
   /** story acting: the STATE comes from the news, not the meters — worried
       (sweating) while the question hangs, then the verdict. The player
       walks in neutral and breaks into the emotion (bad = angry + sweat,
-      good = elated). No ball in a story. */
-  story?: 'good' | 'bad' | 'worried';
+      good = elated). No ball in a story. 'neutral' is the anticipation beat:
+      the player just stands there — the mood lands with the reveal. */
+  story?: 'good' | 'bad' | 'worried' | 'neutral';
 }
 
 interface Look { tintIx: number; hairIx: number; styleIx: number; socks: 'none' | 'knee' | 'striped'; wrist: boolean; }
@@ -601,7 +602,7 @@ function buildMap(
   jersey: number | null,
   fire: boolean,
   f: number,
-  story?: 'good' | 'bad' | 'worried'
+  story?: 'good' | 'bad' | 'worried' | 'neutral'
 ): { map: string[][]; up: number } {
   const cfg = getCfg(species, form);
   const SZ = RIG_SIZES[Math.max(0, Math.min(4, sizeIx))];
@@ -609,7 +610,7 @@ function buildMap(
   // story acting: neutral for a beat, then the emotion takes over —
   // WORRIED holds the whole loop (he came to you sweating)
   const moodKey: RigMood = story
-    ? story === 'worried' ? 'upset' : f < 8 ? 'neutral' : story === 'bad' ? 'angry' : 'elated'
+    ? story === 'neutral' ? 'neutral' : story === 'worried' ? 'upset' : f < 8 ? 'neutral' : story === 'bad' ? 'angry' : 'elated'
     : mood;
   const M = MOODS[moodKey];
   const def = RIG[species] ?? RIG.terran;
@@ -993,17 +994,17 @@ const ICON_PIXELS: Record<IconKind, string[]> = {
     '.X.....X.',
     '..XXXXX..',
   ],
-  // CREDITS (the coach's currency — player ⚡ stays player ⚡)
+  // CREDITS — a proper cent sign: the C with clear ticks through top and bottom
   credit: [
+    '....X....',
     '..XXXXX..',
-    '.XX...XX.',
+    '.XX.X.XX.',
+    'XX..X....',
     'XX.......',
-    'XX.......',
-    'XX.......',
-    'XX.......',
-    'XX.......',
-    '.XX...XX.',
+    'XX..X....',
+    '.XX.X.XX.',
     '..XXXXX..',
+    '....X....',
   ],
 };
 

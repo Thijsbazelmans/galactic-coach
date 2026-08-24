@@ -91,15 +91,16 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('gauge gr')) throw new Error('mood gauge missing');
   if (!app.innerHTML.includes('ksprite')) throw new Error('centered sprite missing');
 
-  // MANDATORY practice: the nav is dimmed until the drill runs
-  if (!app.querySelector('[data-action="to-galaxy"][disabled]')) throw new Error('nav should be dimmed before practice');
+  // MANDATORY practice: the nav IS the action button until the drill runs
+  if (!app.querySelector('.navbar [data-action="drill-run"]')) throw new Error('RUN button missing from the nav');
+  if (!app.querySelector('.navbar [data-action="drill-sheet"]')) throw new Error('▾ picker arrows missing from the nav');
+  if (app.querySelectorAll('.navbar [data-action="drill-sheet"]').length !== 2) throw new Error('expected a ▾ arrow on BOTH sides');
   anyWin.gcAction('to-galaxy', ''); // must refuse
   if (state().phase !== 'practice') throw new Error('left practice without training');
-  if (!app.querySelector('[data-action="drill-run"]')) throw new Error('RUN button missing');
   anyWin.gcAction('drill-run', '');
   drain();
   if (!gc.state().trainedThisWeek) throw new Error('practice did not run');
-  if (app.querySelector('[data-action="drill-run"]:not([disabled])')) throw new Error('practice should be once per week');
+  if (app.querySelector('[data-action="drill-run"]')) throw new Error('RUN should hand the nav back after practice');
 
   // galaxy (nav buttons are hold-to-commit now — use the action handle)
   if (!app.querySelector('[data-action="to-galaxy"]:not([disabled])')) throw new Error('TO RECRUITING button still dimmed');
@@ -117,9 +118,10 @@ async function main(): Promise<void> {
   (app.querySelectorAll('[data-action="lens-set"]')[1] as unknown as { click: () => void }).click();
   if (!app.innerHTML.includes('prspecies') || !app.innerHTML.includes('TERRAN')) throw new Error('species missing on the STATS card');
   must('[data-action="lens-set"]', 'back to BIG BOARD');
-  // the picker defaults to the FREE option (LOCAL REC CENTER)
+  // the picker defaults to the FREE option (LOCAL REC CENTER) on the nav
   if (!app.innerHTML.includes('LOCAL REC CENTER')) throw new Error('free option not the default');
-  // mandatory action: nav dimmed until one lands
+  if (!app.querySelector('.navbar [data-action="gx-run"]')) throw new Error('galaxy action missing from the nav');
+  // mandatory action: the nav refuses to move on until one lands
   anyWin.gcAction('to-matchup', '');
   if (state().phase !== 'galaxy') throw new Error('left recruiting without an action');
   // pick FILM NIGHT (all 9) and run it — every prospect gains a facet
@@ -131,15 +133,15 @@ async function main(): Promise<void> {
   if (!click('[data-action="gx-result-tap"]')) throw new Error('result dialog missing');
   click('[data-action="gx-result-tap"]');
   drain();
-  if (app.querySelector('[data-action="gx-run"]:not([disabled])')) throw new Error('galaxy action should be once per week');
+  if (app.querySelector('[data-action="gx-run"]')) throw new Error('galaxy action should be once per week');
 
   // matchup
   if (!app.querySelector('[data-action="to-matchup"]:not([disabled])')) throw new Error('TO MATCHUP button still dimmed');
   anyWin.gcAction('to-matchup', '');
   drain();
   if (state().phase !== 'matchup') throw new Error(`expected matchup, got ${state().phase}`);
-  // no game before the speech
-  if (!app.querySelector('[data-action="speech-run"]')) throw new Error('SPEECH button missing');
+  // the SPEECH is the nav action; no game before it lands
+  if (!app.querySelector('.navbar [data-action="speech-run"]')) throw new Error('SPEECH button missing from the nav');
   anyWin.gcAction('play-game', '');
   if (state().phase !== 'matchup') throw new Error('game started without a speech');
   anyWin.gcAction('speech-run', '');
@@ -151,57 +153,38 @@ async function main(): Promise<void> {
   // the opponent scout is DEAD: their bars are simply there, for free
   if (!app.innerHTML.includes('tbopp')) throw new Error('opponent bars not visible for free');
   if (app.innerHTML.includes('scoutbtn')) throw new Error('the scout button should be gone');
+  if (!app.querySelector('.navbar [data-action="play-game"]')) throw new Error('PLAY missing from the nav after the speech');
 
-  // play the game → FIRST HALF needle, then HALFTIME
+  // play the game → the whole night runs on one rope
   anyWin.gcAction('play-game', '');
   drain();
-  // sim may wait on queue; drain again then check the half is open
   drain();
   type GnState = {
     phase: string;
-    halftime: { box: unknown[]; myH1: number; oppH1: number } | null;
-    speechH2?: boolean;
-    lastResult: { box: unknown[]; h1?: object; h2?: object; myScore: number; oppScore: number } | null;
+    lastResult: { box: unknown[]; myScore: number; oppScore: number; win: boolean } | null;
   };
-  let st = state() as unknown as GnState;
+  const st = state() as unknown as GnState;
   if (st.phase !== 'gamenight') throw new Error(`expected gamenight, got ${st.phase}`);
-  if (!st.halftime) throw new Error('no halftime after play — H1 did not sim');
-  if (st.lastResult) throw new Error('game finished without a halftime');
-  if (!Array.isArray(st.halftime.box) || !st.halftime.box.length) throw new Error('H1 box missing');
-
-  // skip the H1 needle (tap) → the locker room
-  const ns1 = app.querySelector('#needle-stage') as unknown as { click?: () => void } | null;
-  if (!ns1?.click) throw new Error('H1 needle stage missing');
-  ns1.click();
-  if (!app.innerHTML.includes('HALFTIME')) throw new Error('halftime screen missing after H1 needle');
-  if (!app.innerHTML.includes('HALFTIME SPEECH')) throw new Error('halftime speech row missing');
-  if (!app.innerHTML.includes('hlock')) throw new Error('reserves not locked at halftime');
-
-  // no second half before the halftime speech
-  anyWin.gcAction('play-h2', '');
-  if ((state() as unknown as GnState).lastResult) throw new Error('H2 played without a halftime speech');
-  anyWin.gcAction('speech-run', '');
-  if (!(state() as unknown as GnState).speechH2) throw new Error('halftime speech did not commit');
-  // dismiss the halftime speech toast
-  click('[data-action="toast-tap"]');
-  click('[data-action="toast-tap"]');
-
-  // SECOND HALF → the final
-  anyWin.gcAction('play-h2', '');
-  drain();
-  st = state() as unknown as GnState;
-  if (!st.lastResult) throw new Error('no game result after the second half');
-  if (st.halftime) throw new Error('halftime never closed');
-  if (!st.lastResult.h1 || !st.lastResult.h2) throw new Error('halves missing from result');
+  if (!st.lastResult) throw new Error('no result after play — the game did not sim');
   if (!Array.isArray(st.lastResult.box) || !st.lastResult.box.length) throw new Error('box score missing from result');
-  // skip the H2 needle → the verdict
-  const ns2 = app.querySelector('#needle-stage') as unknown as { click?: () => void } | null;
-  ns2?.click?.();
-  if (!/VICTORY|DEFEAT/.test(app.innerHTML)) throw new Error('verdict missing after H2 needle');
-  if (!app.innerHTML.includes('GAME MVP')) throw new Error('MVP tag missing on the verdict grid');
+  if (st.lastResult.myScore === st.lastResult.oppScore) throw new Error('the game ended tied');
 
-  // NEXT WEEK → (the ride home →) WEEK START → the building
+  // skip the live game (tap) → YOU WON / YOU LOST on the same screen
+  const ns1 = app.querySelector('#needle-stage') as unknown as { click?: () => void } | null;
+  if (!ns1?.click) throw new Error('live game stage missing');
+  ns1.click();
+  if (!/YOU WON|YOU LOST/.test(app.innerHTML)) throw new Error('YOU WON / YOU LOST missing after the horn');
+  if (!app.querySelector('.navbar [data-action="gn-verdict"]')) throw new Error('BOX SCORE continue missing');
+
+  // → the box score grid
+  anyWin.gcAction('gn-verdict', '');
+  if (!/VICTORY|DEFEAT/.test(app.innerHTML)) throw new Error('box score screen missing');
+  if (!app.innerHTML.includes('GAME MVP')) throw new Error('MVP tag missing on the box-score grid');
+
+  // → the league results with the standings underneath → NEXT WEEK
   anyWin.gcAction('gn-table', '');
+  if (!app.innerHTML.includes('AROUND THE LEAGUE')) throw new Error('league screen missing');
+  if (!app.innerHTML.includes('standings')) throw new Error('standings table missing under the results');
   anyWin.gcAction('continue-result', '');
   drain(); // travel-home story, if the game was away
   if (state().phase !== 'weekstart') throw new Error(`expected weekstart, got ${state().phase}`);
@@ -210,7 +193,7 @@ async function main(): Promise<void> {
   drain();
   if (state().phase !== 'practice') throw new Error(`expected practice after week start, got ${state().phase}`);
 
-  console.log('UI SMOKE OK — pick team → tryouts → lenses → drill → galaxy → matchup → H1 → halftime → H2 → verdict → WEEK START → practice');
+  console.log('UI SMOKE OK — pick team → tryouts → lenses → drill → galaxy → matchup → live game → YOU WON/LOST → box score → league → WEEK START → practice');
 }
 
 main().catch((e) => {

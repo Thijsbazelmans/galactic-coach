@@ -42,6 +42,27 @@ body {
   overflow: hidden;
 }
 
+/* portrait is the game: browser landscape gets the rotate-back curtain
+   (the home-screen app locks via the manifest) */
+#rotatelock { display: none; }
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  #rotatelock {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: var(--rbg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    font-size: 54px;
+    color: var(--r95);
+    text-align: center;
+  }
+  #rotatelock span { font-size: 14px; letter-spacing: 2px; color: var(--r55); line-height: 1.7; }
+}
+
 /* faint CRT scanlines */
 body::after {
   content: "";
@@ -136,7 +157,7 @@ button.hold::before {
   opacity: 0.35;
   pointer-events: none;
 }
-button.hold.holding::before { width: 100%; transition: width 0.8s linear; }
+button.hold.holding::before { width: 100%; transition: width 0.6s linear; }
 button.hold > * { position: relative; }
 button.hold.wiggle { animation: wiggle 0.4s; }
 button.hold.wiggle::after {
@@ -274,10 +295,13 @@ button.hold.wiggle::after {
   gap: 8px;
 }
 .navbar button { margin: 0; }
-/* ONE continue button: always full width, always the same size — it DIMS
-   (never shrinks, never hides) while an action still has to land */
+/* ONE continue button — and it IS the action button: while a mandatory
+   action waits it reads «▶ RUN — …» with a ▾ picker arrow hugging EACH side
+   of the screen; afterwards the same button names what's next. Always the
+   same size; it DIMS (never shrinks, never hides) when it can't fire. */
 .navbar .navmain {
   flex: 1;
+  min-width: 0;
   height: 52px;
   font-size: 15px;
   font-weight: bold;
@@ -288,6 +312,16 @@ button.hold.wiggle::after {
   text-overflow: ellipsis;
 }
 .navbar .navmain:disabled { opacity: 0.4; }
+.navbar .navmain.actnav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.navbar .navmain.actnav b { font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.navbar .navmain.actnav .actsub { font-size: 9px; font-weight: normal; color: var(--r55); letter-spacing: 0.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.navbar .navarrow { height: 52px; padding: 0 14px; font-size: 15px; }
 .navnote { font-size: 14px; padding: 14px 0; }
 /* a popup is open: the way forward waits */
 .navbar.dimmed button { opacity: 0.3; pointer-events: none; }
@@ -525,20 +559,25 @@ button.hold.wiggle::after {
 .stcol.sl { left: 4px; align-items: flex-start; }
 .stcol.sr { right: 4px; align-items: flex-end; }
 .stcol.sr b { font-size: 10px; color: var(--r95); }
-/* every other line brighter, so a row reads across the sprite */
-.stcol > *:nth-child(odd) { opacity: 0.6; }
+/* every other line brighter, so a row reads across the sprite — gently:
+   the dim rows must stay legible */
+.stcol > *:nth-child(odd) { opacity: 0.8; }
 
 /* ---- the lens bar ------------------------------------------------------------------ */
 
+/* the view tabs sit ABOVE the items (THE BAG) — pick a view anywhere, the
+   action button below still fires */
 .lensbar {
   flex: none;
   display: flex;
   align-items: center;
   gap: 4px;
   margin: 0;
-  padding: 5px 8px 0;
+  padding: 5px 8px;
   background: var(--rpanel);
+  border-top: 1px solid var(--rline);
 }
+.lensbar + .bagbar { border-top: none; padding-top: 0; }
 .lensbar .lenstab {
   flex: 1; margin: 0; padding: 5px 2px;
   font-size: 12px; letter-spacing: 1.5px; font-weight: bold;
@@ -963,9 +1002,10 @@ button.hold.wiggle::after {
 
 .scanpod { cursor: pointer; }
 
-/* ---- THE CARD REWORK: tapered edge gauges on the ROSTER view --------------- */
-/* LEFT = ENERGY (bolt), RIGHT = MOOD (face): 1/3 of the card wide at the top,
-   tapering to 1/8 at the bottom, ending just above the OVR / LVL corner. */
+/* ---- THE CARD REWORK: rectangular LED gauges on the ROSTER view ------------ */
+/* LEFT = ENERGY (bolt), RIGHT = MOOD (face): seven crisp rectangular lights,
+   widest at the top, narrowing down the stack — no softness, just flat fills
+   with a color gradient across the LEDs (bottom darker, top brighter). */
 
 .gauge {
   position: absolute;
@@ -978,10 +1018,8 @@ button.hold.wiggle::after {
 .gauge.gl { left: 0; }
 .gauge.gr { right: 0; }
 .gauge svg { display: block; width: 100%; height: 100%; }
-.gauge .gbg { fill: var(--r20); fill-opacity: 0.35; }
-.gauge .gfill { opacity: 0.9; }
-.gauge .gsegs line { stroke: #000; stroke-width: 2; vector-effect: non-scaling-stroke; opacity: 0.5; }
-/* the change language on a gauge: removed segment blinks dimly, added brightly */
+.gauge .gled.off { fill: var(--r20); opacity: 0.45; }
+/* the change language on a gauge: a switched LED blinks its verdict */
 .gauge .gband { animation: gblink 1.4s steps(1) infinite; }
 .gauge .gband.up { fill: var(--r95); }
 .gauge .gband.down { fill: #000; }
@@ -1047,16 +1085,6 @@ button.actmain.scopehl { border-color: var(--r95); }
 .build .storypanel .typebox { animation: bfade 0.24s 0.14s both; }
 .build .middle .botstack, .build .lensbar { animation: bfade 0.24s 0.3s both; }
 .build .navbar .navmain { animation: bfade 0.26s 0.48s both; }
-/* HALFTIME builds slower and in order: header → score (home first) → cards →
-   stickers (their own delays) → the ropes → the speech → the button */
-.build-half .middle .halfline { animation: bfade 0.35s 0.25s both; }
-.build-half .middle .halfline .chip:last-child { animation: bfade 0.3s 0.3s both; }
-.build-half .middle .halfline .chip:first-child { animation: bfade 0.3s 0.55s both; }
-.build-half .middle .grid .gridrow:nth-child(2) { animation: bfade 0.3s 0.75s both; }
-.build-half .middle .grid .gridrow:nth-child(3) { animation: bfade 0.3s 0.95s both; }
-.build-half .middle .grid .gridrow:nth-child(4) { animation: bfade 0.3s 1.15s both; }
-.build-half .middle .botstack { animation: bfade 0.35s 1.45s both; }
-.build-half .navbar .navmain { animation: bfade 0.35s 1.75s both; }
 
 /* ---- center marks: the 50/50 tick on every tug rope and the game dial ------ */
 
@@ -1088,6 +1116,13 @@ button.actmain.scopehl { border-color: var(--r95); }
    clearly shows it scrolls ------------------------------------------------- */
 
 .sheethint { font-size: 11px; letter-spacing: 1px; padding: 8px 2px 2px; }
+/* the picker sheets run two items per row now — the ▾ arrows on both sides
+   of the action button open the same denser menu */
+.sheetgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.sheetgrid .drill, .sheetgrid .drill.locked { margin: 0; padding: 7px 8px; }
+.sheetgrid .drill b { font-size: 13px; }
+.sheetgrid .drill .ddesc { display: none; } /* the odds carry the story in the grid */
+.sheetgrid .odds { font-size: 11px; }
 .scrollmore {
   position: sticky;
   bottom: -14px;
@@ -1172,8 +1207,11 @@ button.actmain.scopehl { border-color: var(--r95); }
   letter-spacing: 2px;
 }
 
-/* ---- THE LIVE GAME: the score ticks, the colors fill from the separator --- */
+/* ---- THE LIVE GAME: team chips flank the rope, the score rides UNDER it --- */
 
+.lg-row { display: flex; align-items: center; gap: 7px; margin-bottom: 44px; }
+.lg-chip { flex: none; max-width: 30%; display: flex; }
+.lg-row .bigrope { flex: 1; min-width: 0; }
 .bigrope.live { background: var(--r20); }
 .lg-fill { position: absolute; top: 0; bottom: 0; opacity: 0.92; }
 .lg-rating {
@@ -1186,9 +1224,10 @@ button.actmain.scopehl { border-color: var(--r95); }
 }
 .bigrope .brsplit { z-index: 3; background: #fff; box-shadow: 0 0 5px rgba(255, 255, 255, 0.7); transition: left 0.16s linear; }
 .bigrope .brsplit.landed { animation: needleflash 0.5s; }
+/* the moving score tag sits comfortably below the rope — it overlaps nothing */
 .livescore {
   position: absolute;
-  top: -30px;
+  top: calc(100% + 10px);
   transform: translateX(-50%);
   white-space: nowrap;
   background: #000;
@@ -1200,6 +1239,12 @@ button.actmain.scopehl { border-color: var(--r95); }
 }
 .livescore b { color: var(--r95); }
 .livescore .lsdot { color: var(--r35); margin: 0 4px; }
+
+/* the horn: the game screen turns into the verdict */
+.gn-final { text-align: center; margin-top: 26px; animation: bfade 0.4s both; }
+.gn-final b { display: block; font-size: 34px; letter-spacing: 6px; color: var(--r95); }
+.gn-final.lost b { color: var(--r35); }
+.gn-final .gn-score { display: block; margin-top: 8px; font-size: 26px; font-weight: bold; color: var(--r75); letter-spacing: 2px; }
 
 /* ---- THE ROLL WHEEL: watch your diceroll land ------------------------------ */
 

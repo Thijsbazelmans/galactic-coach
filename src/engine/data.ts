@@ -1999,6 +1999,8 @@ export const STORIES: StoryDef[] = [
     },
   },
   // ---- THE SUPPLY CLOSET + the broke-week bailout --------------------------------
+  // every offered item is TAKE IT or LEAVE IT — the bag is small and patches
+  // pile up fast when nobody's hurt
   {
     id: 'supply',
     kind: 'coach',
@@ -2007,9 +2009,52 @@ export const STORIES: StoryDef[] = [
       return {
         tag: 'THE SUPPLY CLOSET',
         text: `The equipment manager leaves ${item.name} on your desk with a sticky note: "found this. don't ask."`,
+        choices: [
+          C('take', `TAKE IT — ${item.effectText.toUpperCase()}`),
+          C('leave', 'LEAVE IT ON THE DESK'),
+        ],
       };
     },
-    resolve: (_k, ctx) => ({ text: '', fx: [{ giveItem: (ctx.data.itemId as string) ?? 'protein' }] }),
+    resolve: (key, ctx) => {
+      const itemId = (ctx.data.itemId as string) ?? 'protein';
+      const item = itemById(itemId);
+      if (key === 'leave') {
+        return { text: `You slide ${item.name} back across the desk. The equipment manager shrugs and re-donates it to the mystery it came from.` };
+      }
+      if (ctx.s.bag.length >= 4) {
+        return { text: `You reach for ${item.name} — and THE BAG has no room. A kid outside the arena walks off with it, delighted.` };
+      }
+      ctx.s.bag.push(itemId);
+      return { text: `${item.name} goes into THE BAG.` };
+    },
+  },
+  // ---- the take-or-leave offer: every found/gifted item passes through here ----
+  {
+    id: 'item_offer',
+    kind: 'coach',
+    beat: (_b, ctx) => {
+      const item = itemById((ctx.data.itemId as string) ?? 'protein');
+      return {
+        tag: '◆ AN ITEM FINDS YOU',
+        text: `${item.name}. ${item.flavor}`,
+        choices: [
+          C('take', 'INTO THE BAG'),
+          C('leave', 'LEAVE IT — THE BAG IS FOR BETTER THINGS'),
+        ],
+      };
+    },
+    resolve: (key, ctx) => {
+      const itemId = (ctx.data.itemId as string) ?? 'protein';
+      const item = itemById(itemId);
+      if (key === 'leave') {
+        return { text: `You leave ${item.name} where the galaxy dropped it. Somebody else's bargain now.` };
+      }
+      if (ctx.s.bag.length >= 4) {
+        return { text: `You reach for ${item.name} — and THE BAG has no room. A kid outside the arena walks off with it, delighted.` };
+      }
+      ctx.s.bag.push(itemId);
+      return { text: `${item.name} goes into THE BAG.` };
+    },
   },
   {
     id: 'bailout',
@@ -2196,7 +2241,7 @@ export const STORIES: StoryDef[] = [
       }
       return {
         tag: 'THE SHIP',
-        text: `${ctx.data.cause ?? 'Turbulence cracks the hull on the way home.'}\n\nAs you limp back sub-warp, a starbase of mech-goblins radios in: they can fix it, cheap, "mostly honest".`,
+        text: `${pick(RIDE_ANTIC)}\n\n${ctx.data.cause ?? 'Turbulence cracks the hull on the way home.'} As you limp back sub-warp, a starbase of mech-goblins radios in: they can fix it, cheap, "mostly honest".`,
         choices: [
           C('goblins', 'LET THE GOBLINS FIX IT', { up: { pct: 50, cls: 'WINDFALL' }, down: { pct: 50, cls: 'SHIP' } }),
           C('limp', 'LIMP HOME. 3 WEEKS GROUNDED.', { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAIN' } }),
@@ -2232,7 +2277,7 @@ export const STORIES: StoryDef[] = [
     artEvent: 'stranded',
     beat: () => ({
       tag: 'THE SHIP',
-      text: 'A micrometeorite shreds the cargo bay on the way home — and your scout reports flew out through the hole. Every dossier, spinning off into the void in a slow, expensive constellation.',
+      text: `${pick(RIDE_ANTIC)}\n\nA micrometeorite shreds the cargo bay — and your scout reports fly out through the hole. Every dossier, spinning off into the void in a slow, expensive constellation.`,
       choices: [
         C('accept', 'WATCH THEM GO', { up: { pct: 2, cls: 'INTEL' }, down: { pct: 2, cls: 'DRAIN' } }),
         C('eva', 'SUIT UP AND CHASE THEM (1¢)', { cost: 1, up: { pct: 50, cls: 'INTEL' }, down: { pct: 10, cls: 'INJURY' } }),
@@ -2405,7 +2450,7 @@ export const STORIES: StoryDef[] = [
       const hasItems = ctx.s.bag.length > 0;
       return {
         tag: '☠ EMPTY POCKETS',
-        text: `${ctx.data.cause ?? 'A meteor swarm shreds the team bus in dead space.'}\n\nA salvage rig answers the distress call, lights like teeth. The tow bill is more than you have — you have NOTHING. They open negotiations, if that's the word.`,
+        text: `${pick(RIDE_ANTIC)}\n\n${ctx.data.cause ?? 'A meteor swarm shreds the team bus in dead space.'} A salvage rig answers the distress call, lights like teeth. The tow bill is more than you have — you have NOTHING. They open negotiations, if that's the word.`,
         choices: [
           ...(hasItems ? [C('loot', `PAY IN LOOT (give up an item)`, { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } })] : []),
           C('favor', 'CALL A BOOSTER, BEG', { up: { pct: 5, cls: 'WINDFALL' }, down: { pct: 25, cls: 'SCANDAL' } }),
@@ -2632,7 +2677,7 @@ export const STORIES: StoryDef[] = [
     art: 'bus',
     beat: () => ({
       tag: 'VOYAGE',
-      text: 'At a refueling station shaped like a grin, a vendor unrolls a coat lined with unlabeled miracles. "For the discerning coach," she says, discerning you instantly.',
+      text: 'The bus drops out of warp for fuel at a station shaped like a grin…\n\nOn the concourse, a vendor unrolls a coat lined with unlabeled miracles. "For the discerning coach," she says, discerning you instantly.',
       choices: [
         C('buy', 'BUY SOMETHING UNLABELED (2¢)', { cost: 2, up: { pct: 10, cls: 'LOOT' }, down: { pct: 10, cls: 'SCANDAL' } }),
         C('pass', 'KEEP WALKING', { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } }),
@@ -2655,7 +2700,7 @@ export const STORIES: StoryDef[] = [
     artEvent: 'hoop',
     beat: () => ({
       tag: 'VOYAGE',
-      text: 'On the space-bus between systems, a kid is doing ball-handling drills in zero-G with his seatbelt ON, because the driver asked. Fundamentals AND manners.',
+      text: 'Hours deep into the ride home, the cabin lights dim and something rhythmic taps behind you…\n\nA kid is doing ball-handling drills in zero-G with his seatbelt ON, because the driver asked. Fundamentals AND manners.',
       choices: [
         C('card', 'SLIDE HIM YOUR CARD', { up: { pct: 10, cls: 'INTEL' }, down: { pct: 2, cls: 'DRAMA' } }),
         C('sleep', 'YOU NEED THE SLEEP', { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' } }),
@@ -2677,7 +2722,7 @@ export const STORIES: StoryDef[] = [
     art: 'bus',
     beat: () => ({
       tag: 'VOYAGE',
-      text: 'A hermit at the transfer station reads engine exhaust the way others read palms. She looks at your team bus for a long time. "A name on your board," she says. "I have seen who they really are."',
+      text: 'The bus sets down at the transfer station, and a figure by the fuel line watches it far too closely…\n\nA hermit who reads engine exhaust the way others read palms. "A name on your board," she says. "I have seen who they really are."',
       choices: [
         C('listen', 'LISTEN', { up: { pct: 50, cls: 'INTEL' }, down: { pct: 5, cls: 'DRAMA' } }),
         C('tip', 'TIP HER AND BOARD', { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } }),
@@ -2719,23 +2764,34 @@ export const TIPS: Record<string, string> = {
   signing:
     "Signing day math, coach: send ONE letter and you keep the full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.",
   bag:
-    "That's THE BAG — the five slots at the bottom of your screen, always within reach. Every item is a bargain with printed odds. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. Player items drag straight onto a player's card.\n\nFive slots is the LAW: find something with a full bag and you watch it walk away. Use your items, coach.",
+    "That's THE BAG — the slots at the bottom of your screen, always within reach. Every item is a bargain with printed odds. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. Player items drag straight onto a player's card.\n\nFour slots is the LAW — every find is offered first: take it or leave it. A full bag watches things walk away. Use your items, coach.",
   grid:
     "The grid is your lineup, always: top row starts, middle row comes off the bench, bottom row watches. Hold and drag to rearrange — any screen, any time.\n\nColumns matter: BACKCOURT left, FRONTCOURT right. It's positionless out here, but put a wall in the backcourt or a waterbug in the frontcourt and the card will say MISCAST — and mean it. When someone goes down, he sinks to the bottom of his column and the column steps up.",
   stories:
     "The week opens with whatever the galaxy throws at you. Every choice prints its two tails — the chance it goes wrong, the chance it goes wonderful. The numbers never lie. The people sometimes do.",
   gamenight:
-    "A game EMPTIES people, coach — watch the halftime cards: the line so far and the ⚡ already burned. Swap a dead tank out or watch it break. The final horn shows the night's full line, the tank, the mood — XP banks Monday, at WEEK START, and the recovery bump SHRINKS with every consecutive start.\n\nThe table: the top two board the shuttle to the Universal Tournament.\n\nOne more thing: drop 25 points and a player catches FIRE — everything they have plays +20% until they cool off (under 12 points, or a night without minutes).",
+    "A game EMPTIES people, coach — the whole night runs on the lineup and the one speech you gave it. The final horn shows every line, every tank, every mood — XP banks Monday, at WEEK START, and the recovery bump SHRINKS with every consecutive start.\n\nThe table: the top two board the shuttle to the Universal Tournament.\n\nOne more thing: drop 25 points and a player catches FIRE — everything they have plays +20% until they cool off (under 12 points, or a night without minutes).",
   departures:
     "Season's over, coach. Seniors walk, stars flirt with the pros — one conversation each, odds printed as always. And every offseason the question waits at the bottom: walk away with your legacy, or go again.",
 };
+
+// THE TRAVEL LAW: every trip opens on the vehicle speeding through space with
+// one anticipation line ending in "…" — the NEXT beat is the relief ("travel
+// was uneventful") or the trouble (the image changes and the story continues).
+export const RIDE_ANTIC = [
+  'The ride home starts quiet. The void hums past the windows…',
+  'The bus threads the dark between two systems, running lights blinking…',
+  'Warp speed. The stars stretch into lines and the cabin goes still…',
+  'The long haul home. The autopilot clears its throat…',
+  'Halfway home, deep in nobody\'s sky…',
+];
 
 // the ride home: an away weekend ends on the bus, heading screen-left
 STORIES.push({
   id: 'travel',
   kind: 'coach',
   art: 'bus',
-  beat: (_b, ctx) => ({ tag: 'THE ROAD HOME', text: (ctx.data.text as string) ?? pick(TRAVEL_FLAVOR) }),
+  beat: (_b, ctx) => ({ tag: 'THE ROAD HOME', text: `${pick(RIDE_ANTIC)}\n\n${(ctx.data.text as string) ?? pick(TRAVEL_FLAVOR)}` }),
   resolve: () => ({ text: '' }),
 });
 
@@ -2744,7 +2800,7 @@ STORIES.push({
   id: 'travel_out',
   kind: 'coach',
   art: 'bus',
-  beat: () => ({ tag: 'THE ROAD', text: pick(TRAVEL_OUT_FLAVOR) }),
+  beat: () => ({ tag: 'THE ROAD', text: `Wheels up. The bus points its nose at a stranger's sun…\n\n${pick(TRAVEL_OUT_FLAVOR)}` }),
   resolve: () => ({ text: '' }),
 });
 
@@ -2844,7 +2900,7 @@ export const BOOSTER_POOL = ['booster_gift', 'booster_shortcut'];
 
 /** Wheels up: the outbound leg is all nerves and aux-cable politics. */
 export const TRAVEL_OUT_FLAVOR = [
-  'Wheels up. The scouting report is taped to the cabin wall and somebody has already drawn a mustache on their center.',
+  'The scouting report is taped to the cabin wall and somebody has already drawn a mustache on their center.',
   'The bus climbs out of the atmosphere on schedule. The starters sleep. The freshmen press their faces to the glass.',
   'Away game. The driver puts on the pregame playlist; it is one song, eleven hours long, and nobody complains.',
   'The team bus points its nose at a stranger\'s sun. Everyone chews the same brand of gum. Ritual is ritual.',

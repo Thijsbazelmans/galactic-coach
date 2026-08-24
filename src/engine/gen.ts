@@ -15,14 +15,14 @@ import {
 import type { AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
 export const UT_WEEKS = 3; // QF, SF, THE UNIVERSAL FINAL
 export const ROSTER_SIZE = 9;
 export const SELECT_POOL_SIZE = 12;
-/** CREDITS, the coach's currency (player energy stays ⚡): +3 a week by
+/** CREDITS, the coach's currency (player energy stays ⚡): +4 a week by
     definition — the rest you EARN from Scoop, the Dean and the Booster. */
-export const STIPEND = 3;
+export const STIPEND = 4;
 export const CACHE_MAX = 9;
 export const AGING_SEASON = 21;
 export const LEVEL_CAP = 10;
@@ -201,9 +201,11 @@ export function genPlayer(counter: { nextId: number }, bandShift: number, classY
 
 export function genWalkOn(counter: { nextId: number }, taken?: Set<string>): Player {
   // walk-ons are walk-ons for a reason: worst of two band rolls, a band
-  // down, and half the class levels — except the occasional GEM
-  const gem = Math.random() < 0.12;
-  const p = genPlayer(counter, gem ? 1 : -1, rand(4), undefined, taken, gem ? 1 : -1, gem ? 1 : 0.5);
+  // down, and half the class levels — except the occasional GEM (a solid
+  // find, not a franchise: best of two rolls, no band shift — a free
+  // championship core should never wander in off the street)
+  const gem = Math.random() < 0.07;
+  const p = genPlayer(counter, gem ? 0 : -1, rand(4), undefined, taken, gem ? 1 : -1, gem ? 1 : 0.5);
   p.walkOn = true;
   p.gem = gem;
   return p;
@@ -389,7 +391,7 @@ export function genChamps(myPower: number, _season: number, diff = 1): ChampTeam
       plan,
       // sized against your RESTED strength — but you arrive tired, streaks
       // stacked, with no practice week between rounds; the rounds get harder.
-      power: Math.round(myPower * diff * (0.84 + rand(18) / 100 + i * 0.02)),
+      power: Math.round(myPower * diff * (0.88 + rand(18) / 100 + i * 0.02)),
       kite,
     });
   }
@@ -435,7 +437,6 @@ export function newGameState(): GameState {
     trainedThisWeek: false,
     galaxyActWk: false,
     speechFx: null,
-    speechFxH2: null,
     sitouts: [],
     drillReport: null,
     voyageRolled: false,

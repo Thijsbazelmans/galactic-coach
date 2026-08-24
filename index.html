@@ -5,10 +5,16 @@
     <!-- phone-first: true device pixels, big type, one question per screen -->
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
     <title>GALACTIC COACH</title>
+    <!-- portrait is the game: the home-screen app locks via the manifest;
+         in-browser landscape gets the rotate-back overlay instead -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="app"></div>
+    <div id="rotatelock">↻<span>TURN THE SHIP BACK, COACH<br/>this game plays upright</span></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

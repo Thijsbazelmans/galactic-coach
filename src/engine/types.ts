@@ -280,14 +280,6 @@ export interface BoxRow {
   ast: number;
 }
 
-/** One half's needle: my score, their score, my rope share, where it landed. */
-export interface HalfScore {
-  my: number;
-  opp: number;
-  share: number;
-  needle: number;
-}
-
 export interface MyGameResult {
   win: boolean;
   myScore: number;
@@ -298,35 +290,14 @@ export interface MyGameResult {
   heroLine: string;
   boxLine: string;
   box: BoxRow[];
-  /** THE NEEDLE: my win share of the rope (0–1) and where the needle landed
-      (the second half's pair; kept top-level for old saves mid-game-night) */
+  /** THE ROPE: my win share (0–1) and where the night landed on it */
   share: number;
   needle: number;
   home: boolean;
-  /** HALFTIME: the two halves (absent only on pre-halftime saves) */
-  h1?: HalfScore;
-  h2?: HalfScore;
   /** tonight's MVP — best combined line; his card wears the tag */
   mvpId?: number;
-}
-
-/** The game paused between halves: everything H2 needs to pick it back up. */
-export interface HalftimeState {
-  myH1: number;
-  oppH1: number;
-  share: number;
-  needle: number;
-  /** the pregame speech (its attribute colors the box-score dealing) */
-  planMine: PlanId;
-  /** H1 box rows — stickers at the half; season stats commit after H2 */
-  box: BoxRow[];
-  home: boolean;
-  oppName: string;
-  /** halftime energy drains by player id (negative), folded into postGame */
-  drains: Record<number, number>;
-  /** THE FORM ROLL: a real hidden per-game roll the halftime stickers reveal —
-      1 = STANDOUT! (plays +15%, the hot night teaches him something),
-      -1 = OFF DAY (plays −15%). Rolled for the H1 floor, holds all game. */
+  /** THE FORM ROLL: 1 = STANDOUT! (played +15%, learned something), -1 = OFF
+      DAY (played −15%) — revealed on the box-score grid */
   forms?: Record<number, 1 | -1>;
   /** what the STANDOUT bump landed, per player ("+1 ATH") — for the sticker */
   formGain?: Record<number, string>;
@@ -449,14 +420,10 @@ export interface GameState {
   trainedThisWeek: boolean;
   /** recruiting: ONE board-wide action per week (scout all / recruit all / search) */
   galaxyActWk: boolean;
-  /** the coach's speech: mandatory, once, before tip-off */
+  /** the coach's speech: mandatory, once, before tip-off — it carries the game */
   speechWk?: boolean;
-  /** HALFTIME: the second speech (its own roll) */
-  speechH2?: boolean;
-  planH2?: PlanId | null;
-  /** rolled speech outcomes: the room ignited (or null) — one per half */
+  /** the rolled speech outcome: the words landed (or null) */
   speechFx?: SpeechFx | null;
-  speechFxH2?: SpeechFx | null;
   /** premium speeches recharge: planId → weeks until it can be given again */
   speechCooldowns?: Record<string, number>;
   sitouts: number[];
@@ -465,8 +432,6 @@ export interface GameState {
 
   plan: PlanId;
   pregameFlags: { wallet?: boolean; cloak?: boolean; alarm?: boolean };
-  /** set when H1 is in the books and the locker room is waiting */
-  halftime?: HalftimeState | null;
   lastResult: MyGameResult | null;
   postGame: PlayerDeltas[];
   /** WEEK START: the Monday report — banked XP + the weekend's recovery per player */

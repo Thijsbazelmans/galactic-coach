@@ -1078,18 +1078,90 @@ survival the game — a careless random player gets fired 1-in-4 careers),
 ~3.3–4 titles. Clean weeks cool the school −2/game now. Thijs's brief:
 winning feels good while you fight to keep the job.
 
+## v4.3 — ONE BUTTON, ONE GAME (Aug 24, 2026 — the season-1-title debrief)
+
+Thijs went 10–0 and won the UT in season 1 on v4.2 — too easy, by accident —
+and dictated the next list. All of it shipped (SAVE_VERSION 18, old saves die):
+
+**THE NAV IS THE ACTION (one button per screen, for real).** The continue
+button IS the action button: while a mandatory action waits, the nav reads
+«▶ RUN — SHOOTAROUND» / «▶ SCOUT — FILM NIGHT» / «▶ SPEECH — …» with a ▾
+picker arrow hugging BOTH sides of the screen (wider than the old single
+arrow); once it lands, the same button names what's next (TO RECRUITING /
+PLAY / NEXT WEEK). The in-stage action rows died («PRACTICE FIRST» etc. are
+gone — the button is never a disabled explainer, it's the action). Picker
+sheets run TWO items per row (`.sheetgrid`; descriptions hide in the grid —
+the odds carry it). The lens tabs moved ABOVE the bag and ride on EVERY
+grid screen (WEEK START, PRACTICE, RECRUITING, MATCHUP, selection, signing,
+the box score); actions fire from any lens and snap the view back to the
+MAIN one so results always land on ROSTER/BIG BOARD. Hold-to-commit is
+600ms now (was 800).
+
+**HALFTIME IS DEAD — one speech, one game.** The lineup screen + one
+pregame speech, then the game runs to the horn: `simMyGame` (form roll →
+one rope → the night lands → full box), full-game burns (starters 30–58⚡,
+bench 16–31), `dealHalfBox`/`mergeBox`/`deliverHalftimeSpeech`/
+`playSecondHalf`/`HalftimeState` all deleted. THE LIVE GAME screen: team
+chips flank the rope left/right, the score tag rides the separator
+UNDERNEATH it (nothing overlaps), and at the buzzer the SAME screen turns
+into **YOU WON / YOU LOST** with the score big → BOX SCORE (the grid, with
+MVP + STANDOUT/OFF DAY revealed there now, `MyGameResult.forms`) → AROUND
+THE LEAGUE (other results, standings beneath) → NEXT WEEK → the ride home.
+The verdict recap line reads the rope, not the halves ("The rope said no.
+The locker room never read the rope.").
+
+**THE ANTICIPATION LAW (stories).** Every trip opens on the MOVING vehicle
+with one neutral line ending in "…" (`RIDE_ANTIC`); the next beat is the
+relief ("travel was uneventful") or the trouble — the image changes to
+stranded/at-the-hoop only at the reveal (debt, grounded, hullbreach,
+vendor, bus_prospect, omen all restructured). UT weeks no longer double
+the bus (no ride-home roll on tournament weeks — travel_out is the trip).
+Players AND the dean/booster open every story NEUTRAL (new rig acting
+state); worry/anger/joy land as the story advances. A JOB SECURITY impact
+no longer shows the player who caused it — the stat change stands alone
+or under the angry (or delighted) dean/booster.
+
+**TAKE IT OR LEAVE IT.** Every offered item (supply closet, story loot,
+crates) passes through an offer — `item_offer` story with the actual item
+card as the art — so patches stop clogging the bag. `giveItem` never
+auto-pockets anything.
+
+**BALANCE — the accidental dynasty ends.** Stipend +3→+4¢ (more fun money);
+walk-on gems 12%→7% and band-shift 0 (solid, never a franchise); AI summer
+growth 3+rand(3); AI transfer refills best-of-two a band down; opponent
+mirror speech 25%; in-game injury base 2%→4%; second weekly story 25%→40%;
+UT champs 0.88+ of rested. Harness (random-story play): **~55% win rate ·
+~1.8 titles/career · 4/10 fired** — a season-1 title is out of reach again;
+a human playing stories/items well should land ~60–70%.
+
+**Also:** header rows swapped — row 1 is MY TEAM chip · W–L · standing
+(tap → standings), row 2 is S# · W# · vs OPPONENT chip (tap → schedule);
+the credits icon is a proper CENT SIGN (ticks through top and bottom); the
+edge gauges are RECTANGULAR LEDs now (seven flat lights, widest at top,
+color-gradient across the stack, no curves — the change language blinks
+per-LED); STATS-lens labels pick the BRIGHTER of the team's two colors
+(navy-on-black died) and the zebra dims less; portrait lock (manifest
+`orientation: portrait` for the home-screen app + a rotate-back curtain
+for browser landscape).
+
 ## NEXT SESSION (pick up here)
 
-Fresh-session state: the game is **v4.0 — THE OVERHAUL** (see the entry
-above; everything from the full-season playtest list is in). Engine
-`src/engine/` (types/data/gen/sim/state/util), UI `src/main.ts` +
-`src/rig.ts` + `src/style.css`. SAVE_VERSION 16.
-Tests: `npx tsx scripts/headless.ts N` (full careers; ~64% baseline) and
-`npx tsx scripts/uismoke.ts` (boots the real UI in happy-dom; nav and
-choices are hold-buttons that ignore clicks — drive them via the
-`window.gcAction(action, id)` dev handle; picker picks route through
-`executeAction` too). Thijs drops Claude-Designer exports into
+Fresh-session state: the game is **v4.3 — ONE BUTTON, ONE GAME** (see the
+entry above). Engine `src/engine/` (types/data/gen/sim/state/util), UI
+`src/main.ts` + `src/rig.ts` + `src/style.css`. SAVE_VERSION 18.
+Tests: `npx tsx scripts/headless.ts N` (full careers; ~55% baseline under
+random-story play) and `npx tsx scripts/uismoke.ts` (boots the real UI in
+happy-dom; nav and choices are hold-buttons that ignore clicks — drive
+them via the `window.gcAction(action, id)` dev handle; picker picks route
+through `executeAction` too). Thijs drops Claude-Designer exports into
 `fromDesign/<date>/` — read them from there.
+
+**Open question Thijs raised (answer sent, awaiting his call):** should
+scouting and recruiting become two separate weekly actions (INTEL and
+CHARM, each once per week on the same board) instead of today's single
+board-wide move? Claude's recommendation: yes as two TRACKS on one screen,
+not two screens — credits stay the limiter, and the new +4¢ stipend gives
+it somewhere to go. Not built.
 
 **Calls Claude made inside the overhaul (Thijs to veto):**
 - OFF DAY is the REAL form roll (not presentational) — it made halftime
@@ -1102,6 +1174,17 @@ choices are hold-buttons that ignore clicks — drive them via the
 
 ### Backlog (in rough priority)
 
+- **The scouting/recruiting split** (see the open question above) — two
+  weekly tracks on one board, pending Thijs's call.
+- **The facilities manager gets a face**: Thijs is illustrating the
+  equipment manager (THE SUPPLY CLOSET). When the art lands in
+  `fromDesign/`, wire a `facilities` FigureId into rig.ts and hang the
+  supply/item_offer stories on it.
+- **Balance watch, v4.3 edition**: harness ~55% win / ~1.8 titles / 4-in-10
+  fired under random play. Thijs wanted harder — verify it FEELS like a
+  fight, not a wall. Knobs: AI refill luck (best-of-two, band down), AI
+  summer growth 3+rand(3), mirror speech 25%, UT champ base 0.88, walk-on
+  gem 7%, injury base 4%, stipend 4.
 - **Thijs's v4.1 playtest notes — SHIPPED, all of them, as v4.2** (see
   the entry above): pool rebalance, credits economy, the notebook, Scoop +
   the dean/booster weekly presence with pt3 scenes, header

@@ -51,8 +51,7 @@ import {
   reserves,
   restedPower,
   simAiGame,
-  simMyGameH1,
-  simMyGameH2,
+  simMyGame,
   starters,
 } from './sim';
 import type {
@@ -324,10 +323,10 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
 
 function giveItem(s: GameState, itemId: string): void {
   if (s.bag.length < BAG_SIZE) {
-    s.bag.push(itemId);
+    // nothing enters THE BAG unasked: every find is offered — take it or
+    // leave it (patches pile up fast when nobody's hurt)
     maybeTip(s, 'bag');
-    // the reveal card: show what just landed in THE BAG
-    queueStory(s, 'reveal', 'start', null, { kind: 'item', id: itemId });
+    queueStory(s, 'item_offer', 'start', null, { itemId });
     return;
   }
   queueStory(s, 'bagfull', 'start', null, { itemId });
@@ -463,7 +462,7 @@ export function dismissStory(s: GameState): void {
     s.phase = isUtWeek(s) ? 'matchup' : 'practice';
     maybeTip(s, isUtWeek(s) ? 'matchup' : 'practice');
   }
-  if (!s.queue.length && s.phase === 'gamenight' && !s.lastResult && !s.halftime && !s.end) simWeek(s);
+  if (!s.queue.length && s.phase === 'gamenight' && !s.lastResult && !s.end) simWeek(s);
   save(s);
 }
 
@@ -535,7 +534,9 @@ function startWeek(s: GameState): void {
   // what the weekend left behind (before the flags reset wipe it)
   const lastGame = new Map(s.postGame.map((r) => [r.playerId, r]));
   const hadGame = s.postGame.length > 0;
-  const wasAway = !!s.lastResult && (!s.lastResult.home || (s.ut !== null && s.week - 1 > REGULAR_WEEKS));
+  // the ride home: only for regular away weekends — tournament weeks stay on
+  // the road (their travel_out below is the trip; no doubled bus scenes)
+  const wasAway = !!s.lastResult && !s.lastResult.home && !isUtWeek(s);
   // the press reads last week before the reset wipes it (Scoop's material)
   const pressWeek = s.week - 1;
   const lastBox = s.lastResult?.box ?? [];
@@ -555,11 +556,7 @@ function startWeek(s: GameState): void {
   s.trainedThisWeek = false;
   s.galaxyActWk = false;
   s.speechWk = false;
-  s.speechH2 = false;
-  s.planH2 = null;
   s.speechFx = null;
-  s.speechFxH2 = null;
-  s.halftime = null;
   s.sitouts = [];
   s.drillReport = null;
   s.voyageRolled = false;
@@ -658,8 +655,8 @@ function startWeek(s: GameState): void {
       });
     }
   } else {
-    // 1 weekly story, 25% a second one
-    const n = 1 + (roll(25) ? 1 : 0);
+    // 1 weekly story, 40% a second one — college happens to people weekly
+    const n = 1 + (roll(40) ? 1 : 0);
     const used = new Set<number>();
     for (let i = 0; i < n; i++) {
       const pool = weeklyPool(s);
@@ -1117,12 +1114,10 @@ export function confirmBoard(s: GameState): string[] {
 
 // ---- matchup ---------------------------------------------------------------------------
 
-/** THE SPEECH: mandatory, once per half — and it ALWAYS lands with a range
-    of effect, never none. The room plays +1..boost in the speech's
-    attribute; a small chance it IGNITES (boost+1), a smaller chance a
-    believer stops believing (mood −25, the words still land at minimum).
-    The pregame speech carries through the WHOLE game; the halftime speech
-    (a different one, by law) stacks on top. */
+/** THE SPEECH: mandatory, once, before tip-off — a rousing gamble that
+    carries the WHOLE game. ~30% the words WORK (squad +1–2 in the speech's
+    attribute), a sliver of that IGNITES the room, a small chance a believer
+    stops believing (mood −25). */
 function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx | null; text: string } {
   const pl = planById(plan);
   const t = myTeam(s);
@@ -1261,12 +1256,11 @@ export function toGalaxy(s: GameState): void {
   save(s);
 }
 
-/** PLAY (held). Away weeks voyage first; H1 sims when the queue clears. */
+/** PLAY (held). The game sims when the queue clears. */
 export function playGame(s: GameState): void {
   if (!s.speechWk) return; // no tip-off before the speech
   s.phase = 'gamenight';
   s.lastResult = null;
-  s.halftime = null;
   if (!s.queue.length && !s.end) simWeek(s);
   save(s);
 }
@@ -1274,18 +1268,18 @@ export function playGame(s: GameState): void {
 /** An AI roster living a game night the way mine does: floor players spend
     by row (a full game runs starters near empty), streaks stack, and the
     role-weighted mood verdict lands the same way. */
-function aiPostGame(t: Team, won: boolean, halfAlreadySpent: boolean): void {
+function aiPostGame(t: Team, won: boolean): void {
   const st = new Set(starters(t).map((p) => p.id));
   const bn = new Set(benchPlayers(t).map((p) => p.id));
   for (const p of t.players) {
     if (p.outWeeks > 0) continue;
     const floor = st.has(p.id) || bn.has(p.id);
     if (st.has(p.id)) {
-      p.energy = clamp(p.energy - (15 + rand(15)) - (halfAlreadySpent ? 0 : 15 + rand(15)), 0, 100);
+      p.energy = clamp(p.energy - (30 + rand(29)), 0, 100);
       p.mood = clamp(p.mood + (won ? 8 : -3), 0, 100);
       p.startStreak = (p.startStreak ?? 0) + 1;
     } else if (bn.has(p.id)) {
-      p.energy = clamp(p.energy - (8 + rand(8)) - (halfAlreadySpent ? 0 : 8 + rand(8)), 0, 100);
+      p.energy = clamp(p.energy - (16 + rand(15)), 0, 100);
       p.mood = clamp(p.mood + (won ? 5 : -5), 0, 100);
       p.startStreak = 0;
     } else {
@@ -1298,8 +1292,8 @@ function aiPostGame(t: Team, won: boolean, halfAlreadySpent: boolean): void {
   }
 }
 
-/** The week's games: everyone else's whole night, but MY game stops at the
-    half — s.halftime holds it open until the locker room lets it back out. */
+/** The week's games: mine runs whole — lineup, one speech, the horn — and the
+    rest of the league plays out around it. */
 function simWeek(s: GameState): void {
   const me = myTeam(s);
   normalizeLineup(me);
@@ -1308,7 +1302,13 @@ function simWeek(s: GameState): void {
   if (isUtWeek(s) && s.ut) {
     const champ = utOpponent(s);
     if (!champ) return;
-    simMyGameH1(s, me, null, champ, true);
+    const out = simMyGame(s, me, null, champ, true);
+    s.lastResult = out.result;
+    applyGameEffects(s, out.won);
+    s.myResults = [...(s.myResults ?? []), { week: s.week, win: out.won, text: `${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}` }];
+    s.ut.log.push(`${weekLabel(s)}: ${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}`);
+    if (out.won) s.heatB = clamp(s.heatB - 6, 0, 100);
+    else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
     save(s);
     return;
   }
@@ -1319,7 +1319,24 @@ function simWeek(s: GameState): void {
   for (const [h, a] of games) {
     if (h === s.myTeamId || a === s.myTeamId) {
       if (!m) continue;
-      simMyGameH1(s, me, m.opponent, null, m.home);
+      const out = simMyGame(s, me, m.opponent, null, m.home);
+      s.lastResult = out.result;
+      const winner = out.won ? me : m.opponent;
+      const loser = out.won ? m.opponent : me;
+      winner.wins++; loser.losses++;
+      winner.pointsFor += Math.max(out.result.myScore, out.result.oppScore);
+      winner.pointsAgainst += Math.min(out.result.myScore, out.result.oppScore);
+      loser.pointsFor += Math.min(out.result.myScore, out.result.oppScore);
+      loser.pointsAgainst += Math.max(out.result.myScore, out.result.oppScore);
+      if (out.won) { s.totalWins++; s.heatB = clamp(s.heatB - 4, 0, 100); }
+      else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
+      s.myResults = [...(s.myResults ?? []), { week: s.week, win: out.won, text: `${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} ${out.result.home ? 'vs' : '@'} ${m.opponent.name}` }];
+      applyGameEffects(s, out.won);
+      // the other locker room lives the same night we do
+      aiPostGame(m.opponent, !out.won);
+      // clean weeks cool the school — a notch faster now that the dean, the
+      // booster and the press drip heat into every season
+      s.heatS = clamp(s.heatS - 2, 0, 100);
     } else {
       const g = simAiGame(s.teams[h], s.teams[a]);
       g.winner.wins++; g.loser.losses++;
@@ -1328,86 +1345,20 @@ function simWeek(s: GameState): void {
       s.resultsLog.push(`${g.winner.name} ${g.scoreW} — ${g.scoreL} ${g.loser.name}`);
       // AI squads drift forward — and feel their results like we do:
       // floor players spend, reserves recover, moods swing
-      aiPostGame(g.winner, true, false);
-      aiPostGame(g.loser, false, false);
+      aiPostGame(g.winner, true);
+      aiPostGame(g.loser, false);
     }
   }
   save(s);
 }
 
-/** HALFTIME SPEECH: mandatory before the second half — its own fresh roll,
-    and NEVER the pregame speech again (that one is still working the room). */
-export function deliverHalftimeSpeech(s: GameState, plan: PlanId): string | null {
-  if (!s.halftime || s.speechH2 || !s.knownPlans.includes(plan) || plan === s.plan || speechCooldown(s, plan) > 0) return null;
-  s.planH2 = plan;
-  s.speechH2 = true;
-  const out = rollSpeech(s, plan);
-  s.speechFxH2 = out.fx;
-  const cd = planById(plan).cooldown;
-  if (cd) s.speechCooldowns = { ...(s.speechCooldowns ?? {}), [plan]: cd };
-  save(s);
-  return out.text;
-}
-
-/** THE SECOND HALF: sim H2 from the new lineup/speeches/meters, then land the
-    whole night — standings, heat, meters, ON FIRE — once, on full-game totals. */
-export function playSecondHalf(s: GameState): void {
-  if (!s.halftime || !s.speechH2 || s.lastResult) return;
-  const me = myTeam(s);
-  normalizeLineup(me);
-  lastLevelUps = [];
-  const drains = s.halftime.drains;
-
-  if (isUtWeek(s) && s.ut) {
-    const champ = utOpponent(s);
-    if (!champ) return;
-    const out = simMyGameH2(s, me, null, champ);
-    s.lastResult = out.result;
-    s.halftime = null;
-    applyGameEffects(s, out.won, drains);
-    s.myResults = [...(s.myResults ?? []), { week: s.week, win: out.won, text: `${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}` }];
-    s.ut.log.push(`${weekLabel(s)}: ${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}`);
-    if (out.won) {
-      s.heatB = clamp(s.heatB - 6, 0, 100);
-    } else {
-      s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
-    }
-    save(s);
-    return;
-  }
-
-  const m = myMatchup(s);
-  if (!m) return;
-  const out = simMyGameH2(s, me, m.opponent, null);
-  s.lastResult = out.result;
-  s.halftime = null;
-  const winner = out.won ? me : m.opponent;
-  const loser = out.won ? m.opponent : me;
-  winner.wins++; loser.losses++;
-  winner.pointsFor += Math.max(out.result.myScore, out.result.oppScore);
-  winner.pointsAgainst += Math.min(out.result.myScore, out.result.oppScore);
-  loser.pointsFor += Math.min(out.result.myScore, out.result.oppScore);
-  loser.pointsAgainst += Math.max(out.result.myScore, out.result.oppScore);
-  if (out.won) { s.totalWins++; s.heatB = clamp(s.heatB - 4, 0, 100); }
-  else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
-  s.myResults = [...(s.myResults ?? []), { week: s.week, win: out.won, text: `${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} ${out.result.home ? 'vs' : '@'} ${m.opponent.name}` }];
-  applyGameEffects(s, out.won, drains);
-  // the other locker room lives the same night we do (half already spent)
-  aiPostGame(m.opponent, !out.won, true);
-  // clean weeks cool the school — a notch faster now that the dean, the
-  // booster and the press drip heat into every season
-  s.heatS = clamp(s.heatS - 2, 0, 100);
-  save(s);
-}
-
-/** The whole night lands here ONCE, after H2 — the second half of the energy
-    drain (the first half went at halftime, `halfDrains` folds it into the
-    stickers), injuries, and ON FIRE on full-game totals. A full game runs a
+/** The whole night lands here ONCE, after the horn — the full-game energy
+    burn, injuries, and ON FIRE on full-game totals. A full game runs a
     starter close to EMPTY; the big recovery bump waits for WEEK START, and
     it shrinks with every consecutive start. XP is banked here and paid out
     at WEEK START too. The mood verdict is role-weighted: a win lifts the
     ones who fought for it, a loss stings hardest in street clothes. */
-function applyGameEffects(s: GameState, won: boolean, halfDrains: Record<number, number> = {}): void {
+function applyGameEffects(s: GameState, won: boolean): void {
   const me = myTeam(s);
   const st = new Set(starters(me).map((p) => p.id));
   const bn = new Set(benchPlayers(me).map((p) => p.id));
@@ -1418,13 +1369,17 @@ function applyGameEffects(s: GameState, won: boolean, halfDrains: Record<number,
     const pre = { e: p.energy, m: p.mood };
     let xpGain = 0;
     if (st.has(p.id)) {
-      const lowEnergy = p.energy <= 30;
-      p.energy = clamp(p.energy - (15 + rand(15)), 0, 100);
+      // a full game burns 30–58⚡; the injury check reads the tank as it
+      // stood midway through the night — running a low tank onto the floor
+      // is how bodies break
+      const midGame = p.energy - (15 + rand(15));
+      const lowEnergy = midGame <= 30;
+      p.energy = clamp(p.energy - (30 + rand(29)), 0, 100);
       p.mood = clamp(p.mood + (won ? 8 : -3), 0, 100);
       xpGain = 10 + rand(5);
       p.dnp = 0;
       p.startStreak = (p.startStreak ?? 0) + 1;
-      if (roll(lowEnergy ? 25 : 2)) {
+      if (roll(lowEnergy ? 25 : 4)) {
         const inj = rollInjury(lowEnergy ? 1 : 0, fragility(p.speciesId));
         queueStory(s, 'injury', 'start', p.id, {
           weeks: inj.weeks, label: inj.label, levelLoss: inj.levelLoss,
@@ -1434,8 +1389,7 @@ function applyGameEffects(s: GameState, won: boolean, halfDrains: Record<number,
         });
       }
     } else if (bn.has(p.id) || played.has(p.id)) {
-      // the bench — or an H1 body parked in the reserves at the half
-      p.energy = clamp(p.energy - (8 + rand(8)), 0, 100);
+      p.energy = clamp(p.energy - (16 + rand(15)), 0, 100);
       p.mood = clamp(p.mood + (won ? 5 : -5), 0, 100);
       xpGain = 5 + rand(4);
       p.dnp = 0;
@@ -1450,7 +1404,7 @@ function applyGameEffects(s: GameState, won: boolean, halfDrains: Record<number,
         queueStory(s, 'frozen', 'start', p.id, { games: p.dnp });
       }
     }
-    s.postGame.push({ playerId: p.id, energyP: p.energy - pre.e + (halfDrains[p.id] ?? 0), mood: p.mood - pre.m, xpGain });
+    s.postGame.push({ playerId: p.id, energyP: p.energy - pre.e, mood: p.mood - pre.m, xpGain });
   }
 
   // ON FIRE (printed rule): 25+ points lights a man up — everything he has
@@ -1592,18 +1546,18 @@ function endSeason(s: GameState, utNote: string | null): void {
     team.players = team.players.filter((p) => p.classYear < 3 && ovr(p.attrs) < PRO_OVR);
     for (const p of team.players) {
       p.classYear++;
-      bumpAny(p, 2 + rand(3));
+      bumpAny(p, 3 + rand(3));
       p.energy = METER_BASELINE - 3 + rand(9);
       p.mood = clamp(p.mood + 15, 60, 85);
       p.outWeeks = 0; p.outReason = '';
     }
     const counter = { nextId: s.nextId };
     const names = takenNames(s);
-    // the other programs refill with playable bodies (transfers, any class) —
-    // but from the same constrained pipeline mine comes from (a band down,
-    // three-quarter levels), or MY recruiting becomes a pure handicap
+    // the other programs refill with playable transfer bodies (any class,
+    // best-of-two rolls a band down) — better than walk-ons, worse than a
+    // recruiting class you actually worked for
     while (team.players.length < ROSTER_SIZE) {
-      team.players.push(genPlayer(counter, -1, rand(4), undefined, names, 0, 1));
+      team.players.push(genPlayer(counter, -1, rand(4), undefined, names, 1, 1));
     }
     s.nextId = counter.nextId;
     ensureUniqueJerseys(team.players);

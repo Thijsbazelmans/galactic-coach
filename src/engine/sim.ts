@@ -202,14 +202,14 @@ export function logistic(diff: number): number {
 }
 
 // ---- the game itself --------------------------------------------------------------------
-// THE NEEDLE, twice: each half's rope split is that half's win chance; a needle
-// lands uniformly on it. Half scores are roughly half-scale; the final is the
-// sum, so the two needles' margins can cancel into a squeaker either way.
+// ONE rope, ONE night: the rope split is the win chance, the night lands
+// uniformly on it, and the distance from the split is the margin. The lineup
+// screen and the speech are the whole plan — then the game runs to the horn.
 
-function halfScores(share: number, u: number): { won: boolean; my: number; opp: number } {
+function fullScores(share: number, u: number): { won: boolean; my: number; opp: number } {
   const won = u < share;
-  const margin = 1 + Math.min(17, Math.round(Math.abs(u - share) * 17)) + rand(2);
-  const base = 26 + rand(8);
+  const margin = 1 + Math.min(32, Math.round(Math.abs(u - share) * 32)) + rand(4);
+  const base = 52 + rand(14);
   return won ? { won, my: base + margin, opp: base } : { won, my: base, opp: base + margin };
 }
 
@@ -238,9 +238,8 @@ function dealStat(pool: { p: Player; w: number }[], total: number, weigh: (p: Pl
   return out;
 }
 
-/** Deal ONE HALF of my box score (reb/stl/ast pools halved). Season stats are
-    NOT written here — they commit once, on the merged full-game rows. */
-export function dealHalfBox(me: Team, myScore: number, plan: PlanId, forms?: Forms): BoxRow[] {
+/** Deal my full-game box score by attribute-weighted shares. */
+export function dealBox(me: Team, myScore: number, plan: PlanId, forms?: Forms): BoxRow[] {
   const pool = [
     ...starters(me).filter(available).map((p) => ({ p, w: 3 * formMult(forms, p.id) })),
     ...benchPlayers(me).filter(available).map((p) => ({ p, w: 1 * formMult(forms, p.id) })),
@@ -248,28 +247,19 @@ export function dealHalfBox(me: Team, myScore: number, plan: PlanId, forms?: For
   if (!pool.length) return [];
   const speechAttr = planById(plan).attr;
   const pts = dealStat(pool, myScore, (p) => attrEff(p, 'skl') + attrEff(p, 'ath') * 0.3);
-  const reb = dealStat(pool, 8 + rand(6), (p) => attrEff(p, 'ath') + sizeIndex(p) * 2);
-  const stl = dealStat(pool, 1 + rand(4) + (speechAttr === 'frc' ? 2 : 0), (p) => attrEff(p, 'frc'));
-  const ast = dealStat(pool, 3 + rand(4) + (speechAttr === 'brn' ? 2 : 0), (p) => attrEff(p, 'brn'));
-  return pool.map(({ p }) => ({
-    playerId: p.id,
-    name: p.name,
-    pts: pts.get(p.id) ?? 0,
-    reb: reb.get(p.id) ?? 0,
-    stl: stl.get(p.id) ?? 0,
-    ast: ast.get(p.id) ?? 0,
-  }));
-}
-
-/** Merge two half box scores by player (halftime swaps change the pool). */
-function mergeBox(h1: BoxRow[], h2: BoxRow[]): BoxRow[] {
-  const byId = new Map<number, BoxRow>();
-  for (const r of [...h1, ...h2]) {
-    const m = byId.get(r.playerId);
-    if (m) { m.pts += r.pts; m.reb += r.reb; m.stl += r.stl; m.ast += r.ast; }
-    else byId.set(r.playerId, { ...r });
-  }
-  return [...byId.values()].sort((a, b) => b.pts - a.pts);
+  const reb = dealStat(pool, 16 + rand(11), (p) => attrEff(p, 'ath') + sizeIndex(p) * 2);
+  const stl = dealStat(pool, 3 + rand(7) + (speechAttr === 'frc' ? 3 : 0), (p) => attrEff(p, 'frc'));
+  const ast = dealStat(pool, 6 + rand(7) + (speechAttr === 'brn' ? 3 : 0), (p) => attrEff(p, 'brn'));
+  return pool
+    .map(({ p }) => ({
+      playerId: p.id,
+      name: p.name,
+      pts: pts.get(p.id) ?? 0,
+      reb: reb.get(p.id) ?? 0,
+      stl: stl.get(p.id) ?? 0,
+      ast: ast.get(p.id) ?? 0,
+    }))
+    .sort((a, b) => b.pts - a.pts);
 }
 
 /** Write season stats + the in-game MVP once, from the full-game rows.
@@ -307,25 +297,20 @@ function verdictLines(
   me: Team,
   myPlan: PlanId,
   won: boolean,
-  h1my: number,
-  h1opp: number
+  share: number,
+  margin: number
 ): { wheelLine: string; heroLine: string } {
   const mine = planById(myPlan);
-  // the night's story is the two halves now — was the locker room the turn?
-  const d = h1my - h1opp;
+  // the night's story: what the rope promised vs what the horn said
   let wheelLine: string;
-  if (d > 0) {
-    wheelLine = won
-      ? `Up ${d} at the half — and you never gave it back.`
-      : `Up ${d} at the half... and the second half took all of it away.`;
-  } else if (d < 0) {
-    wheelLine = won
-      ? `Down ${-d} at the half. Whatever happened in that locker room WORKED.`
-      : `Down ${-d} at the half, and the hole was too deep.`;
+  if (won) {
+    if (share >= 0.62) wheelLine = margin >= 12 ? 'The better team showed up and made sure everybody knew it.' : 'The better team showed up. Barely acted like it, but showed up.';
+    else if (share <= 0.42) wheelLine = 'The rope said no. The locker room never read the rope.';
+    else wheelLine = margin <= 4 ? 'A coin-flip night, decided by fingertips. Yours.' : 'A coin-flip night — and it came up yours.';
   } else {
-    wheelLine = won
-      ? `Dead even at the half — the second half was yours.`
-      : `Dead even at the half — they took the second.`;
+    if (share >= 0.58) wheelLine = 'You were the better team. The scoreboard disagrees, loudly, in public.';
+    else if (share <= 0.42) wheelLine = margin >= 12 ? 'Outgunned from the tip. The rope tried to warn you.' : 'Outgunned from the tip — and still within reach at the horn. Take that home.';
+    else wheelLine = margin <= 4 ? 'A coin-flip night, decided by fingertips. Not yours.' : 'A coin-flip night. It came up theirs.';
   }
   const st = [0, 1, 2].map((c) => ({ p: slotPlayer(me, c), c })).filter((x): x is { p: Player; c: number } => !!x.p);
   if (!st.length) return { wheelLine, heroLine: 'You fielded nobody. The scoreboard noticed.' };
@@ -343,10 +328,10 @@ function verdictLines(
   return { wheelLine, heroLine };
 }
 
-/** One half's rope: my weighted power vs theirs — venue, a landed speech, and
+/** The night's rope: my weighted power vs theirs — venue, a landed speech, and
     any pregame skulduggery folded in. The champ has no roster — their scouted
-    power number holds for both halves. */
-function halfRope(
+    power number stands. */
+function gameRope(
   s: GameState,
   me: Team,
   opp: Team | null,
@@ -357,9 +342,9 @@ function halfRope(
 ): { mine: number; theirs: number } {
   const [vm, vt] = champ ? [1, 1] : home ? [1.03, 1] : [1, 1.03];
   let mine = teamPower(me, fx, forms) * vm;
-  // their locker room hears a speech too — the mirror matches the happy
-  // medium (works ~30% of the time) so the rope stays honest (fairness law)
-  const oppAmt = roll(30) ? 1 + rand(2) : 0;
+  // their locker room hears a speech too — the mirror sits just under the
+  // happy medium (one speech per night now; the coach's edge is earned)
+  const oppAmt = roll(25) ? 1 + rand(2) : 0;
   let theirs = (champ
     ? champ.power + oppAmt
     : teamPower(opp!, { attr: planById(opp!.plan).attr, amt: oppAmt })) * vt;
@@ -369,14 +354,12 @@ function halfRope(
   return { mine, theirs };
 }
 
-/** THE FIRST HALF: the form roll → rope → needle → half score + half box, then
-    the locker room — starters shed half the game drain (both benches too) so
-    the halftime rope is honest, and the night's STANDOUT/OFF DAY rolls are on
-    the cards. */
-export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null, home: boolean): void {
+/** THE GAME: the form roll → the rope → the night lands → the full box score.
+    One speech, one lineup, one honest rope — then the horn. */
+export function simMyGame(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null, home: boolean): SimOutcome {
   // THE FORM ROLL: each floor player can catch a hot night (STANDOUT!, +15%,
   // and the hot hand teaches him something) or a cold one (OFF DAY, −15%).
-  // A real hidden roll — the halftime stickers reveal it; swaps answer it.
+  // A real hidden roll — the box-score grid reveals it after the horn.
   const forms: Forms = {};
   const formGain: Record<number, string> = {};
   for (const p of [...starters(me), ...benchPlayers(me)]) {
@@ -393,83 +376,31 @@ export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: Cha
       forms[p.id] = -1;
     }
   }
-  const { mine, theirs } = halfRope(s, me, opp, champ, home, s.speechFx ?? null, forms);
+  const { mine, theirs } = gameRope(s, me, opp, champ, home, s.speechFx ?? null, forms);
   const share = winShare(mine, theirs);
   const u = Math.random();
-  const sc = halfScores(share, u);
-  const box = dealHalfBox(me, sc.my, s.plan, forms);
-  // a half BURNS: 15–29⚡ for a starter (a bad night runs anyone empty), 8–15
-  // for the bench — the locker room is where you notice who has nothing left
-  const drains: Record<number, number> = {};
-  for (const p of starters(me)) {
-    if (!available(p)) continue;
-    const d = 15 + rand(15);
-    p.energy = clamp(p.energy - d, 0, 100);
-    drains[p.id] = -d;
-  }
-  for (const p of benchPlayers(me)) {
-    if (!available(p)) continue;
-    const d = 8 + rand(8);
-    p.energy = clamp(p.energy - d, 0, 100);
-    drains[p.id] = -d;
-  }
-  // their locker room spends the same half ours does — by lineup row
-  if (opp) {
-    for (const p of starters(opp)) if (available(p)) p.energy = clamp(p.energy - (15 + rand(15)), 0, 100);
-    for (const p of benchPlayers(opp)) if (available(p)) p.energy = clamp(p.energy - (8 + rand(8)), 0, 100);
-  }
-  s.halftime = {
-    myH1: sc.my,
-    oppH1: sc.opp,
-    share,
-    needle: u,
-    planMine: s.plan,
-    box,
-    home,
-    oppName: champ ? champ.name : `${opp!.planet} ${opp!.name}`,
-    drains,
-    forms,
-    formGain,
-  };
-}
-
-/** THE SECOND HALF: the rope recomputes from the NEW lineup, the halftime
-    speech and the meters; a second needle lands; the final is the sum. */
-export function simMyGameH2(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null): SimOutcome {
-  const ht = s.halftime!;
-  const myPlan = s.planH2 ?? s.plan;
-  // the pregame speech is still working the room; the halftime one stacks
-  const h2fx = [s.speechFx, s.speechFxH2].filter((f): f is SpeechFx => !!f);
-  const { mine, theirs } = halfRope(s, me, opp, champ, ht.home, h2fx, ht.forms);
-  const share = winShare(mine, theirs);
-  const u = Math.random();
-  const sc = halfScores(share, u);
-  let myTot = ht.myH1 + sc.my;
-  let oppTot = ht.oppH1 + sc.opp;
-  // the halves can cancel exactly — the last possession goes to the H2 winner
-  if (myTot === oppTot) { if (sc.won) myTot += 1; else oppTot += 1; }
-  const won = myTot > oppTot;
-  const box = mergeBox(ht.box, dealHalfBox(me, sc.my, myPlan, ht.forms));
+  const sc = fullScores(share, u);
+  const box = dealBox(me, sc.my, s.plan, forms);
   const mvpId = commitBox(me, box);
-  const { wheelLine, heroLine } = verdictLines(me, myPlan, won, ht.myH1, ht.oppH1);
+  const { wheelLine, heroLine } = verdictLines(me, s.plan, sc.won, share, Math.abs(sc.my - sc.opp));
   return {
-    won,
+    won: sc.won,
     result: {
-      win: won,
-      myScore: myTot,
-      oppScore: oppTot,
-      oppName: ht.oppName,
-      planMine: myPlan,
+      win: sc.won,
+      myScore: sc.my,
+      oppScore: sc.opp,
+      oppName: champ ? champ.name : `${opp!.planet} ${opp!.name}`,
+      planMine: s.plan,
       wheelLine,
       heroLine,
       boxLine: boxLineFrom(box),
       box,
       share,
       needle: u,
-      home: ht.home,
-      h1: { my: ht.myH1, opp: ht.oppH1, share: ht.share, needle: ht.needle },
-      h2: { my: sc.my, opp: sc.opp, share, needle: u },
+      home,
       mvpId: mvpId ?? undefined,
+      forms,
+      formGain,
     },
   };
 }

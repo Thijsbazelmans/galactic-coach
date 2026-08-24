@@ -14,7 +14,6 @@ import {
   confirmBoard,
   continueFromResult,
   currentStory,
-  deliverHalftimeSpeech,
   deliverSpeech,
   dismissStory,
   finalizeRoster,
@@ -22,7 +21,6 @@ import {
   letGoPro,
   myTeam,
   playGame,
-  playSecondHalf,
   resolveSigning,
   resolveStory,
   retire,
@@ -186,22 +184,9 @@ function playCareer(idx: number): CareerStats {
       case 'gamenight': {
         drainQueue(s);
         if ((s.phase as string) === 'gameover') break;
-        // HALFTIME: swap nothing, a DIFFERENT ready speech (no repeats), play on
-        if (s.halftime && !s.lastResult) {
-          const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id) && pl.id !== s.plan && speechCooldown(s, pl.id) === 0);
-          const best = known[Math.floor(Math.random() * known.length)].id;
-          if (deliverHalftimeSpeech(s, best) === null) throw new Error('halftime speech refused');
-          playSecondHalf(s);
-          const r = s.lastResult as import('../src/engine/types').MyGameResult | null;
-          if (!r || !r.h1 || !r.h2) throw new Error('halves missing from result');
-          // the tie-break possession can add 1 to one side
-          if (Math.abs(r.h1.my + r.h2.my - r.myScore) > 1 || Math.abs(r.h1.opp + r.h2.opp - r.oppScore) > 1) {
-            throw new Error(`halves don't sum: ${r.h1.my}+${r.h2.my}≠${r.myScore}`);
-          }
-          if (r.myScore === r.oppScore) throw new Error('the game ended tied');
-          break;
-        }
         if (!s.lastResult) break; // sim fires when the queue clears
+        if (s.lastResult.myScore === s.lastResult.oppScore) throw new Error('the game ended tied');
+        if (!s.lastResult.box.length) throw new Error('box score missing');
         drainQueue(s);
         if ((s.phase as string) !== 'gamenight') break;
         continueFromResult(s);

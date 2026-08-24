@@ -1,0 +1,10 @@
+{
+  "name": "GALACTIC COACH",
+  "short_name": "GALACTIC",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#04120a",
+  "theme_color": "#04120a",
+  "start_url": "./",
+  "icons": []
+}
