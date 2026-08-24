@@ -981,13 +981,17 @@ const ICON_PIXELS: Record<IconKind, string[]> = {
     '.XX.....',
     'XX......',
   ],
+  // a 1px circle, two 2px eyes, a 3px mouth — nothing more
   facex: [
-    '.XX..XX.',
-    '.XX..XX.',
-    '........',
-    'X......X',
-    '.X....X.',
-    '..XXXX..',
+    '..XXXXX..',
+    '.X.....X.',
+    'X.......X',
+    'X.X...X.X',
+    'X.X...X.X',
+    'X.......X',
+    'X..XXX..X',
+    '.X.....X.',
+    '..XXXXX..',
   ],
   // CREDITS (the coach's currency — player ⚡ stays player ⚡)
   credit: [

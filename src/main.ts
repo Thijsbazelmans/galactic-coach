@@ -625,7 +625,7 @@ function edgeGauge(side: 'l' | 'r', value: number, kind: 'boltx' | 'facex', pid:
       ${band}
       <g class="gsegs" clip-path="url(#${id})">${segs}</g>
     </svg>
-    <img class="gicon ${v < 25 ? 'blink' : ''}" src="${iconOutlinedUrl(kind, bright)}" alt=""/>
+    <img class="gicon ${v < 25 ? 'blink' : ''}" src="${iconOutlinedUrl(kind, ramp(0.8))}" alt=""/>
   </span>`;
 }
 
@@ -900,6 +900,20 @@ function nextOppLabel(s: GameState): string {
   return t.name;
 }
 
+/** The top row: the whole screen is already your color — no need to print
+    your own name. Plain text week + the OPPONENT in THEIR colors. */
+function nextOppRow(s: GameState): string {
+  const champ = isUtWeek(s) ? utOpponent(s) : null;
+  if (champ) {
+    return `${weekLabel(s)} · vs ${chip(champ.name, champ.bg, champ.fg, true)}`;
+  }
+  const m = myMatchup(s);
+  if (m) {
+    return `W${s.week} · ${m.home ? 'vs' : '@'} ${chip(m.opponent.name, m.opponent.bg, m.opponent.fg, true)}`;
+  }
+  return `<span class="dim">OFFSEASON</span>`;
+}
+
 function headerHtml(s: GameState): string {
   const t = myTeam(s);
   const cells = Array.from({ length: CACHE_MAX }, (_, i) =>
@@ -909,9 +923,9 @@ function headerHtml(s: GameState): string {
   const rank = ordinal(1 + sortedStandings(s).findIndex((x) => x.id === s.myTeamId));
   return `<div class="topbar ${gxResult ? 'spotlight' : ''} ${jobFlash ? 'jobflash' : ''}">
     <div class="hgrid">
-      <button class="chip hchip" data-action="sched-open" style="background:${t.bg};color:${t.fg}">${esc(nextOppLabel(s))}</button>
+      <button class="hrow hopp" data-action="sched-open">${nextOppRow(s)}</button>
       ${jobBar(s)}
-      <button class="weeklab hrow" data-action="stand-open">S<b>${Math.max(1, s.season)}</b> · <b>${weekLabel(s)}</b> · ${t.wins}–${t.losses} · <b>${rank}</b></button>
+      <button class="weeklab hrow" data-action="stand-open">S<b>${Math.max(1, s.season)}</b> · ${t.wins}–${t.losses} · <b>${rank}</b></button>
       <div class="ebar" title="credits ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">
         <img class="jicon ${s.energy < 2 ? 'blink' : 'ghost'}" src="${iconUrl('alert', ramp(0.9))}" alt=""/>
         <div class="etrack ${s.energy === 0 ? 'blink' : ''}">${cells}</div>

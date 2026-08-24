@@ -1066,7 +1066,11 @@ DOWN blinks dark — cascade counts included); player-target items drag
 onto cards whenever a grid is on screen, and an inapplicable drop
 BOUNCES without consuming the item (`ItemDef.check` — the vial waits for
 someone actually hurt); the gauges got elegant (curved, gradient,
-redrawn minimal bolt/face icons).
+half-width, with SMALL fixed-color icons — job-security scale — centered
+just above each gauge; the face is a 1px circle with two 2px eyes and a
+3px mouth, nothing more). Header rows deduped live: top row is plain
+«W1 · vs [OPPONENT]» in the opponent's colors (your own name is the
+whole screen already), second row just «S1 · 0–0 · 3rd».
 
 **Balance after the rework** (26-season harness, random-story play):
 ~78–81% regular-season wins with REAL firing pressure (the trio makes
