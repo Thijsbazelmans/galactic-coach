@@ -463,6 +463,9 @@ export interface GameState {
   proDeparts: ProDepart[];
   commits: Player[];
   selectPool: Player[];
+  /** THE SUMMER, shown on the selection grid: per-returner growth (old OVR →
+      the card's number now, blinking the delta in place) */
+  summerRecap?: { playerId: number; ovrFrom: number; note?: string }[];
   signingResults: string[];
   seasonNotes: string[];
   seasonChampion: string | null;

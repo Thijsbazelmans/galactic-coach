@@ -1711,7 +1711,7 @@ export const STORIES: StoryDef[] = [
       if (key === 'mascot') {
         const t = tails(25, 10);
         if (t === 'up') return { text: 'The void-pup attends every practice from a courtside crate and learns to fetch rebounds. Morale is illegal levels of high. It has eaten two whistles — and dug up something shiny for THE BAG.', fx: [{ teamMood: 12 }, { teamEnergyP: 5 }, { giveItem: 'poster' }] };
-        if (t === 'down') return { text: `The void-pup phased through a wall into the Dean's office and unmade his desk. ${p.name} took the blame. There is paperwork.`, fx: [{ teamMood: 5 }, { heatS: 10 }] };
+        if (t === 'down') return { text: `The void-pup phased through a wall into the Dean's office and unmade her desk. ${p.name} took the blame. There is paperwork.`, fx: [{ teamMood: 5 }, { heatS: 10 }] };
         return { text: 'The void-pup becomes furniture with teeth. The team is 30% happier and 100% more bitten.', fx: [{ teamMood: 10 }] };
       }
       const t = tails(5, 10);
@@ -1763,7 +1763,7 @@ export const STORIES: StoryDef[] = [
     figure: 'dean',
     beat: () => ({
       tag: "THE DEAN DROPS BY",
-      text: 'The Dean appears in your doorway holding two cups of faculty coffee, one of which is for himself. The Provost, he mentions, "would love" the arena Thursday evening. For low-gravity tai chi. Faculty only.',
+      text: 'The Dean appears in your doorway holding two cups of faculty coffee, one of which is for herself. The Provost, she mentions, "would love" the arena Thursday evening. For low-gravity tai chi. Faculty only.',
       choices: [
         C('lend', 'LEND THE ARENA. SIP THE COFFEE.', { up: { pct: 10, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAIN' } }),
         C('refuse', '"THURSDAY IS SHOOTAROUND, DEAN."', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' } }),
@@ -1777,8 +1777,8 @@ export const STORIES: StoryDef[] = [
         return { text: 'Forty professors do slow-motion kicks under your championship banner. The Dean beams at you the whole time. It costs you nothing but the image.', fx: [{ heatS: -6 }] };
       }
       const t = tails(5, 10);
-      if (t === 'up') return { text: 'The Dean nods slowly. "A program with priorities." He respects it, visibly, against his will.', fx: [{ heatS: 2, teamMood: 3 }] };
-      if (t === 'down') return { text: 'The Dean leaves without finishing his coffee. The requisition forms develop "processing delays".', fx: [{ heatS: 8 }] };
+      if (t === 'up') return { text: 'The Dean nods slowly. "A program with priorities." She respects it, visibly, against her will.', fx: [{ heatS: 2, teamMood: 3 }] };
+      if (t === 'down') return { text: 'The Dean leaves without finishing her coffee. The requisition forms develop "processing delays".', fx: [{ heatS: 8 }] };
       return { text: 'The Dean shrugs and books the aquatics dome instead. Somewhere, swimmers suffer.', fx: [{ heatS: 4 }] };
     },
   },
@@ -2225,7 +2225,7 @@ export const STORIES: StoryDef[] = [
     resolve: (key) => {
       if (key === 'daughter') {
         return {
-          text: 'Minervva signs the eligibility forms her father happens to have on hand. She IS good. The Dean now attends every practice "as family". The school owns a piece of your lineup and knows it.',
+          text: 'Minervva signs the eligibility forms her mother happens to have on hand. She IS good. The Dean now attends every practice "as family". The school owns a piece of your lineup and knows it.',
           fx: [{ addPlayer: 'daughter' }, { heatS: 5 }],
           follow: [{ weeks: 4, beat: 'start', defId: 'daughter_favor', playerId: null }],
         };
@@ -2250,7 +2250,7 @@ export const STORIES: StoryDef[] = [
     figure: 'dean',
     beat: () => ({
       tag: 'FAMILY SEATS',
-      text: 'The Dean "wonders aloud", in your doorway, whether his daughter shouldn\'t be STARTING. He wonders it while holding the eligibility forms he could unsign.',
+      text: 'The Dean "wonders aloud", in your doorway, whether her daughter shouldn\'t be STARTING. She wonders it while holding the eligibility forms she could unsign.',
       choices: [
         C('start', 'START HER THIS WEEK', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' } }),
         C('merit', '"SHE PLAYS WHEN SHE EARNS IT."', { up: { pct: 10, cls: 'SPIRIT' }, down: { pct: 25, cls: 'SCANDAL' } }),
@@ -2263,7 +2263,7 @@ export const STORIES: StoryDef[] = [
         return { text: 'She starts, and plays well enough that the question answers itself. This time.', fx: [{ heatS: -8 }] };
       }
       const t = tails(10, 25);
-      if (t === 'up') return { text: 'She backs you IN THE MEETING. "I play when I earn it." The Dean leaves defeated by his own bloodline.', fx: [{ teamMood: 8 }] };
+      if (t === 'up') return { text: 'She backs you IN THE MEETING. "I play when I earn it." The Dean leaves defeated by her own bloodline.', fx: [{ teamMood: 8 }] };
       if (t === 'down') return { text: 'The Dean unsmiles. The eligibility forms develop "processing delays".', fx: [{ heatS: 12 }] };
       return { text: 'The Dean withdraws, wounded, to wonder aloud in other doorways.', fx: [{ heatS: 5 }] };
     },
@@ -2492,6 +2492,32 @@ STORIES.push({
   id: 'notice',
   kind: 'coach',
   beat: (_b, ctx) => ({ tag: (ctx.data.tag as string) ?? 'NEWS', text: (ctx.data.text as string) ?? '' }),
+  resolve: () => ({ text: '' }),
+});
+
+// THE REVEAL CARD: anything gained gets its own dialog showing exactly what
+// you received — the UI renders the picker-row preview from data.kind/id
+STORIES.push({
+  id: 'reveal',
+  kind: 'coach',
+  beat: (_b, ctx) => {
+    const kind = ctx.data.kind as string;
+    const id = ctx.data.id as string;
+    if (kind === 'speech') {
+      const pl = PLANS.find((x) => x.id === id)!;
+      return { tag: '★ NEW LOCKER ROOM SPEECH ★', text: `${pl.name} is yours now, forever. The next room you say it in will believe you.` };
+    }
+    if (kind === 'drill') {
+      const d = drillById(id);
+      return { tag: '★ NEW PRACTICE METHOD ★', text: `${d.name} joins the practice board. The squad doesn't know what's coming.` };
+    }
+    if (kind === 'region') {
+      const a = galaxyActById(id);
+      return { tag: '★ NEW STAR CHARTS ★', text: `${a.name} is on your search charts now. Somewhere out there, a kid is warming up.` };
+    }
+    const item = itemById(id);
+    return { tag: '★ NEW ITEM IN THE BAG ★', text: `${item.name} goes into THE BAG.` };
+  },
   resolve: () => ({ text: '' }),
 });
 

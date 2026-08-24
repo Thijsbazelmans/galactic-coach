@@ -185,9 +185,9 @@ function playCareer(idx: number): CareerStats {
       case 'gamenight': {
         drainQueue(s);
         if ((s.phase as string) === 'gameover') break;
-        // HALFTIME: swap nothing, speech again, play on
+        // HALFTIME: swap nothing, a DIFFERENT speech (no repeats), play on
         if (s.halftime && !s.lastResult) {
-          const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id));
+          const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id) && pl.id !== s.plan);
           const best = known[Math.floor(Math.random() * known.length)].id;
           if (deliverHalftimeSpeech(s, best) === null) throw new Error('halftime speech refused');
           playSecondHalf(s);

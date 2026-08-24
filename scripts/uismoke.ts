@@ -112,8 +112,10 @@ async function main(): Promise<void> {
   if (prospects.some((p: any) => p.seenSkill || p.seenPot || p.digits > 0)) throw new Error('fresh prospects should be total strangers');
   if (!app.innerHTML.includes('prq')) throw new Error('?? masks missing on the board');
   if (!app.innerHTML.includes('TARGETS')) throw new Error('priority-board row labels missing');
-  // the species is always named — free information
-  if (!app.innerHTML.includes('TERRAN')) throw new Error('species names missing on the board');
+  // the species signs the STATS card, in their skin color
+  (app.querySelectorAll('[data-action="lens-set"]')[1] as unknown as { click: () => void }).click();
+  if (!app.innerHTML.includes('prspecies') || !app.innerHTML.includes('TERRAN')) throw new Error('species missing on the STATS card');
+  must('[data-action="lens-set"]', 'back to BIG BOARD');
   // the picker defaults to the FREE option (LOCAL REC CENTER)
   if (!app.innerHTML.includes('LOCAL REC CENTER')) throw new Error('free option not the default');
   // mandatory action: nav dimmed until one lands

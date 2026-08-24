@@ -546,6 +546,13 @@ export interface RigView {
 
 interface Look { tintIx: number; hairIx: number; styleIx: number; socks: 'none' | 'knee' | 'striped'; wrist: boolean; }
 
+/** The player's actual skin tone (for UI accents like the species line). */
+export function skinTone(speciesId: string, id: number): string {
+  const skins = SKINS_SP[speciesId] ?? SKINS_SP.terran;
+  const rng = mulberry((id * 2654435761) >>> 0);
+  return skins[Math.floor(rng() * 4)];
+}
+
 function lookFor(id: number, species: string, form: 'masc' | 'femme'): Look {
   const rng = mulberry((id * 2654435761) >>> 0);
   const styles = species === 'terran' ? STYLES[form] : STYLES[species] ?? STYLES.masc;

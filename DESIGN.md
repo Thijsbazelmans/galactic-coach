@@ -936,6 +936,62 @@ rate · ~3.2–3.7 UT titles/career** — the v3.2 arc held through the
 generation rework after two counterweights (AI transfer refill, AI
 summer growth 2+rand(3), league-wide STANDOUT drip).
 
+## v4.1 — THE PLAYTEST POLISH (Aug 23/24, 2026 — Thijs's live v4.0 notes)
+
+Thijs played v4.0 and dictated fourteen notes live; all shipped:
+
+**THE CHANGE LANGUAGE (the big one — most stickers are dead).** A change
+animates IN PLACE: a changed number blinks old-dim ↔ new-bright
+(`numSwap`), a changed gauge blinks its removed segment dimly / added
+segment brightly (delta bands on the edge gauges, the XP ring arc, and
+the team bars — the cascade now leaves the added portion blinking bright
+/ the removed portion dark on the bar). Everything blinks on one wall
+clock (`wallPhase`), so re-renders never restart it. Only two sticker
+spots survive: MAIN under the name (box scores, things happening,
+MISCAST) and HI smack across the player aligned with the gauge bottoms
+(MVP / STANDOUT / OFF DAY / TIRED). Two or more labels in a spot change
+out back to back (`cyc2`/`cyc3`). ON FIRE has no sticker — the sprite
+burns and the name keeps its 🔥.
+
+**MISCAST shows its real cost**: main-spot label + the OVR blinking true
+→ effective (OVR × (1−pct)); fully transient. **The gauges got subtle**:
+a curved taper (quadratic path) instead of the straight diagonal, the
+brightness gradient inside the fill (bottom darker, top brighter),
+softer background/segments. **LVL brightened** in the ring, and the OVR
+number got a matching label above it (`ovrBlock`) — prospects' masked
+ratings too. **The matchup cards** carry the bare current-ability
+diamond behind the player (no labels, no potential). **Recruiting
+POTENTIAL view**: the ?? / stars sit dead center inside the skill cloud.
+**The species** left the top strip: it signs the BOTTOM of the STATS
+card in the player's actual skin color (`skinTone`), blurb centered.
+**The board drags on every lens.** **Every screen change lands on the
+MAIN view** (lens resets with the build). **The in-game animation slowed
+a touch** (needle sweep 1.9s, longer halftime build, slower sweeps).
+
+**Speeches always land.** A speech now ALWAYS gives +1..boost in its
+attribute (rolled), 10% IGNITES for boost+1, 5% a believer stops
+believing (mood −25, the words still land at minimum) — never nothing.
+The pregame speech persists ALL GAME (`matchAttrs` takes stacked fx);
+halftime must pick a DIFFERENT speech (the picker marks the pregame one
+"still ringing in their ears"). The opponent's locker room hears a
+mirror speech (+1–2 their plan attr; champs +flat) — fairness law held
+(~68% / ~3.6 titles on the harness, within band).
+
+**THE REVEAL CARD**: anything gained — speech, drill, region, item —
+gets its own follow-up dialog with the actual picker-row / item-card
+preview («NEW LOCKER ROOM SPEECH» + the row). No more mystery words
+drawn in the sand. **The offseason lives on the grids**: THE SUMMER
+lands on the selection grid (old OVR blinking into the new, «THE SUMMER
++N» in the main spot, `summerRecap`), and SIGNING DAY happens ON the
+board — tap a name to send the letter, the card wears «LETTER →62%»,
+rows still read TARGETS/BACKUPS/LAST RESORTS.
+
+**THE DEAN IS A SHE** (the bun-and-skirt illustration always was) — all
+her story texts now say so; Minervva signs the forms her MOTHER happens
+to have on hand. Also fixed: a latent crash when the ride-home smugglers
+took a player whose weekly story was still stored (beginWeek now drops
+stories for the departed).
+
 ## NEXT SESSION (pick up here)
 
 Fresh-session state: the game is **v4.0 — THE OVERHAUL** (see the entry
@@ -960,6 +1016,13 @@ choices are hold-buttons that ignore clicks — drive them via the
 
 ### Backlog (in rough priority)
 
+- **Thijs's v4.0 playtest notes — SHIPPED, all fourteen, as v4.1** (see
+  the entry above): change language replaces stickers, subtle curved
+  gauges, LVL/OVR labels, cascade delta bands, MISCAST real cost,
+  centered potential stars, species on the STATS card, matchup diamonds,
+  lens resets, all-lens board drag, slower game-night animation, speeches
+  always land + no halftime repeats + full-game persistence, the reveal
+  card, the offseason on the grids, and the Dean is a she.
 - **THE NEXT OVERHAUL (Aug 23 playtest list + the three session blocks:
   GROWTH & SPECIES, PRIORITY BOARD, STORY SESSION) — SHIPPED, all of it,
   as v4.0.** See the v4.0 entry above for what landed and the four calls

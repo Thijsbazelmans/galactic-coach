@@ -137,16 +137,22 @@ function playerCond(p: Player, col: number): number {
   return meterMult(p.energy) * meterMult(p.mood) * slotMult(p, col) * (p.onFire ? 1.2 : 1);
 }
 
-/** Per-attribute weighted team values (the four rope rows). fx = a landed
-    speech; forms = tonight's hot/cold rolls (game night only). */
-export function matchAttrs(t: Team, fx: SpeechFx | null = null, forms?: Forms): AttrRec {
+/** Per-attribute weighted team values (the four rope rows). fx = the landed
+    speeches (the pregame one carries the whole game; halftime stacks a
+    second); forms = tonight's hot/cold rolls (game night only). */
+export function matchAttrs(t: Team, fx: SpeechFx | SpeechFx[] | null = null, forms?: Forms): AttrRec {
+  const fxs: SpeechFx[] = fx ? (Array.isArray(fx) ? fx : [fx]) : [];
   const out = zeroAttrs();
   for (let c = 0; c < 3; c++) {
     for (const [row, w] of [[0, 0.75], [1, 0.25]] as [number, number][]) {
       const p = slotPlayer(t, row * 3 + c);
       if (!p || !available(p)) continue;
       const cond = playerCond(p, c) * w * formMult(forms, p.id);
-      for (const a of ATTRS) out[a] += (p.attrs[a] + (fx && a === fx.attr ? fx.amt : 0)) * cond;
+      for (const a of ATTRS) {
+        let v = p.attrs[a];
+        for (const f of fxs) if (f.attr === a) v += f.amt;
+        out[a] += v * cond;
+      }
     }
   }
   for (const a of ATTRS) out[a] = Math.round(out[a] * 10) / 10;
@@ -154,7 +160,7 @@ export function matchAttrs(t: Team, fx: SpeechFx | null = null, forms?: Forms): 
 }
 
 /** The whole rope: the four rows added up. */
-export function teamPower(t: Team, fx: SpeechFx | null = null, forms?: Forms): number {
+export function teamPower(t: Team, fx: SpeechFx | SpeechFx[] | null = null, forms?: Forms): number {
   return ovr(matchAttrs(t, fx, forms));
 }
 
@@ -345,12 +351,17 @@ function halfRope(
   opp: Team | null,
   champ: ChampTeam | null,
   home: boolean,
-  fx: SpeechFx | null,
+  fx: SpeechFx | SpeechFx[] | null,
   forms?: Forms
 ): { mine: number; theirs: number } {
   const [vm, vt] = champ ? [1, 1] : home ? [1.03, 1] : [1, 1.03];
   let mine = teamPower(me, fx, forms) * vm;
-  let theirs = (champ ? champ.power : teamPower(opp!)) * vt;
+  // their locker room hears a speech too — speeches always land now, so the
+  // mirror keeps the rope honest (fairness law)
+  const oppAmt = 1 + rand(2);
+  let theirs = (champ
+    ? champ.power + oppAmt
+    : teamPower(opp!, { attr: planById(opp!.plan).attr, amt: oppAmt })) * vt;
   if (s.pregameFlags.wallet) mine *= 1.03; // the whistle leans your way
   if (s.pregameFlags.cloak) theirs *= 0.95; // they prepared for the wrong team
   if (s.pregameFlags.alarm) theirs *= 0.92; // the 3am fire alarm
@@ -426,7 +437,9 @@ export function simMyGameH1(s: GameState, me: Team, opp: Team | null, champ: Cha
 export function simMyGameH2(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null): SimOutcome {
   const ht = s.halftime!;
   const myPlan = s.planH2 ?? s.plan;
-  const { mine, theirs } = halfRope(s, me, opp, champ, ht.home, s.speechFxH2 ?? null, ht.forms);
+  // the pregame speech is still working the room; the halftime one stacks
+  const h2fx = [s.speechFx, s.speechFxH2].filter((f): f is SpeechFx => !!f);
+  const { mine, theirs } = halfRope(s, me, opp, champ, ht.home, h2fx, ht.forms);
   const share = winShare(mine, theirs);
   const u = Math.random();
   const sc = halfScores(share, u);

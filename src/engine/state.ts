@@ -214,14 +214,21 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
     if (fx.teamEnergyP) for (const q of t.players) q.energy = clamp(q.energy + fx.teamEnergyP, 0, 100);
     if (fx.giveItem) giveItem(s, fx.giveItem);
     if (fx.loseItemIdx !== undefined) s.bag.splice(fx.loseItemIdx, 1);
+    // anything GAINED gets THE REVEAL CARD: a follow-up dialog that shows
+    // exactly what you received, picker-row preview and all
     if (fx.unlockDrill && !s.unlockedDrills.includes(fx.unlockDrill)) {
       s.unlockedDrills.push(fx.unlockDrill);
       s.careerLog.push(`Learned ${drillById(fx.unlockDrill).name} (season ${s.season}).`);
+      queueStory(s, 'reveal', 'start', null, { kind: 'drill', id: fx.unlockDrill });
     }
-    if (fx.unlockRegion && !s.unlockedRegions.includes(fx.unlockRegion)) s.unlockedRegions.push(fx.unlockRegion);
+    if (fx.unlockRegion && !s.unlockedRegions.includes(fx.unlockRegion)) {
+      s.unlockedRegions.push(fx.unlockRegion);
+      queueStory(s, 'reveal', 'start', null, { kind: 'region', id: fx.unlockRegion });
+    }
     if (fx.unlockPlan && !s.knownPlans.includes(fx.unlockPlan)) {
       s.knownPlans.push(fx.unlockPlan);
       s.careerLog.push(`Learned ${planById(fx.unlockPlan).name} (season ${s.season}).`);
+      queueStory(s, 'reveal', 'start', null, { kind: 'speech', id: fx.unlockPlan });
     }
     if (fx.intel && s.prospects.length < MAX_PROSPECTS) {
       const counter = { nextId: s.nextId };
@@ -297,6 +304,8 @@ function giveItem(s: GameState, itemId: string): void {
   if (s.bag.length < BAG_SIZE) {
     s.bag.push(itemId);
     maybeTip(s, 'bag');
+    // the reveal card: show what just landed in THE BAG
+    queueStory(s, 'reveal', 'start', null, { kind: 'item', id: itemId });
     return;
   }
   queueStory(s, 'bagfull', 'start', null, { itemId });
@@ -632,7 +641,11 @@ export function beginWeek(s: GameState): void {
     const p = t.players.find((x) => x.id === row.playerId);
     if (p) lastLevelUps.push(...addXp(s, p, row.xpGain));
   }
-  for (const req of s.storedStories ?? []) queueStory(s, req.defId, req.beat, req.playerId, req.data ?? {});
+  for (const req of s.storedStories ?? []) {
+    // the ride home can TAKE somebody — his stored story leaves with him
+    if (req.playerId !== null && !t.players.some((p) => p.id === req.playerId)) continue;
+    queueStory(s, req.defId, req.beat, req.playerId, req.data ?? {});
+  }
   s.storedStories = [];
   s.phase = s.queue.length ? 'stories' : isUtWeek(s) ? 'matchup' : 'practice';
   if (s.phase === 'practice') maybeTip(s, 'practice');
@@ -1011,29 +1024,37 @@ export function confirmBoard(s: GameState): string[] {
 
 // ---- matchup ---------------------------------------------------------------------------
 
-/** THE SPEECH: mandatory, once, a gamble. Small chance the room IGNITES
-    (+attr for everyone tonight), smaller chance somebody stops believing.
-    Returns the outcome text (the room's verdict), or null if refused. */
-function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx | null; text: string } {
+/** THE SPEECH: mandatory, once per half — and it ALWAYS lands with a range
+    of effect, never none. The room plays +1..boost in the speech's
+    attribute; a small chance it IGNITES (boost+1), a smaller chance a
+    believer stops believing (mood −25, the words still land at minimum).
+    The pregame speech carries through the WHOLE game; the halftime speech
+    (a different one, by law) stacks on top. */
+function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx; text: string } {
   const pl = planById(plan);
   const t = myTeam(s);
   const r = Math.random() * 100;
+  const A = pl.attr.toUpperCase();
   if (r < pl.down) {
     const pool = t.players.filter((p) => p.outWeeks === 0);
     const p = pool.length ? pick(pool) : null;
     if (p) {
       p.mood = clamp(p.mood - 25, 0, 100);
-      return { fx: null, text: genderize(`"${pl.speech}," you say. ${p.name} looks at the floor. He's heard this one before, and tonight he doesn't believe a word of it. MOOD −25.`, p.form) };
+      return {
+        fx: { attr: pl.attr, amt: 1 },
+        text: genderize(`"${pl.speech}," you say. Most of the room leans in — squad +1 ${A} tonight — but ${p.name} looks at the floor. He's heard this one before, and tonight he doesn't believe a word of it. MOOD −25.`, p.form),
+      };
     }
-    return { fx: null, text: `"${pl.speech}," you say, to a very quiet room.` };
+    return { fx: { attr: pl.attr, amt: 1 }, text: `"${pl.speech}," you say, to a very quiet room. It lands, barely. Squad +1 ${A} tonight.` };
   }
   if (r < pl.down + pl.up) {
     return {
-      fx: { attr: pl.attr, amt: pl.boost },
-      text: `"${pl.speech}!" — and the room IGNITES. Chairs go over. Somebody headbutts a locker, affectionately. The whole squad plays +${pl.boost} ${pl.attr.toUpperCase()} tonight.`,
+      fx: { attr: pl.attr, amt: pl.boost + 1 },
+      text: `"${pl.speech}!" — and the room IGNITES. Chairs go over. Somebody headbutts a locker, affectionately. The whole squad plays +${pl.boost + 1} ${A} tonight.`,
     };
   }
-  return { fx: null, text: `"${pl.speech}," you say. Nods. A few slapped shoulders. The room heard you. The rest is on them.` };
+  const amt = 1 + rand(pl.boost);
+  return { fx: { attr: pl.attr, amt }, text: `"${pl.speech}," you say. Nods. Slapped shoulders. The room heard you — squad +${amt} ${A} tonight.` };
 }
 
 export function deliverSpeech(s: GameState, plan: PlanId): string | null {
@@ -1206,9 +1227,10 @@ function simWeek(s: GameState): void {
   save(s);
 }
 
-/** HALFTIME SPEECH: mandatory before the second half — its own fresh roll. */
+/** HALFTIME SPEECH: mandatory before the second half — its own fresh roll,
+    and NEVER the pregame speech again (that one is still working the room). */
 export function deliverHalftimeSpeech(s: GameState, plan: PlanId): string | null {
-  if (!s.halftime || s.speechH2 || !s.knownPlans.includes(plan)) return null;
+  if (!s.halftime || s.speechH2 || !s.knownPlans.includes(plan) || plan === s.plan) return null;
   s.planH2 = plan;
   s.speechH2 = true;
   const out = rollSpeech(s, plan);
@@ -1566,13 +1588,15 @@ export function resolveSigning(s: GameState): void {
   // the verdicts get their OWN dialogue box
   queueStory(s, 'notice', 'start', null, { tag: 'SIGNING DAY', text: s.signingResults.join('\n') });
 
-  // THE SUMMER: the returners develop BEFORE you pick — its own dialogue box
+  // THE SUMMER: the returners develop BEFORE you pick — and it shows ON the
+  // selection grid (old OVR blinking into the new one), not in a list dialog
   const t = myTeam(s);
-  const notes: string[] = [];
+  s.summerRecap = [];
   for (const p of t.players) {
+    const ovrFrom = ovr(p.attrs);
     p.classYear = Math.min(3, p.classYear + 1);
-    const bump = bumpAny(p, 1 + rand(3));
-    let driftNote = '';
+    bumpAny(p, 1 + rand(3));
+    let leaned = false;
     if (roll(25)) {
       // his body keeps leaning into what his species is (balanced species
       // lean into whatever HE already is)
@@ -1580,14 +1604,13 @@ export function resolveSigning(s: GameState): void {
       const a = sp.bias.length ? pick(sp.bias) : bestAttr(p.pots);
       const before = p.attrs[a];
       p.attrs[a] = Math.min(p.pots[a], p.attrs[a] + 2);
-      if (p.attrs[a] > before) driftNote = ` — and his body kept leaning into what it is (+${p.attrs[a] - before} ${a.toUpperCase()})`;
+      leaned = p.attrs[a] > before;
     }
     p.energy = METER_BASELINE - 3 + rand(9);
     p.mood = clamp(p.mood + 15, 60, 85);
     p.outWeeks = 0; p.outReason = ''; p.dnp = 0; p.startStreak = 0;
-    notes.push(genderize(`${p.name}: +${bump} over the summer${driftNote}.`, p.form));
+    s.summerRecap.push({ playerId: p.id, ovrFrom, note: leaned ? 'LEANED IN' : undefined });
   }
-  if (notes.length) queueStory(s, 'notice', 'start', null, { tag: 'THE SUMMER', text: notes.join('\n') });
 
   // the pool, in reading order: returners first, then the new recruits,
   // then walk-ons filling the empty seats
@@ -1643,6 +1666,7 @@ export function startNewSeason(s: GameState): void {
   s.commits = [];
   s.selectPool = [];
   s.signingResults = [];
+  s.summerRecap = [];
   s.seasonChampion = null;
   s.groundedWeeks = 0;
   s.proDeparts = [];

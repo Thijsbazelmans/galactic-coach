@@ -413,7 +413,7 @@ button.hold.wiggle::after {
 .krbg { fill: none; stroke: var(--r20); stroke-width: 3.5; }
 .krfill { fill: none; stroke: var(--r75); stroke-width: 3.5; }
 .krtxt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; gap: 1px; }
-.krtxt i { font-style: normal; font-size: 6px; letter-spacing: 0.5px; color: var(--r35); }
+.krtxt i { font-style: normal; font-size: 6px; letter-spacing: 0.5px; color: var(--r75); }
 .krtxt b { font-size: 11px; color: var(--r95); }
 /* the POT chip (growth lens) mirrors the ring's spot */
 .kpot { display: flex; flex-direction: column; align-items: center; line-height: 1.1; background: rgba(0, 0, 0, 0.72); border: 1px solid var(--r35); padding: 2px 5px; gap: 1px; }
@@ -455,7 +455,7 @@ button.hold.wiggle::after {
 /* the center readout: ?? / a two-row range / the number */
 .kcenter {
   position: absolute;
-  left: 50%; top: 34%;
+  left: 50%; top: 50%;
   transform: translate(-50%, -50%);
   z-index: 3;
   font-size: 14px; font-weight: bold;
@@ -611,23 +611,30 @@ button.hold.wiggle::after {
 }
 .floater.down { color: var(--r35); border-color: var(--r20); }
 
-/* stickers: ONE main slot under the name; every other sticker lands ON the
-   stat it changes (+XP on the ring, +SKL on the OVERALL, −MOOD on the mood
-   gauge). They pop ONCE per action — a re-render shows them landed (or not
-   at all, once seen). */
-.stickers {
+/* the two sticker spots that survive (everything else animates in place):
+   MAIN under the name — box scores, things happening, MISCAST;
+   HI smack across the player, aligned with the gauge bottoms — MVP,
+   STANDOUT, OFF DAY, TIRED. Multiple labels in a spot cycle back to back. */
+.spot {
   position: absolute;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  place-items: center;
   z-index: 5;
   pointer-events: none;
 }
-.stickers.anch-main { left: 50%; top: 16px; transform: translateX(-50%); align-items: center; }
-.stickers.anch-xp { right: 1px; bottom: 30px; align-items: flex-end; }
-.stickers.anch-ovr { left: 1px; bottom: 24px; align-items: flex-start; }
-.stickers.anch-energy { left: 1px; top: 38%; align-items: flex-start; }
-.stickers.anch-mood { right: 1px; top: 38%; align-items: flex-end; }
+.spot > .sticker { grid-area: 1 / 1; }
+.spot-main { left: 50%; top: 16px; transform: translateX(-50%); }
+.spot-hi { left: 50%; top: 62%; transform: translate(-50%, -50%); }
+/* two or three labels share the spot: each is visible for its slice */
+.spot .sticker.cyc { opacity: 0; }
+@keyframes cyc2 {
+  0%, 47% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes cyc3 {
+  0%, 30.5% { opacity: 1; }
+  33.3%, 100% { opacity: 0; }
+}
 .sticker {
   background: #000;
   border: 1px solid var(--r55);
@@ -971,17 +978,28 @@ button.hold.wiggle::after {
 .gauge.gl { left: 0; }
 .gauge.gr { right: 0; }
 .gauge svg { display: block; width: 100%; height: 100%; }
-.gauge .gbg { fill: var(--r20); fill-opacity: 0.55; }
-.gauge .gsegs line { stroke: #000; stroke-width: 2; vector-effect: non-scaling-stroke; opacity: 0.7; }
+.gauge .gbg { fill: var(--r20); fill-opacity: 0.35; }
+.gauge .gfill { opacity: 0.9; }
+.gauge .gsegs line { stroke: #000; stroke-width: 2; vector-effect: non-scaling-stroke; opacity: 0.5; }
+/* the change language on a gauge: removed segment blinks dimly, added brightly */
+.gauge .gband { animation: gblink 1.4s steps(1) infinite; }
+.gauge .gband.up { fill: var(--r95); }
+.gauge .gband.down { fill: #000; }
+@keyframes gblink {
+  0%, 49% { opacity: 0.95; }
+  50%, 100% { opacity: 0.15; }
+}
 .gauge .gicon {
   position: absolute;
   top: 6px;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   image-rendering: pixelated;
 }
-.gauge.gl .gicon { left: 15%; }
-.gauge.gr .gicon { right: 15%; }
+.gauge.gl .gicon { left: 14%; }
+.gauge.gr .gicon { right: 14%; }
+/* the matchup's bare ability diamond, glowing behind the player */
+.ksvg.bare .k-cur { fill-opacity: 0.22; stroke-opacity: 0.45; }
 
 /* ---- THE SCOPE PREVIEW: the action button blinks in sync with every card
    it will touch; everything outside the scope dims ------------------------- */
@@ -1029,14 +1047,14 @@ button.actmain.scopehl { border-color: var(--r95); }
 .build .navbar .navmain { animation: bfade 0.26s 0.48s both; }
 /* HALFTIME builds slower and in order: header → score (home first) → cards →
    stickers (their own delays) → the ropes → the speech → the button */
-.build-half .middle .halfline { animation: bfade 0.3s 0.2s both; }
-.build-half .middle .halfline .chip:last-child { animation: bfade 0.25s 0.25s both; }
-.build-half .middle .halfline .chip:first-child { animation: bfade 0.25s 0.45s both; }
-.build-half .middle .grid .gridrow:nth-child(2) { animation: bfade 0.25s 0.6s both; }
-.build-half .middle .grid .gridrow:nth-child(3) { animation: bfade 0.25s 0.75s both; }
-.build-half .middle .grid .gridrow:nth-child(4) { animation: bfade 0.25s 0.9s both; }
-.build-half .middle .botstack { animation: bfade 0.3s 1.15s both; }
-.build-half .navbar .navmain { animation: bfade 0.3s 1.4s both; }
+.build-half .middle .halfline { animation: bfade 0.35s 0.25s both; }
+.build-half .middle .halfline .chip:last-child { animation: bfade 0.3s 0.3s both; }
+.build-half .middle .halfline .chip:first-child { animation: bfade 0.3s 0.55s both; }
+.build-half .middle .grid .gridrow:nth-child(2) { animation: bfade 0.3s 0.75s both; }
+.build-half .middle .grid .gridrow:nth-child(3) { animation: bfade 0.3s 0.95s both; }
+.build-half .middle .grid .gridrow:nth-child(4) { animation: bfade 0.3s 1.15s both; }
+.build-half .middle .botstack { animation: bfade 0.35s 1.45s both; }
+.build-half .navbar .navmain { animation: bfade 0.35s 1.75s both; }
 
 /* ---- center marks: the 50/50 tick on every tug rope and the game dial ------ */
 
@@ -1087,3 +1105,67 @@ button.actmain.scopehl { border-color: var(--r95); }
 
 /* the species name is free information — rare blood reads LOUD */
 .kyear.sprare { color: var(--r95); }
+
+/* ---- the change language: numbers blink old-dim / new-bright ------------- */
+
+.numswap { position: relative; display: inline-grid; }
+.numswap > * { grid-area: 1 / 1; }
+.numswap .ns-old { color: var(--r35); animation: nsA 1.4s steps(1) infinite; }
+.numswap .ns-new { animation: nsB 1.4s steps(1) infinite; }
+@keyframes nsA {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes nsB {
+  0%, 49% { opacity: 0; }
+  50%, 100% { opacity: 1; }
+}
+.numswap.kovr { font-size: 18px; font-weight: bold; line-height: 1.1; background: rgba(0, 0, 0, 0.72); padding: 1px 4px; }
+.numswap.kovr > * { text-align: center; }
+.krtxt .numswap { font-size: 11px; font-weight: bold; }
+.krtxt .numswap .ns-new { color: var(--r95); }
+
+/* the OVR corner mirrors the ring: a small bright label above the number */
+.ovrwrap { display: inline-flex; flex-direction: column; align-items: flex-start; }
+.ovrwrap .klab {
+  font-style: normal;
+  font-size: 6px;
+  letter-spacing: 1px;
+  font-weight: bold;
+  color: var(--r75);
+  background: rgba(0, 0, 0, 0.72);
+  padding: 0 3px 1px;
+}
+
+/* the XP ring's changed arc blinks (added bright / removed dim) */
+.krdelta { fill: none; stroke-width: 3.5; animation: gblink 1.4s steps(1) infinite; }
+.krdelta.up { stroke: var(--r95); }
+.krdelta.down { stroke: var(--r20); }
+
+/* the team bars keep their delta visible: added blinks bright, removed dark */
+.tbdelta {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  animation: gblink 1.4s steps(1) infinite;
+  pointer-events: none;
+}
+.tbdelta.up { background: var(--r95); }
+.tbdelta.down { background: #000; }
+
+/* THE REVEAL CARD: the picker-row preview of what you just received */
+.revealbox { flex: none; margin: 10px 0 4px; }
+.revealbox .revealrow { margin: 0; }
+
+/* the species signs the prospect's STATS card, in their own skin color */
+.prblurb.centered { text-align: center; bottom: 22px; }
+.prspecies {
+  position: absolute;
+  left: 0; right: 0; bottom: 4px;
+  z-index: 3;
+  text-align: center;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
