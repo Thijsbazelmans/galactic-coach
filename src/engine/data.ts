@@ -190,26 +190,35 @@ export interface PlanDef {
   /** the coach's words */
   speech: string;
   attr: Attr;
-  /** +attr per player, for the half, when the room ignites */
-  boost: number;
-  /** % the room ignites */
+  /** % the words WORK at all (+work range) */
+  workPct: number;
+  /** squad +min..max in the attr when they work */
+  work: [number, number];
+  /** % the room IGNITES (breaks the joint down) */
   up: number;
-  /** % one player stops believing (mood −20) */
+  /** the ignition amount */
+  boost: number;
+  /** % one player stops believing (mood −25) */
   down: number;
   fantasy: string;
   premium?: boolean;
+  /** premium finds recharge: weeks before this speech can be given again */
+  cooldown?: number;
 }
 
+// THE HAPPY MEDIUM: cheap standard speeches work ~30% of the time for a few
+// points and only RARELY break the joint down. Premium finds ignite far more
+// often and hit harder — but carry a cooldown.
 export const PLANS: PlanDef[] = [
-  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', attr: 'skl', boost: 2, up: 10, down: 5, fantasy: 'Shooters shoot. Rise over anything they pack in.' },
-  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', attr: 'ath', boost: 2, up: 10, down: 5, fantasy: 'Outrun everything. Seven seconds or less.' },
-  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', attr: 'frc', boost: 2, up: 10, down: 5, fantasy: 'Full-court terror. Make them hate the ball.' },
-  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', attr: 'brn', boost: 2, up: 10, down: 5, fantasy: 'The system. Every cut scripted.' },
-  // premium speeches — found in stories, better odds, bigger boost
-  { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', attr: 'frc', boost: 3, up: 25, down: 5, fantasy: 'An old Quadran battle chant. The paint peels.', premium: true },
-  { id: 'zenmind', name: 'THE STILL POND', speech: 'BE THE STILL POND', attr: 'brn', boost: 3, up: 25, down: 2, fantasy: 'The oracle taught you this one. The gym goes quiet inside.', premium: true },
-  { id: 'stardust', name: 'STARDUST', speech: 'BE UNGUARDABLE', attr: 'skl', boost: 3, up: 25, down: 5, fantasy: 'A retired Nimbus legend whispered it once. Nets have feared it since.', premium: true },
-  { id: 'engine', name: 'THE ENGINE', speech: 'LEGS ARE A LIE', attr: 'ath', boost: 3, up: 25, down: 5, fantasy: 'A Robota conditioning mantra. The floor gets smaller for everyone else.', premium: true },
+  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', attr: 'skl', workPct: 23, work: [1, 2], up: 7, boost: 3, down: 5, fantasy: 'Shooters shoot. Rise over anything they pack in.' },
+  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', attr: 'ath', workPct: 23, work: [1, 2], up: 7, boost: 3, down: 5, fantasy: 'Outrun everything. Seven seconds or less.' },
+  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', attr: 'frc', workPct: 23, work: [1, 2], up: 7, boost: 3, down: 5, fantasy: 'Full-court terror. Make them hate the ball.' },
+  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', attr: 'brn', workPct: 23, work: [1, 2], up: 7, boost: 3, down: 5, fantasy: 'The system. Every cut scripted.' },
+  // premium speeches — found in stories: big ignition odds, 3-week recharge
+  { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', attr: 'frc', workPct: 25, work: [2, 3], up: 25, boost: 4, down: 3, fantasy: 'An old Quadran battle chant. The paint peels.', premium: true, cooldown: 3 },
+  { id: 'zenmind', name: 'THE STILL POND', speech: 'BE THE STILL POND', attr: 'brn', workPct: 25, work: [2, 3], up: 25, boost: 4, down: 2, fantasy: 'The oracle taught you this one. The gym goes quiet inside.', premium: true, cooldown: 3 },
+  { id: 'stardust', name: 'STARDUST', speech: 'BE UNGUARDABLE', attr: 'skl', workPct: 25, work: [2, 3], up: 25, boost: 4, down: 3, fantasy: 'A retired Nimbus legend whispered it once. Nets have feared it since.', premium: true, cooldown: 3 },
+  { id: 'engine', name: 'THE ENGINE', speech: 'LEGS ARE A LIE', attr: 'ath', workPct: 25, work: [2, 3], up: 25, boost: 4, down: 3, fantasy: 'A Robota conditioning mantra. The floor gets smaller for everyone else.', premium: true, cooldown: 3 },
 ];
 
 export function planById(id: PlanId): PlanDef {
@@ -545,8 +554,11 @@ export interface ItemDef {
   flavor: string;
   effectText: string;
   context: string[];
-  /** 'player' items are DRAGGED onto a card — the individual action lives here */
+  /** 'player' items are DRAGGED onto a card — usable whenever a player grid
+      is on screen, not just in their story context */
   target?: 'player';
+  /** a refusal reason means the drop bounces WITHOUT consuming the item */
+  check?: (ctx: StoryCtx) => string | null;
   up?: OddsTail;
   down?: OddsTail;
   use: (ctx: StoryCtx) => StoryResolution;
@@ -568,6 +580,8 @@ export const ITEMS: ItemDef[] = [
     flavor: '"One sip. Ask nothing." — the doctor on stAroid-5',
     effectText: '100% back on his feet tonight, full energy',
     context: ['injury', 'pregame'],
+    target: 'player',
+    check: (ctx) => (ctx.player && ctx.player.outWeeks > 0 ? null : 'nobody hurt there — the vial waits'),
     up: { pct: 2, cls: 'BREAKTHROUGH' },
     down: { pct: 25, cls: 'INJURY' },
     use: (ctx) => {
@@ -662,6 +676,8 @@ export const ITEMS: ItemDef[] = [
     flavor: 'Cold from before the solar system. The honest one.',
     effectText: 'recovery time halved',
     context: ['injury'],
+    target: 'player',
+    check: (ctx) => (ctx.player && ctx.player.outWeeks > 0 ? null : 'nobody hurt there — the ice sweats patiently'),
     up: { pct: 2, cls: 'SPIRIT' },
     down: { pct: 2, cls: 'DRAIN' },
     use: (ctx) => {
@@ -1017,6 +1033,83 @@ export const ITEMS: ItemDef[] = [
   },
 ];
 
+// ---- THE SUPPLY CLOSET: small single-use items that find you most weeks ------
+
+ITEMS.push(
+  {
+    id: 'patch',
+    short: 'PATCH',
+    name: 'PATCH KIT',
+    rarity: 'common',
+    flavor: 'Tape, spray, and a lie about how bad it looked.',
+    effectText: 'a 1-week knock, gone',
+    context: ['injury'],
+    target: 'player',
+    check: (ctx) => (ctx.player && ctx.player.outWeeks === 1 ? null : 'only patches a 1-week knock'),
+    up: { pct: 2, cls: 'SPIRIT' },
+    down: { pct: 2, cls: 'DRAIN' },
+    use: (ctx) => {
+      const p = ctx.player!;
+      return { text: `Tape, spray, done. ${p.name} jogs it off like it never happened.`, fx: [{ playerId: p.id, outWeeks: 0 }] };
+    },
+  },
+  {
+    id: 'juice',
+    short: 'JUICE',
+    name: 'VOLT JUICE',
+    rarity: 'common',
+    flavor: 'Carbonated. Possibly sentient. Definitely effective.',
+    effectText: 'one player: +25 energy',
+    context: ['practice', 'pregame'],
+    target: 'player',
+    up: { pct: 2, cls: 'SPIRIT' },
+    down: { pct: 2, cls: 'DRAMA' },
+    use: (ctx) => {
+      const p = ctx.player ?? ctx.bestPlayer();
+      if (!p) return { text: 'The juice fizzes at nobody.' };
+      return { text: `${p.name} downs the Volt Juice and vibrates gently for an hour. Legs: back.`, fx: [{ playerId: p.id, energyP: 25 }] };
+    },
+  },
+  {
+    id: 'cocoa',
+    short: 'COCOA',
+    name: 'NEBULA COCOA',
+    rarity: 'common',
+    flavor: 'Warm the way home planets are warm.',
+    effectText: 'one player: +12 mood',
+    context: ['mood'],
+    target: 'player',
+    up: { pct: 2, cls: 'SPIRIT' },
+    down: { pct: 2, cls: 'DRAMA' },
+    use: (ctx) => {
+      const p = ctx.player ?? ctx.bestPlayer();
+      if (!p) return { text: 'The cocoa steams alone.' };
+      return { text: `${p.name} wraps both hands around the mug and exhales a whole week.`, fx: [{ playerId: p.id, mood: 12 }] };
+    },
+  },
+  {
+    id: 'pass',
+    short: 'PASS',
+    name: 'GYM GUEST PASS',
+    rarity: 'common',
+    flavor: 'After-hours access to the pro facility across town.',
+    effectText: 'one player: +10 XP',
+    context: ['practice'],
+    target: 'player',
+    up: { pct: 2, cls: 'BREAKTHROUGH' },
+    down: { pct: 2, cls: 'DRAIN' },
+    use: (ctx) => {
+      const p = ctx.player ?? ctx.bestPlayer();
+      if (!p) return { text: 'The pass expires unstamped.' };
+      return { text: `${p.name} gets a night on the pro floor. The rims are the same height. Everything else is different.`, fx: [{ playerId: p.id, xp: 10 }] };
+    },
+  }
+);
+
+/** The supply-closet drip: an item most weeks — small, single-use, meant to
+    be SPENT (the notebook holds the fifth slot forever). */
+export const SMALL_ITEMS = ['patch', 'juice', 'cocoa', 'pass', 'protein', 'poster'];
+
 export function itemById(id: string): ItemDef {
   return ITEMS.find((i) => i.id === id)!;
 }
@@ -1119,7 +1212,7 @@ export interface StoryDef {
       kind can be overridden per event via data.art. */
   art?: 'bus' | 'saucer';
   artEvent?: 'stranded' | 'hoop';
-  figure?: 'dean' | 'booster' | 'side';
+  figure?: 'dean' | 'booster' | 'scoop' | 'side';
   /** the card backdrop behind the acting sprite: the ABILITIES compass for
       growth stories, the energy/mood gauges (ROSTER) for everything else */
   card?: 'abilities' | 'meters';
@@ -1270,7 +1363,7 @@ export const STORIES: StoryDef[] = [
       tag: 'LOCKER ROOM',
       text: `${ctx.data.cause ?? `${pname(ctx)} slammed a locker hard enough to dent it, and nobody will say why.`}\n\nThe room has gone quiet in the bad way.`,
       choices: [
-        C('meeting', 'CALL A TEAM MEETING', { cost: 1, up: { pct: 25, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' } }),
+        C('meeting', 'CALL A TEAM MEETING (1¢)', { cost: 1, up: { pct: 25, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' } }),
         C('ignore', 'LET IT BLOW OVER', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 25, cls: 'DRAMA' } }),
       ],
     }),
@@ -1759,7 +1852,6 @@ export const STORIES: StoryDef[] = [
   {
     id: 'dean_visit',
     kind: 'coach',
-    weight: 1,
     figure: 'dean',
     beat: () => ({
       tag: "THE DEAN DROPS BY",
@@ -1785,7 +1877,6 @@ export const STORIES: StoryDef[] = [
   {
     id: 'booster_gift',
     kind: 'coach',
-    weight: 1,
     figure: 'booster',
     beat: () => ({
       tag: 'A CHROME SUIT CALLS',
@@ -1810,6 +1901,176 @@ export const STORIES: StoryDef[] = [
       return { text: 'The crate leaves. The booster\'s smile doesn\'t. "Next season, coach."', fx: [{ heatB: 4 }] };
     },
   },
+  // ---- more of THE REGULARS (the 30% weekly rolls pick from the pools) --------
+  {
+    id: 'dean_audit',
+    kind: 'coach',
+    figure: 'dean',
+    beat: (_b, ctx) => {
+      const squad = ctx.team().filter((p) => p.outWeeks === 0);
+      const lowest = [...squad].sort((a, b) => a.attrs.brn - b.attrs.brn)[0];
+      ctx.data.targetId = lowest?.id ?? null;
+      return {
+        tag: "THE DEAN'S AUDIT",
+        text: `The Dean arrives with a clipboard and the academic ledger. ${lowest ? `${lowest.name}'s transcript` : 'A transcript'} is, in her words, "an away game." She wants a mandatory study-hall week. By the book.`,
+        choices: [
+          C('comply', 'BOOK THE LIBRARY. BY THE BOOK.', { up: { pct: 10, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' } }),
+          C('refuse', '"HE STUDIES FILM. THAT COUNTS."', { up: { pct: 5, cls: 'WINDFALL' }, down: { pct: 25, cls: 'SCANDAL' } }),
+        ],
+      };
+    },
+    resolve: (key, ctx) => {
+      const p = ctx.team().find((x) => x.id === ctx.data.targetId) ?? null;
+      if (key === 'comply') {
+        const t = tails(10, 5);
+        const base: Fx[] = [{ heatS: -8 }, ...(p ? [{ playerId: p.id, attr: { brn: 1 }, energyP: -6 } as Fx] : [])];
+        if (t === 'up') return { text: `${p ? p.name : 'The kid'} discovers, in the library, that the playbook is just a book. Game IQ up, Dean satisfied — she stamps something approvingly.`, fx: [...base, { coachEnergy: 1 }] };
+        if (t === 'down') return { text: `A week of flashcards. ${p ? p.name : 'The kid'} passes the audit and files a formal complaint about the chairs.`, fx: [...base, ...(p ? [{ playerId: p.id, mood: -5 } as Fx] : [])] };
+        return { text: 'Study hall happens. The Dean initials every page of it. The program looks clean because it is, briefly.', fx: base };
+      }
+      const t = tails(5, 25);
+      if (t === 'down') return { text: 'The Dean audits HARDER. The film-counts-as-studying theory does not survive contact with the faculty senate.', fx: [{ heatS: 12 }] };
+      if (t === 'up') return { text: 'You defend film study with such conviction the Dean requests a seat at the next session. She takes notes. Good ones.', fx: [{ heatS: -2 }] };
+      return { text: 'The Dean leaves unconvinced. The clipboard will return.', fx: [{ heatS: 6 }] };
+    },
+  },
+  {
+    id: 'booster_shortcut',
+    kind: 'coach',
+    figure: 'booster',
+    beat: () => ({
+      tag: 'A CHROME SUIT CALLS',
+      text: 'The booster leans in, cigar first. He "knows a guy" at the league travel office — your next opponent\'s shuttle permits could develop... complications. They\'d arrive exhausted. Nobody would ever know. Probably.',
+      choices: [
+        C('take', 'MAKE THE CALL', { up: { pct: 5, cls: 'WINDFALL' }, down: { pct: 25, cls: 'SCANDAL' } }),
+        C('decline', 'HANG UP THE IDEA', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' } }),
+      ],
+    }),
+    resolve: (key, ctx) => {
+      if (key === 'take') {
+        const t = tails(5, 25);
+        ctx.s.pregameFlags.alarm = true; // they arrive with cardboard legs
+        if (t === 'down') return { text: 'The permits "develop complications" — and so does a league paper trail with your area code on it.', fx: [{ heatB: -6, heatS: 10 }] };
+        if (t === 'up') return { text: 'Their shuttle reroutes through three customs queues and a fumigation bay. They arrive gray. The booster winks across the parking lot.', fx: [{ heatB: -8 }] };
+        return { text: 'Their travel day becomes a travel ordeal. You feel bad. You feel great.', fx: [{ heatB: -5, heatS: 2 }] };
+      }
+      const t = tails(5, 10);
+      if (t === 'down') return { text: 'You decline. The booster\'s cigar dims by exactly one lumen. "Suit yourself, coach."', fx: [{ heatB: 6 }] };
+      if (t === 'up') return { text: 'You decline so cleanly he respects it. "Integrity," he says, like a stock he might buy.', fx: [{ heatB: 2, teamMood: 2 }] };
+      return { text: 'You hang up the idea. Somewhere, an opponent sleeps soundly, unaware.', fx: [{ heatB: 4 }] };
+    },
+  },
+  // ---- «SCOOP» QUAZAR: the press keeps you honest -------------------------------
+  {
+    id: 'scoop_question',
+    kind: 'coach',
+    figure: 'scoop',
+    beat: (_b, ctx) => {
+      const opts = (ctx.data.opts as string[]) ?? [];
+      const choices = opts.map((o, i) => C(String(i), o.toUpperCase()));
+      // the notebook answers for you — if you noted it
+      if (ctx.s.notebook.some((n) => n.key === ctx.data.noteKey)) {
+        choices.push(C('notebook', '▤ THE NOTEBOOK HAS IT'));
+      }
+      return {
+        tag: '“SCOOP” QUAZAR · ON AIR',
+        text: `${ctx.data.q as string}\n\nThe recorder is running, coach.`,
+        choices,
+      };
+    },
+    resolve: (key, ctx) => {
+      const answer = ctx.data.answer as number;
+      const opts = (ctx.data.opts as string[]) ?? [];
+      const right = opts[answer] ?? '';
+      const correct = key === 'notebook' || Number(key) === answer;
+      if (correct) {
+        const two = tails(25, 0) === 'up';
+        return {
+          text: key === 'notebook'
+            ? `You read it straight off the page: "${right}." Scoop taps his fedora. "A coach who keeps notes. The Gazette respects that." The piece runs friendly — with a stipend.`
+            : `"${right}," you say, no hesitation. Scoop's antennae perk. "A coach who WATCHES. Refreshing." The piece runs friendly — with a stipend.`,
+          fx: [{ coachEnergy: two ? 2 : 1 }],
+        };
+      }
+      return {
+        text: `Scoop lets the silence run exactly one column-inch too long. "It was ${right}, coach." The piece prints your answer next to the correct one, in a larger font.`,
+        fx: [{ heatS: 2 }],
+      };
+    },
+  },
+  // ---- THE SUPPLY CLOSET + the broke-week bailout --------------------------------
+  {
+    id: 'supply',
+    kind: 'coach',
+    beat: (_b, ctx) => {
+      const item = itemById((ctx.data.itemId as string) ?? 'protein');
+      return {
+        tag: 'THE SUPPLY CLOSET',
+        text: `The equipment manager leaves ${item.name} on your desk with a sticky note: "found this. don't ask."`,
+      };
+    },
+    resolve: (_k, ctx) => ({ text: '', fx: [{ giveItem: (ctx.data.itemId as string) ?? 'protein' }] }),
+  },
+  {
+    id: 'bailout',
+    kind: 'coach',
+    figure: 'side',
+    beat: (_b, ctx) => {
+      const who = (ctx.data.who as string) ?? 'dean';
+      ctx.data.side = who;
+      if (who === 'dean') {
+        return {
+          tag: 'EMPTY POCKETS',
+          text: 'The credit ledger reads zero and the Dean, somehow, already knows. She appears with the emergency faculty fund envelope and a look that files itself under "lecture pending".',
+          choices: [
+            C('take', 'TAKE THE ENVELOPE (AND THE LECTURE)', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } }),
+            C('pride', 'A PROGRAM PAYS ITS OWN WAY', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' } }),
+          ],
+        };
+      }
+      if (who === 'booster') {
+        return {
+          tag: 'EMPTY POCKETS',
+          text: 'The credit ledger reads zero. A chrome suit materializes beside your desk, already peeling bills off a roll that could stop a meteor. "Rough month, coach?"',
+          choices: [
+            C('take', 'TAKE THE ROLL', { up: { pct: 10, cls: 'WINDFALL' }, down: { pct: 10, cls: 'SCANDAL' } }),
+            C('pride', 'A PROGRAM PAYS ITS OWN WAY', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' } }),
+          ],
+        };
+      }
+      return {
+        tag: 'EMPTY POCKETS',
+        text: 'The credit ledger reads zero. Scoop Quazar offers a paid exclusive: "SIX LEGS IN THE DOOR: A WEEK INSIDE A BROKE PROGRAM." He promises to be fair. He promises nothing else.',
+        choices: [
+          C('take', 'GIVE THE EXCLUSIVE', { up: { pct: 5, cls: 'WINDFALL' }, down: { pct: 25, cls: 'DRAMA' } }),
+          C('pride', 'A PROGRAM PAYS ITS OWN WAY', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' } }),
+        ],
+      };
+    },
+    resolve: (key, ctx) => {
+      const who = (ctx.data.who as string) ?? 'dean';
+      if (key === 'pride') {
+        const t = tails(5, 5);
+        if (t === 'up') return { text: 'You decline with a straight back. The squad notices. Broke, but nobody\'s creature.', fx: [{ teamMood: 4 }] };
+        if (t === 'down') return { text: 'You decline. The week proceeds to be exactly as broke as advertised.', fx: [] };
+        return { text: 'You decline politely. Pride is free. Everything else, notably, is not.', fx: [] };
+      }
+      if (who === 'dean') {
+        return { text: 'The envelope holds two credits and a bookmark that says INTEGRITY. The lecture runs eleven minutes. Worth it.', fx: [{ coachEnergy: 2, heatS: -2 }] };
+      }
+      if (who === 'booster') {
+        const t = tails(10, 10);
+        if (t === 'down') return { text: 'Three credits, peeled off in front of a window. A window with a photographer behind it.', fx: [{ coachEnergy: 3, heatB: -4, heatS: 8 }] };
+        if (t === 'up') return { text: 'Three credits and a wink. "We take care of our own." You are, apparently, his own now.', fx: [{ coachEnergy: 3, heatB: -6 }] };
+        return { text: 'Three credits change hands. The ledger he doesn\'t show you gains a line.', fx: [{ coachEnergy: 3, heatB: -3, heatS: 3 }] };
+      }
+      const t = tails(5, 25);
+      if (t === 'down') return { text: 'The exclusive runs. It is fair. It is also titled "THE COACH WHO COUNTS COUCH CUSHIONS." Two credits, some dignity.', fx: [{ coachEnergy: 2, heatS: 5 }] };
+      if (t === 'up') return { text: 'The exclusive runs warm — the broke-program-with-heart angle. Donations trickle. Scoop tips his fedora.', fx: [{ coachEnergy: 3, heatS: -3 }] };
+      return { text: 'The exclusive runs. Two credits, one flattering photo, one unflattering quote. Even.', fx: [{ coachEnergy: 2 }] };
+    },
+  },
+
   // ---- a femme arc: the kid in the stands -------------------------------------
   {
     id: 'runaway_sister',
@@ -1851,7 +2112,7 @@ export const STORIES: StoryDef[] = [
       tag: "COACH'S DESK",
       text: 'An embossed holo-invitation: the Galactic Coaching Seminar on Blorgon 6, this week. Two days of drills, film, and lukewarm banquet food with the best minds in the game.',
       choices: [
-        C('attend', 'ATTEND', { cost: 2, up: { pct: 50, cls: 'BREAKTHROUGH' }, down: { pct: 10, cls: 'DRAMA' } }),
+        C('attend', 'ATTEND (2¢)', { cost: 2, up: { pct: 50, cls: 'BREAKTHROUGH' }, down: { pct: 10, cls: 'DRAMA' } }),
         C('toss', 'TOSS THE INVITATION', { up: { pct: 2, cls: 'WINDFALL' }, down: { pct: 2, cls: 'DRAMA' } }),
       ],
     }),
@@ -1955,7 +2216,7 @@ export const STORIES: StoryDef[] = [
         return { text: 'You limp home on maneuvering thrusters. The ship is grounded 3 weeks. Home-planet scouting only.', fx: [] };
       }
       if (tails(50, 50) === 'up') {
-        return { text: 'The goblins swarm the hull, argue in sparks, and hand it back BETTER. The bill: 3⚡ off next week\'s stipend. Fair, honestly.', follow: [{ weeks: 1, beat: 'start', defId: 'goblin_bill', playerId: null }] };
+        return { text: 'The goblins swarm the hull, argue in sparks, and hand it back BETTER. The bill: 3 credits off next week\'s stipend. Fair, honestly.', follow: [{ weeks: 1, beat: 'start', defId: 'goblin_bill', playerId: null }] };
       }
       ctx.s.groundedWeeks = 12;
       return {
@@ -1974,7 +2235,7 @@ export const STORIES: StoryDef[] = [
       text: 'A micrometeorite shreds the cargo bay on the way home — and your scout reports flew out through the hole. Every dossier, spinning off into the void in a slow, expensive constellation.',
       choices: [
         C('accept', 'WATCH THEM GO', { up: { pct: 2, cls: 'INTEL' }, down: { pct: 2, cls: 'DRAIN' } }),
-        C('eva', 'SUIT UP AND CHASE THEM (1⚡)', { cost: 1, up: { pct: 50, cls: 'INTEL' }, down: { pct: 10, cls: 'INJURY' } }),
+        C('eva', 'SUIT UP AND CHASE THEM (1¢)', { cost: 1, up: { pct: 50, cls: 'INTEL' }, down: { pct: 10, cls: 'INJURY' } }),
       ],
     }),
     resolve: (key, ctx) => {
@@ -2002,7 +2263,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'goblin_bill',
     kind: 'coach',
-    beat: () => ({ tag: 'THE BILL', text: 'The mech-goblin invoice arrives, engraved on a small meteor: 3⚡. They also left a mint.' }),
+    beat: () => ({ tag: 'THE BILL', text: 'The mech-goblin invoice arrives, engraved on a small meteor: 3 CREDITS. They also left a mint.' }),
     resolve: () => ({ text: '', fx: [{ coachEnergy: -3 }] }),
   },
   {
@@ -2039,7 +2300,7 @@ export const STORIES: StoryDef[] = [
       text: 'The Provost is in your office, uninvited, rearranging your trophies by "moral weight". The school\'s patience with your methods has run out. She has a list of demands and a pen that costs more than your ship.',
       choices: [
         C('comply', 'SUSPEND YOUR BEST PLAYER 1 WEEK (a show of contrition)', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' } }),
-        C('donate', 'FUND HER ETHICS WING (3⚡)', { cost: 3, up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAIN' } }),
+        C('donate', 'FUND HER ETHICS WING (3¢)', { cost: 3, up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAIN' } }),
         C('defy', 'SHOW HER THE DOOR', { up: { pct: 10, cls: 'SPIRIT' }, down: { pct: 25, cls: 'SCANDAL' } }),
       ],
     }),
@@ -2067,7 +2328,7 @@ export const STORIES: StoryDef[] = [
       tag: 'THE BOOSTERS INTERFERE',
       text: 'Three boosters in matching chrome suits occupy your office like weather. They\'ve seen the standings. They have "thoughts". The tallest one keeps touching your whiteboard.',
       choices: [
-        C('gala', 'THROW THE APPEASEMENT GALA (3⚡)', { cost: 3, up: { pct: 10, cls: 'LOOT' }, down: { pct: 2, cls: 'DRAIN' } }),
+        C('gala', 'THROW THE APPEASEMENT GALA (3¢)', { cost: 3, up: { pct: 10, cls: 'LOOT' }, down: { pct: 2, cls: 'DRAIN' } }),
         C('promise', 'PROMISE THEM THE TOURNAMENT', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 25, cls: 'DRAMA' } }),
         C('defy', 'THROW THEM OUT', { up: { pct: 10, cls: 'SPIRIT' }, down: { pct: 25, cls: 'SCANDAL' } }),
       ],
@@ -2101,7 +2362,7 @@ export const STORIES: StoryDef[] = [
         text: `${who} summons you to the long room with the long table. Your seat, notably, has been made hot. This is the conversation. Survive it or clean out your office.`,
         choices: [
           C('sacrifice', 'SACRIFICE THE BAG (lose every item)', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } }),
-          C('pay', 'BUY YOUR SEAT BACK (5⚡)', { cost: 5, up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAIN' } }),
+          C('pay', 'BUY YOUR SEAT BACK (5¢)', { cost: 5, up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAIN' } }),
           C('refuse', 'REFUSE. LET THEM SWING.', { up: { pct: 10, cls: 'SPIRIT' }, down: { pct: 50, cls: 'SCANDAL' } }),
         ],
       };
@@ -2143,7 +2404,7 @@ export const STORIES: StoryDef[] = [
       }
       const hasItems = ctx.s.bag.length > 0;
       return {
-        tag: '☠ EMPTY CELLS',
+        tag: '☠ EMPTY POCKETS',
         text: `${ctx.data.cause ?? 'A meteor swarm shreds the team bus in dead space.'}\n\nA salvage rig answers the distress call, lights like teeth. The tow bill is more than you have — you have NOTHING. They open negotiations, if that's the word.`,
         choices: [
           ...(hasItems ? [C('loot', `PAY IN LOOT (give up an item)`, { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } })] : []),
@@ -2313,7 +2574,7 @@ export const STORIES: StoryDef[] = [
         tag: 'ALUMNI',
         text: `On the streets of Oblox-4, between the shuttle port and the arena, a voice: "Coach? ...Can you spare some money?"\n\nIt's ${name}. Your ${name} — class of season ${ctx.data.season}. The galaxy has not been kind since.`,
         choices: [
-          C('help', 'BUY HIM DINNER. MAKE CALLS. (1⚡)', { cost: 1, up: { pct: 25, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' } }),
+          C('help', 'BUY HIM DINNER. MAKE CALLS. (1¢)', { cost: 1, up: { pct: 25, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' } }),
           C('walk', 'PRESS A COIN IN HIS HAND AND WALK', { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 25, cls: 'SCANDAL' } }),
         ],
       };
@@ -2353,7 +2614,7 @@ export const STORIES: StoryDef[] = [
       if (key === 'home') {
         ctx.s.voidReturnUsed = true;
         const t = tails(25, 10);
-        if (t === 'down') return { text: `You fly out to the belt colony. The smugglers remember you fondly, which costs 2⚡ in "docking fees". ${name} meets you at the airlock — and chooses the belt. "I'm the best player in three systems out here, coach." You shake hands as equals. Somehow that's a win too.`, fx: [{ coachEnergy: -2, legacy: 2 }] };
+        if (t === 'down') return { text: `You fly out to the belt colony. The smugglers remember you fondly, which costs 2 credits in "docking fees". ${name} meets you at the airlock — and chooses the belt. "I'm the best player in three systems out here, coach." You shake hands as equals. Somehow that's a win too.`, fx: [{ coachEnergy: -2, legacy: 2 }] };
         if (t === 'up') return { text: `You fly out with his old jersey. He's waiting at the dock, bag packed, twice the player who left. The disaster of that season is now the best thing that ever happened to this program. He hands you something from the engine room: "for the bag."`, fx: [{ legacy: 4, teamMood: 15, giveItem: 'vial' }] };
         return { text: `You bring ${name} home to a locker room that will not stop hugging him. He's not eligible to play — the years happened — but he takes a seat on your bench as an assistant, and the whole galaxy knows you came back for him.`, fx: [{ legacy: 3, teamMood: 12 }] };
       }
@@ -2373,7 +2634,7 @@ export const STORIES: StoryDef[] = [
       tag: 'VOYAGE',
       text: 'At a refueling station shaped like a grin, a vendor unrolls a coat lined with unlabeled miracles. "For the discerning coach," she says, discerning you instantly.',
       choices: [
-        C('buy', 'BUY SOMETHING UNLABELED (2⚡)', { cost: 2, up: { pct: 10, cls: 'LOOT' }, down: { pct: 10, cls: 'SCANDAL' } }),
+        C('buy', 'BUY SOMETHING UNLABELED (2¢)', { cost: 2, up: { pct: 10, cls: 'LOOT' }, down: { pct: 10, cls: 'SCANDAL' } }),
         C('pass', 'KEEP WALKING', { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } }),
       ],
     }),
@@ -2576,6 +2837,10 @@ export function weeklyPool(s: GameState): StoryDef[] {
 }
 
 export const VOYAGE_POOL = ['vendor', 'bus_prospect', 'omen'];
+
+/** THE REGULARS: the 30%-a-week rolls pick from these. */
+export const DEAN_POOL = ['dean_visit', 'dean_audit'];
+export const BOOSTER_POOL = ['booster_gift', 'booster_shortcut'];
 
 /** Wheels up: the outbound leg is all nerves and aux-cable politics. */
 export const TRAVEL_OUT_FLAVOR = [

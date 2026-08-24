@@ -15,16 +15,18 @@ import {
 import type { AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
 export const UT_WEEKS = 3; // QF, SF, THE UNIVERSAL FINAL
 export const ROSTER_SIZE = 9;
 export const SELECT_POOL_SIZE = 12;
-export const STIPEND = 6;
-export const CACHE_MAX = 12;
+/** CREDITS, the coach's currency (player energy stays ⚡): +3 a week by
+    definition — the rest you EARN from Scoop, the Dean and the Booster. */
+export const STIPEND = 3;
+export const CACHE_MAX = 9;
 export const AGING_SEASON = 21;
 export const LEVEL_CAP = 10;
-export const BAG_SIZE = 5;
+export const BAG_SIZE = 4; // THE NOTEBOOK holds the fifth slot, forever
 export const MAX_PROSPECTS = 9;
 /** An overall this high gets pro scouts in the dorm lobby. */
 export const PRO_OVR = 52;
@@ -32,9 +34,9 @@ export const PRO_OVR = 52;
     the extremes (elated/angry, pumped/sleeping) belong to stories. */
 export const METER_BASELINE = 75;
 
-/** Weekly stipend shrinks by 1 per season from season 21. Mortality is an energy bill. */
+/** The weekly credit stipend erodes from season 21 — mortality is a bill. */
 export function stipendFor(season: number): number {
-  return Math.max(0, STIPEND - Math.max(0, season - (AGING_SEASON - 1)));
+  return Math.max(0, STIPEND - Math.ceil(Math.max(0, season - (AGING_SEASON - 1)) / 2));
 }
 
 /** XP needed to clear the given level. Early levels take weeks; late ones a season. */
@@ -63,16 +65,25 @@ export function genName(taken?: Set<string>): string {
 
 const BANDS: [number, number][] = [[0, 19], [20, 39], [40, 59], [60, 79], [80, 99]];
 
-/** Roll a potential OVERALL from the species' band odds; shift nudges the
-    landed band (gems up, rec-center bodies down) but never off the scale. */
-export function rollPotOvr(speciesId: string, shift = 0): number {
+function rollBandIx(speciesId: string): number {
   const sp = speciesById(speciesId);
   let r = Math.random() * 100;
-  let ix = 0;
   for (let i = 0; i < 5; i++) {
     r -= sp.bands[i];
-    if (r <= 0) { ix = i; break; }
-    if (i === 4) ix = 4;
+    if (r <= 0) return i;
+  }
+  return 4;
+}
+
+/** Roll a potential OVERALL from the species' band odds; shift nudges the
+    landed band (gems up, rec-center bodies down) and luck takes the worst
+    (−1) or best (+1) of two rolls — walk-ons are generally not very good,
+    with an exception here or there. Never off the scale. */
+export function rollPotOvr(speciesId: string, shift = 0, luck = 0): number {
+  let ix = rollBandIx(speciesId);
+  if (luck !== 0) {
+    const second = rollBandIx(speciesId);
+    ix = luck > 0 ? Math.max(ix, second) : Math.min(ix, second);
   }
   ix = clamp(ix + shift, 0, 4);
   const [lo, hi] = BANDS[ix];
@@ -159,11 +170,11 @@ function levelForClass(classYear: number): number {
   return Math.min(LEVEL_CAP, classYear * 2 + rand(5));
 }
 
-export function genPlayer(counter: { nextId: number }, bandShift: number, classYear?: number, speciesId?: string, taken?: Set<string>): Player {
+export function genPlayer(counter: { nextId: number }, bandShift: number, classYear?: number, speciesId?: string, taken?: Set<string>, luck = 0, levelScale = 1): Player {
   const spId = speciesId ?? rollSpecies(LEAGUE_ODDS);
   const cy = classYear ?? rand(4);
-  const level = levelForClass(cy);
-  const pots = distribute(spId, rollPotOvr(spId, bandShift));
+  const level = Math.round(levelForClass(cy) * levelScale);
+  const pots = distribute(spId, rollPotOvr(spId, bandShift, luck));
   const attrs = currentFromPots(pots, level);
   return {
     id: counter.nextId++,
@@ -189,8 +200,10 @@ export function genPlayer(counter: { nextId: number }, bandShift: number, classY
 }
 
 export function genWalkOn(counter: { nextId: number }, taken?: Set<string>): Player {
+  // walk-ons are walk-ons for a reason: worst of two band rolls, a band
+  // down, and half the class levels — except the occasional GEM
   const gem = Math.random() < 0.12;
-  const p = genPlayer(counter, gem ? 2 : -1, rand(4), undefined, taken);
+  const p = genPlayer(counter, gem ? 1 : -1, rand(4), undefined, taken, gem ? 1 : -1, gem ? 1 : 0.5);
   p.walkOn = true;
   p.gem = gem;
   return p;
@@ -211,7 +224,7 @@ export function genSpecial(counter: { nextId: number }, kind: 'walkon' | 'gem' |
     p.mood = 100; // it does not feel. probably.
     return p;
   }
-  const p = genPlayer(counter, kind === 'gem' ? 2 : -1, rand(4), undefined, taken);
+  const p = genPlayer(counter, kind === 'gem' ? 1 : -1, rand(4), undefined, taken, kind === 'gem' ? 1 : -1, kind === 'gem' ? 1 : 0.5);
   p.walkOn = true;
   p.gem = kind === 'gem';
   return p;
@@ -267,7 +280,7 @@ export function genProspect(counter: { nextId: number }, _seasonNo: number, sear
   return pr;
 }
 
-/** Scouted freshman recruits ALWAYS join at level 0, 0 XP. */
+/** Scouted recruits join with a little college-readiness (level 0–2), 0 XP. */
 export function prospectToPlayer(pr: Prospect): Player {
   return {
     id: pr.id,
@@ -283,7 +296,7 @@ export function prospectToPlayer(pr: Prospect): Player {
     startAttrs: copyAttrs(pr.attrs),
     stats: zeroStats(),
     career: zeroStats(),
-    level: 0,
+    level: rand(3),
     xp: 0,
     energy: METER_BASELINE - 5 + rand(11),
     mood: METER_BASELINE - 5 + rand(11),
@@ -310,7 +323,9 @@ export function emptyLineup(): Lineup {
 function genTeam(counter: { nextId: number }, idx: number, taken: Set<string>): Team {
   const t = TEAM_TEMPLATES[idx];
   const players: Player[] = [];
-  for (let i = 0; i < ROSTER_SIZE; i++) players.push(genPlayer(counter, 0, undefined, undefined, taken));
+  // founding rosters roll a band down — 97-potential kids don't start in
+  // your first tryout; you build toward them (or get lucky later)
+  for (let i = 0; i < ROSTER_SIZE; i++) players.push(genPlayer(counter, -1, undefined, undefined, taken));
   ensureUniqueJerseys(players);
   return {
     id: idx,
@@ -409,6 +424,7 @@ export function newGameState(): GameState {
     prospects: [],
     pendingRecruits: [],
     bag: [],
+    notebook: [],
     legendariesUsed: [],
     unlockedDrills: ['shootaround', 'scrimmage', 'twodays', 'rest', 'bonfire'],
     unlockedRegions: ['reccenter', 'home', 'nebula', 'outerrim'],

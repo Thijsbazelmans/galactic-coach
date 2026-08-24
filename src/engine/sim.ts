@@ -179,12 +179,13 @@ export function restedPower(t: Team): number {
   return Math.round(sum * 10) / 10;
 }
 
-/** The rope split IS the win chance: a sharpened ratio of the two totals. */
+/** The rope split IS the win chance: a sharpened ratio of the two totals —
+    clamped to 5–95%: the galaxy never hands out a certainty. */
 const SHARP = 6;
 export function winShare(mine: number, theirs: number): number {
   const a = Math.pow(Math.max(1, mine), SHARP);
   const b = Math.pow(Math.max(1, theirs), SHARP);
-  return a / (a + b);
+  return clamp(a / (a + b), 0.05, 0.95);
 }
 
 /** The average kite of a team's starters — the scouting-report shape. */
@@ -356,9 +357,9 @@ function halfRope(
 ): { mine: number; theirs: number } {
   const [vm, vt] = champ ? [1, 1] : home ? [1.03, 1] : [1, 1.03];
   let mine = teamPower(me, fx, forms) * vm;
-  // their locker room hears a speech too — speeches always land now, so the
-  // mirror keeps the rope honest (fairness law)
-  const oppAmt = 1 + rand(2);
+  // their locker room hears a speech too — the mirror matches the happy
+  // medium (works ~30% of the time) so the rope stays honest (fairness law)
+  const oppAmt = roll(30) ? 1 + rand(2) : 0;
   let theirs = (champ
     ? champ.power + oppAmt
     : teamPower(opp!, { attr: planById(opp!.plan).attr, amt: oppAmt })) * vt;

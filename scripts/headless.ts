@@ -27,6 +27,7 @@ import {
   resolveStory,
   retire,
   runDrill,
+  speechCooldown,
   toGalaxy,
   toMatchup,
   toSigning,
@@ -171,7 +172,7 @@ function playCareer(idx: number): CareerStats {
         });
         t.lineup.slots = slots;
         normalizeLineup(t);
-        const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id));
+        const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id) && speechCooldown(s, pl.id) === 0);
         // speak to the squad's strongest attribute (best odds of a useful ignition)
         const sums = { skl: 0, ath: 0, frc: 0, brn: 0 };
         for (const p of t.players) for (const a of ATTRS) sums[a] += p.attrs[a];
@@ -185,9 +186,9 @@ function playCareer(idx: number): CareerStats {
       case 'gamenight': {
         drainQueue(s);
         if ((s.phase as string) === 'gameover') break;
-        // HALFTIME: swap nothing, a DIFFERENT speech (no repeats), play on
+        // HALFTIME: swap nothing, a DIFFERENT ready speech (no repeats), play on
         if (s.halftime && !s.lastResult) {
-          const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id) && pl.id !== s.plan);
+          const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id) && pl.id !== s.plan && speechCooldown(s, pl.id) === 0);
           const best = known[Math.floor(Math.random() * known.length)].id;
           if (deliverHalftimeSpeech(s, best) === null) throw new Error('halftime speech refused');
           playSecondHalf(s);

@@ -992,6 +992,88 @@ to have on hand. Also fixed: a latent crash when the ride-home smugglers
 took a player whose weekly story was still stored (beginWeek now drops
 stories for the departed).
 
+## v4.2 — THE PRESS, THE NOTEBOOK & THE LIVE GAME (Aug 24, 2026 — the season-2 dictation)
+
+Thijs's second live note-drop, all of it (SAVE_VERSION 17, old saves die):
+
+**BALANCE: pools know their place.** Walk-ons roll the WORST of two bands,
+a band down, at half their class levels (gems: best of two, a band up,
+full levels) — no more 83-OVR level-10 Sr walk-ons embarrassing the
+recruiting trail. Founding rosters (and AI refills) roll a band down too:
+97-potential kids aren't in your first tryout; you build toward them.
+Recruits join a little readier (level 0–2) and the opening board arrives
+with a few facets already known here and there (~40% of slots reveal one).
+
+**CREDITS replace coach ⚡** (player energy keeps the bolt): +3/week flat,
+cache 9, aging erodes it from season 21. The rest you EARN — Scoop's
+questions pay 1–2¢, the dean/booster stories carry credits, and a
+zero-credit week summons one of the three with an emergency offer
+(`bailout`). All coach costs print ¢ now; the header bar wears the credit
+coin.
+
+**THE NOTEBOOK** is a permanent bag fixture (bag drops to 4 slots — use
+your items sooner; THE SUPPLY CLOSET drips a small single-use item most
+weeks: PATCH KIT, VOLT JUICE, NEBULA COCOA, GYM GUEST PASS). Tap the
+notebook on a noteworthy screen and it notes it (story quotes, the MVP +
+top scorer at the verdict, the league results on the standings screen,
+next week's opponent); tap it with nothing to note and it opens for
+browsing. Notes are keyed (`mvp:S:W`, `res:S:W`) — Scoop's questions
+look them up.
+
+**THE PRESS + THE REGULARS, 30% each per week.** «SCOOP» QUAZAR (ported
+from pt3 with his press room: step-and-repeat, podium mics, blinking ON
+AIR) asks a multiple-choice question about last week — MVP, top scorer,
+or who won where. Answer from memory, or the notebook answers for you
+(a pulsing bag slot + a «▤ THE NOTEBOOK HAS IT» choice). Right pays
+1–2¢; wrong prints your answer next to the truth (+2 heat). The DEAN
+(now in front of her sepia college) wants it by the book (`dean_visit`,
+`dean_audit`); the BOOSTER (posing before his pink cadillac-ship) offers
+illegal help that can backfire (`booster_gift`, `booster_shortcut`).
+While a story is up the header dialogs are BLOCKED — no cheating.
+
+**HEADER**: the chip always reads MY TEAM vs/@ NEXT OPPONENT → tap for
+the full season schedule (fixtures + results, `s.myResults`); the record
+row gains «· 2nd» → tap for the standings dialog.
+
+**THE LIVE GAME.** Win chance is capped at 5–95% (no more certainties).
+The needle sweep is dead: the score ticks up in 1–3 point bursts while
+each team's color FILLS the rope from the rating separator toward its
+own edge — equal ground per point, so at the expected score both bars
+kiss their edges at the buzzer. Outscore your rating and your color
+hits the edge and PUSHES the separator into their side. The score rides
+the separator; the dim tick remembers where the rating stood. Tap to
+skip. (Highly favored but they keep scoring = your color shrinks =
+exactly the nerves Thijs ordered.)
+
+**THE ROLL WHEEL**: chance moments play out live — a circular LED wheel
+(bright arc = the printed odds, needle spins, slows, lands in the truth).
+Wired to the pro-departure KEEP HIM talks; built as a general component
+(`showWheel`) for future story rolls.
+
+**SPEECHES, the happy medium** (rework of v4.1's always-lands): standard
+speeches WORK 30% of the time (+1–2, of which 7% IGNITES +3); premium
+finds work ~55% (+2–3, 25% IGNITES +4) but recharge for 3 weeks
+(`speechCooldowns`, the picker shows «recharging»). The pregame speech
+still carries the whole game and halftime still requires a different
+one; the opponent's mirror speech matches the 30% medium.
+
+**Polish**: the cut/board confirm dialogs show the CARDS of the players
+being discussed; SITS OUT joined the HI spot; the XP and COM rings speak
+the change language (added arc bright / removed dark — recruit swings
+blink on the commit ring, the Monday report shows the incoming payout
+arc); numbers now follow the direction law everywhere (UP blinks bright,
+DOWN blinks dark — cascade counts included); player-target items drag
+onto cards whenever a grid is on screen, and an inapplicable drop
+BOUNCES without consuming the item (`ItemDef.check` — the vial waits for
+someone actually hurt); the gauges got elegant (curved, gradient,
+redrawn minimal bolt/face icons).
+
+**Balance after the rework** (26-season harness, random-story play):
+~78–81% regular-season wins with REAL firing pressure (the trio makes
+survival the game — a careless random player gets fired 1-in-4 careers),
+~3.3–4 titles. Clean weeks cool the school −2/game now. Thijs's brief:
+winning feels good while you fight to keep the job.
+
 ## NEXT SESSION (pick up here)
 
 Fresh-session state: the game is **v4.0 — THE OVERHAUL** (see the entry
@@ -1016,6 +1098,15 @@ choices are hold-buttons that ignore clicks — drive them via the
 
 ### Backlog (in rough priority)
 
+- **Thijs's v4.1 playtest notes — SHIPPED, all of them, as v4.2** (see
+  the entry above): pool rebalance, credits economy, the notebook, Scoop +
+  the dean/booster weekly presence with pt3 scenes, header
+  opponent/schedule/standings, the live game dial, the roll wheel, the
+  speech happy medium, cards in confirm dialogs, ring change language,
+  drag-anywhere items + the supply closet, elegant gauges.
+  STILL OPEN from that drop: notebook-driven story callbacks (oracle
+  riddles resurfacing as answerable questions) — queued for the story
+  pass.
 - **Thijs's v4.0 playtest notes — SHIPPED, all fourteen, as v4.1** (see
   the entry above): change language replaces stickers, subtle curved
   gauges, LVL/OVR labels, cascade delta bands, MISCAST real cost,

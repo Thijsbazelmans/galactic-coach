@@ -905,7 +905,7 @@ export function busUrl(kit: Kit): string {
 
 // ---- single-color pixel stat icons (unchanged) --------------------------------
 
-type IconKind = 'bolt' | 'aplus' | 'dollar' | 'alert' | 'face';
+type IconKind = 'bolt' | 'aplus' | 'dollar' | 'alert' | 'face' | 'boltx' | 'facex' | 'credit';
 
 const ICON_PIXELS: Record<IconKind, string[]> = {
   // low-cells warning
@@ -968,6 +968,39 @@ const ICON_PIXELS: Record<IconKind, string[]> = {
     '..X...X..',
     '...XXX...',
   ],
+  // the elegant pair: a sleek bolt and floating features (no clunky ring)
+  boltx: [
+    '....XXXX',
+    '...XXXX.',
+    '..XXXX..',
+    '.XXXXXXX',
+    '....XXX.',
+    '...XXX..',
+    '..XXX...',
+    '.XXX....',
+    '.XX.....',
+    'XX......',
+  ],
+  facex: [
+    '.XX..XX.',
+    '.XX..XX.',
+    '........',
+    'X......X',
+    '.X....X.',
+    '..XXXX..',
+  ],
+  // CREDITS (the coach's currency — player ⚡ stays player ⚡)
+  credit: [
+    '..XXXXX..',
+    '.XX...XX.',
+    'XX.......',
+    'XX.......',
+    'XX.......',
+    'XX.......',
+    'XX.......',
+    '.XX...XX.',
+    '..XXXXX..',
+  ],
 };
 
 const iconCache = new Map<string, string>();
@@ -976,12 +1009,13 @@ export function iconUrl(kind: IconKind, color = '#7dfc9a'): string {
   const key = `${kind}|${color}`;
   const hit = iconCache.get(key);
   if (hit) return hit;
+  const px = ICON_PIXELS[kind];
   const c = document.createElement('canvas');
-  c.width = 9;
-  c.height = 9;
+  c.width = px[0].length;
+  c.height = px.length;
   const ctx = c.getContext('2d')!;
   ctx.fillStyle = color;
-  ICON_PIXELS[kind].forEach((row, y) => {
+  px.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) if (row[x] === 'X') ctx.fillRect(x, y, 1, 1);
   });
   const url = c.toDataURL();
@@ -995,14 +1029,16 @@ export function iconOutlinedUrl(kind: IconKind, color = '#7dfc9a'): string {
   const key = `o|${kind}|${color}`;
   const hit = iconCache.get(key);
   if (hit) return hit;
-  const c = document.createElement('canvas');
-  c.width = 11;
-  c.height = 11;
-  const ctx = c.getContext('2d')!;
   const px = ICON_PIXELS[kind];
+  const W = px[0].length;
+  const H = px.length;
+  const c = document.createElement('canvas');
+  c.width = W + 2;
+  c.height = H + 2;
+  const ctx = c.getContext('2d')!;
   const on = (x: number, y: number): boolean => !!px[y] && px[y][x] === 'X';
   ctx.fillStyle = '#000';
-  for (let y = -1; y < 10; y++) for (let x = -1; x < 10; x++) {
+  for (let y = -1; y < H + 1; y++) for (let x = -1; x < W + 1; x++) {
     if (on(x, y)) continue;
     if (on(x + 1, y) || on(x - 1, y) || on(x, y + 1) || on(x, y - 1)) ctx.fillRect(x + 1, y + 1, 1, 1);
   }
@@ -1022,7 +1058,7 @@ export function iconOutlinedUrl(kind: IconKind, color = '#7dfc9a'): string {
 // as the player rigs. The team's color is the accent (stripe, fin, tie).
 
 export type SceneId = 'bus-move' | 'bus-stranded' | 'bus-hoop' | 'saucer-move' | 'saucer-stranded' | 'saucer-hoop';
-export type FigureId = 'dean' | 'booster';
+export type FigureId = 'dean' | 'booster' | 'scoop';
 export type FigureMood = 'neutral' | 'worried' | 'mad' | 'elated';
 
 const IL_BODY = '#2e3d74', IL_DARK = '#232c4e', IL_WIN = '#7fd8ec', IL_WHITE = '#e8ecf8',
@@ -1218,6 +1254,36 @@ function ilEdited(base: string[], edits: PixEdit[]): string[] {
   return m.map((r) => r.join(''));
 }
 
+// «SCOOP» QUAZAR — six-legged beat reporter for the Galactic Hoops Gazette:
+// fedora with a team-color band, loud orange suit (fromDesign/260823 - pt3)
+const REPORTER_MAP = [
+  '..........ffff............',
+  '..........ffff............',
+  '.........tttttt...........',
+  '.......ffffffffff.........',
+  '........ssssssss..........',
+  '........sekseksd..........',
+  '........ssssssss..........',
+  '........sskkssss..........',
+  '.........ssssss...........',
+  '...........ss.............',
+  '..........wwww............',
+  '......uuuuuuuuuuuu........',
+  '....uuuuuUUwwUUuuuuu......',
+  '....uuuuuUUwwUUuuuuu......',
+  '....uu.uuuuuuuuuu.uu......',
+  '....uu.uuuukuuuuu.uu......',
+  '....ss.uuuuuuuuuu.ss......',
+  '.......uuuuuuuuuu.........',
+  '.......uuuuuuuuuu.........',
+  '.......uu..uu..uu.........',
+  '.......uu..uu..uu.........',
+  '.......uu..uu..uu.........',
+  '.......uu..uu..uu.........',
+  '.......ss..ss..ss.........',
+  '......ooo.ooo.ooo.........',
+  '......ooo.ooo.ooo.........'];
+
 const DEAN_STATES: Record<FigureMood, PixEdit[]> = {
   neutral: [],
   worried: [[7, 9, 'k'], [7, 12, 'k']],
@@ -1242,6 +1308,20 @@ const BOOSTER_CHEER: PixEdit[] = (() => {
   return out;
 })();
 
+const REPORTER_STATES: Record<FigureMood, PixEdit[]> = {
+  neutral: [],
+  worried: [[7, 9, 'k'], [7, 12, 'k']],
+  mad: [[4, 9, 'k'], [4, 10, 'k'], [4, 12, 'k'], [4, 13, 'k'], [6, 10, 'k'], [6, 11, 'k'], [7, 9, 'k'], [7, 12, 'k'], [7, 10, 'e'], [7, 11, 'e']],
+  elated: [[5, 9, 'y'], [5, 10, 'y'], [5, 12, 'y'], [5, 13, 'y'], [6, 9, 'k'], [6, 12, 'k'], [7, 9, 'k'], [7, 12, 'k'], [7, 10, 'e'], [7, 11, 'e'], [8, 10, 'k'], [8, 11, 'k']],
+};
+const REPORTER_CHEER: PixEdit[] = (() => {
+  const out: PixEdit[] = [];
+  for (let y = 14; y <= 16; y++) [4, 5, 18, 19].forEach((x) => out.push([y, x, '.']));
+  ([[11, 'u'], [10, 'u']] as [number, string][]).forEach(([y, ch]) => [4, 5, 18, 19].forEach((x) => out.push([y, x, ch])));
+  [4, 5, 18, 19].forEach((x) => out.push([9, x, 's']));
+  return out;
+})();
+
 function deanPal(acc: string): Record<string, string> {
   return { h: '#b9bec9', s: '#c08a5e', d: '#a06f45', k: '#1a1e2e', e: '#f4f6fa',
     w: '#e8ecf8', u: '#6b4a2f', U: '#4e3520', o: '#3a2a1c', t: acc, y: '#ffd76a' };
@@ -1249,6 +1329,10 @@ function deanPal(acc: string): Record<string, string> {
 function boosterPal(acc: string): Record<string, string> {
   return { c: IL_CHROME, C: IL_CHROME_D, k: '#1a1e2e', e: '#f4f6fa',
     u: '#2a2135', U: '#1a1626', t: acc, g: '#ffd76a', o: '#1a1e2e', w: '#e8ecf8', y: '#ffd76a' };
+}
+function reporterPal(acc: string): Record<string, string> {
+  return { f: '#6b4a2f', s: '#5bc8af', d: '#3fa389', k: '#1a1e2e', e: '#f4f6fa',
+    w: '#e8ecf8', u: '#f3903f', U: '#c96f26', o: '#3a2a1c', t: acc, y: '#ffd76a' };
 }
 
 function ilDrawMap(R: RFn, map: string[], pal: Record<string, string>, ox: number, oy: number): void {
@@ -1261,45 +1345,107 @@ function ilDrawIcon(R: RFn, x: number, y: number, pat: string[]): void {
   pat.forEach((row, ry) => row.split('').forEach((ch, rx) => { if (ch !== '.') R(x + rx, y + ry, 1, 1, IC[ch]); }));
 }
 
-const FIGURE_SIZE: Record<FigureId, [number, number]> = { dean: [32, 34], booster: [36, 44] };
+// every character now lives in their SCENE (fromDesign/260823 - pt3):
+// the dean before the sepia college pediment, the booster on the landing pad
+// with his pink cadillac-ship idling, Scoop in the empty press room under
+// the blinking ON AIR sign.
+const FIGURE_SIZE: Record<FigureId, [number, number]> = { dean: [64, 44], booster: [64, 44], scoop: [64, 44] };
 
-/** One figure frame: the character acts the state — sweat drop while worried,
-    pulsing skull when mad, star + arms-up cheer when elated, cigar always. */
-function drawFigure(R: RFn, who: FigureId, state: FigureMood, acc: string, f: number): void {
+interface FigState { rows: string[]; shrug: boolean; he: number }
+
+function figState(who: FigureId, state: FigureMood, f: number): FigState {
+  const cfg = {
+    dean: { base: DEAN_MAP, st: DEAN_STATES, ch: DEAN_CHEER, he: 9, blink: [[5, 9], [5, 14]] as [number, number][] },
+    booster: { base: BOOSTER_MAP, st: BOOSTER_STATES, ch: BOOSTER_CHEER, he: 8, blink: null },
+    scoop: { base: REPORTER_MAP, st: REPORTER_STATES, ch: REPORTER_CHEER, he: 9, blink: [[5, 9], [5, 12]] as [number, number][] },
+  }[who];
+  const cheer = state === 'elated' && f % 8 < 4;
+  const shrug = state === 'mad' && f % 8 < 3;
+  const m = ilEdited(cfg.base, (cfg.st[state] ?? []).concat(cheer ? cfg.ch : [])).map((r) => r.split(''));
+  if (cfg.blink && (state === 'neutral' || state === 'worried') && f % 14 < 2) {
+    cfg.blink.forEach(([y, x]) => { m[y][x] = 's'; });
+  }
+  return { rows: m.map((r) => r.join('')), shrug, he: cfg.he };
+}
+
+function drawChar(R: RFn, S: FigState, pal: Record<string, string>, ox: number, oy: number): void {
+  if (S.shrug) { // the head sinks into the shoulders
+    ilDrawMap(R, S.rows.slice(S.he + 1), pal, ox, oy + S.he + 1);
+    ilDrawMap(R, S.rows.slice(0, S.he + 1), pal, ox, oy + 1);
+  } else {
+    ilDrawMap(R, S.rows, pal, ox, oy);
+  }
+}
+
+function stateFx(R: RFn, f: number, state: FigureMood, ix: number, iy: number, sx: number, sy: number): void {
   const big = f % 6 < 3;
   const SK_BIG = ['.eeeee.', 'ekeeeke', 'eeekeee', '.eeeee.', '.e.e.e.'], SK_SM = ['..eee..', '.ekeke.', '..eee..'];
   const ST_BIG = ['..y..', '.yyy.', 'yyyyy', '.yyy.', '..y..'], ST_SM = ['.y.', 'yyy', '.y.'];
   const EX_BIG = ['cc', 'cc', 'cc', '..', 'cc'], EX_SM = ['c', 'c', '.', 'c'];
-  const dean = who === 'dean';
-  const ox = 4, oy = dean ? 7 : 8;
-  const base = dean ? DEAN_MAP : BOOSTER_MAP;
-  const edits = (dean ? DEAN_STATES : BOOSTER_STATES)[state] ?? [];
-  const cheer = state === 'elated' && f % 8 < 4;
-  const shrug = state === 'mad' && f % 8 < 3;
-  const m = ilEdited(base, edits.concat(cheer ? (dean ? DEAN_CHEER : BOOSTER_CHEER) : [])).map((r) => r.split(''));
-  if (dean && (state === 'neutral' || state === 'worried') && f % 14 < 2) { m[5][9] = 's'; m[5][14] = 's'; } // blink
-  const pal = dean ? deanPal(acc) : boosterPal(acc);
-  const rows = m.map((r) => r.join(''));
-  const headEnd = dean ? 9 : 8;
-  if (shrug) { // the head sinks into the shoulders
-    ilDrawMap(R, rows.slice(headEnd + 1), pal, ox, oy + headEnd + 1);
-    ilDrawMap(R, rows.slice(0, headEnd + 1), pal, ox, oy + 1);
-  } else {
-    ilDrawMap(R, rows, pal, ox, oy);
-  }
-  if (!dean) { // cigar + ember + smoke
-    const cy = oy + 6 + (shrug ? 1 : 0);
-    R(ox + 17, cy, 4, 1, '#8a5a32'); R(ox + 21, cy, 1, 1, f % 2 ? '#ff6a4a' : IL_FL1);
-    ilSmoke(R, f, ox + 21, cy - 1, 2);
-  }
-  const ix = dean ? 23 : 2, iy = 2;
   if (state === 'mad') ilDrawIcon(R, ix, iy, big ? SK_BIG : SK_SM);
   if (state === 'elated') ilDrawIcon(R, ix, iy, big ? ST_BIG : ST_SM);
   if (state === 'worried') {
     ilDrawIcon(R, ix + (big ? 0 : 1), iy + (big ? 0 : 1), big ? EX_BIG : EX_SM);
-    const tx = dean ? ox + 17 : ox + 19;
-    R(tx, oy + 1 + (f % 6), 1, f % 6 > 2 ? 2 : 1, '#7fd8ec'); // the sweat drop
+    R(sx, sy + (f % 6), 1, f % 6 > 2 ? 2 : 1, '#7fd8ec'); // the sweat drop
   }
+}
+
+/** The Dean's sepia college: pediment, columns, steps — always monochrome. */
+function ilCollege(R: RFn, W: number, H: number): void {
+  R(0, 0, W, H, '#241f19');
+  R(0, 10, W, 26, '#2a231b');
+  for (let i = 0; i < 6; i++) R(32 - (i + 1) * 4, 2 + i, (i + 1) * 8, 1, '#3a3128'); // pediment
+  R(4, 8, 56, 3, '#4e4234');
+  [6, 14, 44, 52].forEach((x) => { R(x, 11, 5, 25, '#3a3128'); R(x, 11, 1, 25, '#4e4234'); R(x - 1, 11, 7, 2, '#4e4234'); });
+  R(0, 36, W, 3, '#4e4234'); R(0, 39, W, 5, '#3a3128'); // steps
+}
+
+function drawFigure(R: RFn, who: FigureId, state: FigureMood, acc: string, f: number): void {
+  const W = 64, H = 44;
+  if (who === 'dean') {
+    ilCollege(R, W, H);
+    drawChar(R, figState('dean', state, f), deanPal(acc), 20, 13);
+    stateFx(R, f, state, 39, 6, 37, 14);
+    return;
+  }
+  if (who === 'scoop') {
+    // the empty press room: step-and-repeat backdrop, podium mics, ON AIR
+    R(0, 0, W, 40, '#1c2136');
+    for (let gy = 0; gy < 5; gy++) for (let gx = 0; gx < 8; gx++) {
+      const x = 3 + gx * 8 + (gy % 2) * 4, y = 3 + gy * 7;
+      if ((gx + gy) % 2) R(x, y, 2, 2, '#2e3d74'); else R(x, y + 1, 2, 1, '#39406b');
+    }
+    R(0, 40, W, 4, '#141828'); R(0, 40, W, 1, '#232a44'); // floor
+    R(6, 26, 10, 14, '#2a3152'); R(5, 25, 12, 2, '#3c4668'); // podium
+    R(8, 20, 1, 5, IL_CHROME_D); R(11, 21, 1, 4, IL_CHROME_D); // mic stalks
+    R(7, 19, 2, 2, '#1a1e2e'); R(10, 20, 2, 2, '#1a1e2e');
+    R(45, 4, 14, 7, '#141828'); R(45, 4, 14, 1, '#232a44'); // ON AIR sign
+    R(47, 6, 10, 3, f % 6 < 3 ? IL_RED : '#5a2430');
+    drawChar(R, figState('scoop', state, f), reporterPal(acc), 24, 14);
+    stateFx(R, f, state, 17, 7, 41, 16);
+    return;
+  }
+  // the booster: starfield, landing pad, the pink cadillac-ship idling behind
+  ilStars(R, W, H, f);
+  R(0, 38, W, 6, '#2a231b'); R(0, 38, W, 1, '#3a3128'); // landing pad
+  const by = 20 + (f % 6 < 3 ? 0 : 1); // hover bob
+  R(2, by - 6, 3, 6, '#d16a9e'); R(4, by - 4, 3, 4, '#d16a9e'); // tail fins
+  R(3, by - 6, 1, 2, IL_RED);
+  R(2, by, 60, 8, '#d16a9e'); R(2, by, 60, 2, '#a84a7c');
+  R(2, by + 4, 60, 1, '#d8dde8'); // chrome trim
+  R(34, by - 5, 14, 5, IL_WIN); R(34, by - 5, 14, 1, '#a84a7c'); // canopy
+  R(58, by + 1, 4, 6, '#d8dde8'); // chrome grille
+  if (f % 2) R(8, by + 8, 48, 1, acc); // hover glow
+  const S = figState('booster', state, f);
+  drawChar(R, S, boosterPal(acc), 18, 5);
+  // cigar + ember + smoke (rides the shrug)
+  const cy = 11 + (S.shrug ? 1 : 0);
+  R(35, cy, 4, 1, '#8a5a32'); R(39, cy, 1, 1, f % 2 ? '#ff6a4a' : IL_FL1);
+  for (let i = 0; i < 3; i++) {
+    const rise = (f + i * 4) % 12;
+    if (rise > 1) R(39 + (f + i) % 2, cy - 1 - rise, rise > 7 ? 2 : 1, 1, '#8a8f9e');
+  }
+  stateFx(R, f, state, 10, 2, 26, 6);
 }
 
 // ---- illustration sheets: same cache + steps() loop as the rigs --------------

@@ -2,7 +2,10 @@
 // the energy cache, seasons, the Universal Tournament, and every ending.
 
 import {
+  BOOSTER_POOL,
+  DEAN_POOL,
   ITEMS,
+  SMALL_ITEMS,
   TIPS,
   VOYAGE_POOL,
   drillById,
@@ -155,6 +158,25 @@ export function wipeSave(): void {
   } catch {
     /* ignore */
   }
+}
+
+// ---- THE NOTEBOOK -----------------------------------------------------------------
+// A permanent bag fixture: tap it and something noteworthy from the current
+// screen goes in. Notes answer press questions — and, later, story callbacks.
+
+const NOTEBOOK_CAP = 60;
+
+/** Add a note (deduped by key). Returns false if that key is already noted. */
+export function addNote(s: GameState, kind: string, key: string, text: string): boolean {
+  if (s.notebook.some((n) => n.key === key)) return false;
+  s.notebook.unshift({ season: s.season, week: s.week, kind, key, text });
+  if (s.notebook.length > NOTEBOOK_CAP) s.notebook.length = NOTEBOOK_CAP;
+  save(s);
+  return true;
+}
+
+export function findNote(s: GameState, key: string): boolean {
+  return s.notebook.some((n) => n.key === key);
 }
 
 // ---- XP & levels ------------------------------------------------------------------
@@ -467,14 +489,69 @@ function checkHotSeat(s: GameState, defer: StoryDefer): void {
   }
 }
 
+/** Scoop's material: a multiple-choice question about LAST week, with the
+    true answer and the notebook key that would answer it for you. */
+function buildScoopQuestion(
+  s: GameState,
+  week: number,
+  mvp: string | null,
+  top: string | null,
+  roster: string[],
+  results: string[]
+): Record<string, unknown> | null {
+  const kinds: string[] = [];
+  if (mvp && roster.length >= 4) kinds.push('mvp');
+  if (top && roster.length >= 4) kinds.push('top');
+  if (results.length) kinds.push('other');
+  if (!kinds.length) return null;
+  const kind = pick(kinds);
+  const shuffle = <T,>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
+  if (kind === 'other') {
+    const line = pick(results);
+    const m = line.match(/^(.*) (\d+) — (\d+) (.*)$/);
+    if (!m) return null;
+    const winner = m[1];
+    const loser = m[4];
+    const others = s.teams.map((tm) => tm.name).filter((n) => n !== winner && n !== loser);
+    const opts = shuffle([winner, loser, ...shuffle(others).slice(0, 2)]);
+    return {
+      q: `Your league, coach — who beat the ${loser} last week?`,
+      opts, answer: opts.indexOf(winner), noteKey: `res:${s.season}:${week}`,
+    };
+  }
+  const right = (kind === 'mvp' ? mvp : top)!;
+  const decoys = shuffle(roster.filter((n) => n !== right)).slice(0, 3);
+  const opts = shuffle([right, ...decoys]);
+  return {
+    q: kind === 'mvp'
+      ? 'For the Gazette, coach: who took the MVP honors in your last game?'
+      : 'For the Gazette, coach: who led your team in scoring last game?',
+    opts, answer: opts.indexOf(right), noteKey: `mvp:${s.season}:${week}`,
+  };
+}
+
 function startWeek(s: GameState): void {
   const t = myTeam(s);
   // what the weekend left behind (before the flags reset wipe it)
   const lastGame = new Map(s.postGame.map((r) => [r.playerId, r]));
   const hadGame = s.postGame.length > 0;
   const wasAway = !!s.lastResult && (!s.lastResult.home || (s.ut !== null && s.week - 1 > REGULAR_WEEKS));
+  // the press reads last week before the reset wipes it (Scoop's material)
+  const pressWeek = s.week - 1;
+  const lastBox = s.lastResult?.box ?? [];
+  const pressMvp = lastBox.find((r) => r.playerId === s.lastResult?.mvpId)?.name ?? null;
+  const pressTop = lastBox[0]?.name ?? null;
+  const pressRoster = lastBox.map((r) => r.name);
+  const pressResults = [...s.resultsLog];
 
   s.energy = clamp(s.energy + stipendFor(s.season), 0, CACHE_MAX);
+  // premium speeches recharge
+  if (s.speechCooldowns) {
+    for (const k of Object.keys(s.speechCooldowns)) {
+      s.speechCooldowns[k] = Math.max(0, (s.speechCooldowns[k] ?? 0) - 1);
+      if (!s.speechCooldowns[k]) delete s.speechCooldowns[k];
+    }
+  }
   s.trainedThisWeek = false;
   s.galaxyActWk = false;
   s.speechWk = false;
@@ -604,6 +681,21 @@ function startWeek(s: GameState): void {
         defer(def.id, 'start', null);
       }
     }
+
+    // THE PRESS + THE REGULARS: 30% each, independent — some weeks you meet
+    // all three, some weeks none. Scoop keeps you honest; the dean wants it
+    // by the book; the booster's help is illegal and can backfire.
+    if (roll(30) && hadGame) {
+      const q = buildScoopQuestion(s, pressWeek, pressMvp, pressTop, pressRoster, pressResults);
+      if (q) defer('scoop_question', 'start', null, q);
+    }
+    if (roll(30)) defer(pick(DEAN_POOL), 'start', null);
+    if (roll(30)) defer(pick(BOOSTER_POOL), 'start', null);
+    // THE SUPPLY CLOSET: an item finds you most weeks — small, single-use,
+    // meant to be SPENT (the bag only holds four)
+    if (roll(50)) defer('supply', 'start', null, { itemId: pick(SMALL_ITEMS) });
+    // flat broke: one of the characters offers a way to scrape up credits
+    if (s.energy <= 1) defer('bailout', 'start', null, { who: pick(['dean', 'booster', 'scoop']) });
   }
 
   normalizeLineup(t);
@@ -789,8 +881,8 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
 
 export interface GalaxyResult {
   text: string;
-  /** per-prospect stickers for the board */
-  perProspect: Map<number, { text: string; up?: boolean }[]>;
+  /** per-prospect stickers for the board (+the commit ring's change delta) */
+  perProspect: Map<number, { text: string; up?: boolean; commitFrom?: number }[]>;
   /** search trips show the saucer: it flies out, then lands the verdict */
   art?: 'saucer-hoop' | 'saucer-stranded' | 'saucer-move';
 }
@@ -836,7 +928,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
   if (act.kind !== 'search' && !s.prospects.length) return null;
   s.energy -= act.cost;
   s.galaxyActWk = true;
-  const per = new Map<number, { text: string; up?: boolean }[]>();
+  const per = new Map<number, { text: string; up?: boolean; commitFrom?: number }[]>();
   let text: string;
   let art: GalaxyResult['art'];
   const r = Math.random() * 100;
@@ -874,7 +966,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
         text += ' The shuttle, however, felt every mile...';
       } else {
         s.energy = clamp(s.energy - 1, 0, CACHE_MAX);
-        text += ' The feed subscriptions auto-renewed. Of course they did. (−1⚡)';
+        text += ' The feed subscriptions auto-renewed. Of course they did. (−1¢)';
       }
     } else if (r < act.down.pct + act.up.pct && scoped.length) {
       const lucky = pick(scoped);
@@ -890,15 +982,16 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
         per.set(pr.id, [{ text: 'NO CONTACT', up: false }]);
         continue;
       }
+      const commitFrom = pr.commitPct;
       if (roll(act.risk ?? 0)) {
         const d = act.gain![1];
         pr.commitPct = clamp(pr.commitPct - d, 0, 95);
-        per.set(pr.id, [{ text: `−${d}% COMMIT`, up: false }]);
+        per.set(pr.id, [{ text: `−${d}% COMMIT`, up: false, commitFrom }]);
         downs++;
       } else {
         const g = act.gain![0] + rand(act.gain![1] - act.gain![0] + 1);
         pr.commitPct = clamp(pr.commitPct + g, 0, 95);
-        per.set(pr.id, [{ text: `+${g}% COMMIT`, up: true }]);
+        per.set(pr.id, [{ text: `+${g}% COMMIT`, up: true, commitFrom }]);
         ups++;
       }
     }
@@ -953,7 +1046,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
     } else if (act.id !== 'reccenter') {
       if (s.energy === 0 && roll(10)) {
         queueStory(s, 'debt', 'start', null, { art: 'saucer', cause: 'On the way home from the search, a gravity snare — a salvage rig reels your ship in like a fish.' });
-        text += ' Then the cells run dry in dead space...';
+        text += ' Then the credits run dry in dead space...';
         art = 'saucer-stranded';
       } else if (r < act.down.pct) {
         if (roll(50)) queueStory(s, 'hullbreach', 'start', null);
@@ -1030,7 +1123,7 @@ export function confirmBoard(s: GameState): string[] {
     believer stops believing (mood −25, the words still land at minimum).
     The pregame speech carries through the WHOLE game; the halftime speech
     (a different one, by law) stacks on top. */
-function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx; text: string } {
+function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx | null; text: string } {
   const pl = planById(plan);
   const t = myTeam(s);
   const r = Math.random() * 100;
@@ -1041,35 +1134,47 @@ function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx; text: string } 
     if (p) {
       p.mood = clamp(p.mood - 25, 0, 100);
       return {
-        fx: { attr: pl.attr, amt: 1 },
-        text: genderize(`"${pl.speech}," you say. Most of the room leans in — squad +1 ${A} tonight — but ${p.name} looks at the floor. He's heard this one before, and tonight he doesn't believe a word of it. MOOD −25.`, p.form),
+        fx: null,
+        text: genderize(`"${pl.speech}," you say. ${p.name} looks at the floor. He's heard this one before, and tonight he doesn't believe a word of it. MOOD −25.`, p.form),
       };
     }
-    return { fx: { attr: pl.attr, amt: 1 }, text: `"${pl.speech}," you say, to a very quiet room. It lands, barely. Squad +1 ${A} tonight.` };
+    return { fx: null, text: `"${pl.speech}," you say, to a very quiet room.` };
   }
   if (r < pl.down + pl.up) {
     return {
-      fx: { attr: pl.attr, amt: pl.boost + 1 },
-      text: `"${pl.speech}!" — and the room IGNITES. Chairs go over. Somebody headbutts a locker, affectionately. The whole squad plays +${pl.boost + 1} ${A} tonight.`,
+      fx: { attr: pl.attr, amt: pl.boost },
+      text: `"${pl.speech}!" — and the room IGNITES. Chairs go over. Somebody headbutts a locker, affectionately. The whole squad plays +${pl.boost} ${A} tonight.`,
     };
   }
-  const amt = 1 + rand(pl.boost);
-  return { fx: { attr: pl.attr, amt }, text: `"${pl.speech}," you say. Nods. Slapped shoulders. The room heard you — squad +${amt} ${A} tonight.` };
+  if (r < pl.down + pl.up + pl.workPct) {
+    const amt = pl.work[0] + rand(pl.work[1] - pl.work[0] + 1);
+    return { fx: { attr: pl.attr, amt }, text: `"${pl.speech}," you say. Nods. Slapped shoulders. The words LAND — squad +${amt} ${A} tonight.` };
+  }
+  return { fx: null, text: `"${pl.speech}," you say. The room hears you. The rest is on them.` };
+}
+
+/** Weeks before this speech can be given again (premium finds recharge). */
+export function speechCooldown(s: GameState, plan: PlanId): number {
+  return s.speechCooldowns?.[plan] ?? 0;
 }
 
 export function deliverSpeech(s: GameState, plan: PlanId): string | null {
-  if (s.speechWk || !s.knownPlans.includes(plan)) return null;
+  if (s.speechWk || !s.knownPlans.includes(plan) || speechCooldown(s, plan) > 0) return null;
   s.plan = plan;
   s.speechWk = true;
   const out = rollSpeech(s, plan);
   s.speechFx = out.fx;
+  const cd = planById(plan).cooldown;
+  if (cd) s.speechCooldowns = { ...(s.speechCooldowns ?? {}), [plan]: cd };
   save(s);
   return out.text;
 }
 
-/** Which item contexts the current phase accepts ('mood' is always welcome). */
+/** Which item contexts the current phase accepts ('mood' is always welcome).
+    Player-target items are usable whenever a player grid is on screen. */
 export function itemAllowedNow(s: GameState, itemId: string): boolean {
   const item = itemById(itemId);
+  if (item.target === 'player' && ['practice', 'matchup', 'weekstart', 'gamenight', 'teamSelect'].includes(s.phase)) return true;
   const phaseCtx: Record<string, string[]> = {
     practice: ['practice'],
     matchup: ['pregame'],
@@ -1087,6 +1192,9 @@ export function useItem(s: GameState, itemId: string, ctxData: Record<string, un
   const item = itemById(itemId);
   if (item.rarity === 'legendary' && s.legendariesUsed.includes(item.id)) return null;
   if (!itemAllowedNow(s, itemId)) return null;
+  // a refusal bounces the drop WITHOUT consuming the item
+  const deny = item.check?.(storyCtx(s, (ctxData.playerId as number | null) ?? null, ctxData));
+  if (deny) return `◆ ${item.name}: ${deny}.`;
   s.bag.splice(idx, 1);
   if (item.rarity === 'legendary') s.legendariesUsed.push(item.id);
   lastLevelUps = [];
@@ -1186,7 +1294,7 @@ function aiPostGame(t: Team, won: boolean, halfAlreadySpent: boolean): void {
     }
     // the other gyms have hot nights too: the STANDOUT drip lands league-wide
     if (floor && roll(10)) bumpAny(p, 1);
-    if (p.level < LEVEL_CAP && Math.random() < 0.15) { p.level++; bumpAny(p, 2); }
+    if (p.level < LEVEL_CAP && Math.random() < 0.18) { p.level++; bumpAny(p, 2); }
   }
 }
 
@@ -1230,11 +1338,13 @@ function simWeek(s: GameState): void {
 /** HALFTIME SPEECH: mandatory before the second half — its own fresh roll,
     and NEVER the pregame speech again (that one is still working the room). */
 export function deliverHalftimeSpeech(s: GameState, plan: PlanId): string | null {
-  if (!s.halftime || s.speechH2 || !s.knownPlans.includes(plan) || plan === s.plan) return null;
+  if (!s.halftime || s.speechH2 || !s.knownPlans.includes(plan) || plan === s.plan || speechCooldown(s, plan) > 0) return null;
   s.planH2 = plan;
   s.speechH2 = true;
   const out = rollSpeech(s, plan);
   s.speechFxH2 = out.fx;
+  const cd = planById(plan).cooldown;
+  if (cd) s.speechCooldowns = { ...(s.speechCooldowns ?? {}), [plan]: cd };
   save(s);
   return out.text;
 }
@@ -1255,6 +1365,7 @@ export function playSecondHalf(s: GameState): void {
     s.lastResult = out.result;
     s.halftime = null;
     applyGameEffects(s, out.won, drains);
+    s.myResults = [...(s.myResults ?? []), { week: s.week, win: out.won, text: `${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}` }];
     s.ut.log.push(`${weekLabel(s)}: ${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}`);
     if (out.won) {
       s.heatB = clamp(s.heatB - 6, 0, 100);
@@ -1279,11 +1390,13 @@ export function playSecondHalf(s: GameState): void {
   loser.pointsAgainst += Math.max(out.result.myScore, out.result.oppScore);
   if (out.won) { s.totalWins++; s.heatB = clamp(s.heatB - 4, 0, 100); }
   else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
+  s.myResults = [...(s.myResults ?? []), { week: s.week, win: out.won, text: `${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} ${out.result.home ? 'vs' : '@'} ${m.opponent.name}` }];
   applyGameEffects(s, out.won, drains);
   // the other locker room lives the same night we do (half already spent)
   aiPostGame(m.opponent, !out.won, true);
-  // clean weeks slowly cool the school
-  s.heatS = clamp(s.heatS - 1, 0, 100);
+  // clean weeks cool the school — a notch faster now that the dean, the
+  // booster and the press drip heat into every season
+  s.heatS = clamp(s.heatS - 2, 0, 100);
   save(s);
 }
 
@@ -1487,9 +1600,10 @@ function endSeason(s: GameState, utNote: string | null): void {
     const counter = { nextId: s.nextId };
     const names = takenNames(s);
     // the other programs refill with playable bodies (transfers, any class) —
-    // not just level-0 freshmen, or MY recruiting becomes a pure handicap
+    // but from the same constrained pipeline mine comes from (a band down,
+    // three-quarter levels), or MY recruiting becomes a pure handicap
     while (team.players.length < ROSTER_SIZE) {
-      team.players.push(genPlayer(counter, 0, rand(4), undefined, names));
+      team.players.push(genPlayer(counter, -1, rand(4), undefined, names, 0, 1));
     }
     s.nextId = counter.nextId;
     ensureUniqueJerseys(team.players);
@@ -1505,13 +1619,15 @@ function endSeason(s: GameState, utNote: string | null): void {
   save(s);
 }
 
-export function convincePro(s: GameState, playerId: number): void {
+/** The convince roll — returned so THE ROLL WHEEL can play it out live. */
+export function convincePro(s: GameState, playerId: number): { staying: boolean; chance: number } | null {
   const d = s.proDeparts.find((x) => x.playerId === playerId && !x.resolved);
   const p = myTeam(s).players.find((x) => x.id === playerId);
-  if (!d || !p) return;
+  if (!d || !p) return null;
   d.resolved = true;
   const chance = clamp(15 + (p.mood - 40), 10, 80);
-  if (Math.random() * 100 < chance) {
+  const staying = Math.random() * 100 < chance;
+  if (staying) {
     d.staying = true;
     d.note = `You talk about legacy, unfinished business, banners. ${p.name} STAYS. (${chance}% — and you hit it.)`;
   } else {
@@ -1520,6 +1636,7 @@ export function convincePro(s: GameState, playerId: number): void {
     departPro(s, p);
   }
   save(s);
+  return { staying, chance };
 }
 
 export function letGoPro(s: GameState, playerId: number): void {
@@ -1667,6 +1784,7 @@ export function startNewSeason(s: GameState): void {
   s.selectPool = [];
   s.signingResults = [];
   s.summerRecap = [];
+  s.myResults = [];
   s.seasonChampion = null;
   s.groundedWeeks = 0;
   s.proDeparts = [];
@@ -1679,7 +1797,17 @@ export function startNewSeason(s: GameState): void {
   s.pendingRecruits = [];
   const counter = { nextId: s.nextId };
   const names = takenNames(s);
-  for (let i = 0; i < MAX_PROSPECTS; i++) s.prospects.push(genProspect(counter, s.season, 'opening', names));
+  for (let i = 0; i < MAX_PROSPECTS; i++) {
+    const pr = genProspect(counter, s.season, 'opening', names);
+    // word travels over the summer: a few things are already known here
+    // and there before the season opens
+    if (roll(40)) {
+      revealFacet(pr);
+      pr.scoutLevel = 1;
+      observe(pr);
+    }
+    s.prospects.push(pr);
+  }
   s.nextId = counter.nextId;
   startWeek(s);
 }

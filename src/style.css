@@ -1169,3 +1169,91 @@ button.actmain.scopehl { border-color: var(--r95); }
   font-weight: bold;
   letter-spacing: 2px;
 }
+
+/* ---- THE LIVE GAME: the score ticks, the colors fill from the separator --- */
+
+.bigrope.live { background: var(--r20); }
+.lg-fill { position: absolute; top: 0; bottom: 0; opacity: 0.92; }
+.lg-rating {
+  position: absolute;
+  top: -4px; bottom: -4px;
+  width: 2px;
+  background: var(--r35);
+  transform: translateX(-1px);
+  z-index: 1;
+}
+.bigrope .brsplit { z-index: 3; background: #fff; box-shadow: 0 0 5px rgba(255, 255, 255, 0.7); transition: left 0.16s linear; }
+.bigrope .brsplit.landed { animation: needleflash 0.5s; }
+.livescore {
+  position: absolute;
+  top: -30px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: #000;
+  border: 1px solid var(--r55);
+  padding: 1px 7px;
+  font-size: 16px;
+  transition: left 0.16s linear;
+  z-index: 4;
+}
+.livescore b { color: var(--r95); }
+.livescore .lsdot { color: var(--r35); margin: 0 4px; }
+
+/* ---- THE ROLL WHEEL: watch your diceroll land ------------------------------ */
+
+.wheelback {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wheelbox { text-align: center; }
+.wheellabel { color: var(--r95); letter-spacing: 2px; font-size: 14px; font-weight: bold; margin-bottom: 14px; }
+.wheel { position: relative; width: 168px; height: 168px; margin: 0 auto; }
+.wheel svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.whdark { fill: none; stroke: var(--r20); stroke-width: 4.5; }
+.whbright { fill: none; stroke: var(--r95); stroke-width: 4.5; }
+.whneedle {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 3px; height: 70px;
+  margin-left: -1.5px;
+  background: #fff;
+  transform-origin: 1.5px 0;
+  transform: rotate(180deg); /* pointing at 12 o'clock, where the zone starts */
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+}
+.whpct {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 20px; font-weight: bold; color: var(--r75);
+  background: var(--rbg);
+  padding: 2px 6px;
+}
+.wheelverdict { margin-top: 14px; font-size: 20px; font-weight: bold; letter-spacing: 2px; }
+.wheelverdict.up { color: var(--r95); animation: imp-pop 0.4s; }
+.wheelverdict.down { color: var(--r35); animation: imp-shake 0.4s; }
+.wheelverdict.hide { visibility: hidden; }
+
+/* ---- THE NOTEBOOK + header rows -------------------------------------------- */
+
+.bslot.notebook { border-style: solid; border-color: var(--r75); color: var(--r95); }
+.notebookrow { font-size: 13px; color: var(--r95); border-top: 1px dashed var(--rline); padding: 6px 0; }
+.notebookrow .dim { margin-right: 6px; }
+button.hchip { border: none; margin: 0; font-size: 13px; padding: 3px 8px; font-weight: bold; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; justify-self: start; min-width: 0; }
+button.hrow { background: transparent; border: none; margin: 0; padding: 0; text-align: left; font-size: 12px; color: var(--r75); }
+button.hrow b { color: var(--r95); }
+.schedtable td { font-size: 14px; padding: 5px 8px 5px 0; }
+
+/* the players being discussed stand in the dialog */
+.confirmcards { display: flex; gap: 6px; margin: 8px 0; }
+.confirmcards > .pcard { flex: 1; min-width: 0; }
+
+/* down-swaps read descending (the numSwap sets colors inline; this is the
+   fallback weight) */
+.numswap.nsdown .ns-old { color: var(--r75); }
+.numswap.nsdown .ns-new { color: var(--r35); }

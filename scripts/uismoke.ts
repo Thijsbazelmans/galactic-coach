@@ -106,10 +106,11 @@ async function main(): Promise<void> {
   anyWin.gcAction('to-galaxy', '');
   drain();
   if (state().phase !== 'galaxy') throw new Error(`expected galaxy, got ${state().phase}`);
-  // the board opens FULL: nine strangers, all ??'s, priority rows labeled
+  // the board opens FULL: nine names, mostly strangers (word travels over
+  // the summer — a few facets may already be known here and there)
   const prospects = (gc.state() as any).prospects;
   if (prospects.length !== 9) throw new Error(`expected 9 prospects on the board, got ${prospects.length}`);
-  if (prospects.some((p: any) => p.seenSkill || p.seenPot || p.digits > 0)) throw new Error('fresh prospects should be total strangers');
+  if (prospects.every((p: any) => p.seenSkill && p.seenPot && p.digits >= 2)) throw new Error('the opening board should not be fully known');
   if (!app.innerHTML.includes('prq')) throw new Error('?? masks missing on the board');
   if (!app.innerHTML.includes('TARGETS')) throw new Error('priority-board row labels missing');
   // the species signs the STATS card, in their skin color

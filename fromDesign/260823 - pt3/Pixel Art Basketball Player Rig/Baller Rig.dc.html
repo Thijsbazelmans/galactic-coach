@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin: 0; background: #0a0c14; }
+  a { color: #b6f36a; text-decoration: none; }
+  a:hover { color: #f36ad2; }
+  canvas { image-rendering: pixelated; display: block; }
+  input { font-family: 'IBM Plex Mono', monospace; }
+</style>
+</helmet>
+<div ref="{{ pageRef }}" style="min-height:100vh;background:#0a0c14;color:#dfe3f2;font-family:'IBM Plex Mono',monospace;padding:34px 38px 70px;box-sizing:border-box">
+
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;border-bottom:2px solid #232a44;padding-bottom:18px;flex-wrap:wrap">
+    <div>
+      <div style="font-family:'Silkscreen',monospace;font-size:11px;letter-spacing:3px;color:#b6f36a;margin-bottom:10px">INTERGALACTIC COLLEGIATE BASKETBALL ASSOCIATION</div>
+      <div style="font-family:'Silkscreen',monospace;font-size:36px;line-height:1;color:#f4f6ff">MODULAR BALLER RIG</div>
+      <div style="font-size:13px;color:#818ab0;margin-top:11px;max-width:62ch;text-wrap:pretty;line-height:1.6">One procedural rig, 48&times;48, front-facing. Every sprite below is composed from anatomy parameters and a species chassis — no per-alien artwork. A new race is a data row, not a drawing job.</div>
+    </div>
+    <div style="display:flex;gap:9px;flex-wrap:wrap">
+      <div style="border:2px solid #232a44;padding:10px 14px;background:#0f1220">
+        <div style="font-size:9px;letter-spacing:2px;color:#6d7699">CELL</div>
+        <div style="font-family:'Silkscreen',monospace;font-size:15px;margin-top:6px;color:#f4f6ff">48&times;48</div>
+      </div>
+      <div style="border:2px solid #232a44;padding:10px 14px;background:#0f1220">
+        <div style="font-size:9px;letter-spacing:2px;color:#6d7699">CHASSIS</div>
+        <div style="font-family:'Silkscreen',monospace;font-size:15px;margin-top:6px;color:#f4f6ff">6</div>
+      </div>
+      <div style="border:2px solid #232a44;padding:10px 14px;background:#0f1220">
+        <div style="font-size:9px;letter-spacing:2px;color:#6d7699">COMBOS</div>
+        <div style="font-family:'Silkscreen',monospace;font-size:15px;margin-top:6px;color:#b6f36a">7,680</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin:38px 0 4px">
+    <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a">01</div>
+    <div style="font-family:'Silkscreen',monospace;font-size:22px;color:#f4f6ff">THE SPEC</div>
+    <div style="flex:1;height:2px;background:#1b2138"></div>
+  </div>
+  <div style="font-size:12px;color:#818ab0;margin-bottom:20px;max-width:70ch;line-height:1.6">Anchors, slots, and sizing rules. This is the contract every species must satisfy — get it right and the art pipeline never blocks on new aliens.</div>
+
+  <div style="display:grid;grid-template-columns:300px 1fr;gap:22px;align-items:start">
+    <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+      <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:14px">ANCHOR SKELETON</div>
+      <div style="background:#535866;border:1px solid #232a44;display:flex;justify-content:center;padding:8px">
+        <canvas data-sprite="anchors" data-species="terran" data-size="m" data-scale="5"></canvas>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px;margin-top:14px;font-size:11px;color:#9aa3c4">
+        <div style="display:flex;gap:9px;align-items:center"><span style="width:9px;height:9px;background:#f36ad2;flex:none"></span>CROWN &mdash; hair / crest / antennae</div>
+        <div style="display:flex;gap:9px;align-items:center"><span style="width:9px;height:9px;background:#f36ad2;flex:none"></span>SKULL &mdash; head, eyes, goggles</div>
+        <div style="display:flex;gap:9px;align-items:center"><span style="width:9px;height:9px;background:#6ad2f3;flex:none"></span>SHOULDER A/B &mdash; arm pairs 1&ndash;2</div>
+        <div style="display:flex;gap:9px;align-items:center"><span style="width:9px;height:9px;background:#b6f36a;flex:none"></span>CHEST &mdash; jersey + number</div>
+        <div style="display:flex;gap:9px;align-items:center"><span style="width:9px;height:9px;background:#6ad2f3;flex:none"></span>HIP &mdash; leg row origin, tail</div>
+        <div style="display:flex;gap:9px;align-items:center"><span style="width:9px;height:9px;background:#f3c46a;flex:none"></span>GRIP &mdash; ball / brick attach</div>
+        <div style="display:flex;gap:9px;align-items:center"><span style="width:9px;height:9px;background:#f3c46a;flex:none"></span>SOLE &mdash; locked to y=46 baseline</div>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #232a44;font-size:11px;color:#6d7699;line-height:1.6">Anchors are computed, never authored. Every part declares which anchor it hangs from and its own pivot — that is the whole rig.</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px 18px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:14px">SLOT TABLE &mdash; 12 SWAPPABLE PARTS</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:1px;background:#232a44;border:1px solid #232a44">
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">HEAD</div><div style="font-size:10px;color:#6d7699;margin-top:4px">skull @ SKULL &middot; 6 shapes</div></div>
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">EYES</div><div style="font-size:10px;color:#6d7699;margin-top:4px">1 / 2 / 3 / 4 &middot; on skull</div></div>
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">CREST</div><div style="font-size:10px;color:#6d7699;margin-top:4px">hair, antennae @ CROWN</div></div>
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">TORSO</div><div style="font-size:10px;color:#6d7699;margin-top:4px">human / chitin / rock / blob / float</div></div>
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">ARMS</div><div style="font-size:10px;color:#6d7699;margin-top:4px">2 or 4 &middot; SHOULDER A/B</div></div>
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">LEGS</div><div style="font-size:10px;color:#6d7699;margin-top:4px">0 / 2 / 6 &middot; HIP row</div></div>
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">FEET</div><div style="font-size:10px;color:#6d7699;margin-top:4px">shoe / hoof / claw / none</div></div>
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">TAIL</div><div style="font-size:10px;color:#6d7699;margin-top:4px">behind HIP, drawn first</div></div>
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">SKIN RAMP</div><div style="font-size:10px;color:#6d7699;margin-top:4px">4 tints &times; 3 steps</div></div>
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">UNIFORM</div><div style="font-size:10px;color:#6d7699;margin-top:4px">home / away + accent</div></div>
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">NUMBER</div><div style="font-size:10px;color:#6d7699;margin-top:4px">3&times;5 bitmap @ CHEST</div></div>
+          <div style="background:#141828;padding:10px 11px"><div style="font-size:11px;color:#f4f6ff;letter-spacing:1px">GEAR</div><div style="font-size:10px;color:#6d7699;margin-top:4px">goggles, wrist tape, band</div></div>
+        </div>
+      </div>
+
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px 18px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:14px">SIZING RULES &mdash; PIXELS FROM THE y=46 BASELINE</div>
+        <div style="display:grid;grid-template-columns:1.4fr repeat(6,1fr);gap:0;font-size:11px">
+          <div style="padding:8px 6px;color:#6d7699;border-bottom:2px solid #232a44;letter-spacing:1px">CLASS</div>
+          <div style="padding:8px 6px;color:#6d7699;border-bottom:2px solid #232a44">HEIGHT</div>
+          <div style="padding:8px 6px;color:#6d7699;border-bottom:2px solid #232a44">HEAD</div>
+          <div style="padding:8px 6px;color:#6d7699;border-bottom:2px solid #232a44">TORSO H</div>
+          <div style="padding:8px 6px;color:#6d7699;border-bottom:2px solid #232a44">TORSO W</div>
+          <div style="padding:8px 6px;color:#6d7699;border-bottom:2px solid #232a44">LEG</div>
+          <div style="padding:8px 6px;color:#6d7699;border-bottom:2px solid #232a44">LIMB</div>
+
+          <div style="padding:9px 6px;color:#f4f6ff;border-bottom:1px solid #1b2138">XS &middot; Guard</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">30</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">8</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">9</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">7</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">11</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">2</div>
+
+          <div style="padding:9px 6px;color:#f4f6ff;border-bottom:1px solid #1b2138">S &middot; Wing</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">34</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">8</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">11</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">8</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">13</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">2</div>
+
+          <div style="padding:9px 6px;color:#f4f6ff;border-bottom:1px solid #1b2138">M &middot; Forward</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">38</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">9</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">12</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">9</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">15</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">3</div>
+
+          <div style="padding:9px 6px;color:#f4f6ff;border-bottom:1px solid #1b2138">L &middot; Bruiser</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">40</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">10</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">14</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">13</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">14</div>
+          <div style="padding:9px 6px;color:#9aa3c4;border-bottom:1px solid #1b2138">3</div>
+
+          <div style="padding:9px 6px;color:#f4f6ff">XL &middot; Center</div>
+          <div style="padding:9px 6px;color:#9aa3c4">45</div>
+          <div style="padding:9px 6px;color:#9aa3c4">11</div>
+          <div style="padding:9px 6px;color:#9aa3c4">16</div>
+          <div style="padding:9px 6px;color:#9aa3c4">12</div>
+          <div style="padding:9px 6px;color:#9aa3c4">17</div>
+          <div style="padding:9px 6px;color:#9aa3c4">4</div>
+        </div>
+        <div style="font-size:11px;color:#6d7699;margin-top:14px;line-height:1.6">Rules that hold across every species: soles land on y=46 &middot; head never exceeds 25% of height &middot; grip anchor sits within 6px of the hip so the dribble cycle reuses one hand path &middot; silhouette stays inside x&nbsp;5&ndash;43 so shoulder-checks read at 1&times; zoom.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin:46px 0 4px">
+    <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a">02</div>
+    <div style="font-family:'Silkscreen',monospace;font-size:22px;color:#f4f6ff">SPRITE LAB</div>
+    <div style="flex:1;height:2px;background:#1b2138"></div>
+  </div>
+  <div style="font-size:12px;color:#818ab0;margin-bottom:20px;max-width:70ch;line-height:1.6">Swap chassis, body class, and parts. Everything redraws from the same rig code the game would ship.</div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:20px;align-items:start">
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:13px">SPECIES CHASSIS</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ raceBtns }}" as="r" hint-placeholder-count="6">
+            <div onClick="{{ r.pick }}" style="cursor:pointer;padding:9px 11px;border:2px solid {{ r.bd }};background:{{ r.bg }};display:flex;justify-content:space-between;align-items:center;gap:10px">
+              <div>
+                <div style="font-size:12px;letter-spacing:1px;color:{{ r.fg }}">{{ r.name }}</div>
+                <div style="font-size:10px;color:#6d7699;margin-top:3px">{{ r.note }}</div>
+              </div>
+              <div style="width:14px;height:14px;flex:none;background:{{ r.swatch }};border:1px solid #0a0c14"></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:13px">BODY CLASS</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ sizeBtns }}" as="s" hint-placeholder-count="5">
+            <div onClick="{{ s.pick }}" style="cursor:pointer;padding:8px 11px;border:2px solid {{ s.bd }};background:{{ s.bg }};display:flex;justify-content:space-between;font-size:11px;letter-spacing:1px;color:{{ s.fg }}">
+              <span>{{ s.name }}</span><span style="color:#6d7699">{{ s.h }}px</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:13px">BODY FORM</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ formBtns }}" as="f" hint-placeholder-count="3">
+            <div onClick="{{ f.pick }}" style="cursor:pointer;padding:8px 11px;border:2px solid {{ f.bd }};background:{{ f.bg }};display:flex;justify-content:space-between;font-size:11px;letter-spacing:1px;color:{{ f.fg }}">
+              <span>{{ f.name }}</span><span style="color:#6d7699">{{ f.note }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:10px;color:#6d7699;margin-top:11px;line-height:1.6">Frame shapes silhouette only &mdash; shoulder, waist, and hip taper plus crest styling. Stats never key off it.</div>
+      </div>
+    </div>
+
+    <div style="border:2px solid #232a44;background:#0f1220;padding:18px;min-width:0">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;gap:10px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px">LIVE COMPOSITE</div>
+        <div style="font-size:10px;color:#6d7699;letter-spacing:1px">{{ idLabel }}</div>
+      </div>
+      <div style="background:#535866;border:1px solid #232a44;display:flex;justify-content:center;align-items:flex-end;padding:14px;min-height:340px">
+        <canvas data-sprite="lab" data-scale="7"></canvas>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap">
+        <div style="font-size:10px;color:#6d7699;letter-spacing:1px">SKIN RAMP</div>
+        <div style="display:flex;gap:6px">
+          <sc-for list="{{ tintBtns }}" as="t" hint-placeholder-count="4">
+            <div onClick="{{ t.pick }}" style="cursor:pointer;width:26px;height:26px;background:{{ t.swatch }};border:2px solid {{ t.bd }}"></div>
+          </sc-for>
+        </div>
+        <div style="flex:1"></div>
+        <div style="font-size:10px;color:#6d7699;letter-spacing:1px">KIT</div>
+        <div style="display:flex;gap:6px">
+          <sc-for list="{{ kitBtns }}" as="k" hint-placeholder-count="2">
+            <div onClick="{{ k.pick }}" style="cursor:pointer;padding:6px 10px;font-size:10px;letter-spacing:1px;border:2px solid {{ k.bd }};background:{{ k.bg }};color:{{ k.fg }}">{{ k.name }}</div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:13px">PART SLOTS</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ toggles }}" as="t" hint-placeholder-count="7">
+            <div onClick="{{ t.pick }}" style="cursor:pointer;padding:8px 11px;border:2px solid {{ t.bd }};background:{{ t.bg }};display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:1px;color:{{ t.fg }}">
+              <span>{{ t.name }}</span><span style="font-size:10px;color:{{ t.stateFg }}">{{ t.state }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:13px">JERSEY NUMBER</div>
+        <input value="{{ number }}" onChange="{{ setNumber }}" maxlength="2" style="width:100%;box-sizing:border-box;background:#141828;border:2px solid #232a44;color:#f4f6ff;font-size:20px;letter-spacing:4px;padding:10px 12px;text-align:center;outline:none" />
+        <div style="font-size:10px;color:#6d7699;margin-top:10px;line-height:1.6">Rendered from a 3&times;5 bitmap font baked into the rig. Two digits max at torso width &ge; 8.</div>
+      </div>
+      <div style="border:2px solid #232a44;background:#0f1220;padding:16px">
+        <div style="font-family:'Silkscreen',monospace;font-size:11px;color:#b6f36a;letter-spacing:1px;margin-bottom:11px">NEXT: MOTION</div>
+        <div style="font-size:11px;color:#818ab0;line-height:1.7">Because every part hangs off a computed anchor, the idle and dribble cycles are anchor offsets over time &mdash; authored once, inherited by all six chassis. Frame budget: idle 4f, dribble 6f, run 8f.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin:46px 0 4px">
+    <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a">03</div>
+    <div style="font-family:'Silkscreen',monospace;font-size:22px;color:#f4f6ff">SAMPLE ROSTER</div>
+    <div style="flex:1;height:2px;background:#1b2138"></div>
+  </div>
+  <div style="font-size:12px;color:#818ab0;margin-bottom:20px;max-width:70ch;line-height:1.6">Six chassis &times; three body classes, all generated by the rig. Read across for size scaling, down for species silhouette separation.</div>
+
+  <div style="border:2px solid #232a44;background:#0f1220;padding:18px">
+    <div style="display:grid;grid-template-columns:118px repeat(3,1fr);gap:0;align-items:stretch">
+      <div style="padding:8px 6px;border-bottom:2px solid #232a44"></div>
+      <div style="padding:8px 6px;border-bottom:2px solid #232a44;font-size:10px;letter-spacing:2px;color:#6d7699">XS &middot; GUARD</div>
+      <div style="padding:8px 6px;border-bottom:2px solid #232a44;font-size:10px;letter-spacing:2px;color:#6d7699">M &middot; FORWARD</div>
+      <div style="padding:8px 6px;border-bottom:2px solid #232a44;font-size:10px;letter-spacing:2px;color:#6d7699">XL &middot; CENTER</div>
+
+      <sc-for list="{{ rosterRows }}" as="row" hint-placeholder-count="6">
+        <div style="padding:14px 8px 14px 0;border-bottom:1px solid #1b2138;display:flex;flex-direction:column;justify-content:center">
+          <div style="font-family:'Silkscreen',monospace;font-size:12px;color:#f4f6ff">{{ row.name }}</div>
+          <div style="font-size:10px;color:#6d7699;margin-top:6px;line-height:1.5">{{ row.note }}</div>
+        </div>
+        <div style="border-bottom:1px solid #1b2138;border-left:1px solid #1b2138;background:#535866;display:flex;align-items:flex-end;justify-content:center;padding:12px 0">
+          <canvas data-sprite="roster" data-species="{{ row.id }}" data-size="xs" data-scale="4"></canvas>
+        </div>
+        <div style="border-bottom:1px solid #1b2138;border-left:1px solid #1b2138;background:#535866;display:flex;align-items:flex-end;justify-content:center;padding:12px 0">
+          <canvas data-sprite="roster" data-species="{{ row.id }}" data-size="m" data-scale="4"></canvas>
+        </div>
+        <div style="border-bottom:1px solid #1b2138;border-left:1px solid #1b2138;background:#535866;display:flex;align-items:flex-end;justify-content:center;padding:12px 0">
+          <canvas data-sprite="roster" data-species="{{ row.id }}" data-size="xl" data-scale="4"></canvas>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="margin-top:34px;border-top:2px solid #232a44;padding-top:16px;font-size:11px;color:#6d7699;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap">
+    <div>Rig v0.2 &middot; 48&times;48 front-facing &middot; flat 2-tone shading &middot; no outline</div>
+    <div>Expansion: add a chassis row, inherit every size and slot</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#b6f36a&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#b6f36a&quot;,&quot;#f3c46a&quot;,&quot;#6ad2f3&quot;,&quot;#f36ad2&quot;],&quot;section&quot;:&quot;Team kit&quot;}}">
+const G = 48, GROUND = 46, CX = 22;
+
+const SIZES = {
+  xs: { label: 'XS · Guard', total: 30, head: 8, torsoH: 9, legLen: 11, torsoW: 7, th: 2, armLen: 11 },
+  s:  { label: 'S · Wing', total: 34, head: 8, torsoH: 11, legLen: 13, torsoW: 8, th: 2, armLen: 13 },
+  m:  { label: 'M · Forward', total: 38, head: 9, torsoH: 12, legLen: 15, torsoW: 9, th: 3, armLen: 15 },
+  l:  { label: 'L · Bruiser', total: 40, head: 10, torsoH: 14, legLen: 14, torsoW: 13, th: 3, armLen: 15 },
+  xl: { label: 'XL · Center', total: 45, head: 11, torsoH: 16, legLen: 17, torsoW: 12, th: 4, armLen: 18 }
+};
+const SIZE_KEYS = ['xs', 's', 'm', 'l', 'xl'];
+
+const RACES = {
+  terran:  { name: 'TERRAN', note: 'baseline humanoid', skin: '#c08a5e', legs: 2, arms: 2, head: 'round', eyes: 2, feet: 'shoe', torso: 'human', tail: false, crest: true, ball: 'ball' },
+  quadran: { name: 'QUADRAN', note: 'hunched heavy-worlder, 4 arms', skin: '#4f9c8b', legs: 2, arms: 4, head: 'wide', eyes: 4, feet: 'claw', torso: 'human', tail: true, crest: false, ball: 'ball' },
+  hexid:   { name: 'HEXID', note: 'insectoid, 6 legs, antennae', skin: '#7a5aa8', legs: 6, arms: 2, head: 'chitin', eyes: 2, feet: 'claw', torso: 'chitin', tail: false, crest: true, ball: 'ball' },
+  petran:  { name: 'PETRAN', note: 'stone golem, throws bricks', skin: '#8d8377', legs: 2, arms: 2, head: 'rock', eyes: 1, feet: 'block', torso: 'rock', tail: false, crest: false, ball: 'brick' },
+  nimbus:  { name: 'NIMBUS', note: 'translucent gas-form, floats', skin: '#93a9cf', legs: 0, arms: 2, head: 'orb', eyes: 1, feet: 'none', torso: 'float', tail: false, crest: false, ball: 'ball' },
+  gelid:   { name: 'GELID', note: 'liquid body, 3 drifting eyes', skin: '#78b955', legs: 2, arms: 2, head: 'dome', eyes: 3, feet: 'none', torso: 'blob', tail: true, crest: false, ball: 'ball' }
+};
+const RACE_KEYS = ['terran', 'quadran', 'hexid', 'petran', 'nimbus', 'gelid'];
+
+const DIGITS = {
+  '0': ['111','101','101','101','111'], '1': ['010','110','010','010','111'],
+  '2': ['111','001','111','100','111'], '3': ['111','001','111','001','111'],
+  '4': ['101','101','111','001','001'], '5': ['111','100','111','001','111'],
+  '6': ['111','100','111','101','111'], '7': ['111','001','001','001','001'],
+  '8': ['111','101','111','101','111'], '9': ['111','101','111','001','111']
+};
+
+function hx(h) { h = h.replace('#',''); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
+function hs(r,g,b) { const c = v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0'); return '#'+c(r)+c(g)+c(b); }
+function mul(hex, f) { if (hex[0] !== '#') return hex; const [r,g,b] = hx(hex); return hs(r*f, g*f, b*f); }
+function tint(hex, i) { const f = [1, 0.82, 1.16, 0.93][i] || 1; const [r,g,b] = hx(hex);
+  const w = [0, 0, 0.06, -0.05][i] || 0; return hs(r*f + 255*w*0.3, g*f + 255*w*0.15, b*f + 255*w*0.45); }
+
+class Component extends DCLogic {
+  state = { species: 'terran', size: 'm', tintIx: 0, kit: 'home', number: '24', form: 'x',
+    opts: { crest: null, tail: null, goggles: false, tape: false, extraArms: null, extraLegs: null, hooves: false } };
+
+  componentDidMount() { this.paint(); this._t = setTimeout(() => this.paint(), 300); }
+  componentDidUpdate() { this.paint(); }
+  componentWillUnmount() { clearTimeout(this._t); }
+
+  paint = () => {
+    const root = this._root; if (!root) return;
+    root.querySelectorAll('canvas[data-sprite]').forEach(cv => {
+      const kind = cv.dataset.sprite;
+      const scale = +(cv.dataset.scale || 4);
+      const cfg = kind === 'lab'
+        ? { species: this.state.species, size: this.state.size, tintIx: this.state.tintIx, kit: this.state.kit, number: this.state.number, opts: this.state.opts, form: this.state.form, mode: 'sprite' }
+        : { species: cv.dataset.species, size: cv.dataset.size, tintIx: 0, kit: 'home',
+            form: ['m', 'f', 'x'][(RACE_KEYS.indexOf(cv.dataset.species) + SIZE_KEYS.indexOf(cv.dataset.size)) % 3],
+            number: kind === 'anchors' ? '' : String(11 + RACE_KEYS.indexOf(cv.dataset.species) * 7).slice(0,2),
+            opts: { crest: null, tail: null, goggles: false, tape: false, extraArms: null, extraLegs: null, hooves: false },
+            mode: kind === 'anchors' ? 'anchors' : 'sprite' };
+      this.blit(cv, scale, this.compose(cfg));
+    });
+  };
+
+  blit(cv, scale, buf) {
+    cv.width = G * scale; cv.height = G * scale;
+    const ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) {
+      const c = buf[y][x]; if (!c) continue;
+      ctx.fillStyle = c; ctx.fillRect(x * scale, y * scale, scale, scale);
+    }
+  }
+
+  composeSide(cfg) { // v0.1 side-view rig, superseded by the front-facing compose() below
+    const R = RACES[cfg.species], S = SIZES[cfg.size];
+    const o = cfg.opts, form = cfg.form || 'x';
+    const buf = []; for (let y = 0; y < G; y++) buf.push(new Array(G).fill(null));
+    const px = (x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && x < G && y >= 0 && y < G) buf[y][x] = c; };
+    const rect = (x, y, w, h, c) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) px(x + i, y + j, c); };
+    const ell = (cx, cy, rx, ry, c) => { for (let y = -ry; y <= ry; y++) for (let x = -rx; x <= rx; x++)
+      if ((x * x) / (rx * rx || 1) + (y * y) / (ry * ry || 1) <= 1.08) px(cx + x, cy + y, c); };
+    const limb = (x0, y0, x1, y1, th, c) => {
+      const dx = x1 - x0, dy = y1 - y0, n = Math.max(Math.abs(dx), Math.abs(dy), 1);
+      const vert = Math.abs(dy) >= Math.abs(dx);
+      for (let i = 0; i <= n; i++) {
+        const x = x0 + dx * i / n, y = y0 + dy * i / n, off = (th - 1) >> 1;
+        if (vert) rect(x - off, y, th, 1, c); else rect(x, y - off, 1, th, c);
+      }
+    };
+    const glass = (hexc, a) => { const [r, g, b] = hx(hexc); return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')'; };
+    const speck = (x, y) => (x * 7 + y * 13) % 11;
+
+    const skin = tint(R.skin, cfg.tintIx);
+    const sd = mul(skin, 0.68), sdd = mul(skin, 0.5), sl = mul(skin, 1.18), sll = mul(skin, 1.38);
+    const accent = this.props.accent || '#b6f36a';
+    const kit = cfg.kit === 'away'
+      ? { j: '#dfe4f2', jd: '#a9b2ca', trim: '#1c2540', num: '#1c2540' }
+      : { j: '#27325c', jd: '#18203c', trim: accent, num: '#e6ecff' };
+
+    const legs = o.extraLegs === true ? 6 : o.extraLegs === false ? 2 : R.legs;
+    const arms = o.extraArms === true ? 4 : o.extraArms === false ? 2 : R.arms;
+    const tail = o.tail === null ? R.tail : o.tail;
+    const crest = o.crest === null ? R.crest : o.crest;
+    const hexy = legs === 6;
+    const rock = R.torso === 'rock', ghost = R.torso === 'float', gel = R.torso === 'blob';
+    const hunch = cfg.species === 'quadran';
+
+    const legLen = hexy ? Math.round(S.legLen * 0.55) : S.legLen;
+    const hipY = GROUND - legLen;
+    const shoulderY = hipY - S.torsoH;
+    const headR = Math.round(S.head / 2);
+    const headCy = hunch ? shoulderY + 2 - headR : shoulderY - 1 - headR;
+    const tw = S.torsoW, halfW = Math.round(tw / 2);
+    const fw = form === 'f' ? { sh: -1, wa: -3, hip: 1, hair: 2 } : form === 'm' ? { sh: 1, wa: -1, hip: -1, hair: 0 } : { sh: 0, wa: -2, hip: 0, hair: 1 };
+    const shW = Math.max(5, tw + fw.sh), waW = Math.max(4, tw + fw.wa), hpW = Math.max(4, tw + fw.hip - 1);
+    const gb = glass(skin, 0.42), gd = glass(sd, 0.42), gl = glass(sl, 0.68);
+    const anchors = [];
+
+    // ground shadow
+    ell(CX + 1, GROUND + 1, halfW + 3, 1, '#101425');
+
+    // tail (behind)
+    if (tail) {
+      const tc = gel ? sl : sdd;
+      limb(CX - halfW, hipY + 1, CX - halfW - 6, hipY - 3, Math.max(2, S.th - 1), tc);
+      px(CX - halfW - 7, hipY - 4, gel ? skin : sd);
+      if (gel) { px(CX - halfW - 5, hipY + 2, skin); px(CX - halfW - 5, hipY + 5, sl); }
+    }
+
+    // legs / lower body
+    if (legs === 0) {
+      for (let i = 0; i < 3; i++) {
+        const bx = CX - 3 + i * 3;
+        limb(bx, hipY, bx + (i - 1), hipY + 6 + (i % 2) * 3, 2, i === 1 ? gb : gd);
+      }
+      ell(CX, hipY + 1, halfW, 3, gd);
+    } else if (hexy) {
+      rect(CX - halfW - 2, hipY - 1, tw + 5, Math.max(3, S.th + 1), sd);
+      for (let i = 0; i < 3; i++) {
+        const bx = CX - halfW - 1 + i * Math.round((tw + 3) / 2.6);
+        limb(bx, hipY + 1, bx - 3, hipY + 5, 2, sdd);
+        limb(bx - 3, hipY + 5, bx - 1, GROUND, 2, sdd);
+      }
+      for (let i = 0; i < 3; i++) {
+        const bx = CX - halfW + 1 + i * Math.round((tw + 3) / 2.6);
+        limb(bx, hipY + 1, bx + 3, hipY + 5, S.th, skin);
+        limb(bx + 3, hipY + 5, bx + 2, GROUND, S.th, skin);
+        px(bx + 1, hipY + 3, sl);
+        rect(bx + 1, GROUND, 3, 1, sdd);
+      }
+      anchors.push([CX, hipY, '#6ad2f3']);
+      anchors.push([CX + 4, GROUND, '#f3c46a']);
+    } else if (gel) {
+      // liquid lower body is drawn with the torso
+      anchors.push([CX, hipY, '#6ad2f3'], [CX, GROUND, '#f3c46a']);
+    } else {
+      const lc = rock ? S.th + 1 : S.th;
+      limb(CX - 2, hipY, CX - 3, GROUND - 1, lc, sd);
+      limb(CX + 2, hipY, CX + 3, GROUND - 1, lc, skin);
+      if (rock) { px(CX + 3, hipY + Math.round(legLen * 0.55), null); px(CX - 3, hipY + Math.round(legLen * 0.55), null); }
+      // shorts — every legged baller wears them
+      const shH = Math.max(4, Math.round(legLen * 0.42));
+      const shw = Math.max(hpW + 2, 7);
+      rect(CX - Math.round(shw / 2), hipY - 1, shw, shH, kit.j);
+      rect(CX - Math.round(shw / 2), hipY - 1, shw, 1, kit.jd);
+      rect(CX - Math.round(shw / 2), hipY - 2 + shH, shw, 1, kit.trim);
+      rect(CX + Math.round(shw / 2) - 1, hipY, 1, shH - 2, mul(kit.j, 0.82));
+      rect(CX, hipY - 2 + shH, 1, 1, kit.jd);
+      // feet
+      const foot = (fx, c, back) => {
+        if (o.hooves || R.feet === 'block') { rect(fx - 1, GROUND - 2, 5, 3, c); px(fx - 1, GROUND - 2, null); }
+        else if (R.feet === 'claw') { rect(fx - 1, GROUND - 1, 5, 2, c); px(fx + 4, GROUND, c); px(fx - 2, GROUND, c); px(fx + 2, GROUND - 1, back ? mul(c, 0.8) : sd); }
+        else { rect(fx - 1, GROUND - 1, 5, 2, back ? mul(kit.trim, 0.7) : kit.trim); rect(fx - 1, GROUND, 5, 1, '#1c2540'); px(fx + 3, GROUND - 1, '#e6ecff'); }
+      };
+      foot(CX - 4, sd, true); foot(CX + 1, skin, false);
+      anchors.push([CX, hipY, '#6ad2f3'], [CX + 3, GROUND, '#f3c46a']);
+    }
+
+    // arms
+    const drawArm = (sx, sy, dir, back, len) => {
+      if (rock) {
+        const c = back ? sd : skin;
+        const ex = sx + dir * Math.round(len * 0.4), ey = sy + Math.round(len * 0.5);
+        limb(sx, sy, ex, ey, S.th + 1, c);
+        const fx = ex + dir * 3, fy = ey + Math.round(len * 0.32);
+        ell(fx, fy, 2, 2, c); // floating boulder fist (air gap = golem joint)
+        px(fx, fy, speck(fx, fy) % 2 ? sl : sdd);
+        return [fx, fy];
+      }
+      if (ghost) {
+        const c = back ? gd : gb;
+        const ex = sx + dir * Math.round(len * 0.42), ey = sy + Math.round(len * 0.55);
+        limb(sx, sy, ex, ey, S.th, c);
+        const hx2 = ex + dir * 2, hy2 = ey + Math.round(len * 0.3);
+        limb(ex, ey, hx2, hy2, S.th, c);
+        ell(hx2, hy2 + 1, 2, 2, back ? gd : gl);
+        return [hx2, hy2 + 1];
+      }
+      if (gel) {
+        const c = back ? sd : skin;
+        const ex = sx + dir * Math.round(len * 0.45), ey = sy + Math.round(len * 0.5);
+        limb(sx, sy, ex, ey, S.th + 1, c);
+        const hx2 = ex + dir * 3, hy2 = ey + Math.round(len * 0.35);
+        limb(ex, ey, hx2, hy2, 2, c); // tapering pseudopod
+        px(hx2 + dir, hy2 + 2, c); px(hx2 + dir, hy2 + 5, sl); // drip off the tip
+        if (!back) px(ex, ey - 1, sll);
+        return [hx2, hy2 + 1];
+      }
+      const c = back ? sd : skin;
+      const th2 = hunch ? S.th + 1 : S.th;
+      const ex = sx + dir * Math.round(len * 0.42), ey = sy + Math.round(len * 0.55);
+      limb(sx, sy, ex, ey, th2, c);
+      const hx2 = ex + dir * 2, hy2 = ey + Math.round(len * 0.3);
+      limb(ex, ey, hx2, hy2, th2, c);
+      if (o.tape) rect(hx2 - 1, hy2 - 1, 3, 1, back ? mul('#dfe4f2', 0.7) : '#dfe4f2');
+      ell(hx2, hy2 + 1, 2, 2, c);
+      return [hx2, hy2 + 1];
+    };
+    const armY0 = hunch ? shoulderY + 3 : shoulderY + 1;
+    const armRows = arms === 4 ? [armY0, shoulderY + Math.round(S.torsoH * 0.55) + (hunch ? 1 : 0)] : [armY0];
+    armRows.forEach((ay, i) => { drawArm(CX - Math.round(shW / 2) + 1, ay, -1, true, S.armLen - i * 2); });
+
+    // torso
+    if (rock) {
+      const w1 = shW + 2, h1 = Math.max(4, Math.round(S.torsoH * 0.5));
+      const w2 = Math.max(5, waW);
+      rect(CX - Math.round(w2 / 2), shoulderY + h1 + 1, w2, S.torsoH - h1 - 1, skin); // lower slab, 1px air gap above
+      rect(CX - Math.round(w1 / 2), shoulderY, w1, h1, skin); // shoulder boulder
+      px(CX - Math.round(w1 / 2), shoulderY, null); px(CX + Math.round(w1 / 2) - 1, shoulderY, null);
+      px(CX - Math.round(w1 / 2), shoulderY + h1 - 1, null);
+      for (let y = shoulderY; y < hipY; y++) for (let x = CX - Math.round(w1 / 2); x < CX + Math.round(w1 / 2); x++) {
+        if (!buf[y][x]) continue;
+        const s2 = speck(x, y);
+        if (s2 === 0) buf[y][x] = sl; else if (s2 === 5) buf[y][x] = sdd;
+      }
+      limb(CX + 2, shoulderY + 1, CX + 4, shoulderY + 3, 1, sdd); // crack
+    } else if (R.torso === 'chitin') {
+      for (let i = 0; i < 4; i++) {
+        const yy = shoulderY + Math.round(i * S.torsoH / 4);
+        ell(CX, yy + 2, Math.max(3, halfW - (i === 0 ? 1 : 0) + (form === 'm' ? 1 : form === 'f' ? -1 : 0)), Math.max(2, Math.round(S.torsoH / 7)), i % 2 ? mul(skin, 0.85) : skin);
+        px(CX - 1, yy + 1, sl);
+      }
+    } else if (ghost) {
+      ell(CX, shoulderY + Math.round(S.torsoH / 2), Math.max(3, halfW + (form === 'm' ? 1 : form === 'f' ? -1 : 0)), Math.round(S.torsoH / 2), gb);
+      ell(CX - 2, shoulderY + Math.round(S.torsoH / 3), Math.max(1, halfW - 3), Math.max(1, Math.round(S.torsoH / 4)), gl);
+      ell(CX, shoulderY + Math.round(S.torsoH / 2), 2, 2, '#e8f2ff'); // opaque nucleus
+      px(CX + 2, shoulderY + 3, gl); px(CX - 3, shoulderY + S.torsoH - 4, gl); // drifting motes
+    } else if (gel) {
+      for (let y = shoulderY; y <= GROUND - 1; y++) {
+        const t = (y - shoulderY) / Math.max(1, GROUND - 1 - shoulderY);
+        const w = Math.max(2, Math.round(halfW * (0.62 + 0.55 * t) + Math.sin(y * 1.9) * 1.1 + (form === 'm' ? 1 : form === 'f' ? -0.5 : 0)));
+        rect(CX - w, y, w * 2 + 1, 1, skin);
+      }
+      ell(CX, GROUND - 1, halfW + 4, 2, skin); // spreading puddle
+      for (let x = -halfW - 5; x <= halfW + 5; x += 3) px(CX + x, GROUND, sd); // rippled edge
+      px(CX + halfW + 6, GROUND, sd); px(CX - halfW - 7, GROUND, sd); // splash flecks
+      limb(CX - 2, shoulderY + 3, CX - 3, shoulderY + 7, 1, sll);
+      px(CX - 2, shoulderY + 4, '#f0ffe4'); // specular
+      rect(CX + halfW, hipY - 2, 1, 3, skin); px(CX + halfW, hipY + 3, sl); // side drip + droplet
+      rect(CX - halfW - 1, shoulderY + 4, 1, 2, skin); px(CX - halfW - 1, shoulderY + 9, sl);
+    } else {
+      for (let y = shoulderY; y < hipY; y++) {
+        const t = (y - shoulderY) / Math.max(1, S.torsoH - 1);
+        let w = hunch
+          ? Math.round((shW + 2) * (1 - t) + Math.max(4, hpW - 2) * t)
+          : t < 0.62 ? Math.round(shW - (shW - waW) * (t / 0.62)) : Math.round(waW + (hpW - waW) * ((t - 0.62) / 0.38));
+        w = Math.max(4, w);
+        rect(CX - Math.round(w / 2), y, w, 1, skin);
+        px(CX - Math.round(w / 2), y, sd);
+      }
+      if (hunch) { ell(CX - 1, shoulderY, Math.round(shW / 2) + 1, 2, skin); px(CX - 2, shoulderY - 2, sl); } // shoulder hump
+    }
+
+    // jersey
+    {
+      const jTop = ghost ? shoulderY + 3 : shoulderY + 2;
+      const jh = Math.max(3, ghost ? S.torsoH - 6 : S.torsoH - (gel ? 5 : 3));
+      const jc = ghost ? glass(kit.j, 0.78) : kit.j;
+      const jdc = ghost ? glass(kit.jd, 0.78) : kit.jd;
+      const span = Math.round(Math.max(shW, tw) / 2) + 3;
+      for (let y = jTop; y < jTop + jh; y++) for (let x = CX - span; x <= CX + span; x++) if (buf[y] && buf[y][x]) buf[y][x] = jc;
+      for (let x = CX - span; x <= CX + span; x++) if (buf[jTop] && buf[jTop][x]) buf[jTop][x] = ghost ? glass(kit.trim, 0.85) : kit.trim;
+      for (let y = jTop + 1; y < jTop + jh; y++) for (let x = CX - span; x <= CX + span; x++) if (buf[y][x] === jc) { buf[y][x] = jdc; break; }
+      const num = String(cfg.number || '').replace(/[^0-9]/g, '').slice(0, tw >= 8 ? 2 : 1);
+      if (num) {
+        const w = num.length * 4 - 1, ox = CX - Math.floor(w / 2), oy = jTop + Math.max(1, Math.round((jh - 5) / 2));
+        num.split('').forEach((d, i) => { const g = DIGITS[d]; if (!g) return;
+          g.forEach((row, ry) => row.split('').forEach((v, rx) => { if (v === '1' && oy + ry < jTop + jh && buf[oy + ry] && buf[oy + ry][ox + i * 4 + rx]) px(ox + i * 4 + rx, oy + ry, kit.num); })); });
+      }
+      anchors.push([CX, shoulderY + Math.round(S.torsoH / 2), '#b6f36a']);
+    }
+    anchors.push([CX - Math.round(shW / 2) + 1, armY0, '#6ad2f3']);
+    if (arms === 4) anchors.push([CX - Math.round(shW / 2) + 1, armRows[1], '#6ad2f3']);
+
+    // head
+    if (R.head === 'rock') {
+      rect(CX - headR, headCy - headR, headR * 2, headR * 2, skin);
+      px(CX - headR, headCy - headR, null); px(CX + headR - 1, headCy - headR, null);
+      px(CX - headR, headCy + headR - 1, null); px(CX + headR - 1, headCy + headR - 1, null);
+      for (let y = headCy - headR; y < headCy + headR; y++) for (let x = CX - headR; x < CX + headR; x++) {
+        if (!buf[y][x]) continue; const s2 = speck(x, y);
+        if (s2 === 0) buf[y][x] = sl; else if (s2 === 5) buf[y][x] = sdd;
+      }
+      rect(CX - 1, headCy - 2, headR + 1, 1, sdd); // brow ledge
+      px(CX - headR + 2, headCy - headR + 1, sdd); px(CX - headR + 3, headCy - headR + 2, sdd); px(CX - headR + 3, headCy - headR + 3, sd); // crack
+      rect(CX - headR, headCy - headR + 2, 1, headR, sdd);
+    } else if (R.head === 'wide') {
+      ell(CX + 1, headCy, headR + 2, Math.max(2, headR - 2), skin);
+      rect(CX - 1, headCy + headR - 3, headR + 2, 2, skin); // heavy underbite jaw
+      px(CX + headR, headCy + headR - 4, '#e9f0ff'); px(CX + 2, headCy + headR - 4, '#e9f0ff'); // tusks
+      rect(CX - 1, headCy - Math.max(2, headR - 2), headR + 2, 1, sd); // brow
+    } else if (R.head === 'chitin') {
+      ell(CX + 1, headCy, Math.max(2, headR - 1), headR, skin);
+      px(CX + headR - 1, headCy + headR - 1, sdd); px(CX + headR, headCy + headR, sdd); // mandible hooks
+      px(CX + headR - 2, headCy + headR, sdd);
+      px(CX, headCy - headR + 1, sll); // shell glint
+    } else if (R.head === 'orb') {
+      ell(CX, headCy, headR, headR, gb);
+      ell(CX - 1, headCy - 1, Math.max(1, headR - 2), Math.max(1, headR - 2), gl);
+      ell(CX, headCy + 1, 1, 1, '#e8f2ff'); // inner mote
+    } else if (R.head === 'dome') {
+      for (let y = -headR; y <= headR; y++) {
+        const w = Math.round(Math.sqrt(Math.max(0, 1 - (y * y) / (headR * headR))) * headR + (y > 0 ? Math.sin(y * 2.1) : 0));
+        rect(CX - w, headCy + y + 1, w * 2 + 1, 1, skin);
+      }
+      px(CX - 2, headCy - headR + 2, '#f0ffe4'); px(CX - 3, headCy - headR + 3, sll); // gloss
+      rect(CX + headR - 1, headCy + 2, 1, 2, skin); px(CX + headR - 1, headCy + 6, sl); // face drip
+    } else {
+      ell(CX, headCy, headR, headR, skin);
+      ell(CX - 1, headCy - 1, Math.max(1, headR - 2), Math.max(1, headR - 3), sl);
+      rect(CX - headR + 1, headCy + headR - 1, headR, 1, sd);
+    }
+    anchors.push([CX, headCy, '#f36ad2'], [CX, headCy - headR, '#f36ad2']);
+
+    // eyes
+    const eyeC = '#12162a', eyeL = '#e9f0ff';
+    const eyeX = CX + (R.head === 'chitin' ? 2 : 1);
+    if (cfg.species === 'petran') { rect(eyeX - 1, headCy - 1, 4, 2, '#33322c'); rect(eyeX, headCy - 1, 2, 2, '#ffd76a'); px(eyeX + 1, headCy - 1, '#fff6d0'); }
+    else if (cfg.species === 'hexid') { rect(eyeX, headCy - 2, 2, 3, eyeC); px(eyeX, headCy - 2, '#b9c4ff'); px(eyeX + 1, headCy, '#7d8bd8'); px(eyeX - 3, headCy - 1, eyeC); }
+    else if (R.eyes === 1) { rect(eyeX - 1, headCy - 1, 4, 2, eyeL); rect(eyeX + 1, headCy - 1, 2, 2, eyeC); }
+    else if (R.eyes === 3) { rect(eyeX, headCy - 2, 2, 1, eyeC); px(eyeX + 2, headCy, eyeC); px(eyeX - 2, headCy + 1, eyeC); px(eyeX + 1, headCy - 2, eyeL); }
+    else if (R.eyes === 4) { rect(eyeX, headCy - 1, 2, 1, eyeC); rect(eyeX, headCy + 1, 2, 1, eyeC); px(eyeX - 3, headCy - 1, eyeC); px(eyeX - 3, headCy + 1, eyeC); px(eyeX + 1, headCy - 1, eyeL); }
+    else { rect(eyeX, headCy - 1, 2, 2, eyeC); px(eyeX + 1, headCy - 1, eyeL); px(eyeX - 3, headCy - 1, eyeC); }
+
+    // crest / hair
+    if (crest) {
+      if (R.head === 'chitin') { limb(CX - 1, headCy - headR, CX - 4, headCy - headR - 4, 1, sdd); limb(CX + 1, headCy - headR, CX + 1, headCy - headR - 5, 1, sdd); px(CX - 4, headCy - headR - 5, sl); px(CX + 1, headCy - headR - 6, sl); }
+      else if (R.head === 'rock') { px(CX - 2, headCy - headR - 1, sd); rect(CX, headCy - headR - 2, 2, 2, sd); px(CX + 3, headCy - headR - 1, sd); } // shard ridge
+      else if (ghost || gel) { px(CX - 1, headCy - headR - 1, ghost ? gl : sl); px(CX + 1, headCy - headR - 2, ghost ? gb : skin); } // vapor / drip crown
+      else {
+        const hairC = cfg.species === 'terran' ? '#3a2a1c' : sdd;
+        for (let x = CX - headR + 1; x < CX + headR - 1; x++) px(x, headCy - headR, hairC);
+        rect(CX - headR, headCy - headR + 1, 2, 3, hairC);
+        if (form === 'f') rect(CX - headR - 1, headCy - headR + 2, 2, headR + 4, hairC); // long fall down the back
+        if (form === 'x') { rect(CX + 1, headCy - headR - 1, headR - 1, 1, hairC); px(CX + headR - 1, headCy - headR, hairC); } // swept crop
+        if (form === 'm') rect(CX - 1, headCy - headR - 1, 3, 1, hairC); // flat top
+      }
+    }
+    // goggles
+    if (o.goggles) {
+      rect(CX - headR, headCy - 1, headR * 2, 3, '#1c2540');
+      rect(eyeX - 1, headCy, 3, 1, mul(accent, 0.9));
+    }
+    // headband
+    if (o.tape && R.head !== 'rock' && R.head !== 'orb') rect(CX - headR, headCy - headR + 1, headR * 2, 1, kit.trim);
+
+    // front arms + ball
+    let grip = null;
+    armRows.forEach((ay, i) => { const g = drawArm(CX + Math.round(shW / 2) - 1, ay, 1, false, S.armLen - i * 2); if (i === 0) grip = g; });
+    if (grip) {
+      const [gx, gy] = grip;
+      if (R.ball === 'brick') { rect(gx - 1, gy - 3, 8, 5, '#a4503c'); rect(gx - 1, gy - 3, 8, 1, '#c16a52'); rect(gx - 1, gy + 1, 8, 1, '#6f3325'); px(gx + 3, gy - 1, '#6f3325'); px(gx + 5, gy - 2, '#d8836b'); }
+      else { ell(gx + 2, gy, 4, 4, '#c4702a'); ell(gx + 1, gy - 1, 2, 2, '#e08a3c'); rect(gx - 2, gy, 9, 1, '#7d4315'); limb(gx + 2, gy - 4, gx + 2, gy + 4, 1, '#7d4315'); if (gel) { px(gx + 1, gy - 5, sl); px(gx + 5, gy + 3, skin); } }
+      anchors.push([gx, gy, '#f3c46a']);
+    }
+
+    // outline + rim shading
+    const outC = ghost ? 'rgba(160,182,220,0.35)' : gel ? mul(skin, 0.4) : '#0b0d16';
+    const out = []; for (let y = 0; y < G; y++) out.push(buf[y].slice());
+    for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) {
+      if (buf[y][x]) {
+        const below = y + 1 < G && buf[y + 1][x], right = x + 1 < G && buf[y][x + 1];
+        if (!below || !right) out[y][x] = mul(buf[y][x], 0.82);
+      } else {
+        const n = (buf[y - 1] && buf[y - 1][x]) || (buf[y + 1] && buf[y + 1][x]) || buf[y][x - 1] || buf[y][x + 1];
+        if (n) out[y][x] = outC;
+      }
+    }
+    if (ghost) for (let y = 0; y < G; y++) for (let x = 0; x < G; x++)
+      if (out[y][x] === gb && (x + y) % 2) out[y][x] = glass(skin, 0.22); // gas dither
+
+    if (cfg.mode === 'anchors') {
+      for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) {
+        const c = out[y][x];
+        out[y][x] = c ? (c === '#0b0d16' ? '#2b3350' : '#1d2340') : null;
+      }
+      for (let x = 0; x < G; x += 2) out[GROUND + 1][x] = '#3a4468';
+      anchors.forEach(([ax, ay, c]) => {
+        out[Math.max(0, Math.min(G - 1, Math.round(ay)))][Math.max(0, Math.min(G - 1, Math.round(ax)))] = c;
+        const yy = Math.round(ay), xx = Math.round(ax);
+        [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx, dy]) => { const nx = xx + dx * 2, ny = yy + dy * 2;
+          if (nx >= 0 && nx < G && ny >= 0 && ny < G) out[ny][nx] = mul(c, 0.6); });
+      });
+    }
+    return out;
+  }
+
+  compose(cfg) { // v0.2 front-facing, flat-shaded, no outline
+    const R = RACES[cfg.species], S = SIZES[cfg.size];
+    const o = cfg.opts, form = cfg.form || 'x';
+    const buf = []; for (let y = 0; y < G; y++) buf.push(new Array(G).fill(null));
+    const px = (x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && x < G && y >= 0 && y < G) buf[y][x] = c; };
+    const rect = (x, y, w, h, c) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) px(x + i, y + j, c); };
+    const ell = (cx, cy, rx, ry, c) => { for (let y = -ry; y <= ry; y++) for (let x = -rx; x <= rx; x++)
+      if ((x * x) / (rx * rx || 1) + (y * y) / (ry * ry || 1) <= 1.08) px(cx + x, cy + y, c); };
+    const glass = (hexc, a) => { const [r, g, b] = hx(hexc); return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')'; };
+
+    const skin = tint(R.skin, cfg.tintIx);
+    const sd = mul(skin, 0.72), sdd = mul(skin, 0.52), sl = mul(skin, 1.16);
+    const accent = this.props.accent || '#b6f36a';
+    const kit = cfg.kit === 'away'
+      ? { j: '#e3e7f0', jd: '#b6bccc', trim: '#232c4e', num: '#232c4e', shoe: '#3a4256' }
+      : { j: '#2e3d74', jd: '#232c4e', trim: accent, num: '#eef1fa', shoe: '#232c4e' };
+
+    const legs = o.extraLegs === true ? 6 : o.extraLegs === false ? 2 : R.legs;
+    const arms = o.extraArms === true ? 4 : o.extraArms === false ? 2 : R.arms;
+    const tail = o.tail === null ? R.tail : o.tail;
+    const crest = o.crest === null ? R.crest : o.crest;
+    const hexy = legs === 6;
+    const rock = R.torso === 'rock', ghost = R.torso === 'float', gel = R.torso === 'blob';
+    const hunch = cfg.species === 'quadran';
+
+    const legLen = hexy ? Math.round(S.legLen * 0.6) : S.legLen;
+    const hipY = GROUND - legLen, shoulderY = hipY - S.torsoH;
+    const headR = Math.round(S.head / 2);
+    const headCy = (hunch ? shoulderY + 2 : shoulderY - 1) - headR;
+    const tw = S.torsoW;
+    const fw = form === 'f' ? { sh: -1, wa: -3, hip: 1 } : form === 'm' ? { sh: 1, wa: -1, hip: -1 } : { sh: 0, wa: -2, hip: 0 };
+    const shW = Math.max(5, tw + fw.sh) + (hunch ? 2 : 0), waW = Math.max(4, tw + fw.wa), hpW = Math.max(4, tw + fw.hip);
+    const gb = glass(skin, 0.4), gd = glass(sd, 0.4), gl = glass(sl, 0.7);
+    const anchors = [];
+    const W = (t) => Math.max(4, hunch
+      ? Math.round(shW * (1 - t) + Math.max(4, hpW - 2) * t)
+      : t < 0.6 ? Math.round(shW - (shW - waW) * (t / 0.6)) : Math.round(waW + (hpW - waW) * ((t - 0.6) / 0.4)));
+    const TL = (w) => CX - Math.ceil(w / 2);
+
+    ell(CX, GROUND + 1, Math.round(tw / 2) + 3, 1, 'rgba(12,14,24,0.4)');
+
+    if (tail && !ghost) { // peeks out on the left
+      rect(CX - Math.round(hpW / 2) - 4, hipY - 1, 3, 2, gel ? sl : sdd);
+      px(CX - Math.round(hpW / 2) - 5, hipY, gel ? skin : sdd);
+    }
+
+    // legs
+    const lw = Math.max(2, S.th), gap = tw >= 10 ? 2 : 1;
+    const span2 = lw * 2 + gap, x0 = CX - Math.floor(span2 / 2);
+    if (legs === 0) {
+      for (let i = -1; i <= 1; i++) rect(CX + i * 3 - 1, hipY + 1, 2, 5 + (i === 0 ? 4 : 2), i === 0 ? gb : gd);
+    } else if (hexy) {
+      ell(CX, hipY + 2, Math.round(tw / 2) + 3, Math.max(2, Math.round(legLen * 0.35)), sd);
+      const sp = Math.max(3, Math.round((tw + 8) / 5));
+      for (let i = 0; i < 6; i++) {
+        const bx = CX + Math.round((i - 2.5) * sp);
+        rect(bx - 1, hipY + 3, 2, GROUND - hipY - 3, i % 2 ? skin : sd);
+        px(bx - 1, GROUND, sdd); px(bx, GROUND, sdd);
+      }
+      anchors.push([CX, hipY, '#6ad2f3'], [CX + 4, GROUND, '#f3c46a']);
+    } else if (gel) {
+      anchors.push([CX, hipY, '#6ad2f3'], [CX, GROUND, '#f3c46a']);
+    } else {
+      rect(x0, hipY, lw, legLen - 1, skin);
+      rect(x0 + lw + gap, hipY, lw, legLen - 1, skin);
+      rect(x0 + lw + gap + lw - 1, hipY, 1, legLen - 1, sd);
+      if (rock) { rect(x0, hipY + Math.round(legLen * 0.55), lw, 1, null); rect(x0 + lw + gap, hipY + Math.round(legLen * 0.55), lw, 1, null); }
+      if (o.hooves || R.feet === 'block') { rect(x0 - 1, GROUND - 2, lw + 1, 3, sd); rect(x0 + lw + gap, GROUND - 2, lw + 1, 3, sd); }
+      else if (R.feet === 'claw') { rect(x0 - 1, GROUND - 1, lw + 1, 2, sd); rect(x0 + lw + gap, GROUND - 1, lw + 1, 2, sd); px(x0 - 2, GROUND - 1, sd); px(x0 + span2 + 1, GROUND - 1, sd); }
+      else { rect(x0 - 1, GROUND - 1, lw + 1, 2, kit.shoe); rect(x0 + lw + gap, GROUND - 1, lw + 1, 2, kit.shoe); }
+      // shorts
+      const shH = Math.max(4, Math.round(legLen * 0.4));
+      const shw = Math.max(hpW + 2, span2 + 2);
+      rect(TL(shw), hipY - 1, shw, shH, kit.j);
+      rect(TL(shw), hipY - 2 + shH, shw, 1, kit.jd);
+      rect(TL(shw), hipY - 1, 1, shH, kit.trim);
+      rect(TL(shw) + shw - 1, hipY - 1, 1, shH, kit.trim);
+      px(CX, hipY - 2 + shH, null);
+      anchors.push([CX, hipY, '#6ad2f3'], [x0 + lw + gap + 1, GROUND, '#f3c46a']);
+    }
+
+    // torso
+    if (rock) {
+      const h1 = Math.max(4, Math.round(S.torsoH * 0.55));
+      const w2 = Math.max(5, waW);
+      rect(TL(w2), shoulderY + h1 + 1, w2, S.torsoH - h1 - 1, skin);
+      rect(TL(shW + 2), shoulderY, shW + 2, h1, skin);
+      px(TL(shW + 2), shoulderY, null); px(TL(shW + 2) + shW + 1, shoulderY, null);
+      rect(TL(shW + 2) + shW + 1, shoulderY + 1, 1, h1 - 1, sd);
+      px(CX + 2, shoulderY + 2, sdd); px(CX + 3, shoulderY + 3, sdd);
+      px(CX - 3, shoulderY + h1 + 2, sl); px(CX + 1, shoulderY + h1 + 3, sdd);
+    } else if (R.torso === 'chitin') {
+      for (let i = 0; i < 3; i++) {
+        const yy = shoulderY + Math.round(i * S.torsoH / 3) + 1;
+        const rw = Math.max(3, Math.round(W(i / 2.5) / 2));
+        ell(CX, yy + 1, rw, Math.max(2, Math.round(S.torsoH / 5)), i % 2 ? mul(skin, 0.88) : skin);
+      }
+      rect(CX + 2, shoulderY + 1, 1, S.torsoH - 2, sd);
+    } else if (ghost) {
+      ell(CX, shoulderY + Math.round(S.torsoH / 2), Math.max(3, Math.round(W(0.3) / 2)), Math.round(S.torsoH / 2) + 1, gb);
+      ell(CX, shoulderY + Math.round(S.torsoH / 2), 2, 2, '#e8f2ff');
+      px(CX - 3, shoulderY + 3, gl); px(CX + 2, shoulderY + S.torsoH - 4, gl);
+    } else if (gel) {
+      for (let y = shoulderY; y <= GROUND - 1; y++) {
+        const t = (y - shoulderY) / Math.max(1, GROUND - 1 - shoulderY);
+        const w = Math.max(2, Math.round((tw / 2) * (0.6 + 0.6 * t) + Math.sin(y * 1.7) * 0.8));
+        rect(CX - w, y, w * 2 + 1, 1, skin);
+      }
+      ell(CX, GROUND - 1, Math.round(tw / 2) + 4, 2, skin);
+      px(CX - Math.round(tw / 2) - 6, GROUND, sd); px(CX + Math.round(tw / 2) + 6, GROUND, sd);
+      rect(CX - 2, shoulderY + 2, 1, 3, sl); px(CX - 2, shoulderY + 2, '#f0ffe4');
+      rect(CX + Math.round(tw / 2) + 1, hipY - 1, 1, 2, skin); px(CX + Math.round(tw / 2) + 1, hipY + 3, sl);
+      rect(CX - Math.round(tw / 2) - 1, shoulderY + 5, 1, 2, skin); px(CX - Math.round(tw / 2) - 1, shoulderY + 10, sl);
+    } else {
+      for (let y = shoulderY; y < hipY; y++) {
+        const t = (y - shoulderY) / Math.max(1, S.torsoH - 1);
+        const w = W(t);
+        rect(TL(w), y, w, 1, skin);
+        px(TL(w) + w - 1, y, sd);
+      }
+      if (hunch) ell(CX, shoulderY - 1, Math.round(shW / 2), 2, skin);
+    }
+    if (!hunch && !ghost && !gel && R.head !== 'rock') rect(CX - 1, shoulderY - 2, 3, 2, skin); // neck
+
+    // jersey + number
+    {
+      const jTop = ghost ? shoulderY + 3 : shoulderY + 1;
+      const jh = Math.max(3, ghost ? S.torsoH - 6 : S.torsoH - (gel ? 5 : 2));
+      const jc = ghost ? glass(kit.j, 0.8) : kit.j;
+      const span = Math.round(Math.max(shW + 2, tw) / 2) + 2;
+      for (let y = jTop; y < jTop + jh; y++) for (let x = CX - span; x <= CX + span; x++) if (buf[y] && buf[y][x]) buf[y][x] = jc;
+      for (let x = CX - span; x <= CX + span; x++) if (buf[jTop] && buf[jTop][x]) buf[jTop][x] = ghost ? glass(kit.trim, 0.85) : kit.trim;
+      for (let y = jTop + 1; y < jTop + jh; y++) for (let x = CX + span; x >= CX - span; x--) if (buf[y][x] === jc) { buf[y][x] = ghost ? glass(kit.jd, 0.8) : kit.jd; break; }
+      const num = String(cfg.number || '').replace(/[^0-9]/g, '').slice(0, tw >= 8 ? 2 : 1);
+      if (num) {
+        const w = num.length * 4 - 1, ox = CX - Math.floor(w / 2), oy = jTop + Math.max(1, Math.round((jh - 5) / 2) + 1);
+        if (rock) for (let y = oy - 1; y <= oy + 5; y++) for (let x = ox - 1; x <= ox + w; x++) if (buf[y] && !buf[y][x]) buf[y][x] = jc; // jersey plate bridges slab gap + narrow lower slab
+        num.split('').forEach((d, i) => { const g = DIGITS[d]; if (!g) return;
+          g.forEach((row, ry) => row.split('').forEach((v, rx) => { if (v === '1' && oy + ry < jTop + jh && buf[oy + ry] && buf[oy + ry][ox + i * 4 + rx]) px(ox + i * 4 + rx, oy + ry, kit.num); })); });
+      }
+      anchors.push([CX, shoulderY + Math.round(S.torsoH / 2), '#b6f36a']);
+    }
+
+    // arms + grip
+    const armW2 = Math.max(2, S.th - 1);
+    const aTop = hunch ? shoulderY + 2 : shoulderY + 1;
+    const aLen = Math.max(6, Math.min(S.armLen, hipY + 3 - aTop));
+    const bodyW = rock ? shW + 2 : Math.max(shW, tw);
+    const axL = TL(bodyW) - armW2, axR = TL(bodyW) + bodyW;
+    let grip = null;
+    if (rock) {
+      rect(axL, aTop, armW2 + 1, Math.round(aLen * 0.45), sd);
+      rect(axR - 1, aTop, armW2 + 1, Math.round(aLen * 0.45), skin);
+      ell(axL, aTop + Math.round(aLen * 0.75), 2, 2, sd);
+      ell(axR + armW2 - 1, aTop + Math.round(aLen * 0.75), 2, 2, skin); // floating fists
+      grip = [axR + armW2, aTop + Math.round(aLen * 0.8)];
+    } else if (ghost) {
+      rect(axL, aTop + 1, armW2, Math.round(aLen * 0.7), gd);
+      rect(axR, aTop + 1, armW2, Math.round(aLen * 0.7), gb);
+      px(axR + 1, aTop + 1 + Math.round(aLen * 0.7), gl);
+      grip = [axR + 1, aTop + Math.round(aLen * 0.75)];
+    } else if (gel) {
+      rect(axL + 1, aTop + 1, 2, Math.round(aLen * 0.5), skin); px(axL + 1, aTop + 1 + Math.round(aLen * 0.5), skin); px(axL + 1, aTop + 4 + Math.round(aLen * 0.5), sl);
+      rect(axR - 1, aTop + 1, 2, Math.round(aLen * 0.5), skin); px(axR, aTop + 1 + Math.round(aLen * 0.5), skin);
+      grip = [axR, aTop + Math.round(aLen * 0.6)];
+    } else {
+      if (arms === 4) {
+        const a2 = shoulderY + Math.round(S.torsoH * 0.5);
+        rect(axL - 1, a2, armW2, Math.round(aLen * 0.55), sd);
+        rect(axR + 1, a2, armW2, Math.round(aLen * 0.55), sd);
+      }
+      rect(axL, aTop, armW2, aLen, skin);
+      rect(axR, aTop, armW2, aLen, skin);
+      rect(axR + armW2 - 1, aTop, 1, aLen, sd);
+      if (o.tape) { rect(axL, aTop + aLen - 3, armW2, 1, '#e3e7f0'); rect(axR, aTop + aLen - 3, armW2, 1, '#e3e7f0'); }
+      grip = [axR + Math.round(armW2 / 2), aTop + aLen];
+    }
+    anchors.push([axL + 1, aTop, '#6ad2f3'], [axR + 1, aTop, '#6ad2f3']);
+    if (grip) {
+      const rb = S.th >= 3 ? 4 : 3;
+      const gx = grip[0] + rb - 1, gy = Math.min(GROUND - rb, grip[1] + 1);
+      if (R.ball === 'brick') { rect(gx - 3, gy - 2, 8, 5, '#a4503c'); rect(gx - 3, gy - 2, 8, 1, '#c16a52'); rect(gx - 3, gy + 2, 8, 1, '#6f3325'); px(gx + 1, gy, '#6f3325'); }
+      else { ell(gx, gy, rb, rb, '#c9752e'); rect(gx - rb, gy, rb * 2 + 1, 1, '#7d4315'); rect(gx, gy - rb, 1, rb * 2 + 1, '#7d4315'); px(gx - 1, gy - rb + 1, '#e08a3c'); }
+      anchors.push([gx - rb + 1, gy, '#f3c46a']);
+    }
+
+    // head
+    if (R.head === 'rock') {
+      rect(CX - headR, headCy - headR, headR * 2, headR * 2, skin);
+      px(CX - headR, headCy - headR, null); px(CX + headR - 1, headCy - headR, null);
+      px(CX - headR, headCy + headR - 1, null); px(CX + headR - 1, headCy + headR - 1, null);
+      rect(CX + headR - 1, headCy - headR + 1, 1, headR * 2 - 2, sd);
+      rect(CX - headR + 1, headCy - 3, headR * 2 - 2, 1, sdd); // brow ledge
+      px(CX - headR + 1, headCy - headR + 1, sdd); px(CX - headR + 2, headCy - headR + 2, sdd);
+    } else if (R.head === 'wide') {
+      ell(CX, headCy, headR + 2, Math.max(2, headR - 1), skin);
+      rect(CX - headR, headCy + headR - 2, headR * 2 + 1, 2, skin); // heavy jaw
+      px(CX - headR + 1, headCy + headR - 3, '#eef1fa'); px(CX + headR - 1, headCy + headR - 3, '#eef1fa'); // tusks
+      rect(CX + headR + 1, headCy - 1, 1, headR, sd);
+    } else if (R.head === 'chitin') {
+      ell(CX, headCy, Math.max(2, headR - 1), headR, skin);
+      px(CX - 2, headCy + headR, sdd); px(CX + 2, headCy + headR, sdd); // mandibles
+      rect(CX + headR - 2, headCy - 2, 1, headR, sd);
+    } else if (R.head === 'orb') {
+      ell(CX, headCy, headR, headR, gb);
+      ell(CX, headCy + 1, 1, 1, '#e8f2ff');
+    } else if (R.head === 'dome') {
+      for (let y = -headR; y <= headR; y++) {
+        const w = Math.round(Math.sqrt(Math.max(0, 1 - (y * y) / (headR * headR))) * headR + (y > 0 ? Math.sin(y * 2.3) * 0.8 : 0));
+        rect(CX - w, headCy + y + 1, w * 2 + 1, 1, skin);
+      }
+      px(CX - 2, headCy - headR + 2, '#f0ffe4');
+    } else {
+      ell(CX, headCy, headR, headR, skin);
+      rect(CX + headR - 2, headCy - 2, 1, headR, sd);
+    }
+    anchors.push([CX, headCy, '#f36ad2'], [CX, headCy - headR, '#f36ad2']);
+
+    // face
+    const eyeC = '#151a2e', eyeL = '#eef1fa';
+    const eo = Math.max(2, Math.round(headR / 2));
+    if (cfg.species === 'petran') { rect(CX - 2, headCy - 1, 2, 2, '#ffd76a'); rect(CX + 1, headCy - 1, 2, 2, '#ffd76a'); px(CX + 1, headCy - 1, '#fff6d0'); }
+    else if (cfg.species === 'hexid') { rect(CX - headR, headCy - 1, 2, 3, eyeC); rect(CX + headR - 1, headCy - 1, 2, 3, eyeC); px(CX - headR, headCy - 1, '#b9c4ff'); px(CX + headR - 1, headCy - 1, '#b9c4ff'); }
+    else if (R.eyes === 1) { rect(CX - 1, headCy - 1, 3, 2, eyeL); px(CX, headCy - 1, eyeC); px(CX, headCy, eyeC); }
+    else if (R.eyes === 3) { px(CX - eo, headCy, eyeC); px(CX + eo, headCy, eyeC); px(CX, headCy - 2, eyeC); }
+    else if (R.eyes === 4) { px(CX - eo, headCy - 1, eyeC); px(CX + eo, headCy - 1, eyeC); px(CX - eo + 1, headCy + 1, eyeC); px(CX + eo - 1, headCy + 1, eyeC); }
+    else { px(CX - eo, headCy, eyeC); px(CX + eo, headCy, eyeC); }
+
+    // crest / hair
+    if (crest) {
+      if (R.head === 'chitin') { rect(CX - 2, headCy - headR - 4, 1, 4, sdd); rect(CX + 2, headCy - headR - 4, 1, 4, sdd); px(CX - 3, headCy - headR - 5, sl); px(CX + 3, headCy - headR - 5, sl); }
+      else if (R.head === 'rock') { px(CX - 2, headCy - headR - 1, sd); rect(CX, headCy - headR - 2, 2, 2, sd); px(CX + 3, headCy - headR - 1, sd); }
+      else if (ghost || gel) { px(CX, headCy - headR - 1, ghost ? gl : sl); px(CX - 1, headCy - headR - 2, ghost ? gb : skin); }
+      else {
+        const hairC = cfg.species === 'terran' ? '#4a3421' : sdd;
+        for (let y = -headR; y <= -headR + 2; y++) for (let x = -headR; x <= headR; x++)
+          if ((x * x) / (headR * headR || 1) + (y * y) / (headR * headR || 1) <= 1.08) px(CX + x, headCy + y, hairC);
+        if (form === 'f') { rect(CX - headR - 1, headCy - headR + 2, 2, headR * 2 + 2, hairC); rect(CX + headR, headCy - headR + 2, 2, headR * 2 + 2, hairC); }
+        if (form === 'x') rect(CX - headR, headCy - headR + 2, 2, headR + 2, hairC);
+        if (form === 'm') { px(CX - headR + 1, headCy - headR + 3, hairC); px(CX + headR - 1, headCy - headR + 3, hairC); }
+      }
+    }
+    // gear
+    if (o.goggles) {
+      const y2 = headCy - 1;
+      for (let x = CX - headR - 1; x <= CX + headR + 1; x++) { if (buf[y2][x]) buf[y2][x] = '#232c4e'; if (buf[y2 + 1] && buf[y2 + 1][x]) buf[y2 + 1][x] = '#232c4e'; }
+      px(CX - eo, y2, mul(accent, 0.95)); px(CX + eo, y2, mul(accent, 0.95));
+    }
+    if (o.tape && R.head !== 'rock' && R.head !== 'orb') {
+      const y2 = headCy - headR + 2;
+      for (let x = CX - headR - 1; x <= CX + headR + 1; x++) if (buf[y2][x]) buf[y2][x] = kit.trim;
+    }
+
+    const out = buf;
+    if (ghost) for (let y = 0; y < G; y++) for (let x = 0; x < G; x++)
+      if (out[y][x] === gb && (x + y) % 2) out[y][x] = glass(skin, 0.2); // gas dither
+
+    if (cfg.mode === 'anchors') {
+      for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) if (out[y][x]) out[y][x] = '#2b3454';
+      for (let x = 0; x < G; x += 2) out[GROUND + 1][x] = '#454f76';
+      anchors.forEach(([ax, ay, c]) => {
+        const yy = Math.max(0, Math.min(G - 1, Math.round(ay))), xx = Math.max(0, Math.min(G - 1, Math.round(ax)));
+        out[yy][xx] = c;
+        [[2, 0], [-2, 0], [0, 2], [0, -2]].forEach(([dx, dy]) => { const nx = xx + dx, ny = yy + dy;
+          if (nx >= 0 && nx < G && ny >= 0 && ny < G) out[ny][nx] = mul(c, 0.6); });
+      });
+    }
+    return out;
+  }
+
+  set = (patch) => this.setState(patch);
+  setOpt = (k, v) => this.setState(s => ({ opts: Object.assign({}, s.opts, { [k]: v }) }));
+
+  renderVals() {
+    const S = this.state, R = RACES[S.species];
+    const sel = (on) => on
+      ? { bg: '#1a2440', bd: '#b6f36a', fg: '#f4f6ff' }
+      : { bg: '#141828', bd: '#232a44', fg: '#9aa3c4' };
+
+    const eff = (k, base) => S.opts[k] === null ? base : S.opts[k];
+    const toggleDefs = [
+      ['crest', 'CREST / HAIR', R.crest],
+      ['tail', 'TAIL', R.tail],
+      ['extraArms', 'ARM PAIR 2', R.arms === 4],
+      ['extraLegs', 'SIX-LEG ROW', R.legs === 6],
+      ['goggles', 'GOGGLES', false],
+      ['tape', 'TAPE + BAND', false],
+      ['hooves', 'HOOF / BLOCK FEET', false]
+    ];
+
+    return {
+      pageRef: el => { this._root = el; if (el) this.paint(); },
+      idLabel: R.name + ' · ' + SIZES[S.size].label.toUpperCase() + ' · ' + ({ m: 'MASC', f: 'FEMME', x: 'FLUX' })[S.form] + ' · #' + (S.number || '--'),
+      number: S.number,
+      setNumber: e => this.setState({ number: e.target.value.replace(/[^0-9]/g, '').slice(0, 2) }),
+      raceBtns: RACE_KEYS.map(k => Object.assign({ name: RACES[k].name, note: RACES[k].note,
+        swatch: RACES[k].skin, pick: () => this.setState({ species: k, opts: { crest: null, tail: null, goggles: S.opts.goggles, tape: S.opts.tape, extraArms: null, extraLegs: null, hooves: S.opts.hooves } }) }, sel(k === S.species))),
+      sizeBtns: SIZE_KEYS.map(k => Object.assign({ name: SIZES[k].label, h: SIZES[k].total, pick: () => this.setState({ size: k }) }, sel(k === S.size))),
+      formBtns: [['m', 'MASC', 'broad'], ['f', 'FEMME', 'tapered'], ['x', 'FLUX', 'blended']].map(([k, name, note]) => Object.assign({ name, note, pick: () => this.setState({ form: k }) }, sel(k === S.form))),
+      tintBtns: [0, 1, 2, 3].map(i => ({ swatch: tint(R.skin, i), bd: i === S.tintIx ? '#b6f36a' : '#232a44', pick: () => this.setState({ tintIx: i }) })),
+      kitBtns: ['home', 'away'].map(k => Object.assign({ name: k.toUpperCase(), pick: () => this.setState({ kit: k }) }, sel(k === S.kit))),
+      toggles: toggleDefs.map(([k, name, base]) => {
+        const on = eff(k, base);
+        return Object.assign({ name, state: on ? 'ON' : 'OFF', stateFg: on ? '#b6f36a' : '#6d7699',
+          pick: () => this.setOpt(k, !on) }, sel(on));
+      }),
+      rosterRows: RACE_KEYS.map(k => ({ id: k, name: RACES[k].name, note: RACES[k].note }))
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -240,6 +240,21 @@ export interface Fx {
   gameover?: 'void' | 'fired';
 }
 
+// ---- THE NOTEBOOK -------------------------------------------------------------
+// A permanent fixture of THE BAG: tap it during a dialog or screen and it
+// notes something noteworthy. Notes answer press questions and (later) feed
+// story callbacks.
+
+export interface NotebookEntry {
+  season: number;
+  week: number;
+  /** 'story' | 'mvp' | 'results' | 'opp' | 'screen' */
+  kind: string;
+  /** lookup/dedupe key, e.g. 'mvp:1:3' */
+  key: string;
+  text: string;
+}
+
 // ---- alumni -------------------------------------------------------------------
 
 export interface Alumnus {
@@ -414,7 +429,9 @@ export interface GameState {
   prospects: Prospect[];
   /** search results waiting in the 4th row — swap them onto the board or let them go */
   pendingRecruits: Prospect[];
-  bag: string[]; // item ids, max 5
+  bag: string[]; // item ids, max 4 (the notebook holds the fifth slot forever)
+  /** THE NOTEBOOK: newest first, capped */
+  notebook: NotebookEntry[];
   legendariesUsed: string[]; // reset each season
 
   unlockedDrills: string[];
@@ -440,6 +457,8 @@ export interface GameState {
   /** rolled speech outcomes: the room ignited (or null) — one per half */
   speechFx?: SpeechFx | null;
   speechFxH2?: SpeechFx | null;
+  /** premium speeches recharge: planId → weeks until it can be given again */
+  speechCooldowns?: Record<string, number>;
   sitouts: number[];
   drillReport: string | null;
   voyageRolled: boolean;
@@ -457,6 +476,8 @@ export interface GameState {
   resultsLog: string[]; // other games this week, one line each
 
   ut: UtState | null;
+  /** my season so far, one line per played game (the schedule dialog) */
+  myResults?: { week: number; win: boolean; text: string }[];
   alumni: Alumnus[];
   voidReturnUsed: boolean;
 
