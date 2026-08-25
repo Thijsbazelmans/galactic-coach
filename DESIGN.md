@@ -1215,6 +1215,18 @@ through `executeAction` too). Thijs drops Claude-Designer exports into
 
 ### Backlog (in rough priority)
 
+- **Walk-ons fill HOLES (Thijs, Aug 24)**: the walk-on pool (tryouts AND
+  the offseason selection pool) should read the roster and lean toward
+  what it lacks — body sizes for empty columns (no frontcourt? more big
+  walk-ons) and class years for graduation cliffs (all seniors at a spot?
+  younger bodies show up). Otherwise picking walk-ons is just "take the
+  highest rating." Likely home: `genWalkOn` gets a needs hint from the
+  selection-pool builder (`resolveSigning` / `chooseTeam`).
+- **MISCAST on the selection grid (same note)**: the cut decision needs
+  the fit warning — show the MISCAST label/cost on TRYOUTS and the
+  season-roster selection grid (playerCard already knows how; the
+  selection grid just never passes `miscast`). NOT on the big board or
+  recruiting — prospects have no lineup slot yet.
 - **The scouting/recruiting split — SHIPPED as v4.4** (two separate weekly
   stops, booster-assisted recruiting, last-minute instructions).
 - **More instructions**: the pregame-move family has room — findable
