@@ -68,7 +68,7 @@ import {
 import type { Attr, AttrRec, GameState, PlanId, Player, Prospect, SpeechFx, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, perGame, potStars, rand } from './engine/util';
-import { PRACTICE_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, skinTone, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
+import { PRACTICE_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
 
 const VERSION = 'v4.4';
 
@@ -843,7 +843,7 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
       ${imgDim}
       <div class="ktop">${nameHtml}</div>
       <div class="prblurb centered">${esc(pr.blurb)}</div>
-      <div class="prspecies ${spCls}" style="color:${skinTone(pr.speciesId, pr.id)}">${sp.name.toUpperCase()}</div>
+      <div class="prspecies ${spCls}">${sp.name.toUpperCase()}</div>
     </div>`;
   } else if (l === 2) {
     // POTENTIAL: the ceiling (?? or the stars) sits DEAD CENTER, the cloud

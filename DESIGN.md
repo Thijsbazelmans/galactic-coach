@@ -1192,6 +1192,11 @@ base 0.90 of rested. Harness (random-story play): **~50% win rate · 3/10
 fired · ~2.8 titles over a full 26-season career, arriving in mid-career
 runs** — season-1 glory stays out of reach.
 
+**v4.4.1:** the species name on the prospect STATS card is plain legible
+light grey now — the v4.1 skin-color signature is dead (Thijs: coloring a
+species label by skin could be construed as a little racist; the label is
+information, not identity). Rare blood still reads bright white / blinks.
+
 ## NEXT SESSION (pick up here)
 
 Fresh-session state: the game is **v4.4 — THE NEW WEEK** (see the entry

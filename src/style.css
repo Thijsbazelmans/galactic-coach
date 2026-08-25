@@ -1145,7 +1145,7 @@ button.actmain.scopehl { border-color: var(--r95); }
 .fourthrow.ghostrow { visibility: hidden; }
 
 /* the species name is free information — rare blood reads LOUD */
-.kyear.sprare { color: var(--r95); }
+.kyear.sprare, .prspecies.sprare { color: var(--r95); }
 
 /* ---- the change language: numbers blink old-dim / new-bright ------------- */
 
@@ -1199,7 +1199,8 @@ button.actmain.scopehl { border-color: var(--r95); }
 .revealbox { flex: none; margin: 10px 0 4px; }
 .revealbox .revealrow { margin: 0; }
 
-/* the species signs the prospect's STATS card, in their own skin color */
+/* the species signs the prospect's STATS card — legible light grey, plain
+   information (rare blood still reads bright / blinks via .sprare) */
 .prblurb.centered { text-align: center; bottom: 22px; }
 .prspecies {
   position: absolute;
@@ -1209,6 +1210,7 @@ button.actmain.scopehl { border-color: var(--r95); }
   font-size: 10px;
   font-weight: bold;
   letter-spacing: 2px;
+  color: #b9c0c7;
 }
 
 /* ---- THE LIVE GAME: centered, using the WHOLE screen ----------------------
