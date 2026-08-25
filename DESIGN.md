@@ -1199,9 +1199,14 @@ information, not identity). Rare blood still reads bright white / blinks.
 
 ## NEXT SESSION (pick up here)
 
-Fresh-session state: the game is **v4.4 — THE NEW WEEK** (see the entry
-above). Engine `src/engine/` (types/data/gen/sim/state/util), UI
-`src/main.ts` + `src/rig.ts` + `src/style.css`. SAVE_VERSION 19.
+Fresh-session state: the game is **v4.4.1 — THE NEW WEEK** (see the v4.4
+entry + the v4.4.1 note above; live on Pages, all tests green, working
+tree clean). Engine `src/engine/` (types/data/gen/sim/state/util), UI
+`src/main.ts` + `src/rig.ts` + `src/style.css`. SAVE_VERSION 19. Thijs
+has NOT yet played v4.4 — first thing to listen for: does ~50%-harness
+difficulty FEEL like a fight (not a wall), and do the two board stops +
+the pregame move pace the week well. The top backlog items (hole-filling
+walk-ons, MISCAST on the selection grid) are noted and awaiting his GO.
 Tests: `npx tsx scripts/headless.ts N` (full careers; ~50% baseline under
 random-story play) and `npx tsx scripts/uismoke.ts` (boots the real UI in
 happy-dom; nav and choices are hold-buttons that ignore clicks — drive
@@ -1231,7 +1236,15 @@ through `executeAction` too). Thijs drops Claude-Designer exports into
   the fit warning — show the MISCAST label/cost on TRYOUTS and the
   season-roster selection grid (playerCard already knows how; the
   selection grid just never passes `miscast`). NOT on the big board or
-  recruiting — prospects have no lineup slot yet.
+  recruiting — prospects have no lineup slot yet. Open sub-question
+  (Claude leans a, Thijs to rule): (a) read the slot he currently sits
+  in — drag him and the label reacts, consistent with grid-is-the-lineup —
+  or (b) flag players who'd be miscast in EVERY column.
+- **Instruction nights have no squad buff (watch in play)**: choosing
+  LAST-MINUTE INSTRUCTIONS over the speech means your room gets no lift —
+  the gamble is pure opponent-sabotage. If that trade feels flat in
+  Thijs's next playtest, let a LANDED call also settle your own room
+  (+1 somewhere) so tape-over-talk never feels like a skipped speech.
 - **The scouting/recruiting split — SHIPPED as v4.4** (two separate weekly
   stops, booster-assisted recruiting, last-minute instructions).
 - **More instructions**: the pregame-move family has room — findable
