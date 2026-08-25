@@ -11,6 +11,7 @@ import {
   drillById,
   fragility,
   galaxyActById,
+  instrById,
   itemById,
   planById,
   rollInjury,
@@ -47,6 +48,7 @@ import {
 import {
   autoLineup,
   benchPlayers,
+  matchAttrs,
   normalizeLineup,
   reserves,
   restedPower,
@@ -139,6 +141,8 @@ export function load(): GameState | null {
     for (const r of ['reccenter', 'home', 'nebula', 'outerrim']) {
       if (!s.unlockedRegions.includes(r)) s.unlockedRegions.push(r);
     }
+    s.knownInstr = s.knownInstr ?? ['counter'];
+    if (!s.knownInstr.includes('counter')) s.knownInstr.push('counter');
     return s;
   } catch {
     return null;
@@ -250,6 +254,11 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
       s.knownPlans.push(fx.unlockPlan);
       s.careerLog.push(`Learned ${planById(fx.unlockPlan).name} (season ${s.season}).`);
       queueStory(s, 'reveal', 'start', null, { kind: 'speech', id: fx.unlockPlan });
+    }
+    if (fx.unlockInstr && !(s.knownInstr ?? []).includes(fx.unlockInstr)) {
+      s.knownInstr = [...(s.knownInstr ?? []), fx.unlockInstr];
+      s.careerLog.push(`Learned ${instrById(fx.unlockInstr).name} (season ${s.season}).`);
+      queueStory(s, 'reveal', 'start', null, { kind: 'instr', id: fx.unlockInstr });
     }
     if (fx.intel && s.prospects.length < MAX_PROSPECTS) {
       const counter = { nextId: s.nextId };
@@ -459,8 +468,8 @@ export function resolveStory(s: GameState, choiceKey: string): { resolved: Story
 export function dismissStory(s: GameState): void {
   s.queue.shift();
   if (!s.queue.length && s.phase === 'stories') {
-    s.phase = isUtWeek(s) ? 'matchup' : 'practice';
-    maybeTip(s, isUtWeek(s) ? 'matchup' : 'practice');
+    s.phase = isUtWeek(s) ? 'matchup' : 'scouting';
+    maybeTip(s, isUtWeek(s) ? 'matchup' : 'scouting');
   }
   if (!s.queue.length && s.phase === 'gamenight' && !s.lastResult && !s.end) simWeek(s);
   save(s);
@@ -554,9 +563,11 @@ function startWeek(s: GameState): void {
     }
   }
   s.trainedThisWeek = false;
-  s.galaxyActWk = false;
-  s.speechWk = false;
+  s.scoutActWk = false;
+  s.recruitActWk = false;
+  s.pregameWk = false;
   s.speechFx = null;
+  s.oppFx = null;
   s.sitouts = [];
   s.drillReport = null;
   s.voyageRolled = false;
@@ -704,7 +715,7 @@ function startWeek(s: GameState): void {
   } else {
     for (const req of later) queueStory(s, req.defId, req.beat, req.playerId, req.data ?? {});
     s.storedStories = [];
-    s.phase = s.queue.length ? 'stories' : isUtWeek(s) ? 'matchup' : 'practice';
+    s.phase = s.queue.length ? 'stories' : isUtWeek(s) ? 'matchup' : 'scouting';
   }
   save(s);
 }
@@ -736,8 +747,8 @@ export function beginWeek(s: GameState): void {
     queueStory(s, req.defId, req.beat, req.playerId, req.data ?? {});
   }
   s.storedStories = [];
-  s.phase = s.queue.length ? 'stories' : isUtWeek(s) ? 'matchup' : 'practice';
-  if (s.phase === 'practice') maybeTip(s, 'practice');
+  s.phase = s.queue.length ? 'stories' : isUtWeek(s) ? 'matchup' : 'scouting';
+  if (s.phase === 'scouting') maybeTip(s, 'scouting');
   if (s.phase === 'matchup') maybeTip(s, 'matchup');
   save(s);
 }
@@ -914,17 +925,24 @@ function revealAll(pr: Prospect): void {
   observe(pr);
 }
 
-/** THE WEEKLY MOVE: one action, always the whole board. Scout sharpens every
-    name, recruit works every name, search brings new names to the 4th row. */
+/** ONE move per section, always the whole board: SCOUTING (search for new
+    names / sharpen the known ones) and RECRUITING (your own charm / the
+    booster's radioactive help) are separate weekly stops now. */
 export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
   const act = galaxyActById(actId);
-  if (s.galaxyActWk || s.pendingRecruits.length) return null;
+  if (s.pendingRecruits.length) return null;
+  if (act.kind === 'recruit') {
+    if (s.phase !== 'recruiting' || s.recruitActWk) return null;
+  } else {
+    if (s.phase !== 'scouting' || s.scoutActWk) return null;
+  }
   if (s.energy < act.cost) return null;
   if (act.kind === 'search' && !s.unlockedRegions.includes(act.id)) return null;
   if (act.kind === 'search' && s.groundedWeeks > 0 && !act.local) return null;
   if (act.kind !== 'search' && !s.prospects.length) return null;
   s.energy -= act.cost;
-  s.galaxyActWk = true;
+  if (act.kind === 'recruit') s.recruitActWk = true;
+  else s.scoutActWk = true;
   const per = new Map<number, { text: string; up?: boolean; commitFrom?: number }[]>();
   let text: string;
   let art: GalaxyResult['art'];
@@ -995,8 +1013,19 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
     text = `${act.name}: ${scopeWord === 'all nine' ? 'the whole board hears' : `${scopeWord} hear`} from you. ${ups} name${ups === 1 ? '' : 's'} lean${ups === 1 ? 's' : ''} in${downs ? `, ${downs} lean${downs === 1 ? 's' : ''} away` : ''}.`;
     if (r < act.down.pct) {
       if (act.down.cls === 'SCANDAL') {
-        queueStory(s, 'scandal', 'start', null, { cause: 'The gala photos reach the league office before the dessert course ends. Twelve courses of evidence.' });
-        text += ' The flashbulbs, meanwhile...';
+        // the booster's PLAUSIBLE DENIABILITY: half the time his name is on
+        // it, not yours — his patience frays, but the league looks past you
+        if (act.via === 'booster' && roll(50)) {
+          s.heatB = clamp(s.heatB + 8, 0, 100 - s.heatS);
+          text += ' The league sniffs around — and finds only the booster\'s fingerprints. He eats it, tips his hat, and remembers.';
+        } else {
+          queueStory(s, 'scandal', 'start', null, {
+            cause: act.via === 'booster'
+              ? 'A league investigator holds up a duffel bag with a very traceable monogram. The deniability was less plausible than advertised.'
+              : 'The recruiting-night photos reach the league office before the dessert course ends. Twelve courses of evidence.',
+          });
+          text += ' The flashbulbs, meanwhile...';
+        }
       } else {
         queueStory(s, 'drama', 'start', null, { cause: 'Two recruits discover they were promised the same jersey number, loudly, in front of everyone.' });
         text += ' It gets loud at the punch bowl...';
@@ -1154,15 +1183,65 @@ export function speechCooldown(s: GameState, plan: PlanId): number {
 }
 
 export function deliverSpeech(s: GameState, plan: PlanId): string | null {
-  if (s.speechWk || !s.knownPlans.includes(plan) || speechCooldown(s, plan) > 0) return null;
+  if (s.pregameWk || !s.knownPlans.includes(plan) || speechCooldown(s, plan) > 0) return null;
   s.plan = plan;
-  s.speechWk = true;
+  s.pregameWk = true;
   const out = rollSpeech(s, plan);
   s.speechFx = out.fx;
   const cd = planById(plan).cooldown;
   if (cd) s.speechCooldowns = { ...(s.speechCooldowns ?? {}), [plan]: cd };
   save(s);
   return out.text;
+}
+
+/** LAST-MINUTE INSTRUCTIONS — the other pregame move: play the tape instead
+    of rousing the room. Call their set and their BEST attribute plays −amt
+    tonight; call it wrong and nothing happens; get READ and your own best
+    attribute craters (the captain's order gets CAUGHT instead: heat now, the
+    league reviews the tape Monday). */
+export function deliverInstructions(s: GameState, instrId: string): string | null {
+  const it = instrById(instrId);
+  if (s.pregameWk || !(s.knownInstr ?? []).includes(instrId) || speechCooldown(s, instrId as PlanId) > 0) return null;
+  if (s.energy < it.cost) return null;
+  s.energy -= it.cost;
+  s.pregameWk = true;
+  if (it.cooldown) s.speechCooldowns = { ...(s.speechCooldowns ?? {}), [instrId]: it.cooldown };
+  const me = myTeam(s);
+  const m = myMatchup(s);
+  const champ = isUtWeek(s) ? utOpponent(s) : null;
+  const theirBest = champ ? bestAttr(champ.kite) : m ? bestAttr(matchAttrs(m.opponent)) : 'skl';
+  const myBest = bestAttr(matchAttrs(me));
+  const A = theirBest.toUpperCase();
+  const r = Math.random() * 100;
+  save(s);
+  if (r < it.hit) {
+    s.oppFx = { attr: theirBest, amt: -it.oppAmt };
+    save(s);
+    if (instrId === 'takeout') {
+      return `The first screen of warmups is early, hard, and extremely memorable. Their star spends the night looking over ${it.oppAmt > 0 ? 'both shoulders' : 'a shoulder'} — they play −${it.oppAmt} ${A} tonight. Nobody saw anything.`;
+    }
+    return `"${it.call}," you say — and you CALLED IT. Their whole opener dies at half court. They play −${it.oppAmt} ${A} tonight.`;
+  }
+  if (r < it.hit + it.backfire) {
+    if (instrId === 'takeout') {
+      // caught: no edge tonight, heat now, the league reviews the tape Monday
+      const capt = starters(me).filter((p) => p.outWeeks === 0).sort((a, b) => b.attrs.frc - a.attrs.frc)[0] ?? null;
+      s.heatS = clamp(s.heatS + 6, 0, 100 - s.heatB);
+      if (capt) {
+        s.futureBeats.push({ weeksLeft: 1, defId: 'tape_review', beat: 'start', playerId: capt.id, data: {} });
+        save(s);
+        return `${capt.name} sets the screen — and a courtside stream catches every choreographed inch of it. No edge tonight, the refs watching your bench all game, and the league "will be reviewing the tape."`;
+      }
+      save(s);
+      return 'The plan leaks before warmups end. No edge tonight, and the league office sends a one-line holo: "we saw that."';
+    }
+    s.speechFx = { attr: myBest, amt: -it.selfAmt };
+    save(s);
+    return `"${it.call}," you say. They knew. They KNEW — they baited the counter and your whole game plan folds around it. Your squad plays −${it.selfAmt} ${myBest.toUpperCase()} tonight.`;
+  }
+  return instrId === 'medium'
+    ? 'The medium hums, sways, and predicts a sport that has not been invented yet. The locker room applauds politely. Nothing happens.'
+    : `"${it.call}," you say. Tip-off comes — and they open in something else entirely. The tape was a week old. Nothing gained, nothing lost.`;
 }
 
 /** Which item contexts the current phase accepts ('mood' is always welcome).
@@ -1173,7 +1252,8 @@ export function itemAllowedNow(s: GameState, itemId: string): boolean {
   const phaseCtx: Record<string, string[]> = {
     practice: ['practice'],
     matchup: ['pregame'],
-    galaxy: ['recruiting'],
+    scouting: ['recruiting'],
+    recruiting: ['recruiting'],
     stories: ['mood'],
   };
   const allowed = [...(phaseCtx[s.phase] ?? []), 'mood'];
@@ -1229,36 +1309,40 @@ export function rollTravelHome(s: GameState): void {
   }
 }
 
+/** SCOUTING → PRACTICE: the board move is mandatory (the rec center is free). */
+export function toPractice(s: GameState): void {
+  if (s.queue.length) return;
+  if (s.phase === 'scouting' && (!s.scoutActWk || s.pendingRecruits.length)) return;
+  s.phase = 'practice';
+  maybeTip(s, 'practice');
+  save(s);
+}
+
+/** PRACTICE → RECRUITING: practice is mandatory (rest is the free floor). */
+export function toRecruiting(s: GameState): void {
+  if (s.queue.length) return;
+  if (!s.trainedThisWeek) return;
+  s.phase = 'recruiting';
+  maybeTip(s, 'recruiting');
+  save(s);
+}
+
+/** RECRUITING → MATCHUP: the charm move is mandatory (the group chat is free). */
 export function toMatchup(s: GameState): void {
   if (s.phase === 'stories' && s.queue.length) return;
-  // recruiting is mandatory: no matchup before the board-wide move lands
-  if (s.phase === 'galaxy' && (!s.galaxyActWk || s.pendingRecruits.length)) return;
+  if (s.phase === 'recruiting' && !s.recruitActWk) return;
   normalizeLineup(myTeam(s));
   // wheels up: every away game opens with the bus heading out
   const m = myMatchup(s);
-  if (m && !m.home && s.phase === 'galaxy') queueStory(s, 'travel_out', 'start', null);
+  if (m && !m.home && s.phase === 'recruiting') queueStory(s, 'travel_out', 'start', null);
   s.phase = 'matchup';
   maybeTip(s, 'matchup');
   save(s);
 }
 
-export function toPractice(s: GameState): void {
-  if (s.queue.length) return;
-  s.phase = 'practice';
-  save(s);
-}
-
-export function toGalaxy(s: GameState): void {
-  if (s.queue.length) return;
-  if (!s.trainedThisWeek) return; // practice is mandatory — there's a 0⚡ option
-  s.phase = 'galaxy';
-  maybeTip(s, 'galaxy');
-  save(s);
-}
-
 /** PLAY (held). The game sims when the queue clears. */
 export function playGame(s: GameState): void {
-  if (!s.speechWk) return; // no tip-off before the speech
+  if (!s.pregameWk) return; // no tip-off before the pregame move
   s.phase = 'gamenight';
   s.lastResult = null;
   if (!s.queue.length && !s.end) simWeek(s);
@@ -1475,7 +1559,7 @@ export function continueFromResult(s: GameState): void {
       // tournament a little more winnable; every banner already hung makes
       // the field hunt you harder. A rookie coach needs a miracle. A wise
       // one hits streaks. A champion gets everyone's best punch.
-      const knowledge = Math.max(0, s.unlockedDrills.length + s.knownPlans.length + s.unlockedRegions.length - 13);
+      const knowledge = Math.max(0, s.unlockedDrills.length + s.knownPlans.length + (s.knownInstr ?? []).length + s.unlockedRegions.length - 14);
       const edge = Math.min(0.12, knowledge * 0.015);
       const hunted = Math.min(3, s.utTitles) * 0.045;
       s.ut = { round: 0, champs: genChamps(restedPower(me), s.season, 1 - edge + hunted), myNextOpp: 0, log: [] };

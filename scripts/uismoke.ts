@@ -70,7 +70,47 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('lost to you forever')) throw new Error('cut confirm dialog missing');
   anyWin.gcAction('confirm-roster', '');
   drain();
-  if (!['stories', 'practice'].includes(state().phase)) throw new Error(`expected season start, got ${state().phase}`);
+  if (!['stories', 'scouting'].includes(state().phase)) throw new Error(`expected season start, got ${state().phase}`);
+  drain();
+  if (state().phase !== 'scouting') throw new Error(`expected scouting, got ${state().phase}`);
+
+  // the thumb-first bottom stack: nav → lens tabs → the two-row bag, in order
+  const stack = [...app.querySelectorAll('.navbar, .lensbar, .bagbar')].map((el) => (el as unknown as { className: string }).className.split(' ')[0]);
+  if (stack.join(',') !== 'navbar,lensbar,bagbar') throw new Error(`bottom stack out of order: ${stack.join(',')}`);
+  if (!app.innerHTML.includes('bagbar tworow')) throw new Error('two-row bag missing');
+  if (!app.innerHTML.includes('bslot filled notebook tall')) throw new Error('tall notebook slot missing');
+  if (app.querySelectorAll('.bslot').length !== 9) throw new Error('expected notebook + 8 item slots');
+
+  // SCOUTING: the board opens FULL — nine names, mostly strangers
+  const prospects = (gc.state() as any).prospects;
+  if (prospects.length !== 9) throw new Error(`expected 9 prospects on the board, got ${prospects.length}`);
+  if (prospects.every((p: any) => p.seenSkill && p.seenPot && p.digits >= 2)) throw new Error('the opening board should not be fully known');
+  if (!app.innerHTML.includes('prq')) throw new Error('?? masks missing on the board');
+  if (!app.innerHTML.includes('TARGETS')) throw new Error('priority-board row labels missing');
+  // the species signs the STATS card, in their skin color
+  (app.querySelectorAll('[data-action="lens-set"]')[1] as unknown as { click: () => void }).click();
+  if (!app.innerHTML.includes('prspecies') || !app.innerHTML.includes('TERRAN')) throw new Error('species missing on the STATS card');
+  must('[data-action="lens-set"]', 'back to BIG BOARD');
+  // the picker defaults to the FREE option (LOCAL REC CENTER) on the nav
+  if (!app.innerHTML.includes('LOCAL REC CENTER')) throw new Error('free scouting option not the default');
+  if (!app.querySelector('.navbar [data-action="gx-run"]')) throw new Error('scouting action missing from the nav');
+  if (app.querySelectorAll('.navbar [data-action="gx-sheet"]').length !== 2) throw new Error('expected a ▾ arrow on BOTH sides');
+  // mandatory action: the nav refuses to move on until one lands
+  anyWin.gcAction('to-practice', '');
+  if (state().phase !== 'scouting') throw new Error('left scouting without an action');
+  // pick FILM NIGHT (all 9) and run it — every prospect gains a facet
+  anyWin.gcAction('gx-pick', 'filmnight');
+  anyWin.gcAction('gx-run', '');
+  if (!(gc.state() as any).scoutActWk) throw new Error('scouting action did not land');
+  if (!prospects.some((p: any) => p.seenSkill || p.seenPot || p.digits > 0)) throw new Error('scout revealed nothing');
+  // dismiss the result dialog
+  if (!click('[data-action="gx-result-tap"]')) throw new Error('result dialog missing');
+  click('[data-action="gx-result-tap"]');
+  drain();
+  if (app.querySelector('[data-action="gx-run"]')) throw new Error('scouting action should be once per week');
+
+  // PRACTICE
+  anyWin.gcAction('to-practice', '');
   drain();
   if (state().phase !== 'practice') throw new Error(`expected practice, got ${state().phase}`);
 
@@ -84,68 +124,51 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('k-pot')) throw new Error('potential outline missing on ABILITIES');
   must('[data-action="lens-set"]', 'lens set 0');
 
-  // the ROSTER card: edge gauges, OVR bottom-left, XP ring bottom-right, NO kite
+  // the ROSTER card: LED gauges, OVR bottom-left, XP ring bottom-right
   if (!app.innerHTML.includes('kovr')) throw new Error('card OVR missing');
   if (!app.innerHTML.includes('kring')) throw new Error('XP ring missing');
   if (!app.innerHTML.includes('gauge gl')) throw new Error('energy gauge missing');
   if (!app.innerHTML.includes('gauge gr')) throw new Error('mood gauge missing');
+  if (!app.innerHTML.includes('gled')) throw new Error('LED gauge rects missing');
   if (!app.innerHTML.includes('ksprite')) throw new Error('centered sprite missing');
 
   // MANDATORY practice: the nav IS the action button until the drill runs
   if (!app.querySelector('.navbar [data-action="drill-run"]')) throw new Error('RUN button missing from the nav');
-  if (!app.querySelector('.navbar [data-action="drill-sheet"]')) throw new Error('▾ picker arrows missing from the nav');
-  if (app.querySelectorAll('.navbar [data-action="drill-sheet"]').length !== 2) throw new Error('expected a ▾ arrow on BOTH sides');
-  anyWin.gcAction('to-galaxy', ''); // must refuse
+  anyWin.gcAction('to-recruiting', ''); // must refuse
   if (state().phase !== 'practice') throw new Error('left practice without training');
   anyWin.gcAction('drill-run', '');
   drain();
   if (!gc.state().trainedThisWeek) throw new Error('practice did not run');
   if (app.querySelector('[data-action="drill-run"]')) throw new Error('RUN should hand the nav back after practice');
 
-  // galaxy (nav buttons are hold-to-commit now — use the action handle)
-  if (!app.querySelector('[data-action="to-galaxy"]:not([disabled])')) throw new Error('TO RECRUITING button still dimmed');
-  anyWin.gcAction('to-galaxy', '');
+  // RECRUITING: its own stop — free floor is the group chat
+  anyWin.gcAction('to-recruiting', '');
   drain();
-  if (state().phase !== 'galaxy') throw new Error(`expected galaxy, got ${state().phase}`);
-  // the board opens FULL: nine names, mostly strangers (word travels over
-  // the summer — a few facets may already be known here and there)
-  const prospects = (gc.state() as any).prospects;
-  if (prospects.length !== 9) throw new Error(`expected 9 prospects on the board, got ${prospects.length}`);
-  if (prospects.every((p: any) => p.seenSkill && p.seenPot && p.digits >= 2)) throw new Error('the opening board should not be fully known');
-  if (!app.innerHTML.includes('prq')) throw new Error('?? masks missing on the board');
-  if (!app.innerHTML.includes('TARGETS')) throw new Error('priority-board row labels missing');
-  // the species signs the STATS card, in their skin color
-  (app.querySelectorAll('[data-action="lens-set"]')[1] as unknown as { click: () => void }).click();
-  if (!app.innerHTML.includes('prspecies') || !app.innerHTML.includes('TERRAN')) throw new Error('species missing on the STATS card');
-  must('[data-action="lens-set"]', 'back to BIG BOARD');
-  // the picker defaults to the FREE option (LOCAL REC CENTER) on the nav
-  if (!app.innerHTML.includes('LOCAL REC CENTER')) throw new Error('free option not the default');
-  if (!app.querySelector('.navbar [data-action="gx-run"]')) throw new Error('galaxy action missing from the nav');
-  // mandatory action: the nav refuses to move on until one lands
+  if (state().phase !== 'recruiting') throw new Error(`expected recruiting, got ${state().phase}`);
+  if (!app.innerHTML.includes('THE GROUP HOLO-CHAT')) throw new Error('free recruiting option not the default');
   anyWin.gcAction('to-matchup', '');
-  if (state().phase !== 'galaxy') throw new Error('left recruiting without an action');
-  // pick FILM NIGHT (all 9) and run it — every prospect gains a facet
-  anyWin.gcAction('gx-pick', 'filmnight');
+  if (state().phase !== 'recruiting') throw new Error('left recruiting without an action');
   anyWin.gcAction('gx-run', '');
-  if (!(gc.state() as any).galaxyActWk) throw new Error('galaxy action did not land');
-  if (!prospects.some((p: any) => p.seenSkill || p.seenPot || p.digits > 0)) throw new Error('scout revealed nothing');
-  // dismiss the result dialog
-  if (!click('[data-action="gx-result-tap"]')) throw new Error('result dialog missing');
+  if (!(gc.state() as any).recruitActWk) throw new Error('recruiting action did not land');
+  if (!click('[data-action="gx-result-tap"]')) throw new Error('recruiting result dialog missing');
   click('[data-action="gx-result-tap"]');
   drain();
-  if (app.querySelector('[data-action="gx-run"]')) throw new Error('galaxy action should be once per week');
 
   // matchup
-  if (!app.querySelector('[data-action="to-matchup"]:not([disabled])')) throw new Error('TO MATCHUP button still dimmed');
   anyWin.gcAction('to-matchup', '');
   drain();
   if (state().phase !== 'matchup') throw new Error(`expected matchup, got ${state().phase}`);
-  // the SPEECH is the nav action; no game before it lands
-  if (!app.querySelector('.navbar [data-action="speech-run"]')) throw new Error('SPEECH button missing from the nav');
+  // the PREGAME MOVE is the nav action; no game before it lands
+  if (!app.querySelector('.navbar [data-action="speech-run"]')) throw new Error('pregame move missing from the nav');
   anyWin.gcAction('play-game', '');
-  if (state().phase !== 'matchup') throw new Error('game started without a speech');
+  if (state().phase !== 'matchup') throw new Error('game started without a pregame move');
+  // the picker offers BOTH families: speeches and instructions
+  if (!click('.navbar [data-action="speech-sheet"]')) throw new Error('pregame ▾ arrow missing');
+  if (!app.innerHTML.includes('LAST-MINUTE INSTRUCTIONS')) throw new Error('instructions missing from the pregame sheet');
+  if (!app.innerHTML.includes('COUNTER THE SET')) throw new Error('the standard counter missing from the sheet');
+  anyWin.gcAction('speech-pick', 'showtime');
   anyWin.gcAction('speech-run', '');
-  if (!(gc.state() as any).speechWk) throw new Error('speech did not commit');
+  if (!(gc.state() as any).pregameWk) throw new Error('the pregame move did not commit');
   // the speech verdict lands as a toast — dismiss it
   click('[data-action="toast-tap"]');
   click('[data-action="toast-tap"]');
@@ -191,9 +214,9 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('WEEK START')) throw new Error('WEEK START screen missing');
   anyWin.gcAction('begin-week', '');
   drain();
-  if (state().phase !== 'practice') throw new Error(`expected practice after week start, got ${state().phase}`);
+  if (state().phase !== 'scouting') throw new Error(`expected scouting after week start, got ${state().phase}`);
 
-  console.log('UI SMOKE OK — pick team → tryouts → lenses → drill → galaxy → matchup → live game → YOU WON/LOST → box score → league → WEEK START → practice');
+  console.log('UI SMOKE OK — pick team → tryouts → scouting → lenses → drill → recruiting → pregame move → live game → YOU WON/LOST → box score → league → WEEK START → scouting');
 }
 
 main().catch((e) => {

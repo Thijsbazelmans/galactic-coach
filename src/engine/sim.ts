@@ -151,7 +151,7 @@ export function matchAttrs(t: Team, fx: SpeechFx | SpeechFx[] | null = null, for
       for (const a of ATTRS) {
         let v = p.attrs[a];
         for (const f of fxs) if (f.attr === a) v += f.amt;
-        out[a] += v * cond;
+        out[a] += Math.max(0, v) * cond; // a debuff can zero a kid out, never invert him
       }
     }
   }
@@ -343,11 +343,15 @@ function gameRope(
   const [vm, vt] = champ ? [1, 1] : home ? [1.03, 1] : [1, 1.03];
   let mine = teamPower(me, fx, forms) * vm;
   // their locker room hears a speech too — the mirror sits just under the
-  // happy medium (one speech per night now; the coach's edge is earned)
+  // happy medium (one speech per night now; the coach's edge is earned) —
+  // and a LANDED instruction drags their side down (s.oppFx, amt negative)
   const oppAmt = roll(25) ? 1 + rand(2) : 0;
+  const oppFxs: SpeechFx[] = [];
+  if (!champ) oppFxs.push({ attr: planById(opp!.plan).attr, amt: oppAmt });
+  if (s.oppFx) oppFxs.push(s.oppFx);
   let theirs = (champ
-    ? champ.power + oppAmt
-    : teamPower(opp!, { attr: planById(opp!.plan).attr, amt: oppAmt })) * vt;
+    ? champ.power + oppAmt + (s.oppFx ? s.oppFx.amt * 3 : 0)
+    : teamPower(opp!, oppFxs)) * vt;
   if (s.pregameFlags.wallet) mine *= 1.03; // the whistle leans your way
   if (s.pregameFlags.cloak) theirs *= 0.95; // they prepared for the wrong team
   if (s.pregameFlags.alarm) theirs *= 0.92; // the 3am fire alarm

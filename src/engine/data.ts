@@ -228,6 +228,55 @@ export function planById(id: PlanId): PlanDef {
 /** The four standard speeches every coach knows. Premium ones are KNOWLEDGE. */
 export const STARTING_PLANS: PlanId[] = ['showtime', 'rungun', 'lockdown', 'clockwork'];
 
+// ---- LAST-MINUTE INSTRUCTIONS ------------------------------------------------
+// The other pregame move: instead of rousing the room, you play the tape.
+// Call their set right and their game dies a little tonight; call it wrong
+// and nothing happens; get READ, and it's your own game that craters. The
+// standard counter is known from day one; the strange ones are KNOWLEDGE.
+
+export interface InstrDef {
+  id: string;
+  name: string;
+  /** the coach's call, printed on the button */
+  call: string;
+  cost: number;
+  /** % you called it: their BEST attribute plays −oppAmt tonight */
+  hit: number;
+  oppAmt: number;
+  /** % they saw it coming: YOUR best attribute plays −selfAmt (the captain's
+      order gets CAUGHT instead — heat, and the league reviews the tape) */
+  backfire: number;
+  selfAmt: number;
+  desc: string;
+  premium?: boolean;
+  /** premium finds recharge (shares the speech-cooldown ledger) */
+  cooldown?: number;
+}
+
+export const INSTRUCTIONS: InstrDef[] = [
+  {
+    id: 'counter', name: 'COUNTER THE SET', call: 'SIT ON THEIR OPENER', cost: 0,
+    hit: 35, oppAmt: 3, backfire: 20, selfAmt: 3,
+    desc: 'You watched the tape twice. If they run what you think they run, it dies at half court.',
+  },
+  {
+    id: 'medium', name: 'THE MEDIUM OF BLORGON-6', call: 'HE SEES THEIR WHOLE NIGHT', cost: 2,
+    hit: 70, oppAmt: 4, backfire: 5, selfAmt: 2, premium: true, cooldown: 3,
+    desc: 'A medium in the locker room, eyes rolled back, calling their sets before they call them.',
+  },
+  {
+    id: 'takeout', name: "THE CAPTAIN'S ORDER", call: 'TAKE OUT THEIR STAR. QUIETLY.', cost: 1,
+    hit: 50, oppAmt: 5, backfire: 20, selfAmt: 0, premium: true, cooldown: 4,
+    desc: 'One hard screen, early, memorable. Nobody saw anything. Unless somebody saw.',
+  },
+];
+
+export function instrById(id: string): InstrDef {
+  return INSTRUCTIONS.find((i) => i.id === id) ?? INSTRUCTIONS[0];
+}
+
+export const STARTING_INSTRUCTIONS = ['counter'];
+
 export const ATTR_LABEL: Record<Attr, string> = {
   skl: 'SKILL', ath: 'ATHLETICISM', frc: 'FIERCENESS', brn: 'BRAINS',
 };
@@ -415,19 +464,22 @@ export function drillById(id: string): DrillDef {
   return DRILLS.find((d) => d.id === id) ?? DRILLS[0];
 }
 
-// ---- the galaxy: ONE action per week, reading THE PRIORITY BOARD ---------------
-// The board IS a lineup: rows are priority tiers — TARGETS (top) / BACKUPS /
+// ---- the galaxy: TWO weekly sections now, reading THE PRIORITY BOARD -----------
+// SCOUTING (search for talent OR read the board) and RECRUITING (work the
+// board yourself OR call the booster) are separate stops in the week. The
+// board IS a lineup: rows are priority tiers — TARGETS (top) / BACKUPS /
 // LAST RESORTS — dragged exactly like the squad grid. Techniques are an
-// intensity pyramid over the rows (effort per head × heads ≈ constant):
-// 1⚡ touches ALL 9 lightly · 2⚡ works the TOP 6 · 3⚡ goes deep on TARGETS
-// only. SEARCH finds new talent — a full board means someone gets discarded
-// forever — and regions are RARITY DIALS: they shift WHO you find, never how
-// good they are (the band roll is the species'). The 0⚡ floor is the LOCAL
-// REC CENTER: terrans only, and kids notice where you went looking.
+// intensity pyramid over the rows: cheap touches ALL 9 lightly · mid works
+// the TOP 6 · dear goes deep on TARGETS only. Regions are RARITY DIALS:
+// they shift WHO you find, never how good they are. Direct recruiting is
+// low risk / low reward; the BOOSTER's help swings huge — with plausible
+// deniability when it blows up (his name is on it, mostly).
 
 export interface GalaxyActDef {
   id: string;
   kind: 'scout' | 'recruit' | 'search';
+  /** recruiting family: your own honest work, or the booster's */
+  via?: 'direct' | 'booster';
   name: string;
   desc: string;
   cost: number;
@@ -479,21 +531,42 @@ export const GALAXY_ACTS: GalaxyActDef[] = [
     desc: 'Your gym, your drills, your stopwatch — the TARGETS, read deep.',
     up: { pct: 25, cls: 'INTEL' }, down: { pct: 10, cls: 'SCANDAL' },
   },
-  // ---- RECRUIT (same pyramid) ----
+  // ---- RECRUIT, the DIRECT family: low risk, low reward, your own name ----
   {
-    id: 'letters', kind: 'recruit', name: 'HOLO-LETTERS', cost: 1, gain: [4, 10], risk: 2,
+    id: 'groupchat', kind: 'recruit', via: 'direct', name: 'THE GROUP HOLO-CHAT', cost: 0, gain: [2, 6], risk: 1,
+    desc: 'Nine names, one thread, zero budget. Presence counts for something.',
+    up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' },
+  },
+  {
+    id: 'letters', kind: 'recruit', via: 'direct', name: 'HOLO-LETTERS', cost: 1, gain: [4, 10], risk: 2,
     desc: 'Nine handwritten holograms. Safe. Modest. Sincere.',
     up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' },
   },
   {
-    id: 'openhouse', kind: 'recruit', name: 'CAMPUS OPEN HOUSE', cost: 2, gain: [5, 16], risk: 5, scope: 6,
+    id: 'openhouse', kind: 'recruit', via: 'direct', name: 'CAMPUS OPEN HOUSE', cost: 2, gain: [6, 14], risk: 4, scope: 6,
     desc: 'The top six visit at once. The gravy-fries do most of the talking.',
-    up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' },
+    up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' },
   },
   {
-    id: 'dinner', kind: 'recruit', name: 'THE DINNER', cost: 3, gain: [8, 30], risk: 12, scope: 3,
-    desc: 'You, the TARGETS, and a chef with too many arms. Huge swings, both ways.',
-    up: { pct: 10, cls: 'SPIRIT' }, down: { pct: 25, cls: 'SCANDAL' },
+    id: 'dinner', kind: 'recruit', via: 'direct', name: 'THE DINNER', cost: 3, gain: [10, 20], risk: 6, scope: 3,
+    desc: 'You, the TARGETS, and a chef with too many arms. Warm, honest, effective.',
+    up: { pct: 10, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' },
+  },
+  // ---- RECRUIT, the BOOSTER family: huge swings, his fingerprints (mostly) ----
+  {
+    id: 'carepack', kind: 'recruit', via: 'booster', name: 'BOOSTER CARE PACKAGES', cost: 1, gain: [7, 15], risk: 6,
+    desc: 'Nine crates "from a fan". Sneakers that fit suspiciously well.',
+    up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 10, cls: 'SCANDAL', note: 'deniable — his name is on the crates' },
+  },
+  {
+    id: 'skybox', kind: 'recruit', via: 'booster', name: 'THE SKYBOX WEEKEND', cost: 2, gain: [10, 24], risk: 8, scope: 6,
+    desc: 'The top six watch a pro game from the booster\'s skybox. Amateurism weeps.',
+    up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 15, cls: 'SCANDAL', note: 'deniable — you were "not there"' },
+  },
+  {
+    id: 'bagdrop', kind: 'recruit', via: 'booster', name: 'THE BAG DROP', cost: 3, gain: [16, 40], risk: 12, scope: 3,
+    desc: 'The TARGETS each find a duffel bag in their locker. Nobody counts it out loud.',
+    up: { pct: 10, cls: 'SPIRIT' }, down: { pct: 25, cls: 'SCANDAL', note: 'deniable, barely' },
   },
   // ---- SEARCH (the 0⚡ floor lives here; regions are rarity dials) ----
   {
@@ -1236,11 +1309,13 @@ function headMod(p: Player | null, base: number, attr: 'frc' | 'brn'): { pct: nu
   return { pct: base };
 }
 
-/** Something the coach doesn't know yet: a locked drill or an unlearned tactic. */
-function pickKnowledge(s: GameState): { kind: 'drill' | 'plan'; id: string; name: string } | null {
-  const options: { kind: 'drill' | 'plan'; id: string; name: string }[] = [
+/** Something the coach doesn't know yet: a locked drill, an unlearned
+    speech, or a strange last-minute instruction. */
+function pickKnowledge(s: GameState): { kind: 'drill' | 'plan' | 'instr'; id: string; name: string } | null {
+  const options: { kind: 'drill' | 'plan' | 'instr'; id: string; name: string }[] = [
     ...DRILLS.filter((d) => !s.unlockedDrills.includes(d.id)).map((d) => ({ kind: 'drill' as const, id: d.id, name: d.name })),
     ...PLANS.filter((pl) => !s.knownPlans.includes(pl.id)).map((pl) => ({ kind: 'plan' as const, id: pl.id, name: pl.name })),
+    ...INSTRUCTIONS.filter((it) => !(s.knownInstr ?? []).includes(it.id)).map((it) => ({ kind: 'instr' as const, id: it.id, name: it.name })),
   ];
   return options.length ? pick(options) : null;
 }
@@ -2021,7 +2096,7 @@ export const STORIES: StoryDef[] = [
       if (key === 'leave') {
         return { text: `You slide ${item.name} back across the desk. The equipment manager shrugs and re-donates it to the mystery it came from.` };
       }
-      if (ctx.s.bag.length >= 4) {
+      if (ctx.s.bag.length >= 8) {
         return { text: `You reach for ${item.name} — and THE BAG has no room. A kid outside the arena walks off with it, delighted.` };
       }
       ctx.s.bag.push(itemId);
@@ -2049,7 +2124,7 @@ export const STORIES: StoryDef[] = [
       if (key === 'leave') {
         return { text: `You leave ${item.name} where the galaxy dropped it. Somebody else's bargain now.` };
       }
-      if (ctx.s.bag.length >= 4) {
+      if (ctx.s.bag.length >= 8) {
         return { text: `You reach for ${item.name} — and THE BAG has no room. A kid outside the arena walks off with it, delighted.` };
       }
       ctx.s.bag.push(itemId);
@@ -2168,9 +2243,9 @@ export const STORIES: StoryDef[] = [
       const t = tails(50, 10);
       const k = pickKnowledge(ctx.s);
       if (t === 'up' && k) {
-        return k.kind === 'drill'
-          ? { text: `Blorgon 6 pays off — a legendary assistant walks you through ${k.name}, step by step. It's yours now, forever.`, fx: [{ unlockDrill: k.id }] }
-          : { text: `Blorgon 6 pays off — a retired champion coach diagrams ${k.name} on a napkin until it clicks. A whole new way to play, yours forever.`, fx: [{ unlockPlan: k.id as PlanId }] };
+        if (k.kind === 'drill') return { text: `Blorgon 6 pays off — a legendary assistant walks you through ${k.name}, step by step. It's yours now, forever.`, fx: [{ unlockDrill: k.id }] };
+        if (k.kind === 'instr') return { text: `Blorgon 6 pays off — in the hotel bar, a stranger teaches you ${k.name}. You check the lobby twice on the way out.`, fx: [{ unlockInstr: k.id }] };
+        return { text: `Blorgon 6 pays off — a retired champion coach diagrams ${k.name} on a napkin until it clicks. A whole new way to play, yours forever.`, fx: [{ unlockPlan: k.id as PlanId }] };
       }
       if (t === 'down') return { text: 'You catch Blorgon flu at the seminar buffet and sneeze through every session. The team spends the week worried about you.', fx: [{ teamMood: -5 }] };
       return { text: 'Six hours of trust falls and a pyramid scheme about "vertical culture". You learned nothing, and it cost you the trip.' };
@@ -2194,9 +2269,9 @@ export const STORIES: StoryDef[] = [
       const t = tails(50, 25);
       const k = pickKnowledge(ctx.s);
       if (t === 'up' && k) {
-        return k.kind === 'drill'
-          ? { text: `The door opens before you knock. "You are late," says the oracle, who has never met you. An hour later you know ${k.name} — a method your species has not invented yet.`, fx: [{ unlockDrill: k.id }] }
-          : { text: `The door opens before you knock. The oracle draws ${k.name} in the dust with one long finger, and suddenly it's obvious. It was always obvious. You just couldn't see it.`, fx: [{ unlockPlan: k.id as PlanId }] };
+        if (k.kind === 'drill') return { text: `The door opens before you knock. "You are late," says the oracle, who has never met you. An hour later you know ${k.name} — a method your species has not invented yet.`, fx: [{ unlockDrill: k.id }] };
+        if (k.kind === 'instr') return { text: `The door opens before you knock. The oracle whispers ${k.name} into your ear and closes the door. You will use this. You already know you will.`, fx: [{ unlockInstr: k.id }] };
+        return { text: `The door opens before you knock. The oracle draws ${k.name} in the dust with one long finger, and suddenly it's obvious. It was always obvious. You just couldn't see it.`, fx: [{ unlockPlan: k.id as PlanId }] };
       }
       if (t === 'down') {
         return {
@@ -2310,6 +2385,24 @@ export const STORIES: StoryDef[] = [
     kind: 'coach',
     beat: () => ({ tag: 'THE BILL', text: 'The mech-goblin invoice arrives, engraved on a small meteor: 3 CREDITS. They also left a mint.' }),
     resolve: () => ({ text: '', fx: [{ coachEnergy: -3 }] }),
+  },
+  // the captain's order got CAUGHT: the league reviews the tape on Monday
+  {
+    id: 'tape_review',
+    kind: 'player',
+    figure: undefined,
+    beat: (_b, ctx) => ({
+      tag: 'THE LEAGUE SAW THE TAPE',
+      text: `The screen ${pname(ctx)} set on their star has been slowed down, zoomed in, and watched eleven times by a league disciplinary panel.\n\nIt looks exactly like what it was.`,
+    }),
+    resolve: (_k, ctx) => {
+      const p = ctx.player;
+      if (!p) return { text: 'The suspension letter arrives for a player who is no longer yours to suspend.', fx: [{ heatS: 5 }] };
+      return {
+        text: `${p.name} is suspended two weeks. The panel's report uses the word "choreographed". The Dean uses worse.`,
+        fx: [{ playerId: p.id, outWeeks: 2, outReason: 'suspension (the screen)', mood: -8 }, { heatS: 8 }],
+      };
+    },
   },
   {
     id: 'espresso_crash',
@@ -2757,14 +2850,16 @@ export const TIPS: Record<string, string> = {
     "Practice is mandatory, coach — pick something and HOLD RUN. TEAM REST costs nothing (mostly harmless).\n\nThree families: TRAIN earns XP (levels bank +2 points YOU place), SHARPEN hammers direct points into attributes, RECOVER gets meters back. Anyone under 40 energy sits out automatically. Every option prints its odds. They never lie.",
   lenses:
     "One squad, three lenses: ROSTER is who they are right now (energy left, mood right), STATS is what they've done this season, ABILITIES is the compass — where they point and how far the ceiling goes.\n\nSame nine faces in the same nine places — only the question changes.",
-  galaxy:
-    "THE BIG BOARD is a lineup, coach: top row TARGETS, middle BACKUPS, bottom LAST RESORTS — drag names between rows any time. One action a week, and it READS the rows: 1⚡ touches all nine lightly, 2⚡ works the top six, 3⚡ goes deep on the TARGETS alone. SEARCH finds new talent, and a full board means somebody gets discarded FOREVER.\n\nBroke? The local rec center is free. Terrans only. Kids notice where you go looking.\n\nAnd the bottom row can tell it's the bottom row. Kids notice silence twice as fast down there.",
+  scouting:
+    "SCOUTING first, coach: either SEARCH the galaxy for new talent (regions shift WHO you find, never how good) or read THE BIG BOARD — one move a week, and it reads the rows: cheap touches all nine lightly, dear goes deep on the TARGETS alone. A full board means somebody gets discarded FOREVER.\n\nBroke? The local rec center is free. Terrans only. Kids notice where you go looking.",
+  recruiting:
+    "RECRUITING is its own stop now. Work the board YOURSELF — safe, modest, sincere — or take the BOOSTER'S HELP: care packages, skybox weekends, duffel bags. Huge swings, printed scandal odds, and when it blows up his name is on it. Mostly.\n\nThe bottom row can tell it's the bottom row. Kids notice silence twice as fast down there.",
   matchup:
-    "The speech is mandatory, coach — and it's a gamble like everything else. Four standard speeches, one per attribute: small chance the room IGNITES (everyone plays bigger in that attribute tonight), smaller chance somebody stops believing.\n\nBetter speeches exist. The galaxy hands them out in stories.\n\nTheir numbers sit right next to yours — tune the lineup until the ropes lean your way.",
+    "One pregame move, coach: a rousing SPEECH (small chance the room IGNITES, smaller chance a believer stops believing) or LAST-MINUTE INSTRUCTIONS — you play the tape and call their set. Call it right and their game dies a little tonight. Get READ, and yours does.\n\nBetter speeches and stranger instructions exist. The galaxy hands them out in stories.\n\nTheir numbers sit right next to yours — tune the lineup until the ropes lean your way.",
   signing:
     "Signing day math, coach: send ONE letter and you keep the full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.",
   bag:
-    "That's THE BAG — the slots at the bottom of your screen, always within reach. Every item is a bargain with printed odds. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. Player items drag straight onto a player's card.\n\nFour slots is the LAW — every find is offered first: take it or leave it. A full bag watches things walk away. Use your items, coach.",
+    "That's THE BAG — two rows at the bottom of your screen, always under your thumb, with THE NOTEBOOK standing tall on the left. Every item is a bargain with printed odds. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. Player items drag straight onto a player's card.\n\nEight slots is the LAW — every find is offered first: take it or leave it. A full bag still watches things walk away.",
   grid:
     "The grid is your lineup, always: top row starts, middle row comes off the bench, bottom row watches. Hold and drag to rearrange — any screen, any time.\n\nColumns matter: BACKCOURT left, FRONTCOURT right. It's positionless out here, but put a wall in the backcourt or a waterbug in the frontcourt and the card will say MISCAST — and mean it. When someone goes down, he sinks to the bottom of his column and the column steps up.",
   stories:
@@ -2828,6 +2923,10 @@ STORIES.push({
       const d = drillById(id);
       return { tag: '★ NEW PRACTICE METHOD ★', text: `${d.name} joins the practice board. The squad doesn't know what's coming.` };
     }
+    if (kind === 'instr') {
+      const it = instrById(id);
+      return { tag: '★ NEW LAST-MINUTE INSTRUCTION ★', text: `${it.name} is in your pregame arsenal now. Some game nights call for words. Some call for this.` };
+    }
     if (kind === 'region') {
       const a = galaxyActById(id);
       return { tag: '★ NEW STAR CHARTS ★', text: `${a.name} is on your search charts now. Somewhere out there, a kid is warming up.` };
@@ -2847,7 +2946,7 @@ STORIES.push({
     const incoming = itemById(ctx.data.itemId as string);
     return {
       tag: 'THE BAG IS FULL',
-      text: `${incoming.name} lands in your hands — and THE BAG has no room. Five slots, that's the law. You watch a kid outside the arena walk off with it, delighted.\n\nUse your items, coach.`,
+      text: `${incoming.name} lands in your hands — and THE BAG has no room. Eight slots, that's the law. You watch a kid outside the arena walk off with it, delighted.\n\nUse your items, coach.`,
     };
   },
   resolve: () => ({ text: '' }),

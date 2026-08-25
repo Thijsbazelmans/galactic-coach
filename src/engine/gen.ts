@@ -8,6 +8,7 @@ import {
   PLANS,
   PROSPECT_BLURBS,
   SPECIES_ODDS,
+  STARTING_INSTRUCTIONS,
   STARTING_PLANS,
   TEAM_TEMPLATES,
   speciesById,
@@ -15,18 +16,19 @@ import {
 import type { AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
 export const UT_WEEKS = 3; // QF, SF, THE UNIVERSAL FINAL
 export const ROSTER_SIZE = 9;
 export const SELECT_POOL_SIZE = 12;
-/** CREDITS, the coach's currency (player energy stays ⚡): +4 a week by
-    definition — the rest you EARN from Scoop, the Dean and the Booster. */
-export const STIPEND = 4;
+/** CREDITS, the coach's currency (player energy stays ⚡): +5 a week by
+    definition — the week has three paid stops now (scout, practice,
+    recruit); the rest you EARN from Scoop, the Dean and the Booster. */
+export const STIPEND = 5;
 export const CACHE_MAX = 9;
 export const AGING_SEASON = 21;
 export const LEVEL_CAP = 10;
-export const BAG_SIZE = 4; // THE NOTEBOOK holds the fifth slot, forever
+export const BAG_SIZE = 8; // two rows; THE NOTEBOOK stands tall on the left, forever
 export const MAX_PROSPECTS = 9;
 /** An overall this high gets pro scouts in the dorm lobby. */
 export const PRO_OVR = 52;
@@ -391,7 +393,7 @@ export function genChamps(myPower: number, _season: number, diff = 1): ChampTeam
       plan,
       // sized against your RESTED strength — but you arrive tired, streaks
       // stacked, with no practice week between rounds; the rounds get harder.
-      power: Math.round(myPower * diff * (0.88 + rand(18) / 100 + i * 0.02)),
+      power: Math.round(myPower * diff * (0.9 + rand(18) / 100 + i * 0.02)),
       kite,
     });
   }
@@ -431,12 +433,15 @@ export function newGameState(): GameState {
     unlockedDrills: ['shootaround', 'scrimmage', 'twodays', 'rest', 'bonfire'],
     unlockedRegions: ['reccenter', 'home', 'nebula', 'outerrim'],
     knownPlans: [...STARTING_PLANS],
+    knownInstr: [...STARTING_INSTRUCTIONS],
     tipsSeen: [],
     tipsAuto: false, // instinct first — a proper succinct tutorial comes later (? still works)
     groundedWeeks: 0,
     trainedThisWeek: false,
-    galaxyActWk: false,
+    scoutActWk: false,
+    recruitActWk: false,
     speechFx: null,
+    oppFx: null,
     sitouts: [],
     drillReport: null,
     voyageRolled: false,

@@ -18,7 +18,7 @@
      row or the message-bar + action stack. Chrome ≈ header + title + colhead +
      margins + bag + lens + nav. */
   --colw: calc((min(480px, 100vw) - 43px) / 3);
-  --rowh: calc((100dvh - 300px) / 4);
+  --rowh: calc((100dvh - 330px) / 4);
   --cardh: max(64px, min(var(--colw), var(--rowh)));
 }
 
@@ -253,10 +253,19 @@ button.hold.wiggle::after {
   flex: none;
   display: flex;
   gap: 5px;
-  padding: 5px 8px;
+  padding: 5px 8px calc(5px + env(safe-area-inset-bottom));
   background: var(--rpanel);
   border-top: 1px solid var(--rline);
 }
+/* TWO ROWS: the notebook stands tall on the left, 8 item slots beside it */
+.bagbar.tworow {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-auto-rows: 36px;
+  gap: 4px 5px;
+}
+.bagbar.tworow .bslot { height: auto; }
+.bslot.tall { grid-row: span 2; }
 .bslot {
   flex: 1;
   height: 42px;
@@ -284,11 +293,13 @@ button.hold.wiggle::after {
 
 /* ---- nav (always) ----------------------------------------------------------------- */
 
+/* thumb-first bottom stack: the ONE BIG BUTTON on top, view tabs under it,
+   THE BAG's two rows at the very bottom (it carries the safe-area inset) */
 .navbar {
   flex: none;
   background: var(--rpanel);
   border-top: 1px solid var(--rline);
-  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  padding: 8px 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1116,13 +1127,6 @@ button.actmain.scopehl { border-color: var(--r95); }
    clearly shows it scrolls ------------------------------------------------- */
 
 .sheethint { font-size: 11px; letter-spacing: 1px; padding: 8px 2px 2px; }
-/* the picker sheets run two items per row now — the ▾ arrows on both sides
-   of the action button open the same denser menu */
-.sheetgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.sheetgrid .drill, .sheetgrid .drill.locked { margin: 0; padding: 7px 8px; }
-.sheetgrid .drill b { font-size: 13px; }
-.sheetgrid .drill .ddesc { display: none; } /* the odds carry the story in the grid */
-.sheetgrid .odds { font-size: 11px; }
 .scrollmore {
   position: sticky;
   bottom: -14px;
@@ -1207,12 +1211,17 @@ button.actmain.scopehl { border-color: var(--r95); }
   letter-spacing: 2px;
 }
 
-/* ---- THE LIVE GAME: team chips flank the rope, the score rides UNDER it --- */
+/* ---- THE LIVE GAME: centered, using the WHOLE screen ----------------------
+   AWAY on top, @, HOME — open air where the score tag hovers above the rope,
+   riding the separator. Middle score = tight game. */
 
-.lg-row { display: flex; align-items: center; gap: 7px; margin-bottom: 44px; }
-.lg-chip { flex: none; max-width: 30%; display: flex; }
-.lg-row .bigrope { flex: 1; min-width: 0; }
-.bigrope.live { background: var(--r20); }
+.lg-stage { justify-content: flex-start; padding-top: 8px; }
+.lg-vs { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 10px; }
+.lg-team { display: flex; justify-content: center; max-width: 100%; }
+.lg-team .chip { font-size: 20px; padding: 6px 16px; letter-spacing: 2px; }
+.lg-at { font-size: 15px; color: var(--r55); }
+.lg-air { flex: 1 1 0; min-height: 48px; }
+.bigrope.live { background: var(--r20); margin: 0 6px; }
 .lg-fill { position: absolute; top: 0; bottom: 0; opacity: 0.92; }
 .lg-rating {
   position: absolute;
@@ -1224,24 +1233,24 @@ button.actmain.scopehl { border-color: var(--r95); }
 }
 .bigrope .brsplit { z-index: 3; background: #fff; box-shadow: 0 0 5px rgba(255, 255, 255, 0.7); transition: left 0.16s linear; }
 .bigrope .brsplit.landed { animation: needleflash 0.5s; }
-/* the moving score tag sits comfortably below the rope — it overlaps nothing */
+/* the score tag HOVERS above the rope, riding the separator */
 .livescore {
   position: absolute;
-  top: calc(100% + 10px);
+  bottom: calc(100% + 14px);
   transform: translateX(-50%);
   white-space: nowrap;
   background: #000;
   border: 1px solid var(--r55);
-  padding: 1px 7px;
-  font-size: 16px;
+  padding: 3px 10px;
+  font-size: 21px;
   transition: left 0.16s linear;
   z-index: 4;
 }
 .livescore b { color: var(--r95); }
-.livescore .lsdot { color: var(--r35); margin: 0 4px; }
+.livescore .lsdot { color: var(--r35); margin: 0 5px; }
 
 /* the horn: the game screen turns into the verdict */
-.gn-final { text-align: center; margin-top: 26px; animation: bfade 0.4s both; }
+.gn-final { flex: 1 1 0; display: flex; flex-direction: column; justify-content: center; text-align: center; margin-top: 18px; animation: bfade 0.4s both; }
 .gn-final b { display: block; font-size: 34px; letter-spacing: 6px; color: var(--r95); }
 .gn-final.lost b { color: var(--r35); }
 .gn-final .gn-score { display: block; margin-top: 8px; font-size: 26px; font-weight: bold; color: var(--r75); letter-spacing: 2px; }

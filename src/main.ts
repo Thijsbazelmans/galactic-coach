@@ -9,9 +9,11 @@ import {
   CLASS_ABBR,
   DRILLS,
   GALAXY_ACTS,
+  INSTRUCTIONS,
   PLANS,
   drillKind,
   galaxyActById,
+  instrById,
   itemById,
   planById,
   speciesById,
@@ -28,6 +30,7 @@ import {
   continueFromResult,
   convincePro,
   currentStory,
+  deliverInstructions,
   deliverSpeech,
   dismissStory,
   effectiveChances,
@@ -51,7 +54,8 @@ import {
   speechCooldown,
   starters,
   swapBoardSlot,
-  toGalaxy,
+  toPractice,
+  toRecruiting,
   toMatchup,
   toSigning,
   toggleProspect,
@@ -66,7 +70,7 @@ import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, perGame, potStars, rand } from './engine/util';
 import { PRACTICE_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, skinTone, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
 
-const VERSION = 'v4.3';
+const VERSION = 'v4.4';
 
 let state: GameState = load() ?? freshGame();
 
@@ -154,9 +158,12 @@ let drillSheet = false;
 // pickers DEFAULT to the free option every week — spending ⚡ takes a
 // deliberate trip into the menu
 let selectedDrill = 'rest';
-let galaxySheet = false;
-let selGalaxy = 'reccenter';
-let selSpeech: PlanId | null = null;
+/** which board sheet is open: the SCOUTING menu or the RECRUITING menu */
+let galaxySheet: false | 'scouting' | 'recruiting' = false;
+let selScout = 'reccenter';
+let selRecruit = 'groupchat';
+/** the pregame move: a speech or a last-minute instruction */
+let selPregame: { kind: 'speech'; id: PlanId } | { kind: 'instr'; id: string } | null = null;
 let speechSheet = false;
 /** picker defaults + sticker batches reset when the calendar turns */
 let uiWeekKey = '';
@@ -992,7 +999,9 @@ function bagBar(s: GameState): string {
   // pulses if the answer is on its pages
   const canAnswer = ev?.defId === 'scoop_question' && !ev.resolvedText
     && s.notebook.some((n) => n.key === ev.data?.noteKey);
-  const noteSlot = `<button class="bslot filled notebook ${canAnswer ? 'pulse' : ''}" data-action="notebook">▤<span class="bshort">NOTES</span></button>`;
+  // TWO ROWS now: the notebook stands tall on the left (both rows), eight
+  // item slots fill the 4×2 grid beside it
+  const noteSlot = `<button class="bslot filled notebook tall ${canAnswer ? 'pulse' : ''}" data-action="notebook">▤<span class="bshort">NOTES</span></button>`;
   const slots = Array.from({ length: BAG_SIZE }, (_, i) => {
     const id = s.bag[i];
     if (!id) return '<div class="bslot empty">·</div>';
@@ -1001,7 +1010,7 @@ function bagBar(s: GameState): string {
     return `<button class="bslot filled ${item.rarity} ${usableInStory.has(id) ? 'pulse' : ''} ${spent ? 'spent' : ''}"
       data-action="bag-item" data-id="${item.id}" data-bagitem="${item.id}">◆<span class="bshort">${item.short}</span></button>`;
   }).join('');
-  return `<div class="bagbar">${noteSlot}${slots}</div>`;
+  return `<div class="bagbar tworow">${noteSlot}${slots}</div>`;
 }
 
 // ---- THE NOTEBOOK: tap it and something noteworthy goes in --------------------
@@ -1277,6 +1286,15 @@ function revealPreview(kind: string, id: string): string {
       <span class="ddesc">${esc(a.desc)}</span>
     </div>`;
   }
+  if (kind === 'instr') {
+    const it = INSTRUCTIONS.find((x) => x.id === id);
+    if (!it) return '';
+    return `<div class="drill sel revealrow">
+      <b>${it.name}</b> <span class="xpg gaintag">${it.hit}% they play −${it.oppAmt}</span>${it.cooldown ? ` <span class="xpg">${it.cooldown}w recharge</span>` : ''}
+      ${oddsLine({ pct: it.hit, cls: 'INTEL', note: 'you called it' }, { pct: it.backfire, cls: it.id === 'takeout' ? 'SCANDAL' : 'DRAMA', note: it.id === 'takeout' ? 'CAUGHT' : `you play −${it.selfAmt}` }, it.cost)}<br/>
+      <span class="ddesc">${esc(it.desc)}</span>
+    </div>`;
+  }
   const item = itemById(id);
   return `<div class="itemcard ${item.rarity} revealrow">
     <b>◆ ${esc(item.name)}</b> <span class="dim">${item.rarity}${item.rarity === 'legendary' ? ' · once/season' : ''}</span><br/>
@@ -1466,15 +1484,17 @@ function teamBarsMatchup(s: GameState, opts: { fx?: SpeechFx | SpeechFx[] | null
   let theirsTotal = 0;
   let oppBg = '#666';
   if (champ) {
-    // distribute the champion's power along their scouted kite
+    // distribute the champion's power along their scouted kite (a landed
+    // instruction shaves their total)
+    const power = Math.max(1, champ.power + (s.oppFx ? s.oppFx.amt * 3 : 0));
     const w = ATTRS.map((a) => champ.kite[a]);
     const tw = w.reduce((x, y) => x + y, 0) || 1;
     theirs = { skl: 0, ath: 0, frc: 0, brn: 0 };
-    ATTRS.forEach((a, i) => { theirs![a] = (champ.power * w[i]) / tw; });
-    theirsTotal = champ.power;
+    ATTRS.forEach((a, i) => { theirs![a] = (power * w[i]) / tw; });
+    theirsTotal = power;
     oppBg = champ.bg;
   } else if (m) {
-    theirs = matchAttrs(m.opponent);
+    theirs = matchAttrs(m.opponent, s.oppFx ?? null);
     theirsTotal = ovr(theirs);
     oppBg = m.opponent.bg;
   }
@@ -1565,21 +1585,31 @@ function gxActSub(act: (typeof GALAXY_ACTS)[number]): string {
 
 const GX_VERB = { scout: 'SCOUT', recruit: 'RECRUIT', search: 'SEARCH' } as const;
 
-/** The pending galaxy pick's scope preview (null = no preview). */
+/** The current board section's picked act + whether it already ran. */
+function boardSel(s: GameState): { actId: string; done: boolean } {
+  return s.phase === 'recruiting'
+    ? { actId: selRecruit, done: !!s.recruitActWk }
+    : { actId: selScout, done: !!s.scoutActWk };
+}
+
+/** The pending board pick's scope preview (null = no preview). */
 function galaxyScope(s: GameState): number | null {
-  const act = galaxyActById(selGalaxy);
+  const { actId, done } = boardSel(s);
+  const act = galaxyActById(actId);
   const grounded = s.groundedWeeks > 0 && act.kind === 'search' && !act.local;
   const disabled = grounded || s.energy < act.cost;
-  const scoped = !s.galaxyActWk && !s.pendingRecruits.length && !disabled && act.kind !== 'search' && s.prospects.length > 0 && !!act.scope;
+  const scoped = !done && !s.pendingRecruits.length && !disabled && act.kind !== 'search' && s.prospects.length > 0 && !!act.scope;
   return scoped ? (act.scope ?? 9) : null;
 }
 
-function stageGalaxy(s: GameState): string {
+/** SCOUTING and RECRUITING: the same board, two different weeks' moves. */
+function stageBoard(s: GameState): string {
   const swapping = s.pendingRecruits.length > 0;
-  return `<h2 class="gridhead">RECRUITING</h2>
+  const title = s.phase === 'recruiting' ? 'RECRUITING' : 'SCOUTING';
+  return `<h2 class="gridhead">${title}</h2>
     ${prospectGridHtml(s, swapping ? null : galaxyScope(s))}
     <div class="botstack">
-      ${s.groundedWeeks > 0 && !swapping ? `<div class="fourthrow slim"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — local searches only</div></div>` : ''}
+      ${s.phase === 'scouting' && s.groundedWeeks > 0 && !swapping ? `<div class="fourthrow slim"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — local searches only</div></div>` : ''}
     </div>`;
 }
 
@@ -1596,22 +1626,33 @@ function hue(hex: string): number {
   return h * 360;
 }
 
-/** The speech picker's current selection. */
-function speechSel(s: GameState): PlanId {
+/** The default speech when nothing is picked. */
+function speechDefault(s: GameState): PlanId {
   const ok = (id: PlanId): boolean => s.knownPlans.includes(id) && speechCooldown(s, id) === 0;
-  if (selSpeech && ok(selSpeech)) return selSpeech;
   if (ok(s.plan)) return s.plan;
   return s.knownPlans.find(ok) ?? s.knownPlans[0];
 }
 
+/** The pregame move's current selection: a SPEECH or an INSTRUCTION. */
+function pregameSel(s: GameState): { kind: 'speech'; id: PlanId } | { kind: 'instr'; id: string } {
+  if (selPregame) {
+    if (selPregame.kind === 'speech' && s.knownPlans.includes(selPregame.id) && speechCooldown(s, selPregame.id) === 0) return selPregame;
+    if (selPregame.kind === 'instr' && (s.knownInstr ?? []).includes(selPregame.id) && speechCooldown(s, selPregame.id as PlanId) === 0) return selPregame;
+  }
+  return { kind: 'speech', id: speechDefault(s) };
+}
+
 function stageMatchup(s: GameState): string {
-  // the SPEECH (then PLAY) lives in the nav now — the stage is the lineup
-  // and the honest ropes; the landed words show as a strip over the bars
-  const landed = s.speechWk
-    ? `<div class="fourthrow slim"><div class="report">${s.speechFx
-        ? `${s.speechFx.amt >= planById(s.plan).boost ? '🔥 THE ROOM IGNITED' : '✓ the words LAND'} — squad +${s.speechFx.amt} ${ATTR_SHORT[s.speechFx.attr]} tonight`
-        : `«${planById(s.plan).speech}» — the room heard you. the rest is on them`}</div></div>`
-    : '';
+  // the pregame move (then PLAY) lives in the nav now — the stage is the
+  // lineup and the honest ropes; the outcome shows as a strip over the bars
+  let landedLine = '';
+  if (s.pregameWk) {
+    if (s.oppFx) landedLine = `✓ THE CALL LANDS — they play ${s.oppFx.amt} ${ATTR_SHORT[s.oppFx.attr]} tonight`;
+    else if (s.speechFx && s.speechFx.amt < 0) landedLine = `▼ THEY READ YOU — your squad plays ${s.speechFx.amt} ${ATTR_SHORT[s.speechFx.attr]} tonight`;
+    else if (s.speechFx) landedLine = `${s.speechFx.amt >= planById(s.plan).boost ? '🔥 THE ROOM IGNITED' : '✓ the words LAND'} — squad +${s.speechFx.amt} ${ATTR_SHORT[s.speechFx.attr]} tonight`;
+    else landedLine = 'the move is made. the rest is on them';
+  }
+  const landed = landedLine ? `<div class="fourthrow slim"><div class="report">${landedLine}</div></div>` : '';
   const m0 = myMatchup(s);
   const homeGame = isUtWeek(s) ? true : m0?.home ?? true;
   const host = homeGame
@@ -1625,26 +1666,45 @@ function stageMatchup(s: GameState): string {
 }
 
 // the speech picker: which gamble does the room hear tonight?
+// the pregame picker: rouse the room, OR play the tape
 function speechSheetHtml(s: GameState): string {
   if (!speechSheet) return '';
-  const sel = speechSel(s);
+  const sel = pregameSel(s);
   let hidden = 0;
-  const items = PLANS.map((pl) => {
+  const speeches = PLANS.map((pl) => {
     if (!s.knownPlans.includes(pl.id)) { hidden++; return ''; }
     const cd = speechCooldown(s, pl.id);
     if (cd > 0) {
       return `<div class="drill locked"><b>${pl.speech}</b> <span class="dim">— recharging, ${cd} week${cd === 1 ? '' : 's'}</span></div>`;
     }
-    return `<button class="drill ${sel === pl.id ? 'sel' : ''}" data-action="speech-pick" data-id="${pl.id}">
+    return `<button class="drill ${sel.kind === 'speech' && sel.id === pl.id ? 'sel' : ''}" data-action="speech-pick" data-id="${pl.id}">
       <b>${pl.speech}</b> <span class="xpg">${ATTR_LABEL[pl.attr]}</span> <span class="xpg gaintag">${pl.workPct + pl.up}% +${pl.work[0]}–${pl.work[1]} ${ATTR_SHORT[pl.attr]}</span>${pl.cooldown ? ` <span class="xpg">${pl.cooldown}w recharge</span>` : ''}
       ${oddsLine({ pct: pl.up, cls: 'SPIRIT', note: `IGNITES: squad +${pl.boost}` }, { pct: pl.down, cls: 'DRAMA', note: 'a believer lost' })}<br/>
       <span class="ddesc">${esc(pl.fantasy)}</span>
     </button>`;
   }).join('');
+  const instrs = INSTRUCTIONS.map((it) => {
+    if (!(s.knownInstr ?? []).includes(it.id)) { hidden++; return ''; }
+    const cd = speechCooldown(s, it.id as PlanId);
+    if (cd > 0) {
+      return `<div class="drill locked"><b>${it.name}</b> <span class="dim">— recharging, ${cd} week${cd === 1 ? '' : 's'}</span></div>`;
+    }
+    const down = it.id === 'takeout'
+      ? { pct: it.backfire, cls: 'SCANDAL' as const, note: 'CAUGHT — the league reviews the tape' }
+      : { pct: it.backfire, cls: 'DRAMA' as const, note: `they read you: squad −${it.selfAmt}` };
+    return `<button class="drill ${sel.kind === 'instr' && sel.id === it.id ? 'sel' : ''}" data-action="instr-pick" data-id="${it.id}">
+      <b>${it.name}</b> <span class="xpg gaintag">${it.hit}% they play −${it.oppAmt}</span>${it.cooldown ? ` <span class="xpg">${it.cooldown}w recharge</span>` : ''}
+      ${oddsLine({ pct: it.hit, cls: 'INTEL', note: 'you called it' }, down, it.cost)}<br/>
+      <span class="ddesc">${esc(it.desc)}</span>
+    </button>`;
+  }).join('');
   return `<div class="modalback sheet" data-action="speech-sheet-close"><div class="modal sheetup scrolly">
-    <span class="tag">THE SPEECH</span>
-    ${items}
-    ${hidden ? `<div class="sheethint dim">▓ ${hidden} speech${hidden === 1 ? '' : 'es'} unlearned</div>` : ''}
+    <span class="tag">THE PREGAME MOVE</span>
+    <div class="sheethead">THE SPEECH — rouse the room</div>
+    ${speeches}
+    <div class="sheethead">LAST-MINUTE INSTRUCTIONS — play the tape</div>
+    ${instrs}
+    ${hidden ? `<div class="sheethint dim">▓ ${hidden} move${hidden === 1 ? '' : 's'} unlearned</div>` : ''}
     <div class="scrollmore">▼</div>
   </div></div>`;
 }
@@ -1683,23 +1743,28 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
     lW = Math.min(lw, sep);
     rW = Math.min(rw, 100 - sep);
   }
-  return `<div class="needle-stage" id="needle-stage">
+  // centered, the whole screen used: AWAY on top, @, HOME — then open air
+  // where the score tag lives, hovering above the rope. The closer the score
+  // rides to the middle, the tighter the night.
+  return `<div class="needle-stage lg-stage" id="needle-stage">
     <div class="ns-title">${title}</div>
-    <div class="lg-row">
-      <span class="lg-chip vsl">${clash ? chip(away.name, away.fg, away.bg, true) : chip(away.name, away.bg, away.fg, true)}</span>
-      <div class="bigrope live" id="bigrope">
-        <span class="lg-rating" style="left:${sep0}%"></span>
-        <span class="lg-fill" id="lgl" style="left:${sep - lW}%;width:${lW}%;background:${away.bg}"></span>
-        <span class="lg-fill" id="lgr" style="left:${sep}%;width:${rW}%;background:${homeT.bg}"></span>
-        <span class="brsplit ${final ? 'landed' : ''}" id="lgsep" style="left:${sep}%"></span>
-        <div class="livescore" id="livescore" style="left:${sep}%"><b id="lsl">${l}</b><span class="lsdot">·</span><b id="lsr">${rr}</b></div>
-      </div>
-      <span class="lg-chip vsr">${chip(homeT.name, homeT.bg, homeT.fg, true)}</span>
+    <div class="lg-vs">
+      <span class="lg-team">${clash ? chip(away.name, away.fg, away.bg) : chip(away.name, away.bg, away.fg)}</span>
+      <span class="lg-at">@</span>
+      <span class="lg-team">${chip(homeT.name, homeT.bg, homeT.fg)}</span>
+    </div>
+    <div class="lg-air"></div>
+    <div class="bigrope live" id="bigrope">
+      <span class="lg-rating" style="left:${sep0}%"></span>
+      <span class="lg-fill" id="lgl" style="left:${sep - lW}%;width:${lW}%;background:${away.bg}"></span>
+      <span class="lg-fill" id="lgr" style="left:${sep}%;width:${rW}%;background:${homeT.bg}"></span>
+      <span class="brsplit ${final ? 'landed' : ''}" id="lgsep" style="left:${sep}%"></span>
+      <div class="livescore" id="livescore" style="left:${sep}%"><b id="lsl">${l}</b><span class="lsdot">·</span><b id="lsr">${rr}</b></div>
     </div>
     ${final ? `<div class="gn-final ${final.win ? 'won' : 'lost'}">
       <b>${final.win ? 'YOU WON' : 'YOU LOST'}</b>
       <span class="gn-score">${final.my} – ${final.opp}</span>
-    </div>` : ''}
+    </div>` : '<div class="lg-air"></div>'}
   </div>`;
 }
 
@@ -1871,24 +1936,37 @@ function nav(s: GameState): string {
     case 'teamSelect':
       return navMain('CONFIRM SQUAD', 'cut-confirm-open');
     case 'weekstart':
-      return navMain(isUtWeek(s) ? 'TO MATCHUP' : 'TO PRACTICE', 'begin-week');
-    case 'practice': {
-      if (s.trainedThisWeek) return navMain('TO RECRUITING', 'to-galaxy');
-      const d = DRILLS.find((x) => x.id === selectedDrill)!;
-      const cant = s.energy < d.cost;
-      return navAction(`▶ RUN — ${d.name}`, cant ? `NEED ${d.cost}¢` : drillRecap(d), 'drill-run', 'drill-sheet', { disabled: cant, scoped: lens === 0 && practiceScope(s) !== null });
-    }
-    case 'galaxy': {
+      return navMain(isUtWeek(s) ? 'TO MATCHUP' : 'TO SCOUTING', 'begin-week');
+    case 'scouting': {
       if (s.pendingRecruits.length) return navMain('CONFIRM THE BOARD', 'board-confirm-open');
-      if (s.galaxyActWk) return navMain('TO MATCHUP', 'to-matchup');
-      const act = galaxyActById(selGalaxy);
+      if (s.scoutActWk) return navMain('TO PRACTICE', 'to-practice');
+      const act = galaxyActById(selScout);
       const grounded = s.groundedWeeks > 0 && act.kind === 'search' && !act.local;
       const disabled = grounded ? 'GROUNDED' : s.energy < act.cost ? `NEED ${act.cost}¢` : null;
       return navAction(`▶ ${GX_VERB[act.kind]} — ${act.name}`, disabled ?? gxActSub(act), 'gx-run', 'gx-sheet', { disabled: !!disabled, scoped: galaxyScope(s) !== null });
     }
+    case 'practice': {
+      if (s.trainedThisWeek) return navMain('TO RECRUITING', 'to-recruiting');
+      const d = DRILLS.find((x) => x.id === selectedDrill)!;
+      const cant = s.energy < d.cost;
+      return navAction(`▶ RUN — ${d.name}`, cant ? `NEED ${d.cost}¢` : drillRecap(d), 'drill-run', 'drill-sheet', { disabled: cant, scoped: lens === 0 && practiceScope(s) !== null });
+    }
+    case 'recruiting': {
+      if (s.recruitActWk) return navMain('TO MATCHUP', 'to-matchup');
+      const act = galaxyActById(selRecruit);
+      const disabled = s.energy < act.cost ? `NEED ${act.cost}¢` : null;
+      const verb = act.via === 'booster' ? 'THE BOOSTER' : 'RECRUIT';
+      return navAction(`▶ ${verb} — ${act.name}`, disabled ?? gxActSub(act), 'gx-run', 'gx-sheet', { disabled: !!disabled, scoped: galaxyScope(s) !== null });
+    }
     case 'matchup': {
-      if (s.speechWk) return navMain('PLAY', 'play-game');
-      const pl = planById(speechSel(s));
+      if (s.pregameWk) return navMain('PLAY', 'play-game');
+      const sel = pregameSel(s);
+      if (sel.kind === 'instr') {
+        const it = instrById(sel.id);
+        const cant = s.energy < it.cost;
+        return navAction(`▶ INSTRUCT — ${it.name}`, cant ? `NEED ${it.cost}¢` : `${it.hit}% they play −${it.oppAmt} · ${it.backfire}% ${it.id === 'takeout' ? 'CAUGHT' : `you play −${it.selfAmt}`}${it.cost ? ` · ${it.cost}¢` : ''}`, 'speech-run', 'speech-sheet', { disabled: cant });
+      }
+      const pl = planById(sel.id);
       return navAction(`▶ SPEECH — ${pl.speech}`, `${pl.workPct + pl.up}% squad +${pl.work[0]}–${pl.work[1]} ${ATTR_SHORT[pl.attr]} · ${pl.up}% IGNITES +${pl.boost} · ${pl.down}% a believer lost`, 'speech-run', 'speech-sheet');
     }
     case 'gamenight': {
@@ -1935,8 +2013,7 @@ function drillSheetHtml(s: GameState): string {
         ${oddsLine(d.up, d.down, d.cost)}
       </button>`;
     }).join('');
-    // two items per row — the wider sheet earns a denser menu
-    return drills ? `<div class="sheethead">${DRILL_KIND_LABEL[kind]}</div><div class="sheetgrid">${drills}</div>` : '';
+    return drills ? `<div class="sheethead">${DRILL_KIND_LABEL[kind]}</div>${drills}` : '';
   }).join('');
   return `<div class="modalback sheet" data-action="drill-sheet-close"><div class="modal sheetup scrolly">
     <span class="tag">THE PRACTICE</span>
@@ -1946,32 +2023,38 @@ function drillSheetHtml(s: GameState): string {
   </div></div>`;
 }
 
-// the galaxy picker: all three families in one sheet, grouped
-const GX_KIND_LABEL = { scout: 'SCOUT — reveal the board', recruit: 'RECRUIT — work the board', search: 'SEARCH — new talent' } as const;
-
+// the board pickers: SCOUTING (read the board / search) and RECRUITING
+// (your own work / the booster's), each its own sheet
 function galaxySheetHtml(s: GameState): string {
   if (!galaxySheet) return '';
+  const recruiting = galaxySheet === 'recruiting';
+  const selId = recruiting ? selRecruit : selScout;
   let hidden = 0;
-  const groups = (['scout', 'recruit', 'search'] as const).map((kind) => {
-    const acts = GALAXY_ACTS.filter((a) => a.kind === kind).map((a) => {
-      // uncharted regions stay off the sheet until the charts are yours
-      if (a.kind === 'search' && !s.unlockedRegions.includes(a.id)) { hidden++; return ''; }
-      const grounded = s.groundedWeeks > 0 && a.kind === 'search' && !a.local;
-      const what = a.reveals
-        ? `<span class="xpg">${a.reveals[0]}–${a.reveals[1]} facets · ${gxScopeWord(a)}</span>`
-        : a.gain
-          ? `<span class="xpg">+${a.gain[0]}–${a.gain[1]}% · ${gxScopeWord(a)}${a.risk ? ` · ${a.risk}% backfire each` : ''}</span>`
-          : `<span class="xpg">1${a.twoChance ? '–2' : ''} new name${a.twoChance ? 's' : ''}</span>`;
-      return `<button class="drill ${selGalaxy === a.id ? 'sel' : ''}" data-action="gx-pick" data-id="${a.id}" ${grounded ? 'disabled' : ''}>
-        <b>${a.name}</b>${grounded ? ' <span class="blink">GROUNDED</span>' : ''} ${what}
-        ${oddsLine(a.up, a.down, a.cost)}<br/>
-        <span class="ddesc">${esc(a.desc)}</span>
-      </button>`;
-    }).join('');
-    return acts ? `<div class="sheethead">${GX_KIND_LABEL[kind]}</div><div class="sheetgrid">${acts}</div>` : '';
-  }).join('');
+  const actRow = (a: (typeof GALAXY_ACTS)[number]): string => {
+    if (a.kind === 'search' && !s.unlockedRegions.includes(a.id)) { hidden++; return ''; }
+    const grounded = s.groundedWeeks > 0 && a.kind === 'search' && !a.local;
+    const what = a.reveals
+      ? `<span class="xpg">${a.reveals[0]}–${a.reveals[1]} facets · ${gxScopeWord(a)}</span>`
+      : a.gain
+        ? `<span class="xpg">+${a.gain[0]}–${a.gain[1]}% · ${gxScopeWord(a)}${a.risk ? ` · ${a.risk}% backfire each` : ''}</span>`
+        : `<span class="xpg">1${a.twoChance ? '–2' : ''} new name${a.twoChance ? 's' : ''}</span>`;
+    return `<button class="drill ${selId === a.id ? 'sel' : ''}" data-action="gx-pick" data-id="${a.id}" ${grounded ? 'disabled' : ''}>
+      <b>${a.name}</b>${grounded ? ' <span class="blink">GROUNDED</span>' : ''} ${what}
+      ${oddsLine(a.up, a.down, a.cost)}<br/>
+      <span class="ddesc">${esc(a.desc)}</span>
+    </button>`;
+  };
+  const group = (label: string, acts: (typeof GALAXY_ACTS)[number][]): string => {
+    const rows = acts.map(actRow).join('');
+    return rows ? `<div class="sheethead">${label}</div>${rows}` : '';
+  };
+  const groups = recruiting
+    ? group('WORK THEM YOURSELF — safe and slow', GALAXY_ACTS.filter((a) => a.kind === 'recruit' && a.via !== 'booster'))
+      + group("THE BOOSTER'S HELP — big, deniable, radioactive", GALAXY_ACTS.filter((a) => a.via === 'booster'))
+    : group('SCOUT — reveal the board', GALAXY_ACTS.filter((a) => a.kind === 'scout'))
+      + group('SEARCH — new talent', GALAXY_ACTS.filter((a) => a.kind === 'search'));
   return `<div class="modalback sheet" data-action="gx-sheet-close"><div class="modal sheetup scrolly">
-    <span class="tag">THE WEEK'S MOVE</span>
+    <span class="tag">${recruiting ? 'THE CHARM OFFENSIVE' : 'THE SCOUTING RUN'}</span>
     ${groups}
     ${hidden ? `<div class="sheethint dim">▓ ${hidden} region${hidden === 1 ? '' : 's'} uncharted</div>` : ''}
     <div class="scrollmore">▼</div>
@@ -2033,7 +2116,7 @@ function itemModalHtml(s: GameState): string {
   const spent = item.rarity === 'legendary' && s.legendariesUsed.includes(item.id);
   const ev = currentStory(s);
   const storyKey = ev?.choices?.find((c) => c.itemId === item.id && !ev.resolvedText)?.key ?? null;
-  const phaseOk = !ev && ['practice', 'matchup', 'galaxy'].includes(s.phase) && itemAllowedNow(s, item.id);
+  const phaseOk = !ev && ['practice', 'matchup', 'scouting', 'recruiting'].includes(s.phase) && itemAllowedNow(s, item.id);
   const needsDrag = item.target === 'player' && storyKey === null && phaseOk;
   const usable = !spent && !needsDrag && (storyKey !== null || phaseOk);
   return `<div class="modalback" data-action="item-close"><div class="modal">
@@ -2059,11 +2142,14 @@ function coachModalHtml(s: GameState): string {
   const tactics = PLANS.map((pl) =>
     s.knownPlans.includes(pl.id) ? `<div>✓ ${pl.name} <span class="dim">(${ATTR_LABEL[pl.attr]})</span></div>` : `<div class="dim">▓▓▓ unlearned speech</div>`
   ).join('');
+  const instrs = INSTRUCTIONS.map((it) =>
+    (s.knownInstr ?? []).includes(it.id) ? `<div>✓ ${it.name} <span class="dim">(instruction)</span></div>` : `<div class="dim">▓▓▓ unlearned instruction</div>`
+  ).join('');
   return `<div class="modalback"><div class="modal">
     <span class="tag">THE COACH</span>
     <div class="report">LEGACY <b style="color:${vc(clamp(s.legacy, 0, 100))}">${s.legacy}</b>
       · ${s.trophies}🏆 · ${s.utTitles} UT · ${s.totalWins}W · season ${s.season}${s.season >= 20 ? ' <span class="blink">— you feel the years</span>' : ''}</div>
-    <div class="report"><b>KNOWLEDGE</b>${tactics}${drills}${regions}</div>
+    <div class="report"><b>KNOWLEDGE</b>${tactics}${instrs}${drills}${regions}</div>
     <button class="wide" data-action="toggle-tips">ASSISTANT AUTO-TIPS: ${s.tipsAuto ? 'ON' : 'OFF'}</button>
     <p class="dim">GALACTIC COACH ${VERSION}</p>
     <button class="wide danger hold" data-action="new-game">NEW GAME (wipes this save)</button>
@@ -2093,8 +2179,9 @@ function render(): void {
   if (wk !== uiWeekKey) {
     uiWeekKey = wk;
     selectedDrill = 'rest';
-    selGalaxy = 'reccenter';
-    selSpeech = null;
+    selScout = 'reccenter';
+    selRecruit = 'groupchat';
+    selPregame = null;
     stickerBatches.clear();
   }
 
@@ -2132,7 +2219,8 @@ function render(): void {
       case 'teamSelect': middle = stageTeamSelect(state); break;
       case 'weekstart': middle = stageWeekstart(state); break;
       case 'practice': middle = stagePractice(state); break;
-      case 'galaxy': middle = stageGalaxy(state); break;
+      case 'scouting': middle = stageBoard(state); break;
+      case 'recruiting': middle = stageBoard(state); break;
       case 'matchup': middle = stageMatchup(state); break;
       case 'gamenight': middle = stageGamenight(state); break;
       case 'departures': middle = stageDepartures(state); break;
@@ -2146,17 +2234,18 @@ function render(): void {
   const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + speechSheetHtml(state) + gxResultHtml(state) + cutConfirmHtml(state) + boardConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state) + schedModalHtml(state) + standModalHtml(state) + notebookModalHtml(state);
   const modalOpen = drillSheet || speechSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet || gxResult !== null || cutConfirm || boardConfirm || schedOpen || standOpen || notebookOpen;
   const navHtml = `<div class="navbar ${modalOpen ? 'dimmed' : ''}">${nav(state)}</div>`;
-  // the view tabs sit ABOVE the items and ride along on EVERY screen that
-  // shows the squad or the board — the action button below works from any
-  // view, and running it snaps back to the main one
-  const gridScreen = ['weekstart', 'practice', 'galaxy', 'matchup', 'teamSelect', 'signing'].includes(state.phase)
+  // the bottom stack, thumb-first: the ONE BIG BUTTON sits on top (the most
+  // comfortable reach), the view tabs under it, THE BAG's two rows at the
+  // very bottom of the screen
+  const prospectScreen = state.phase === 'scouting' || state.phase === 'recruiting' || state.phase === 'signing';
+  const gridScreen = ['weekstart', 'scouting', 'practice', 'recruiting', 'matchup', 'teamSelect', 'signing'].includes(state.phase)
     || (state.phase === 'gamenight' && gnStage === 'verdict');
   const lensHtml = gridScreen && !ev
-    ? lensBar(state.phase === 'galaxy' || state.phase === 'signing' ? PROSPECT_LENS_NAMES : LENS_NAMES)
+    ? lensBar(prospectScreen ? PROSPECT_LENS_NAMES : LENS_NAMES)
     : '';
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
     ? `<div class="midwrap"><div class="middle solo">${middle}</div>${overlays}</div>${navHtml}`
-    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${overlays}</div>${lensHtml}${bagBar(state)}${navHtml}`;
+    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${overlays}</div>${navHtml}${lensHtml}${bagBar(state)}`;
 
   // THE ANIMATION BUILD: a screen CHANGE builds in stages — title first (you
   // know where you are), content next, the action button last (you know where
@@ -2590,7 +2679,7 @@ let ptr: PtrDrag | null = null;
 let suppressClick = false;
 
 function gridDraggablePhase(): boolean {
-  return ['practice', 'matchup', 'gamenight', 'teamSelect', 'galaxy'].includes(state.phase) && !currentStory(state);
+  return ['practice', 'matchup', 'gamenight', 'teamSelect', 'scouting', 'recruiting'].includes(state.phase) && !currentStory(state);
 }
 
 function handleDrop(zoneIdx: number, playerId: number): void {
@@ -2767,7 +2856,8 @@ const PHASE_TIP: Record<string, string> = {
   teamSelect: 'tryouts',
   stories: 'stories',
   practice: 'practice',
-  galaxy: 'galaxy',
+  scouting: 'scouting',
+  recruiting: 'recruiting',
   matchup: 'matchup',
   gamenight: 'gamenight',
   departures: 'departures',
@@ -2813,7 +2903,8 @@ function executeAction(action: string, id: string): void {
     }
 
     case 'begin-week': beginWeek(state); break;
-    case 'to-galaxy': drillSheet = false; drillDeltas = null; toGalaxy(state); break;
+    case 'to-practice': galaxySheet = false; gxStickers = null; toPractice(state); break;
+    case 'to-recruiting': drillSheet = false; drillDeltas = null; toRecruiting(state); break;
     case 'to-matchup': galaxySheet = false; gxStickers = null; toMatchup(state); break;
     case 'to-signing': toSigning(state); break;
     case 'gn-verdict': gnStage = 'verdict'; clearFloatTimers(); break;
@@ -2821,9 +2912,10 @@ function executeAction(action: string, id: string): void {
     case 'continue-result': gnStage = 'beat'; clearFloatTimers(); drillDeltas = null; gxStickers = null; continueFromResult(state); break;
 
     case 'gx-run': {
-      const act = galaxyActById(selGalaxy);
+      const { actId } = boardSel(state);
+      const act = galaxyActById(actId);
       lens = 0; // stickers land on the BIG BOARD, wherever you ran it from
-      const out = actionGalaxy(state, selGalaxy);
+      const out = actionGalaxy(state, actId);
       if (out) {
         if (out.perProspect.size) gxStickers = out.perProspect;
         gxResult = { text: out.text, cost: act.cost, played: false, art: out.art };
@@ -2833,9 +2925,15 @@ function executeAction(action: string, id: string): void {
 
     case 'cut-confirm-open': cutConfirm = true; break;
     case 'board-confirm-open': boardConfirm = true; break;
-    case 'gx-pick': selGalaxy = id; galaxySheet = false; break;
+    case 'gx-pick': {
+      if (galaxyActById(id).kind === 'recruit') selRecruit = id;
+      else selScout = id;
+      galaxySheet = false;
+      break;
+    }
     case 'drill-pick': selectedDrill = id; drillSheet = false; break;
-    case 'speech-pick': selSpeech = id as PlanId; speechSheet = false; break;
+    case 'speech-pick': selPregame = { kind: 'speech', id: id as PlanId }; speechSheet = false; break;
+    case 'instr-pick': selPregame = { kind: 'instr', id }; speechSheet = false; break;
     case 'board-confirm-do': {
       const gone = confirmBoard(state);
       boardConfirm = false;
@@ -2845,10 +2943,20 @@ function executeAction(action: string, id: string): void {
     case 'noop': break;
 
     case 'speech-run': {
-      const sel = speechSel(state);
+      const sel = pregameSel(state);
       lens = 0;
       captureBars();
-      const text = deliverSpeech(state, sel);
+      if (sel.kind === 'instr') {
+        const text = deliverInstructions(state, sel.id);
+        if (text) {
+          toast = text;
+          // a landed call (or a read) moves the ropes once the toast closes
+          if (state.oppFx || state.speechFx) cascArmed = 'bars';
+          else barsPre = null;
+        }
+        break;
+      }
+      const text = deliverSpeech(state, sel.id);
       if (text) {
         toast = text;
         const fx = state.speechFx;
@@ -2908,7 +3016,9 @@ function executeAction(action: string, id: string): void {
       itemUi = null;
       toast = null;
       galaxySheet = false;
-      selGalaxy = 'reccenter';
+      selScout = 'reccenter';
+      selRecruit = 'groupchat';
+      selPregame = null;
       selectedDrill = 'rest';
       selSlots = null;
       cutConfirm = false;
@@ -2962,7 +3072,7 @@ app.addEventListener('click', (e) => {
       clearFloatTimers();
       gxResult = null;
       break;
-    case 'gx-sheet': galaxySheet = true; break;
+    case 'gx-sheet': galaxySheet = state.phase === 'recruiting' ? 'recruiting' : 'scouting'; break;
     case 'gx-sheet-close': if (e.target === el) galaxySheet = false; break;
     case 'cut-confirm-close': cutConfirm = false; break;
     case 'board-confirm-close': boardConfirm = false; break;

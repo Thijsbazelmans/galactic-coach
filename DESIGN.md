@@ -1144,24 +1144,65 @@ per-LED); STATS-lens labels pick the BRIGHTER of the team's two colors
 `orientation: portrait` for the home-screen app + a rotate-back curtain
 for browser landscape).
 
+## v4.4 — THE NEW WEEK (Aug 24, 2026 — the second dictation of the day)
+
+Thijs's follow-up notes on v4.3, plus the reorganization he'd been circling.
+All shipped (SAVE_VERSION 19, old saves die):
+
+**THE WEEK HAS FIVE STOPS NOW.** Stories → **SCOUTING** → PRACTICE →
+**RECRUITING** → MATCH DAY. The old single galaxy phase split in two:
+- **SCOUTING** (`scoutActWk`): SEARCH the regions for new talent, or SCOUT
+  the board (film night / road trip / private workout). Free floor: the
+  rec center.
+- **RECRUITING** (`recruitActWk`): work them YOURSELF — group holo-chat
+  0¢ / letters / open house / a warmer, tamer DINNER (all low risk, low
+  reward) — or take **THE BOOSTER'S HELP**: CARE PACKAGES 1¢ · THE SKYBOX
+  WEEKEND 2¢ · THE BAG DROP 3¢ (+16–40% targets!) — huge swings, SCANDAL
+  tails, and PLAUSIBLE DENIABILITY: half the time a blow-up lands on HIS
+  name (heatB) instead of a scandal story. `GalaxyActDef.via`.
+- **MATCH DAY** is one PREGAME MOVE (`pregameWk`): a SPEECH (unchanged) OR
+  **LAST-MINUTE INSTRUCTIONS** — play the tape and call their set. The
+  standard COUNTER THE SET is known from day one (35% their best attr −3 ·
+  45% nothing · 20% they read you, YOUR best −3, odds printed); the
+  knowledge pool now also deals THE MEDIUM OF BLORGON-6 (70% hit, 2¢,
+  3w recharge) and THE CAPTAIN'S ORDER (50% their star −5, 20% CAUGHT →
+  heat now + the `tape_review` story suspends your enforcer Monday).
+  `deliverInstructions` → `s.oppFx` (their rope, negative) / a self-debuff
+  in `s.speechFx`; the matchup ropes and `gameRope` read both; instruction
+  ids share the speech-cooldown ledger.
+
+**THE BAG WENT BIG: 8 slots, two rows.** THE NOTEBOOK stands TALL on the
+left (spans both rows); items fill the 4×2 grid beside it. BAG_SIZE 8;
+bagfull/offer texts updated. And the bottom stack is THUMB-FIRST now:
+main screen → **THE ONE BIG BUTTON** → view tabs → the bag's two rows at
+the very bottom (it carries the safe-area inset).
+
+**THE LIVE GAME uses the whole screen** (mechanics untouched — Thijs
+liked the rope filling from where the colors meet): centered stack, AWAY
+chip / @ / HOME chip big in team colors up top, open air below, and the
+score tag HOVERING ABOVE the rope, riding the separator — the closer to
+the middle, the tighter the night. YOU WON / YOU LOST still lands on the
+same screen. (v4.3's flanking-chips layout is dead.)
+
+**Reverted per Thijs:** the two-per-row picker sheets — pickers are one
+item per row again ("2 rows of items" meant THE BAG, not the menus).
+
+**Balance:** stipend +4→+5¢ (the week has three paid stops now), UT champ
+base 0.90 of rested. Harness (random-story play): **~50% win rate · 3/10
+fired · ~2.8 titles over a full 26-season career, arriving in mid-career
+runs** — season-1 glory stays out of reach.
+
 ## NEXT SESSION (pick up here)
 
-Fresh-session state: the game is **v4.3 — ONE BUTTON, ONE GAME** (see the
-entry above). Engine `src/engine/` (types/data/gen/sim/state/util), UI
-`src/main.ts` + `src/rig.ts` + `src/style.css`. SAVE_VERSION 18.
-Tests: `npx tsx scripts/headless.ts N` (full careers; ~55% baseline under
+Fresh-session state: the game is **v4.4 — THE NEW WEEK** (see the entry
+above). Engine `src/engine/` (types/data/gen/sim/state/util), UI
+`src/main.ts` + `src/rig.ts` + `src/style.css`. SAVE_VERSION 19.
+Tests: `npx tsx scripts/headless.ts N` (full careers; ~50% baseline under
 random-story play) and `npx tsx scripts/uismoke.ts` (boots the real UI in
 happy-dom; nav and choices are hold-buttons that ignore clicks — drive
 them via the `window.gcAction(action, id)` dev handle; picker picks route
 through `executeAction` too). Thijs drops Claude-Designer exports into
 `fromDesign/<date>/` — read them from there.
-
-**Open question Thijs raised (answer sent, awaiting his call):** should
-scouting and recruiting become two separate weekly actions (INTEL and
-CHARM, each once per week on the same board) instead of today's single
-board-wide move? Claude's recommendation: yes as two TRACKS on one screen,
-not two screens — credits stay the limiter, and the new +4¢ stipend gives
-it somewhere to go. Not built.
 
 **Calls Claude made inside the overhaul (Thijs to veto):**
 - OFF DAY is the REAL form roll (not presentational) — it made halftime
@@ -1174,17 +1215,21 @@ it somewhere to go. Not built.
 
 ### Backlog (in rough priority)
 
-- **The scouting/recruiting split** (see the open question above) — two
-  weekly tracks on one board, pending Thijs's call.
+- **The scouting/recruiting split — SHIPPED as v4.4** (two separate weekly
+  stops, booster-assisted recruiting, last-minute instructions).
+- **More instructions**: the pregame-move family has room — findable
+  counters keyed to specific champion gimmicks, a "steal their signals"
+  arc with an integrity tail, instruction-flavored items.
 - **The facilities manager gets a face**: Thijs is illustrating the
   equipment manager (THE SUPPLY CLOSET). When the art lands in
   `fromDesign/`, wire a `facilities` FigureId into rig.ts and hang the
   supply/item_offer stories on it.
-- **Balance watch, v4.3 edition**: harness ~55% win / ~1.8 titles / 4-in-10
-  fired under random play. Thijs wanted harder — verify it FEELS like a
-  fight, not a wall. Knobs: AI refill luck (best-of-two, band down), AI
-  summer growth 3+rand(3), mirror speech 25%, UT champ base 0.88, walk-on
-  gem 7%, injury base 4%, stipend 4.
+- **Balance watch, v4.4 edition**: harness ~50% win / 3-in-10 fired /
+  ~2.8 titles over a full career under random play (a human should land
+  well above). Verify it FEELS like a fight, not a wall. Knobs: stipend 5,
+  AI refill luck (best-of-two, band down), AI summer growth 3+rand(3),
+  mirror speech 25%, UT champ base 0.90, walk-on gem 7%, injury base 4%,
+  booster-recruit gains/risks, instruction hit/backfire tables.
 - **Thijs's v4.1 playtest notes — SHIPPED, all of them, as v4.2** (see
   the entry above): pool rebalance, credits economy, the notebook, Scoop +
   the dean/booster weekly presence with pt3 scenes, header

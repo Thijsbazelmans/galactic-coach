@@ -26,7 +26,8 @@ import {
   retire,
   runDrill,
   speechCooldown,
-  toGalaxy,
+  toPractice,
+  toRecruiting,
   toMatchup,
   toSigning,
   toggleProspect,
@@ -57,7 +58,7 @@ function checkInvariants(s: GameState): void {
   if (t.players.length > ROSTER_SIZE) throw new Error(`roster too big: ${t.players.length}`);
   if (s.energy < 0 || s.energy > 12) throw new Error(`cache out of range: ${s.energy}`);
   if (s.heatS < 0 || s.heatB < 0 || s.heatS + s.heatB > 100) throw new Error(`hot seat broken: ${s.heatS}/${s.heatB}`);
-  if (s.bag.length > 5) throw new Error(`bag overflow: ${s.bag.length}`);
+  if (s.bag.length > 9) throw new Error(`bag overflow: ${s.bag.length}`);
   for (const p of t.players) {
     // species caps are DEAD — the 0–25 scale and level 10 are the only walls
     for (const a of ATTRS) {
@@ -113,14 +114,32 @@ function playCareer(idx: number): CareerStats {
       case 'stories':
         drainQueue(s);
         break;
-      case 'practice': {
+      case 'scouting': {
         drainQueue(s);
-        if (s.phase !== 'practice') break;
+        if (s.phase !== 'scouting') break;
         const key = `${s.season}:${s.week}`;
         if (key !== lastWeekKey) {
           lastWeekKey = key;
           if (s.energy === 0) starved++;
         }
+        if (!s.scoutActWk) {
+          // the intel move: read the board early, refill it when it thins
+          const actId = s.energy < 1
+            ? 'reccenter'
+            : s.prospects.length < 6
+              ? s.energy >= 2 ? 'nebula' : 'home'
+              : s.energy >= 2 ? 'roadtrip' : 'filmnight';
+          if (!actionGalaxy(s, actId)) throw new Error(`scouting action refused: ${actId} (¢${s.energy})`);
+          if (s.pendingRecruits.length) confirmBoard(s);
+          drainQueue(s);
+        }
+        if (s.phase === 'scouting') toPractice(s);
+        if (s.phase === 'scouting' && !s.queue.length) throw new Error('stuck at scouting');
+        break;
+      }
+      case 'practice': {
+        drainQueue(s);
+        if (s.phase !== 'practice') break;
         if (!s.trainedThisWeek) {
           // practice is mandatory: rest tired or broke squads, otherwise train
           const t = myTeam(s);
@@ -132,27 +151,25 @@ function playCareer(idx: number): CareerStats {
           if (!s.trainedThisWeek) throw new Error('mandatory practice failed');
           drainQueue(s);
         }
-        if (s.phase === 'practice') toGalaxy(s);
+        if (s.phase === 'practice') toRecruiting(s);
         if (s.phase === 'practice' && !s.queue.length) throw new Error('stuck at practice');
         break;
       }
-      case 'galaxy': {
+      case 'recruiting': {
         drainQueue(s);
-        if (s.phase !== 'galaxy') break;
-        if (!s.galaxyActWk) {
-          // one mandatory board-wide move: scout the first weeks, then work
-          // the board every week; rec center when broke
+        if (s.phase !== 'recruiting') break;
+        if (!s.recruitActWk) {
+          // the charm move: direct work mostly, the booster when flush
           const actId = s.energy < 1
-            ? 'reccenter'
-            : s.week <= 2
-              ? s.energy >= 2 ? 'roadtrip' : 'filmnight'
+            ? 'groupchat'
+            : s.energy >= 3 && Math.random() < 0.3
+              ? 'skybox'
               : s.energy >= 2 ? 'openhouse' : 'letters';
-          if (!actionGalaxy(s, actId)) throw new Error(`galaxy action refused: ${actId} (⚡${s.energy})`);
-          if (s.pendingRecruits.length) confirmBoard(s);
+          if (!actionGalaxy(s, actId)) throw new Error(`recruiting action refused: ${actId} (¢${s.energy})`);
           drainQueue(s);
         }
-        if (s.phase === 'galaxy') toMatchup(s);
-        if (s.phase === 'galaxy' && !s.queue.length) throw new Error('stuck at galaxy');
+        if (s.phase === 'recruiting') toMatchup(s);
+        if (s.phase === 'recruiting' && !s.queue.length) throw new Error('stuck at recruiting');
         break;
       }
       case 'matchup': {

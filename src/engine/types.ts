@@ -232,6 +232,7 @@ export interface Fx {
   unlockDrill?: string;
   unlockRegion?: string;
   unlockPlan?: PlanId;
+  unlockInstr?: string;
   commit?: number; // recruiting context: prospect commitment delta
   intel?: boolean; // recruiting context: sharpen the prospect
   takePlayer?: boolean; // remove target from roster → alumnus of the void
@@ -345,8 +346,9 @@ export type Phase =
   | 'teamSelect'
   | 'weekstart'
   | 'stories'
+  | 'scouting'
   | 'practice'
-  | 'galaxy'
+  | 'recruiting'
   | 'matchup'
   | 'gamenight'
   | 'departures'
@@ -400,7 +402,7 @@ export interface GameState {
   prospects: Prospect[];
   /** search results waiting in the 4th row — swap them onto the board or let them go */
   pendingRecruits: Prospect[];
-  bag: string[]; // item ids, max 4 (the notebook holds the fifth slot forever)
+  bag: string[]; // item ids, max 8 (the notebook stands tall beside them, forever)
   /** THE NOTEBOOK: newest first, capped */
   notebook: NotebookEntry[];
   legendariesUsed: string[]; // reset each season
@@ -409,6 +411,8 @@ export interface GameState {
   unlockedRegions: string[];
   /** the tactics the coach has learned — the others wait in stories */
   knownPlans: PlanId[];
+  /** last-minute instructions learned (the counter is known from day one) */
+  knownInstr?: string[];
   /** one-time assistant-coach explainers, by key */
   tipsSeen: string[];
   /** auto-show tips (the ? button always works) */
@@ -418,12 +422,16 @@ export interface GameState {
 
   /** weekly flags */
   trainedThisWeek: boolean;
-  /** recruiting: ONE board-wide action per week (scout all / recruit all / search) */
-  galaxyActWk: boolean;
-  /** the coach's speech: mandatory, once, before tip-off — it carries the game */
-  speechWk?: boolean;
-  /** the rolled speech outcome: the words landed (or null) */
+  /** SCOUTING: one board-wide move (search for talent / read the board) */
+  scoutActWk: boolean;
+  /** RECRUITING: one board-wide move (your own work / the booster's help) */
+  recruitActWk: boolean;
+  /** the pregame move: mandatory, once — a SPEECH or LAST-MINUTE INSTRUCTIONS */
+  pregameWk?: boolean;
+  /** the rolled speech outcome — or an instruction backfire on MY side */
   speechFx?: SpeechFx | null;
+  /** a landed instruction: THEIR side plays this (amt is negative) */
+  oppFx?: SpeechFx | null;
   /** premium speeches recharge: planId → weeks until it can be given again */
   speechCooldowns?: Record<string, number>;
   sitouts: number[];
