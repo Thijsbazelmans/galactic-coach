@@ -1621,8 +1621,11 @@ still waits for authored modules + an explicit GO (see v5.0 below).
 Workflow reminders: pushing needs `gh auth switch -u Thijsbazelmans`
 (default active account is thijs-miketeevee and lacks repo access) — switch
 back after. Pages deploys via Actions on every push (~40s); the HTML is
-cached 10 min and the phone home-screen shortcut needs a full close/reopen
-to pick up a deploy. Thijs directs, Claude writes all the code.
+cached 10 min. Since v4.5.1 the app checks `version.json` (a build id
+emitted by `vite.config.ts`) on launch and whenever it comes back to the
+foreground, and reloads itself through a cache-busting URL when the
+server has a newer build — the iOS home-screen shortcut used to hold
+stale HTML until force-quit or re-added. Thijs directs, Claude writes all the code.
 
 ## NEXT SESSION: redesign the main screen (v1.2) — DONE, see v1.2–v1.5 above
 

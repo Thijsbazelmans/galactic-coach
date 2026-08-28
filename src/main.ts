@@ -74,6 +74,30 @@ import { PRACTICE_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodB
 
 const VERSION = 'v4.5';
 
+// ---- THE UPDATE CHECK -----------------------------------------------------------
+// The home-screen app on iOS keeps stale HTML for a long time. On launch and
+// on every return to the app, ask the server which build it has; if it's
+// newer than this one, reload through a fresh URL (the save lives in
+// localStorage and survives). Dev builds skip it.
+async function checkForUpdate(): Promise<void> {
+  const env = (import.meta as { env?: { PROD?: boolean } }).env;
+  if (!env?.PROD || typeof __BUILD_ID__ === 'undefined' || typeof fetch !== 'function') return;
+  try {
+    const res = await fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const { id } = (await res.json()) as { id?: string };
+    if (!id || id === __BUILD_ID__) return;
+    const url = new URL(location.href);
+    if (url.searchParams.get('b') === id) return; // already reloaded for this build
+    url.searchParams.set('b', id);
+    location.replace(url.toString());
+  } catch {
+    /* offline or blocked: play on */
+  }
+}
+void checkForUpdate();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void checkForUpdate(); });
+
 let state: GameState = load() ?? freshGame();
 
 // ---- THE RAMP: one hue per save ------------------------------------------------
