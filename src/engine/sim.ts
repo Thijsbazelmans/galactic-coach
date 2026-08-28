@@ -1,12 +1,15 @@
 // The sim (SPEC §4) on the column grid: 9 slots, row-major.
 // Rows: 0 = starters, 1 = bench, 2 = reserves.
-// Columns: 0 = BACKCOURT, 1 = WING, 2 = FRONTCOURT — position is BODY SIZE,
-// not a stat: small bodies run the backcourt, big bodies hold the frontcourt.
-// The penalty is printed on the card (MISCAST).
+// Columns: 0 = BACKCOURT, 1 = WING, 2 = FRONTCOURT — a POSITION reads the same
+// four numbers differently: the backcourt wants BRAINS and needs little body,
+// the frontcourt wants ATHLETICISM and needs little head, the wing weighs
+// nothing. Body size fits a column too (small backcourt, big frontcourt).
+// Every player has fixed ability numbers; the slot he stands in decides his
+// GRADE (F–S) — and the team numbers under the lineup.
 
-import { ATTR_STAT, planById } from './data';
-import type { AttrRec, BoxRow, ChampTeam, GameState, MyGameResult, PlanId, Player, SpeechFx, Team } from './types';
-import { ATTRS, attrEff, clamp, ovr, pick, rand, roll, sizeIndex, zeroAttrs } from './util';
+import { ATTR_STAT, PLANS, planById } from './data';
+import type { Attr, AttrRec, BoxRow, ChampTeam, GameState, MyGameResult, PlanId, Player, SpeechFx, Team } from './types';
+import { ATTRS, attrEff, bestAttr, clamp, ovr, pick, rand, roll, sizeIndex, zeroAttrs } from './util';
 
 /** THE FORM ROLL: hot/cold nights per player, rolled at tip-off. */
 export type Forms = Record<number, 1 | -1>;
@@ -27,24 +30,72 @@ function byId(t: Team, id: number | null): Player | null {
   return id === null ? null : t.players.find((p) => p.id === id) ?? null;
 }
 
-// ---- column fit: pure body size ---------------------------------------------
-// Size 0=XS … 4=XL. A wall in the backcourt or a waterbug in the frontcourt
-// pays up to −25%. The wing forgives almost everything.
+// ---- position: how a column reads the four attributes ------------------------
+// Weights average 1 per column, so a balanced player rates the same anywhere;
+// a lopsided one is a different grade in every column. Size multiplies on top.
 
-const MISCAST: number[][] = [
-  // sizeIdx:      XS    S     M     L     XL
-  /* backcourt */ [0, 0, 8, 16, 25],
-  /* wing      */ [0, 0, 0, 0, 0], // the wing forgives everything
-  /* frontcourt*/ [25, 16, 8, 0, 0],
+export const POS_W: AttrRec[] = [
+  /* backcourt */ { skl: 1, ath: 0.5, frc: 1, brn: 1.5 },
+  /* wing      */ { skl: 1, ath: 1, frc: 1, brn: 1 },
+  /* frontcourt*/ { skl: 1, ath: 1.5, frc: 1, brn: 0.5 },
 ];
 
-export function slotMult(p: Player, col: number): number {
-  return 1 - MISCAST[col][sizeIndex(p)] / 100;
+/** Size fit per column, XS → XL. Small bodies run the backcourt, big bodies
+    hold the frontcourt; the wing takes either, the extremes a touch off. */
+export const SIZE_FIT: number[][] = [
+  /* backcourt */ [1, 1, 0.92, 0.84, 0.76],
+  /* wing      */ [0.92, 1, 1, 1, 0.92],
+  /* frontcourt*/ [0.76, 0.84, 0.92, 1, 1],
+];
+
+export function sizeFit(p: Player, col: number): number {
+  return SIZE_FIT[col][sizeIndex(p)];
 }
 
-/** Column preference score for auto-placement (higher = better fit). */
-function colScore(p: Player, col: number): number {
-  return 100 - MISCAST[col][sizeIndex(p)] * 4;
+/** The four numbers as the column reads them (0–25 scale each, ×weight ×fit). */
+export function slotAttrs(p: Player, col: number): AttrRec {
+  const fit = sizeFit(p, col);
+  const out = zeroAttrs();
+  for (const a of ATTRS) out[a] = p.attrs[a] * POS_W[col][a] * fit;
+  return out;
+}
+
+/** The slot RATING (0–100): what this player is worth standing THERE. */
+export function slotRating(p: Player, col: number): number {
+  return Math.round(ovr(slotAttrs(p, col)) * 10) / 10;
+}
+
+/** The column he'd rate highest in. */
+export function bestCol(p: Player): number {
+  let best = 1;
+  let bestV = -1;
+  for (let c = 0; c < 3; c++) {
+    const v = slotRating(p, c);
+    if (v > bestV) { bestV = v; best = c; }
+  }
+  return best;
+}
+
+/** F–S from a slot rating. S is the exceptional letter above A. */
+export type Grade = 'F' | 'D' | 'C' | 'B' | 'A' | 'S';
+export const GRADE_FLOORS: [Grade, number][] = [['S', 80], ['A', 65], ['B', 50], ['C', 35], ['D', 20], ['F', 0]];
+export function grade(rating: number): Grade {
+  for (const [g, floor] of GRADE_FLOORS) if (rating >= floor) return g;
+  return 'F';
+}
+
+/** The best way to stand three bodies in a row: the permutation that rates
+    highest in total. */
+export function arrangeRow(trio: Player[]): (Player | null)[] {
+  const perms = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  let best: (Player | null)[] = [null, null, null];
+  let bestV = -Infinity;
+  for (const perm of perms) {
+    const row: (Player | null)[] = [0, 1, 2].map((c) => trio[perm[c]] ?? null);
+    const v = row.reduce((s, p, c) => s + (p ? slotRating(p, c) : 0), 0);
+    if (v > bestV) { bestV = v; best = row; }
+  }
+  return best;
 }
 
 // ---- lineup ------------------------------------------------------------------------
@@ -80,7 +131,7 @@ export function normalizeLineup(t: Team): void {
     if (!p || seen.has(p.id)) slots[i] = null;
     else seen.add(p.id);
   }
-  // place the unplaced: best empty slot by (row, column fit)
+  // place the unplaced: best empty slot by (row, column rating)
   const pool = t.players.filter((p) => !seen.has(p.id)).sort((a, b) => ovr(b.attrs) - ovr(a.attrs));
   for (const p of pool) {
     let best = -1;
@@ -88,7 +139,7 @@ export function normalizeLineup(t: Team): void {
     for (let i = 0; i < 9; i++) {
       if (slots[i] !== null) continue;
       const row = Math.floor(i / 3);
-      const score = colScore(p, i % 3) - row * 500; // higher rows first
+      const score = slotRating(p, i % 3) - row * 500; // higher rows first
       if (score > bestScore) { bestScore = score; best = i; }
     }
     if (best >= 0) slots[best] = p.id;
@@ -104,42 +155,42 @@ export function normalizeLineup(t: Team): void {
   t.lineup.slots = slots;
 }
 
+const PLAN_FOR_ATTR: Record<Attr, PlanId> = { skl: 'showtime', ath: 'rungun', frc: 'lockdown', brn: 'clockwork' };
+
 /** AI teams: best six on the floor — CONDITION counts, tired stars sit —
-    sorted into columns by body size. (The other coaches rotate too.) */
+    each row stood in its best-rating arrangement. (The other coaches rotate
+    too, and speak to their strength.) */
 export function autoLineup(t: Team): void {
   const cond = (p: Player): number => ovr(p.attrs) * meterMult(p.energy) * meterMult(p.mood);
   const ranked = [...t.players].filter(available).sort((a, b) => cond(b) - cond(a));
   const rows = [ranked.slice(0, 3), ranked.slice(3, 6), ranked.slice(6, 9)];
   const slots: (number | null)[] = Array.from({ length: 9 }, () => null);
   rows.forEach((trio, r) => {
-    const bySize = [...trio].sort((a, b) => sizeIndex(b) - sizeIndex(a)); // biggest first
-    // biggest → frontcourt, smallest → backcourt, middle → wing
-    if (bySize[0]) slots[r * 3 + 2] = bySize[0].id;
-    if (bySize[1]) slots[r * 3 + 1] = bySize[1].id;
-    if (bySize[2]) slots[r * 3 + 0] = bySize[2].id;
+    arrangeRow(trio).forEach((p, c) => { slots[r * 3 + c] = p?.id ?? null; });
   });
   t.lineup.slots = slots;
   normalizeLineup(t);
+  t.plan = PLAN_FOR_ATTR[bestAttr(teamKite(t))];
 }
 
-// ---- the match value: what the ropes (and the needle) run on ------------------
-// Starters count 75%, bench 25%, reserves nothing. Every player's contribution
-// is multiplied by ENERGY and MOOD on the same curve — 0%→×0.40, 25%→×0.60,
-// 50%→×0.80, 75%→×1.00, 100%→×1.20 — plus miscast tax and fire. A LANDED
-// speech (the room ignited) adds +amt to its attribute for every player.
-// Identical math for both sides of the rope.
+// ---- the match value: what the bars (and the night) run on ------------------
+// Starters count 75%, bench 25%, reserves nothing. Every player's numbers are
+// read by his COLUMN (position weights × size fit), then multiplied by ENERGY
+// and MOOD on the same curve — 0%→×0.40, 25%→×0.60, 50%→×0.80, 75%→×1.00,
+// 100%→×1.20 — plus fire. A speech SHIFTS every player: +amt in one
+// attribute, −amt in its opposite. Identical math for both sides.
 
 export function meterMult(v: number): number {
   return 0.4 + 0.8 * (clamp(v, 0, 100) / 100);
 }
 
-function playerCond(p: Player, col: number): number {
-  return meterMult(p.energy) * meterMult(p.mood) * slotMult(p, col) * (p.onFire ? 1.2 : 1);
+function playerCond(p: Player): number {
+  return meterMult(p.energy) * meterMult(p.mood) * (p.onFire ? 1.2 : 1);
 }
 
-/** Per-attribute weighted team values (the four rope rows). fx = the landed
-    speeches (the pregame one carries the whole game; halftime stacks a
-    second); forms = tonight's hot/cold rolls (game night only). */
+/** Per-attribute weighted team values (the four bar rows). fx = the speech
+    shift (or an instruction that got read); forms = tonight's hot/cold rolls
+    (game night only). */
 export function matchAttrs(t: Team, fx: SpeechFx | SpeechFx[] | null = null, forms?: Forms): AttrRec {
   const fxs: SpeechFx[] = fx ? (Array.isArray(fx) ? fx : [fx]) : [];
   const out = zeroAttrs();
@@ -147,11 +198,12 @@ export function matchAttrs(t: Team, fx: SpeechFx | SpeechFx[] | null = null, for
     for (const [row, w] of [[0, 0.75], [1, 0.25]] as [number, number][]) {
       const p = slotPlayer(t, row * 3 + c);
       if (!p || !available(p)) continue;
-      const cond = playerCond(p, c) * w * formMult(forms, p.id);
+      const cond = playerCond(p) * w * formMult(forms, p.id);
+      const fit = sizeFit(p, c);
       for (const a of ATTRS) {
         let v = p.attrs[a];
         for (const f of fxs) if (f.attr === a) v += f.amt;
-        out[a] += Math.max(0, v) * cond; // a debuff can zero a kid out, never invert him
+        out[a] += Math.max(0, v) * POS_W[c][a] * fit * cond; // a debuff can zero a kid out, never invert him
       }
     }
   }
@@ -159,27 +211,38 @@ export function matchAttrs(t: Team, fx: SpeechFx | SpeechFx[] | null = null, for
   return out;
 }
 
-/** The whole rope: the four rows added up. */
+/** The whole bar: the four rows added up. */
 export function teamPower(t: Team, fx: SpeechFx | SpeechFx[] | null = null, forms?: Forms): number {
   return ovr(matchAttrs(t, fx, forms));
 }
 
-/** Meter-neutral strength: the same rope with everyone standing at the
-    baseline — for sizing opponents (the UT bracket) without catching the
-    roster on a gassed night. */
+/** Meter-neutral strength: the same total with everyone standing at the
+    baseline — the honest read of a roster without catching it gassed. */
 export function restedPower(t: Team): number {
   let sum = 0;
   for (let c = 0; c < 3; c++) {
     for (const [row, w] of [[0, 0.75], [1, 0.25]] as [number, number][]) {
       const p = slotPlayer(t, row * 3 + c);
       if (!p || !available(p)) continue;
-      sum += ovr(p.attrs) * slotMult(p, c) * w;
+      sum += slotRating(p, c) * w;
     }
   }
   return Math.round(sum * 10) / 10;
 }
 
-/** The rope split IS the win chance: a sharpened ratio of the two totals —
+/** The average slot rating of the six on the floor (the tier number). */
+export function floorAvg(t: Team): number {
+  const vals: number[] = [];
+  for (let c = 0; c < 3; c++) {
+    for (const row of [0, 1]) {
+      const p = slotPlayer(t, row * 3 + c);
+      if (p && available(p)) vals.push(slotRating(p, c));
+    }
+  }
+  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+}
+
+/** The split IS the win chance: a sharpened ratio of the two totals —
     clamped to 5–95%: the galaxy never hands out a certainty. */
 const SHARP = 6;
 export function winShare(mine: number, theirs: number): number {
@@ -202,7 +265,7 @@ export function logistic(diff: number): number {
 }
 
 // ---- the game itself --------------------------------------------------------------------
-// ONE rope, ONE night: the rope split is the win chance, the night lands
+// ONE split, ONE night: the split is the win chance, the night lands
 // uniformly on it, and the distance from the split is the margin. The lineup
 // screen and the speech are the whole plan — then the game runs to the horn.
 
@@ -301,20 +364,21 @@ function verdictLines(
   margin: number
 ): { wheelLine: string; heroLine: string } {
   const mine = planById(myPlan);
-  // the night's story: what the rope promised vs what the horn said
+  // the night's story: what the numbers promised vs what the horn said
   let wheelLine: string;
   if (won) {
     if (share >= 0.62) wheelLine = margin >= 12 ? 'The better team showed up and made sure everybody knew it.' : 'The better team showed up. Barely acted like it, but showed up.';
-    else if (share <= 0.42) wheelLine = 'The rope said no. The locker room never read the rope.';
+    else if (share <= 0.42) wheelLine = 'The numbers said no. The locker room never read the numbers.';
     else wheelLine = margin <= 4 ? 'A coin-flip night, decided by fingertips. Yours.' : 'A coin-flip night — and it came up yours.';
   } else {
     if (share >= 0.58) wheelLine = 'You were the better team. The scoreboard disagrees, loudly, in public.';
-    else if (share <= 0.42) wheelLine = margin >= 12 ? 'Outgunned from the tip. The rope tried to warn you.' : 'Outgunned from the tip — and still within reach at the horn. Take that home.';
+    else if (share <= 0.42) wheelLine = margin >= 12 ? 'Outgunned from the tip. The matchup screen tried to warn you.' : 'Outgunned from the tip — and still within reach at the horn. Take that home.';
     else wheelLine = margin <= 4 ? 'A coin-flip night, decided by fingertips. Not yours.' : 'A coin-flip night. It came up theirs.';
   }
   const st = [0, 1, 2].map((c) => ({ p: slotPlayer(me, c), c })).filter((x): x is { p: Player; c: number } => !!x.p);
   if (!st.length) return { wheelLine, heroLine: 'You fielded nobody. The scoreboard noticed.' };
-  const miscast = st.filter((x) => slotMult(x.p, x.c) < 0.88);
+  // out of position: standing somewhere that reads him a grade below his best
+  const misplaced = st.filter((x) => slotRating(x.p, x.c) < slotRating(x.p, bestCol(x.p)) * 0.86);
   const fit = (p: Player): number => attrEff(p, mine.attr);
   const hero = [...st].sort((a, b) => fit(b.p) - fit(a.p))[0].p;
   const goatX = [...st].sort((a, b) => fit(a.p) - fit(b.p))[0];
@@ -322,15 +386,18 @@ function verdictLines(
   const goatMuted = (mine.attr === 'ath' || mine.attr === 'frc' ? goat.energy : goat.mood) <= 40;
   let heroLine: string;
   if (won) heroLine = `${hero.name} was built for this.`;
-  else if (miscast.length) heroLine = `${miscast[0].p.name} was miscast in the ${COL_LABELS[miscast[0].c].toLowerCase()} all night.`;
+  else if (misplaced.length) heroLine = `${misplaced[0].p.name} was out of position in the ${COL_LABELS[misplaced[0].c].toLowerCase()} all night.`;
   else if (goatMuted) heroLine = `${goat.name} played half a step slow — ${mine.attr === 'ath' || mine.attr === 'frc' ? '⚡ was low' : goat.form === 'femme' ? "her head wasn't here" : "his head wasn't here"}.`;
   else heroLine = `${goat.name} never fit the plan tonight — his ${ATTR_STAT[mine.attr]} column says it all.`;
   return { wheelLine, heroLine };
 }
 
-/** The night's rope: my weighted power vs theirs — venue, a landed speech, and
-    any pregame skulduggery folded in. The champ has no roster — their scouted
-    power number stands. */
+/** The opposite attribute: what a speech takes when it gives. */
+export const OPPOSITE: Record<Attr, Attr> = { skl: 'ath', ath: 'skl', frc: 'brn', brn: 'frc' };
+
+/** The night's split: my weighted power vs theirs — venue, the speech shift,
+    and any pregame skulduggery folded in. The champ has no roster — their
+    scouted power number stands. */
 function gameRope(
   s: GameState,
   me: Team,
@@ -342,15 +409,18 @@ function gameRope(
 ): { mine: number; theirs: number } {
   const [vm, vt] = champ ? [1, 1] : home ? [1.03, 1] : [1, 1.03];
   let mine = teamPower(me, fx, forms) * vm;
-  // their locker room hears a speech too — the mirror sits just under the
-  // happy medium (one speech per night now; the coach's edge is earned) —
-  // and a LANDED instruction drags their side down (s.oppFx, amt negative)
-  const oppAmt = roll(25) ? 1 + rand(2) : 0;
+  // their locker room hears a speech too — the same shift we get, aimed at
+  // their strength (fairness law) — and a LANDED instruction drags their side
+  // down (s.oppFx, amt negative)
+  const oppAmt = 3 + rand(2);
   const oppFxs: SpeechFx[] = [];
-  if (!champ) oppFxs.push({ attr: planById(opp!.plan).attr, amt: oppAmt });
+  if (!champ) {
+    const pa = planById(opp!.plan).attr;
+    oppFxs.push({ attr: pa, amt: oppAmt }, { attr: OPPOSITE[pa], amt: -oppAmt });
+  }
   if (s.oppFx) oppFxs.push(s.oppFx);
   let theirs = (champ
-    ? champ.power + oppAmt + (s.oppFx ? s.oppFx.amt * 3 : 0)
+    ? champ.power + (s.oppFx ? s.oppFx.amt * 3 : 0)
     : teamPower(opp!, oppFxs)) * vt;
   if (s.pregameFlags.wallet) mine *= 1.03; // the whistle leans your way
   if (s.pregameFlags.cloak) theirs *= 0.95; // they prepared for the wrong team
@@ -358,8 +428,8 @@ function gameRope(
   return { mine, theirs };
 }
 
-/** THE GAME: the form roll → the rope → the night lands → the full box score.
-    One speech, one lineup, one honest rope — then the horn. */
+/** THE GAME: the form roll → the split → the night lands → the full box score.
+    One speech, one lineup, one honest split — then the horn. */
 export function simMyGame(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null, home: boolean): SimOutcome {
   // THE FORM ROLL: each floor player can catch a hot night (STANDOUT!, +15%,
   // and the hot hand teaches him something) or a cold one (OFF DAY, −15%).
@@ -409,7 +479,7 @@ export function simMyGame(s: GameState, me: Team, opp: Team | null, champ: Champ
   };
 }
 
-/** AI vs AI league game: same needle math, no speeches in empty gyms. */
+/** AI vs AI league game: same math, no speeches in empty gyms. */
 export function simAiGame(a: Team, b: Team): { winner: Team; loser: Team; scoreW: number; scoreL: number } {
   const pa = teamPower(a) * 1.03;
   const pb = teamPower(b);
@@ -421,4 +491,4 @@ export function simAiGame(a: Team, b: Team): { winner: Team; loser: Team; scoreW
     : { winner: b, loser: a, scoreW: base + margin, scoreL: base };
 }
 
-export { clamp };
+export { clamp, PLANS };

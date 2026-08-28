@@ -1197,22 +1197,277 @@ light grey now — the v4.1 skin-color signature is dead (Thijs: coloring a
 species label by skin could be construed as a little racist; the label is
 information, not identity). Rare blood still reads bright white / blinks.
 
+## v4.5 — THE SLIDE, THE GRADE & THE TRADE (Aug 28, 2026 — the four-season debrief)
+
+Thijs played four seasons of v4.4 (won the tournament twice, made it a
+third time — "a little too easy") and dictated the list. All of it shipped
+(SAVE_VERSION 20, old saves die):
+
+**THE SLIDE (difficulty).** The galaxy's strength ladder is FIXED now and
+never sized to you. Numbers are the average SLOT RATING of a team's six
+floor players. Conference AI programs sit at 62 / 55 / 49 / 44 / 38 (±2),
+reshuffled among the five every summer (`endSeason` → `settleTier`: the
+best program changes, the ladder doesn't); your founding six sit around 47
+(Fr–Jr, with headroom) so tryouts land you 4th–5th. THE BIG BANG's seven
+champions are tiered by round — first round 65–75, semifinal 70–80, the
+final 75–85 (`UT_TIERS`, `genChamps()` takes no argument; `power = avg ×
+3`). The career arc (knowledge edge / hunted tax) is DEAD — the fixed slide
+is the arc. To make the ladder climbable the whole generation moved up:
+`genPlayerAt(target)` builds every roster you never scout (AI, founders,
+AI transfer refills); species ceiling bands shifted up (terran 3/12/30/35/20,
+specialists 2/8/26/38/26, rare trio 1/5/18/38/38, nimbus 1/3/10/30/56) so
+recruits can become 60–90 players; recruits arrive college-ready (level
+2–4, `Prospect.level`); game XP pays ~40% faster (starters 14–20, bench
+8–12); PRO_OVR 52→72; cut-revenge threshold 38→45. Pick-team no longer
+prints averages (the slide is built around your pick in `chooseTeam`).
+Harness (random-story play): **~44–55% wins over 26 seasons, THE BIG BANG
+reached in 4/4 careers, 0 titles, 1-in-4 fired**; season 1 reads 3–7 to
+6–4. A human hunting rare species should climb to a 65–75 floor in 4–6
+seasons; a title needs ~75+ (about 1-in-4 per trip from there).
+
+**THE GRADE (position replaces MISCAST).** Every player's four numbers are
+fixed; the COLUMN reads them: backcourt BRN ×1.5 / ATH ×0.5, frontcourt
+the mirror, wing ×1 everywhere (`POS_W`), times a size fit (`SIZE_FIT`:
+small backcourt, big frontcourt, the wing shrugs at all but XS/XL). The
+ROSTER card's OVR corner is a LETTER for the slot he stands in — F red ·
+D orange · C yellow · B green · A white · S white-and-glowing (≥80/65/50/
+35/20) — labeled BACK/WING/FRONT, with a «↔» when he'd grade a clear step
+higher elsewhere. Drag him and the letter changes; the selection grid and
+tryouts grade too (the backlog's MISCAST-on-selection item is closed by
+this). `matchAttrs`/`restedPower`/the team bars all run on the slot
+reading; `autoLineup`/`normalizeLineup` stand each row in its best
+permutation (`arrangeRow`); the AI speaks to its strength (`t.plan`).
+ABILITIES keeps the raw OVR/POT numbers. `slotMult`/MISCAST are gone.
+
+**THE TRADE (speeches).** A speech is a guaranteed SHIFT, never a gamble:
+squad +3–4 in its attribute and −3–4 in the OPPOSITE tonight (SKILL ↔
+ATHLETICISM, BRAINS ↔ FIERCENESS; premium finds +5–6/−2–3 with the
+recharge). `s.speechFx` is now `SpeechFx[]`; the opponent's mirror speech
+is the same trade at their strength. The compass reordered to match: SKL
+up, FRC right, ATH down, BRN left — opposites share an axis; the team bars
+sit in pairs (SKILL/ATHLETICISM, BRAINS/FIERCENESS, OVERALL).
+
+**THE FROZEN ONE knocks at PLAY.** Every player has a PATIENCE (2–6 games in
+street clothes, `p.patience`); past it a reserve stops you at the locker
+room door when you hold PLAY (`frozenKnock` in `playGame`, which now
+returns false when the story has the floor). «YOU'RE RIGHT — YOU PLAY
+TONIGHT» sends you back to the lineup screen with the floor remembered
+(`s.promise`); the horn reads who actually stood there: KEPT (+8, the room
+notices), BROKEN — double mad, −30 — or, if he played, the one he DISPLACED
+comes at you after the game («so X complains, and X plays?», 60%; else 35%
+a random teammate). «EARN IT» resumes tip-off the moment the story closes
+(`s.resumePlay`). `p.gripe` stops him re-knocking until a full patience
+later.
+
+**NOTHING BUTTS IN.** Two laws: (1) everything the horn spawns (injury, ON
+FIRE, the frozen one's verdict) is HELD in `s.heldStories` and released at
+the BOX SCORE press — never before or during the live game; (2) whatever a
+resolution spawns (the reveal card, an item offer, the next beat) is
+spliced in RIGHT BEHIND the story that caused it (`resolveStory`), never
+behind an unrelated story already waiting.
+
+**ONE VOICE PER SCREEN.** The impact panel is paged: the player's page
+(sprite + his rows + the squad's reaction), then the squad's page, then
+the coach's page (credits / JOB SECURITY / LEGACY — the dean or the
+booster standing over it; the job-bar flash and the figure verdict live
+there only). «▸ and then…» blinks when another voice waits.
+
+**THE HORN IS THE NEWS.** The header shows the record as it stood at
+tip-off (`s.preGame`) while the game plays, and the schedule/standings
+dialogs are blocked during the live game; the record updates at YOU WON /
+YOU LOST. Also: tapping the second header row REPLACES the first dialog
+(one close), and the post-season header reads W10+1 / W10+2 / W10+3
+(`weekShort`; WEEK START says WEEK 10+1).
+
+**THE BIG BANG.** The Universal Tournament is renamed THE BIG BANG (the
+galaxy's Big Dance; `TOURNEY` in data.ts — rounds THE FIRST ROUND / THE
+SEMIFINAL / THE BIG BANG FINAL). Pomp: making it (`bigbang_invite`, with
+CONFETTI), each round's own beat (`bigbang_round`: pomp + the scouting
+report in one), going out (`bigbang_out`, per round), winning it
+(`bigbang_champs` + confetti, and the final's horn reads CHAMPIONS OF THE
+UNIVERSE), missing it (`season_over`, the dean at the window). Confetti is
+a story-data flag (`fete`).
+
+**SIGNING DAY, ONE BY ONE.** Each pursued name gets its own dialogue
+(`signing_verdict`): the holo-line rings, tap → THE ROLL WHEEL spins on the
+effective chance, then the answer — and the card shows the whole truth
+(ABILITIES view, exact numbers, in your colors if he's yours) for the
+first time, signed or not.
+
+**COLOR IS BACK ON INDICATORS.** One five-step scale — red · orange ·
+yellow · green · white — for the energy and mood gauges (LED stacks in the
+value's color), the grade letters, and every direction cue: impact arrows
+and numbers, number swaps, cascade counts, gauge/ring/bar delta bands and
+stickers are GREEN going up and RED going down. The team hue stays for
+chrome, fills and the credits.
+
+**NO PERCENTAGES.** Choices and actions print their two tails as WORDS
+(«▲ BREAKTHROUGH ▼ INJURY»); the weight of the tail says how live it is
+(dim ≤5 · plain ≤12 · bright ≤35 · blinking above), and UP tails lean
+green, DOWN tails lean red. The wheel shows its arc without a number.
+Magnitudes stay (+4–10% commit, the COM ring, LETTER →62%); the roll
+percentages are the player's to learn. Tips rewritten accordingly.
+
+**THE LIVE GAME.** The bar LIGHTS from the center outward as points fall
+(the clock is the points); inside the lit stretch the line sits at away's
+share of the points, the score riding it — 40–20 away means two thirds of
+the light is theirs. At the half the first and last quarters are still
+dark. The dim rating tick stays. And the word "rope" is gone from every
+line a player can read (verdicts, tips).
+
+**Also:** `Prospect.level`, `Player.patience/gripe`, `GameState.heldStories/
+preGame/promise/resumePlay`, `ChampTeam.tier/avg`. The dashboard mirror
+(`dashboard/data.js`) updated for all of it. `LADDER=1 npx tsx
+scripts/headless.ts N` prints the season-by-season floor ladder.
+
+**Calls Claude made (Thijs to veto):** the tournament's name (THE BIG BANG
+— alternatives considered: THE COSMIC CROWN, THE EVENT HORIZON, THE
+SUPERNOVA); A is white and S is white-with-a-glow (six letters on a
+five-color scale); commitment percentages stay (they're a meter, not a
+roll); speech shift sizes (+3–4 per player ≈ +9–12 on the bars, the number
+Thijs quoted); the frozen one's «unfair» odds (60% the displaced, else
+35%); the horn's stories land after YOU WON/LOST and before the box score.
+
+## v5.0 DESIGN — THE STORY WEB (Aug 24, 2026 — dictation #3; NOT BUILT in-game yet)
+
+Thijs's redesign of ALL storytelling, dictated while reviewing THE
+WRITERS' ROOM dashboard. The dashboard (`dashboard/`) is being rebuilt
+into the design/build tool for this; the ENGINE rework waits for stories
+to be authored and Thijs's GO.
+
+**The core idea: stories are a modular, intertwined WEB, not a registry
+of one-offs.** A story module only matters through its impact on one of
+four things (all intertwined): **the coach's JOB SECURITY · the coach's
+AVAILABLE ACTIONS/ITEMS · a player's AVAILABILITY · a player's
+ABILITIES.** Outcome is always the result of chance AND choice.
+
+**The five-outcome die.** Every answer the user gives rolls exactly five
+possible outcomes, bad→good: **CATASTROPHE / BAD / NOTHING / GOOD /
+MIRACLE** (weights sum 100, e.g. 2/5/84/8/1). Every face except NOTHING
+is either a **direct result** (1-week injury, +3 credits, discover an
+item, discover an action…) or a **TRIGGER for another story module** —
+optionally with a **variable delay**, so the player doesn't always know
+an event was an outcome of something earlier.
+
+**Triggers are moments × characters.** Every module needs a trigger, and
+every trigger is brought up by a CHARACTER (dean / booster / press / a
+player / a former player / the oracle / …). Characters live at specific
+trigger moments: the dean right after a game or at week start; the
+booster around recruiting; the oracle only in deep-space travel (away
+games or far scouting/recruiting trips). The cast is EXTENDABLE — Thijs
+already sees the head cheerleader, the gas-planet attendant, the janitor
+becoming regulars.
+
+**Canonical example (Thijs's, verbatim shape):** TRIGGER: Deep Space
+Travel → CHARACTER: The Oracle → CHOICE: "Go find the Chosen One" →
+DICE 2/5/84/8/1 → CATASTROPHE: meteor field, you crash → nested choice:
+pay 1¢ goblin tow (→ goblin ship-repair module) OR die on a rock (game
+over). BAD: a drop of your worst player's blood for a possession ritual;
+nothing happens, and on the ride back the kid dies of an alien infection
+— player lost (→ can trigger the walk-on/empty-locker module and the
+dean's-daughter path). NOTHING (84): she hoos and haas for an hour;
+you're hungry. GOOD: tape of her nephew — add him to the big board.
+MIRACLE (1): she seizes the pilot's brain and steers you to a dying
+planet where a 5★ recruit joins the ROSTER immediately (and dropping a
+player mid-season may itself trigger the down-on-his-luck former-player
+module…).
+
+**Simplified choice UI (supersedes the two-printed-tails law):** don't
+show all five percentages. Show ONE number — the chance of a good
+outcome (GOOD+MIRACLE) — plus a RISK STICKER for the bad side:
+**"safe" (white) · "sure?" (yellow) · "risky" (orange) · "DANGER"
+(blinking red)**. Claude's proposed thresholds (Thijs to tune):
+C+B ≤4 safe · ≤12 sure? · ≤30 risky · >30 or CATASTROPHE ≥10 DANGER.
+The numbers still never lie — they just say less.
+
+**De-word the buttons; the flavor moves to the AFTERMATH.** Action/item/
+choice descriptions are currently too wordy up front. Buttons get terse;
+the fun lines ("You, the TARGETS, and a chef with too many arms. Warm,
+honest, effective.") move to a DIALOGUE SCREEN that plays AFTER you run
+the action and BEFORE the results land — anticipation first, results
+second.
+
+**Build order (agreed approach — design from both outsides in):**
+1. List all TRIGGER MOMENTS. 2. List the CHARACTERS (extendable). 3.
+List all OUTCOMES, rewards and punishments, flagging which ones are
+themselves triggers (with optional delay). 4. Then compose stories like
+puzzles in the dashboard BUILDER — visually connecting trigger moment →
+character → choice branch → dice → results/chains. 5. Only then: the
+engine rework (module interpreter replacing the STORIES registry,
+sticker UI, aftermath-dialogue flow, terse buttons) on Thijs's GO.
+
+**Open questions for Thijs:** sticker thresholds above; whether NOTHING
+faces still get a flavor line (Claude assumes yes — "you're hungry" IS
+one); how much of the 55-story v4.4 registry migrates vs. retires; delay
+ranges for hidden-causality triggers (1–5 weeks?).
+
+**STATUS (end of Aug 24 session): Thijs approved the whole approach
+("This is fantastic").** Dashboard v2 is built and verified (12 tabs,
+seed modules render, builder saves/exports, web map draws). Agreed path:
+1. Thijs red-pens the three vocabulary lists (MOMENTS / CHARACTERS /
+   OUTCOMES) and the sticker thresholds in the dashboard.
+2. Together, author modules in the BUILDER — convert the best v4.4
+   stories into the new format + write fresh ones per character, until
+   every moment has a healthy pool (target: ~15–20 modules before any
+   engine work).
+3. Only then, on Thijs's explicit GO: the engine swap in ONE move —
+   module interpreter replacing the STORIES registry, five-face die,
+   GOOD%+sticker choice UI, terse buttons, anticipation-dialogue-then-
+   results flow.
+Open from the summary: does the v4.4 registry fully migrate, or do some
+stories just retire? (Thijs to answer when module-writing starts.)
+
 ## NEXT SESSION (pick up here)
 
-Fresh-session state: the game is **v4.4.1 — THE NEW WEEK** (see the v4.4
-entry + the v4.4.1 note above; live on Pages, all tests green, working
-tree clean). Engine `src/engine/` (types/data/gen/sim/state/util), UI
-`src/main.ts` + `src/rig.ts` + `src/style.css`. SAVE_VERSION 19. Thijs
-has NOT yet played v4.4 — first thing to listen for: does ~50%-harness
-difficulty FEEL like a fight (not a wall), and do the two board stops +
-the pregame move pace the week well. The top backlog items (hole-filling
-walk-ons, MISCAST on the selection grid) are noted and awaiting his GO.
+**ACTIVE THREAD (Aug 24 night): THE STORY WEB.** Thijs approved the v5.0
+story redesign + dashboard builder (see the v5.0 entry above for the
+agreed 3-step path). Next concrete step is HIS: red-pen the vocabulary
+lists and sticker thresholds in `dashboard/index.html`, then co-author
+modules in the BUILDER. If he opens with story ideas or pasted draft
+JSON, that's this thread. No engine work before his explicit GO.
+
+Fresh-session state: the game is **v4.5 — THE SLIDE, THE GRADE & THE
+TRADE** (see the v4.5 entry above; all tests green). Engine `src/engine/`
+(types/data/gen/sim/state/util), UI `src/main.ts` + `src/rig.ts` +
+`src/style.css`. SAVE_VERSION 20. Thijs has NOT yet played v4.5 — first
+things to listen for: does the fixed slide FEEL like a climb (season 1
+around 4–6 wins, the conference top out of reach until a real class
+matures), do the letter grades read at a glance, does the speech trade
+feel like a decision, and does the frozen one at PLAY land as a moment.
+Balance knobs if it's a wall: `FOUNDER_TIER` 47, `CONF_TIERS`, the species
+bands, recruit readiness (level 2–4), game XP (14–20 / 8–12), `PRO_OVR`
+72, booster heat ±4 per result. The hole-filling walk-ons backlog item is
+still awaiting his GO.
 Tests: `npx tsx scripts/headless.ts N` (full careers; ~50% baseline under
 random-story play) and `npx tsx scripts/uismoke.ts` (boots the real UI in
 happy-dom; nav and choices are hold-buttons that ignore clicks — drive
 them via the `window.gcAction(action, id)` dev handle; picker picks route
 through `executeAction` too). Thijs drops Claude-Designer exports into
 `fromDesign/<date>/` — read them from there.
+
+**THE WRITERS' ROOM (Aug 24, tangent while Thijs playtests v4.4):** the
+local story-design dashboard at `dashboard/index.html` (open directly in
+a browser; no server needed). Two halves:
+- **V4.4 REFERENCE** (`dashboard/data.js`): a plain-language mirror of
+  ALL live content — the week's trigger dice, all 55 story cards (10
+  families, beats/choices/printed tails/outcomes/spacing), the 25 bag
+  items, every action per screen, species/league/UT/name/flavor pools,
+  tuning dials. THE MIRROR RULE: when story/item/action content changes
+  in `src/engine/data.ts` or trigger logic in `state.ts`, update
+  `dashboard/data.js` in the same session.
+- **THE STORY WEB** (`dashboard/blueprint.js` + the builder): the v5.0
+  design surface — see the v5.0 entry below. Tabs: BLUEPRINT (model,
+  laws, risk stickers, on-screen flow) · MOMENTS (12) · CHARACTERS (17,
+  incl. the new cheerleader / gas-planet attendant / janitor) · OUTCOMES
+  (33 atoms with ⛓ trigger flags) · MODULES (5 seed modules — Thijs's
+  oracle chosen-one example and its whole chain — plus an SVG web map
+  drawn from the chain: links, ghost nodes for unconverted v4.4
+  stories) · BUILDER (the forge: compose a module, live dice-sum check +
+  GOOD% + sticker, drafts persist in the browser's localStorage, COPY
+  ALL DRAFTS exports JSON for Claude to wire in).
+**Thijs's verdict (Aug 24, end of night): "This is fantastic."** The
+STORY WEB direction is approved as the design surface; the ENGINE rework
+still waits for authored modules + an explicit GO (see v5.0 below).
 
 **Calls Claude made inside the overhaul (Thijs to veto):**
 - OFF DAY is the REAL form roll (not presentational) — it made halftime
@@ -1225,6 +1480,20 @@ through `executeAction` too). Thijs drops Claude-Designer exports into
 
 ### Backlog (in rough priority)
 
+- **STORY OVERHAUL NOTE (Thijs, Aug 28): BRAINS ↔ SCHOOL.** Tie the players'
+  BRAINS stat to school issues in the story web: a kid put on extra classes
+  (academic probation, a failed exam, a tutor the dean assigns) has his
+  brain CAPACITY diminished for the duration (BRN plays down — he's
+  exhausted from the library), but when he comes back his overall brain
+  capacity may have GROWN (BRN potential up, or a direct +BRN). Same shape
+  as the festival gamble: a cost now, a possible gain later. Candidate
+  characters: the dean, a professor, the tutor. Candidate moments: week
+  start, post-game (grades post after the weekend).
+- **Balance watch, v4.5 edition (THE SLIDE)**: harness ~44–55% wins, BIG
+  BANG reached 4/4 careers, 0 titles, 1-in-4 fired. Verify a human can
+  climb (65–75 floor by season 4–6) without it feeling like a wall in
+  seasons 1–2. Knobs listed in NEXT SESSION.
+
 - **Walk-ons fill HOLES (Thijs, Aug 24)**: the walk-on pool (tryouts AND
   the offseason selection pool) should read the roster and lean toward
   what it lacks — body sizes for empty columns (no frontcourt? more big
@@ -1232,14 +1501,9 @@ through `executeAction` too). Thijs drops Claude-Designer exports into
   younger bodies show up). Otherwise picking walk-ons is just "take the
   highest rating." Likely home: `genWalkOn` gets a needs hint from the
   selection-pool builder (`resolveSigning` / `chooseTeam`).
-- **MISCAST on the selection grid (same note)**: the cut decision needs
-  the fit warning — show the MISCAST label/cost on TRYOUTS and the
-  season-roster selection grid (playerCard already knows how; the
-  selection grid just never passes `miscast`). NOT on the big board or
-  recruiting — prospects have no lineup slot yet. Open sub-question
-  (Claude leans a, Thijs to rule): (a) read the slot he currently sits
-  in — drag him and the label reacts, consistent with grid-is-the-lineup —
-  or (b) flag players who'd be miscast in EVERY column.
+- **MISCAST on the selection grid — CLOSED by v4.5**: the slot GRADE
+  (F–S) reads the column he stands in on every grid, tryouts included;
+  MISCAST itself is dead.
 - **Instruction nights have no squad buff (watch in play)**: choosing
   LAST-MINUTE INSTRUCTIONS over the speech means your room gets no lift —
   the gamble is pure opponent-sabotage. If that trade feels flat in

@@ -13,7 +13,7 @@ import type {
   StoryChoiceView,
   StoryEvent,
 } from './types';
-import { ATTRS, clamp, genderize, ovr, pick, rand } from './util';
+import { ATTRS, clamp, genderize, ovr, pick, rand, roll } from './util';
 
 export const CLASS_ABBR = ['Fr', 'So', 'Jr', 'Sr'];
 
@@ -35,7 +35,7 @@ export const SPECIES: SpeciesDef[] = [
     name: 'Terran',
     tier: 1,
     bias: [],
-    bands: [38, 30, 20, 10, 2],
+    bands: [3, 12, 30, 35, 20],
     heightRange: [176, 204],
     weightRange: [76, 110],
     desc: 'Baseline bipeds. Balanced in every direction, rarely blessed in any. The galaxy simply outrolls them.',
@@ -46,7 +46,7 @@ export const SPECIES: SpeciesDef[] = [
     name: 'Hexid',
     tier: 2,
     bias: ['ath'],
-    bands: [20, 28, 26, 18, 8],
+    bands: [2, 8, 26, 38, 26],
     heightRange: [158, 186],
     weightRange: [48, 80],
     desc: 'Insectoid on six legs and six tiny high-tops. Nothing in the league moves faster, or lower.',
@@ -57,7 +57,7 @@ export const SPECIES: SpeciesDef[] = [
     name: 'Quadran',
     tier: 2,
     bias: ['ath', 'frc'],
-    bands: [20, 28, 26, 18, 8],
+    bands: [2, 8, 26, 38, 26],
     heightRange: [196, 224],
     weightRange: [118, 175],
     desc: 'Hunched heavy-worlder with four arms and tusks. The upper pair handles the ball; the lower pair handles you.',
@@ -68,7 +68,7 @@ export const SPECIES: SpeciesDef[] = [
     name: 'Petran',
     tier: 2,
     bias: ['frc'],
-    bands: [20, 28, 26, 18, 8],
+    bands: [2, 8, 26, 38, 26],
     heightRange: [188, 214],
     weightRange: [140, 200],
     desc: 'Stone golem, cracked plating, patient as geology. Every drive dies on it — and every shot it takes is an actual brick.',
@@ -79,7 +79,7 @@ export const SPECIES: SpeciesDef[] = [
     name: 'Nimbus',
     tier: 3,
     bias: [],
-    bands: [2, 10, 20, 30, 38],
+    bands: [1, 3, 10, 30, 56],
     heightRange: [188, 218],
     weightRange: [40, 62],
     desc: 'Translucent gas-form floating above a pair of empty regulation high-tops. Balanced everywhere, blessed almost always.',
@@ -90,7 +90,7 @@ export const SPECIES: SpeciesDef[] = [
     name: 'Gelid',
     tier: 3,
     bias: ['skl', 'brn'],
-    bands: [10, 20, 25, 25, 20],
+    bands: [1, 5, 18, 38, 38],
     heightRange: [168, 200],
     weightRange: [60, 95],
     desc: 'A liquid body stacked in rings, melting into its own puddle. Flows through any defense and sees every passing lane.',
@@ -101,7 +101,7 @@ export const SPECIES: SpeciesDef[] = [
     name: 'Robota',
     tier: 3,
     bias: ['skl'],
-    bands: [10, 20, 25, 25, 20],
+    bands: [1, 5, 18, 38, 38],
     heightRange: [186, 212],
     weightRange: [120, 170],
     desc: 'Factory-built baller: piston shins, a jumper machined to tolerance, a motor that never files a complaint.',
@@ -112,7 +112,7 @@ export const SPECIES: SpeciesDef[] = [
     name: 'Oculid',
     tier: 2,
     bias: ['brn'],
-    bands: [10, 20, 25, 25, 20],
+    bands: [1, 5, 18, 38, 38],
     heightRange: [152, 178],
     weightRange: [45, 75],
     desc: 'Four legs, four tiny high-tops, and eyes on stalks that see every pocket you dribble into.',
@@ -178,11 +178,10 @@ export const DEITY_NAMES = [
 ];
 
 // ---- THE SPEECH --------------------------------------------------------------
-// The tactics wheel is DEAD. A speech is a rousing gamble: a small chance the
-// room IGNITES (everyone plays +amt in that attribute tonight), a smaller
-// chance somebody stops believing (their mood craters). Four standard
-// speeches, one per attribute; premium speeches with better odds live in
-// stories.
+// A speech is a SHIFT, never a gamble: the whole squad plays +gain in the
+// speech's attribute tonight and −loss in its OPPOSITE (SKILL ↔ ATHLETICISM,
+// BRAINS ↔ FIERCENESS). Four standard speeches, one per attribute; premium
+// speeches (found in stories) trade better and recharge.
 
 export interface PlanDef {
   id: PlanId;
@@ -190,35 +189,28 @@ export interface PlanDef {
   /** the coach's words */
   speech: string;
   attr: Attr;
-  /** % the words WORK at all (+work range) */
-  workPct: number;
-  /** squad +min..max in the attr when they work */
-  work: [number, number];
-  /** % the room IGNITES (breaks the joint down) */
-  up: number;
-  /** the ignition amount */
-  boost: number;
-  /** % one player stops believing (mood −25) */
-  down: number;
+  /** the attribute the speech TAKES from */
+  off: Attr;
+  /** squad +min..max in attr tonight */
+  gain: [number, number];
+  /** squad −min..max in the opposite tonight */
+  loss: [number, number];
   fantasy: string;
   premium?: boolean;
   /** premium finds recharge: weeks before this speech can be given again */
   cooldown?: number;
 }
 
-// THE HAPPY MEDIUM: cheap standard speeches work ~30% of the time for a few
-// points and only RARELY break the joint down. Premium finds ignite far more
-// often and hit harder — but carry a cooldown.
 export const PLANS: PlanDef[] = [
-  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', attr: 'skl', workPct: 23, work: [1, 2], up: 7, boost: 3, down: 5, fantasy: 'Shooters shoot. Rise over anything they pack in.' },
-  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', attr: 'ath', workPct: 23, work: [1, 2], up: 7, boost: 3, down: 5, fantasy: 'Outrun everything. Seven seconds or less.' },
-  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', attr: 'frc', workPct: 23, work: [1, 2], up: 7, boost: 3, down: 5, fantasy: 'Full-court terror. Make them hate the ball.' },
-  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', attr: 'brn', workPct: 23, work: [1, 2], up: 7, boost: 3, down: 5, fantasy: 'The system. Every cut scripted.' },
-  // premium speeches — found in stories: big ignition odds, 3-week recharge
-  { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', attr: 'frc', workPct: 25, work: [2, 3], up: 25, boost: 4, down: 3, fantasy: 'An old Quadran battle chant. The paint peels.', premium: true, cooldown: 3 },
-  { id: 'zenmind', name: 'THE STILL POND', speech: 'BE THE STILL POND', attr: 'brn', workPct: 25, work: [2, 3], up: 25, boost: 4, down: 2, fantasy: 'The oracle taught you this one. The gym goes quiet inside.', premium: true, cooldown: 3 },
-  { id: 'stardust', name: 'STARDUST', speech: 'BE UNGUARDABLE', attr: 'skl', workPct: 25, work: [2, 3], up: 25, boost: 4, down: 3, fantasy: 'A retired Nimbus legend whispered it once. Nets have feared it since.', premium: true, cooldown: 3 },
-  { id: 'engine', name: 'THE ENGINE', speech: 'LEGS ARE A LIE', attr: 'ath', workPct: 25, work: [2, 3], up: 25, boost: 4, down: 3, fantasy: 'A Robota conditioning mantra. The floor gets smaller for everyone else.', premium: true, cooldown: 3 },
+  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', attr: 'skl', off: 'ath', gain: [3, 4], loss: [3, 4], fantasy: 'Shooters shoot. Rise over anything they pack in — and forget about running.' },
+  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', attr: 'ath', off: 'skl', gain: [3, 4], loss: [3, 4], fantasy: 'Outrun everything. Seven seconds or less. Nobody said anything about making shots.' },
+  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', attr: 'frc', off: 'brn', gain: [3, 4], loss: [3, 4], fantasy: 'Full-court terror. Make them hate the ball. Thinking is for the bus ride home.' },
+  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', attr: 'brn', off: 'frc', gain: [3, 4], loss: [3, 4], fantasy: 'The system. Every cut scripted. Nobody gets angry, nobody gets a steal.' },
+  // premium speeches — found in stories: a better trade, 3-week recharge
+  { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', attr: 'frc', off: 'brn', gain: [5, 6], loss: [2, 3], fantasy: 'An old Quadran battle chant. The paint peels.', premium: true, cooldown: 3 },
+  { id: 'zenmind', name: 'THE STILL POND', speech: 'BE THE STILL POND', attr: 'brn', off: 'frc', gain: [5, 6], loss: [2, 3], fantasy: 'The oracle taught you this one. The gym goes quiet inside.', premium: true, cooldown: 3 },
+  { id: 'stardust', name: 'STARDUST', speech: 'BE UNGUARDABLE', attr: 'skl', off: 'ath', gain: [5, 6], loss: [2, 3], fantasy: 'A retired Nimbus legend whispered it once. Nets have feared it since.', premium: true, cooldown: 3 },
+  { id: 'engine', name: 'THE ENGINE', speech: 'LEGS ARE A LIE', attr: 'ath', off: 'skl', gain: [5, 6], loss: [2, 3], fantasy: 'A Robota conditioning mantra. The floor gets smaller for everyone else.', premium: true, cooldown: 3 },
 ];
 
 export function planById(id: PlanId): PlanDef {
@@ -276,6 +268,14 @@ export function instrById(id: string): InstrDef {
 }
 
 export const STARTING_INSTRUCTIONS = ['counter'];
+
+/** THE BIG BANG: eight champions, one universe (the old "Universal
+    Tournament" — the galaxy's Big Dance). */
+export const TOURNEY = {
+  name: 'THE BIG BANG',
+  short: 'BIG BANG',
+  rounds: ['THE FIRST ROUND', 'THE SEMIFINAL', 'THE BIG BANG FINAL'],
+};
 
 export const ATTR_LABEL: Record<Attr, string> = {
   skl: 'SKILL', ath: 'ATHLETICISM', frc: 'FIERCENESS', brn: 'BRAINS',
@@ -1456,48 +1456,58 @@ export const STORIES: StoryDef[] = [
       return { text: 'It simmers, then settles. Mostly.', fx: [{ teamMood: -3 }] };
     },
   },
-  // ---- THE FROZEN ONE: live in the reserves long enough and it becomes a story
+  // ---- THE FROZEN ONE: he knocks at PLAY, not on a Monday --------------------
+  // Every player has a PATIENCE (2–6 games in street clothes). Cross it and he
+  // meets you at the locker room door with tip-off minutes away. Say he's
+  // right and the lineup is yours again — put him on the floor or eat a
+  // broken promise after the game (double mad). Put him on and the one HE
+  // displaced can hold it against you after the game instead.
   {
     id: 'frozen',
     kind: 'player',
     context: 'mood',
     beat: (b, ctx) => {
       const p = pname(ctx);
-      if (b === 'promise_check') {
-        const played = (ctx.player?.dnp ?? 1) === 0;
-        ctx.data.played = played;
-        return played
-          ? { tag: 'THE FROZEN ONE', text: `${p} checked in last game — real minutes, real sweat. In the locker room he nods at you once. Promises kept are rare currency out here.` }
-          : { tag: 'THE FROZEN ONE', text: `You promised ${p} minutes. The games came and went, and he watched every one of them from the same seat.\n\nThe whole locker room did the math with him.` };
+      if (b === 'broken') {
+        return { tag: 'THE FROZEN ONE', text: `"You said I'd play tonight." ${p} is standing in the tunnel in a warm-up jacket that never came off.\n\nHe doesn't slam anything. That's the worst part.` };
+      }
+      if (b === 'kept') {
+        return { tag: 'THE FROZEN ONE', text: `${p} checked in tonight — real minutes, real sweat. In the locker room he nods at you once.\n\nPromises kept are rare currency out here.` };
+      }
+      if (b === 'unfair') {
+        const who = (ctx.data.who as string) ?? 'the kid';
+        return { tag: 'LOCKER ROOM', text: `${p} corners you after the game. "So ${who} complains, and ${who} plays? What do the rest of us have to do — cry?"\n\nA few heads turn. They heard it too.` };
       }
       const games = (ctx.data.games as number) ?? 4;
       return {
         tag: 'THE FROZEN ONE',
-        text: `${p} hasn't left the bench in ${games} straight games. Today he's at your door with his practice tape and a look you remember from your own playing days.`,
+        text: `Tip-off is in twenty minutes and ${p} is at the locker room door with his warm-ups still on. "Coach. ${games} games. I haven't played in ${games} games."\n\nThe whole room pretends not to listen.`,
         choices: [
-          C('promise', 'PROMISE HIM REAL MINUTES', { up: { pct: 25, cls: 'SPIRIT' }, down: { pct: 25, cls: 'DRAMA', note: 'keep it, or else' }, want: 'love' }),
-          C('earn', '"EARN IT IN PRACTICE."', { up: { pct: 10, cls: 'BREAKTHROUGH' }, down: { pct: 25, cls: 'DRAMA' }, want: 'hate' }),
+          C('promise', "YOU'RE RIGHT — YOU PLAY TONIGHT", { up: { pct: 25, cls: 'SPIRIT' }, down: { pct: 25, cls: 'DRAMA', note: 'now put him on the floor' }, want: 'love' }),
+          C('earn', '"EARN IT. NOT TONIGHT."', { up: { pct: 5, cls: 'BREAKTHROUGH' }, down: { pct: 25, cls: 'DRAMA' }, want: 'hate' }),
         ],
       };
     },
     resolve: (key, ctx, ev) => {
       const p = ctx.player!;
-      if (ev.beat === 'promise_check') {
-        const played = ctx.data.played === true || p.dnp === 0;
-        if (played) return { text: `Word gets around: this coach means what he says.`, fx: [{ mood: 10, teamMood: 2 }] };
-        return { text: `${p.name} doesn't slam anything. That's the worst part.`, fx: [{ mood: -16 }, { teamMood: -4 }] };
-      }
+      const s = ctx.s;
+      if (ev.beat === 'broken') return { text: `${p.name} watched from the same seat, again. Whatever you tell him next, he has already decided what it's worth.`, fx: [{ mood: -30 }, { teamMood: -3 }] };
+      if (ev.beat === 'kept') return { text: 'Word gets around: this coach means what he says.', fx: [{ mood: 8, teamMood: 2 }] };
+      if (ev.beat === 'unfair') return { text: 'You tell him minutes are earned. He says "apparently not." The room files it away.', fx: [{ mood: -12 }] };
       if (key === 'promise') {
+        // the lineup screen is yours again — the floor as it stands NOW is
+        // remembered, so whoever he bumps can take it personally later
+        const floor = s.teams[s.myTeamId].lineup.slots.slice(0, 6).filter((x): x is number => x !== null);
+        s.promise = { playerId: p.id, floor, week: s.week };
         return {
-          text: `${p.name} nods slowly. "Okay, coach." Now the only thing left is to actually do it.`,
-          fx: [{ mood: 6, tense: true }],
-          follow: [{ weeks: 2, beat: 'promise_check' }],
+          text: `"Okay, coach." ${p.name} is already stretching.\n\nNow get him on the floor — the lineup is still yours to set.`,
+          fx: [{ mood: 8, tense: true }],
         };
       }
-      const t = tails(10, 25);
-      if (t === 'up') return { text: `${p.name} takes it personally — in the useful way. For a week he practices like the gym owes him money.`, fx: [{ mood: -3, xp: 15 }] };
-      if (t === 'down') return { text: `${p.name} takes it personally. His warm-ups get quieter and his eyes stop finding yours.`, fx: [{ mood: -12 }] };
-      return { text: `${p.name} says nothing and goes back to work. The look stays.`, fx: [{ mood: -7 }] };
+      // earn it: tip-off resumes the moment this closes
+      s.resumePlay = true;
+      if (roll(5)) return { text: `${p.name} takes it personally — in the useful way. He'll practice like the gym owes him money.`, fx: [{ mood: -4, xp: 15 }] };
+      return { text: `${p.name} nods once, the way people nod when they've stopped listening. Tip-off.`, fx: [{ mood: -14 }] };
     },
   },
   {
@@ -2758,7 +2768,7 @@ export const STORIES: StoryDef[] = [
       }
       const t = tails(10, 5);
       if (t === 'up') return { text: `You follow his colony league box scores like scripture. He's happy out there. You frame the blurry clip.`, fx: [{ legacy: 1 }] };
-      if (t === 'down') return { text: `Next season's Universal Tournament scouting report will include a familiar name on an unfamiliar roster. He remembers everything, including whose fault it was.`, fx: [] };
+      if (t === 'down') return { text: `Next season's BIG BANG scouting report will include a familiar name on an unfamiliar roster. He remembers everything, including whose fault it was.`, fx: [] };
       return { text: `He's out there, stronger than ever, writing his own story. Some debts pay themselves forward.`, fx: [] };
     },
   },
@@ -2845,29 +2855,29 @@ export const STORIES: StoryDef[] = [
 // one-time explainers from the assistant coach (shown once, then never again)
 export const TIPS: Record<string, string> = {
   tryouts:
-    "First practice, coach. Six players from last year's squad, a gym full of hopefuls, one clipboard: yours.\n\nThe top three rows are your squad — starters, bench, reserves. The bottom row is the door. Drag players between the rows; whoever is in the bottom row when you confirm is gone forever.",
+    "First practice, coach. Six players from last year's squad, a gym full of hopefuls, one clipboard: yours.\n\nThe top three rows are your squad — starters, bench, reserves. The bottom row is the door. Drag players between the rows; whoever is in the bottom row when you confirm is gone forever. The letter on every card is what he's worth IN THAT SLOT — move him and it changes.",
   practice:
-    "Practice is mandatory, coach — pick something and HOLD RUN. TEAM REST costs nothing (mostly harmless).\n\nThree families: TRAIN earns XP (levels bank +2 points YOU place), SHARPEN hammers direct points into attributes, RECOVER gets meters back. Anyone under 40 energy sits out automatically. Every option prints its odds. They never lie.",
+    "Practice is mandatory, coach — pick something and HOLD RUN. TEAM REST costs nothing (mostly harmless).\n\nThree families: TRAIN earns XP (levels bank +2 points YOU place), SHARPEN hammers direct points into attributes, RECOVER gets meters back. Anyone under 40 energy sits out automatically. Every option shows its two tails — how good it can go, how bad. Read the language. The odds are yours to learn.",
   lenses:
-    "One squad, three lenses: ROSTER is who they are right now (energy left, mood right), STATS is what they've done this season, ABILITIES is the compass — where they point and how far the ceiling goes.\n\nSame nine faces in the same nine places — only the question changes.",
+    "One squad, three lenses: ROSTER is who they are right now (energy left, mood right, the grade for the slot they stand in), STATS is what they've done this season, ABILITIES is the compass — where they point and how far the ceiling goes.\n\nSame nine faces in the same nine places — only the question changes.",
   scouting:
     "SCOUTING first, coach: either SEARCH the galaxy for new talent (regions shift WHO you find, never how good) or read THE BIG BOARD — one move a week, and it reads the rows: cheap touches all nine lightly, dear goes deep on the TARGETS alone. A full board means somebody gets discarded FOREVER.\n\nBroke? The local rec center is free. Terrans only. Kids notice where you go looking.",
   recruiting:
-    "RECRUITING is its own stop now. Work the board YOURSELF — safe, modest, sincere — or take the BOOSTER'S HELP: care packages, skybox weekends, duffel bags. Huge swings, printed scandal odds, and when it blows up his name is on it. Mostly.\n\nThe bottom row can tell it's the bottom row. Kids notice silence twice as fast down there.",
+    "RECRUITING is its own stop now. Work the board YOURSELF — safe, modest, sincere — or take the BOOSTER'S HELP: care packages, skybox weekends, duffel bags. Huge swings, scandal in the tail, and when it blows up his name is on it. Mostly.\n\nThe bottom row can tell it's the bottom row. Kids notice silence twice as fast down there.",
   matchup:
-    "One pregame move, coach: a rousing SPEECH (small chance the room IGNITES, smaller chance a believer stops believing) or LAST-MINUTE INSTRUCTIONS — you play the tape and call their set. Call it right and their game dies a little tonight. Get READ, and yours does.\n\nBetter speeches and stranger instructions exist. The galaxy hands them out in stories.\n\nTheir numbers sit right next to yours — tune the lineup until the ropes lean your way.",
+    "One pregame move, coach: a SPEECH or LAST-MINUTE INSTRUCTIONS. A speech is a trade, guaranteed — play with BRAINS and the whole squad gives up FIERCENESS tonight; SKILL costs ATHLETICISM; and back the other way. Instructions play the tape instead: call their set right and their game dies a little; get READ, and yours does.\n\nBetter speeches and stranger instructions exist. The galaxy hands them out in stories.\n\nTheir numbers sit right next to yours — tune the lineup until the bars lean your way. Every card's letter is what he's worth where he stands: BRAINS run the backcourt, ATHLETICISM holds the frontcourt, the wing takes anyone.",
   signing:
-    "Signing day math, coach: send ONE letter and you keep the full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.",
+    "Signing day math, coach: send ONE letter and you keep the full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.\n\nThen each kid answers, one by one — and you finally see exactly what you were chasing.",
   bag:
-    "That's THE BAG — two rows at the bottom of your screen, always under your thumb, with THE NOTEBOOK standing tall on the left. Every item is a bargain with printed odds. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. Player items drag straight onto a player's card.\n\nEight slots is the LAW — every find is offered first: take it or leave it. A full bag still watches things walk away.",
+    "That's THE BAG — two rows at the bottom of your screen, always under your thumb, with THE NOTEBOOK standing tall on the left. Every item is a bargain with two tails. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. Player items drag straight onto a player's card.\n\nEight slots is the LAW — every find is offered first: take it or leave it. A full bag still watches things walk away.",
   grid:
-    "The grid is your lineup, always: top row starts, middle row comes off the bench, bottom row watches. Hold and drag to rearrange — any screen, any time.\n\nColumns matter: BACKCOURT left, FRONTCOURT right. It's positionless out here, but put a wall in the backcourt or a waterbug in the frontcourt and the card will say MISCAST — and mean it. When someone goes down, he sinks to the bottom of his column and the column steps up.",
+    "The grid is your lineup, always: top row starts, middle row comes off the bench, bottom row watches. Hold and drag to rearrange — any screen, any time.\n\nColumns matter: the BACKCOURT reads BRAINS and shrugs at muscle, the FRONTCOURT reads ATHLETICISM and shrugs at thinking, the WING reads everything evenly. Small bodies left, big bodies right. Every card's letter is what he's worth exactly where he stands. When someone goes down, he sinks to the bottom of his column and the column steps up.",
   stories:
-    "The week opens with whatever the galaxy throws at you. Every choice prints its two tails — the chance it goes wrong, the chance it goes wonderful. The numbers never lie. The people sometimes do.",
+    "The week opens with whatever the galaxy throws at you. Every choice shows its two tails — how wonderful it can go, how wrong. The words tell you which way it leans. The people sometimes lie; the tails never do.",
   gamenight:
-    "A game EMPTIES people, coach — the whole night runs on the lineup and the one speech you gave it. The final horn shows every line, every tank, every mood — XP banks Monday, at WEEK START, and the recovery bump SHRINKS with every consecutive start.\n\nThe table: the top two board the shuttle to the Universal Tournament.\n\nOne more thing: drop 25 points and a player catches FIRE — everything they have plays +20% until they cool off (under 12 points, or a night without minutes).",
+    "A game EMPTIES people, coach — the whole night runs on the lineup and the one speech you gave it. The final horn shows every line, every tank, every mood — XP banks Monday, at WEEK START, and the recovery bump SHRINKS with every consecutive start.\n\nThe table: the top two board the shuttle to THE BIG BANG — eight champions, one universe.\n\nOne more thing: drop 25 points and a player catches FIRE — everything they have plays +20% until they cool off (under 12 points, or a night without minutes).",
   departures:
-    "Season's over, coach. Seniors walk, stars flirt with the pros — one conversation each, odds printed as always. And every offseason the question waits at the bottom: walk away with your legacy, or go again.",
+    "Season's over, coach. Seniors walk, stars flirt with the pros — one conversation each, the wheel decides. And every offseason the question waits at the bottom: walk away with your legacy, or go again.",
 };
 
 // THE TRAVEL LAW: every trip opens on the vehicle speeding through space with
@@ -2978,6 +2988,115 @@ STORIES.push({
     }
     return { text: 'Practice that week is QUIET. Some cuts cut back.', fx: [{ teamMood: -6 }] };
   },
+});
+
+// SIGNING DAY, one name at a time: the holo-line rings, the wheel decides,
+// and the card shows the whole truth for the first time — signed or not
+STORIES.push({
+  id: 'signing_verdict',
+  kind: 'coach',
+  beat: (_b, ctx) => {
+    const name = (ctx.data.name as string) ?? 'The kid';
+    const commit = ctx.data.commit === true;
+    const missed = (ctx.data.pct as number) ?? 0;
+    const line = commit
+      ? pick([
+          `${name} COMMITS. He announces it by skywriting over your stadium — the spelling is mostly right.`,
+          `${name} COMMITS. "Where do I sign," he says, already signing.`,
+          `${name} COMMITS. His mother cries. Your assistant cries. The holo-line cuts out mid-cry.`,
+        ])
+      : missed <= 0
+        ? `${name} never picks up. The letter, it turns out, arrived with four others — his holo-agent says the pile was "insulting."`
+        : pick([
+            `${name} signs elsewhere. His holo-agent says it "wasn't personal." It was a little personal.`,
+            `${name} goes with the other program — the one with the pool. You don't have a pool.`,
+            `${name} says thank you, sincerely, and then says no, sincerely.`,
+          ]);
+    return { tag: 'SIGNING DAY', text: `${name}'s holo-line rings. The whole staff leans in…\n\n${line}` };
+  },
+  resolve: () => ({ text: '' }),
+});
+
+// ---- THE BIG BANG: the moments that deserve confetti (or a long walk) --------
+STORIES.push({
+  id: 'bigbang_invite',
+  kind: 'coach',
+  beat: (_b, ctx) => {
+    const place = (ctx.data.place as number) ?? 1;
+    const rec = (ctx.data.record as string) ?? '';
+    return {
+      tag: `★ ${TOURNEY.name} ★`,
+      text: place === 1
+        ? `The final standings post and the gym goes SILENT for one full second before it explodes.\n\nCONFERENCE CHAMPIONS (${rec}). The invitation to ${TOURNEY.name} lands on your desk with a sonic boom. Eight champions. One universe. You are one of the eight.`
+        : `The final standings post: second place (${rec}). The room holds its breath — and then the holo-line rings.\n\nTHE SECOND SHUTTLE IS YOURS. ${TOURNEY.name}: eight champions, one universe. You are one of the eight. Pack light.`,
+    };
+  },
+  resolve: () => ({ text: '', fx: [{ teamMood: 10 }] }),
+});
+
+STORIES.push({
+  id: 'bigbang_round',
+  kind: 'coach',
+  beat: (_b, ctx) => {
+    const round = (ctx.data.round as number) ?? 0;
+    const opp = (ctx.data.opp as string) ?? 'a champion';
+    const gimmick = (ctx.data.gimmick as string) ?? '';
+    const plan = (ctx.data.plan as string) ?? '';
+    const heads = [
+      `Eight champions arrived. The bracket is posted on a wall the size of a moon, and your name is on it.\n\nFIRST ROUND: ${opp}. "${gimmick}" — that's the word from three systems over. The scout's read: they live in ${plan}. Win or go home.`,
+      `You're THROUGH. Four teams left in the whole universe, and one of them is yours.\n\nTHE SEMIFINAL: ${opp}. "${gimmick}" — the scout couldn't stop talking about them. They live in ${plan}. Win or go home.`,
+      `Two teams left. TWO. Every screen in the galaxy is tuned to one court, and you're walking out onto it.\n\n${TOURNEY.rounds[2]}: ${opp}. "${gimmick}." They live in ${plan}. Forty minutes from forever.`,
+    ];
+    return { tag: TOURNEY.rounds[round] ?? TOURNEY.name, text: heads[round] ?? heads[0] };
+  },
+  resolve: () => ({ text: '' }),
+});
+
+STORIES.push({
+  id: 'bigbang_out',
+  kind: 'coach',
+  beat: (_b, ctx) => {
+    const round = (ctx.data.round as number) ?? 0;
+    const opp = (ctx.data.opp as string) ?? 'the champions';
+    const score = (ctx.data.score as string) ?? '';
+    const lines = [
+      `The horn. ${opp} ${score}. The first round is where most dreams go, and yours went there too.\n\nThe bus home is quiet in the way buses are quiet when nobody wants to be the first to say it was still a great season.`,
+      `The horn. ${opp} ${score}. A semifinal. Four teams left in the universe and you were one of them.\n\nThe seniors sit on the floor of the locker room for a long time. Nobody tells them to get up.`,
+      `The horn. ${opp} ${score}. One game from forever.\n\nThe confetti falls for somebody else. You watch every piece of it land. Next year, you tell the room. Next year, the room tells you back.`,
+    ];
+    return { tag: 'ELIMINATED', text: lines[round] ?? lines[0] };
+  },
+  resolve: () => ({ text: '', fx: [{ teamMood: -4 }] }),
+});
+
+STORIES.push({
+  id: 'bigbang_champs',
+  kind: 'coach',
+  beat: (_b, ctx) => {
+    const opp = (ctx.data.opp as string) ?? 'the last champion standing';
+    const score = (ctx.data.score as string) ?? '';
+    return {
+      tag: '★★★ CHAMPIONS OF THE UNIVERSE ★★★',
+      text: `The horn. ${opp} ${score}.\n\nYOU WON ${TOURNEY.name}. You cut the net in zero gravity. The confetti simply never lands. Somewhere a booster is buying a planet. Somewhere the dean is crying into a spreadsheet. The banner will hang in that gym until the sun goes out.`,
+    };
+  },
+  resolve: () => ({ text: '', fx: [{ teamMood: 20 }] }),
+});
+
+STORIES.push({
+  id: 'season_over',
+  kind: 'coach',
+  figure: 'dean',
+  beat: (_b, ctx) => {
+    const place = (ctx.data.place as number) ?? 3;
+    const rec = (ctx.data.record as string) ?? '';
+    const ord = `${place}${['', 'st', 'nd', 'rd'][place] ?? 'th'}`;
+    return {
+      tag: 'SEASON OVER',
+      text: `The final standings post. ${ord} (${rec}).\n\nThe shuttle to ${TOURNEY.name} leaves without you. The dean watches it go from her office window, then watches you.`,
+    };
+  },
+  resolve: () => ({ text: '' }),
 });
 
 export function storyById(id: string): StoryDef {

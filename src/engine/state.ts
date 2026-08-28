@@ -7,6 +7,7 @@ import {
   ITEMS,
   SMALL_ITEMS,
   TIPS,
+  TOURNEY,
   VOYAGE_POOL,
   drillById,
   fragility,
@@ -24,6 +25,8 @@ import {
 import {
   BAG_SIZE,
   CACHE_MAX,
+  CONF_TIERS,
+  FOUNDER_TIER,
   LEVEL_CAP,
   MAX_PROSPECTS,
   METER_BASELINE,
@@ -34,8 +37,9 @@ import {
   SELECT_POOL_SIZE,
   ensureUniqueJerseys,
   genChamps,
-  genPlayer,
+  genPlayerAt,
   genProspect,
+  genRosterAt,
   genSchedule,
   genSpecial,
   genWalkOn,
@@ -48,10 +52,10 @@ import {
 import {
   autoLineup,
   benchPlayers,
+  floorAvg,
   matchAttrs,
   normalizeLineup,
   reserves,
-  restedPower,
   simAiGame,
   simMyGame,
   starters,
@@ -92,7 +96,18 @@ function takenNames(s: GameState): Set<string> {
 export function weekLabel(s: GameState): string {
   if (s.season === 0) return 'TRYOUTS';
   if (s.week <= REGULAR_WEEKS) return `WEEK ${s.week}/${REGULAR_WEEKS}`;
-  return ['THE QUARTERFINAL', 'THE SEMIFINAL', 'THE UNIVERSAL FINAL'][s.week - REGULAR_WEEKS - 1] ?? '';
+  return `WEEK ${REGULAR_WEEKS}+${s.week - REGULAR_WEEKS}`;
+}
+
+/** The header's short form: W3 · W10+1. */
+export function weekShort(s: GameState): string {
+  if (s.week <= REGULAR_WEEKS) return `W${s.week}`;
+  return `W${REGULAR_WEEKS}+${s.week - REGULAR_WEEKS}`;
+}
+
+/** THE BIG BANG round name for a tournament week. */
+export function utRoundName(s: GameState): string {
+  return TOURNEY.rounds[s.week - REGULAR_WEEKS - 1] ?? TOURNEY.name;
 }
 
 export function isUtWeek(s: GameState): boolean {
@@ -454,12 +469,20 @@ export function resolveStory(s: GameState, choiceKey: string): { resolved: Story
     if (tp) tp.tense = false;
   }
   // story consequences swing harder than item effects (items print exact numbers)
+  const before = s.queue.length;
   applyFx(s, res.fx, ev.playerId, !choice?.itemId);
   ev.resolvedText = genderize(res.text, rform);
   for (const f of res.follow ?? []) {
     s.futureBeats.push({ weeksLeft: f.weeks, defId: f.defId ?? ev.defId, beat: f.beat, playerId: f.playerId !== undefined ? f.playerId : ev.playerId, data: f.data });
   }
   if (res.next) queueStory(s, res.next.defId, res.next.beat, res.next.playerId !== undefined ? res.next.playerId : ev.playerId, res.next.data ?? {});
+  // NOTHING butts in: whatever this resolution spawned (the reveal card, the
+  // item offer, the next beat) plays right after THIS story — never behind
+  // some unrelated story that was already waiting
+  if (s.queue.length > before && s.queue[0] === ev) {
+    const spawned = s.queue.splice(before);
+    s.queue.splice(1, 0, ...spawned);
+  }
   save(s);
   return { resolved: ev, fx: res.fx ?? [] };
 }
@@ -472,6 +495,20 @@ export function dismissStory(s: GameState): void {
     maybeTip(s, isUtWeek(s) ? 'matchup' : 'scouting');
   }
   if (!s.queue.length && s.phase === 'gamenight' && !s.lastResult && !s.end) simWeek(s);
+  // the frozen one was told to earn it: the door closes and the ball goes up
+  if (!s.queue.length && s.phase === 'matchup' && s.resumePlay) {
+    s.resumePlay = false;
+    playGame(s);
+  }
+  save(s);
+}
+
+/** The horn's consequences (injuries, ON FIRE, the frozen one's verdict)
+    were held while the game played — release them once the score is seen. */
+export function releaseHeldStories(s: GameState): void {
+  if (!s.heldStories?.length) return;
+  s.queue.push(...s.heldStories);
+  s.heldStories = [];
   save(s);
 }
 
@@ -655,14 +692,14 @@ function startWeek(s: GameState): void {
 
   checkHotSeat(s, defer);
 
-  if (isUtWeek(s)) {
-    // tournament rounds are voyages: wheels up before the scouting report
+  if (isUtWeek(s) && s.ut) {
+    // tournament rounds are voyages: wheels up, then the round's own beat —
+    // the pomp and the scouting report in one breath
     defer('travel_out', 'start', null);
     const champ = utOpponent(s);
     if (champ) {
-      defer('notice', 'start', null, {
-        tag: 'SCOUTING REPORT',
-        text: `${champ.name.toUpperCase()}\n\n"${champ.gimmick}" — that's the word from three systems over. The scout's read: they live in ${planById(champ.plan).name}. ${weekLabel(s)}. Win or go home.`,
+      defer('bigbang_round', 'start', null, {
+        round: s.ut.round, opp: champ.name.toUpperCase(), gimmick: champ.gimmick, plan: planById(champ.plan).name,
       });
     }
   } else {
@@ -1143,38 +1180,25 @@ export function confirmBoard(s: GameState): string[] {
 
 // ---- matchup ---------------------------------------------------------------------------
 
-/** THE SPEECH: mandatory, once, before tip-off — a rousing gamble that
-    carries the WHOLE game. ~30% the words WORK (squad +1–2 in the speech's
-    attribute), a sliver of that IGNITES the room, a small chance a believer
-    stops believing (mood −25). */
-function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx | null; text: string } {
+/** THE SPEECH: mandatory, once, before tip-off — and it is a TRADE, never a
+    gamble. The whole squad plays +gain in the speech's attribute tonight and
+    −loss in its opposite (SKILL ↔ ATHLETICISM · BRAINS ↔ FIERCENESS). */
+function rollSpeech(plan: PlanId): { fx: SpeechFx[]; text: string } {
   const pl = planById(plan);
-  const t = myTeam(s);
-  const r = Math.random() * 100;
+  const gain = pl.gain[0] + rand(pl.gain[1] - pl.gain[0] + 1);
+  const loss = pl.loss[0] + rand(pl.loss[1] - pl.loss[0] + 1);
   const A = pl.attr.toUpperCase();
-  if (r < pl.down) {
-    const pool = t.players.filter((p) => p.outWeeks === 0);
-    const p = pool.length ? pick(pool) : null;
-    if (p) {
-      p.mood = clamp(p.mood - 25, 0, 100);
-      return {
-        fx: null,
-        text: genderize(`"${pl.speech}," you say. ${p.name} looks at the floor. He's heard this one before, and tonight he doesn't believe a word of it. MOOD −25.`, p.form),
-      };
-    }
-    return { fx: null, text: `"${pl.speech}," you say, to a very quiet room.` };
-  }
-  if (r < pl.down + pl.up) {
-    return {
-      fx: { attr: pl.attr, amt: pl.boost },
-      text: `"${pl.speech}!" — and the room IGNITES. Chairs go over. Somebody headbutts a locker, affectionately. The whole squad plays +${pl.boost} ${A} tonight.`,
-    };
-  }
-  if (r < pl.down + pl.up + pl.workPct) {
-    const amt = pl.work[0] + rand(pl.work[1] - pl.work[0] + 1);
-    return { fx: { attr: pl.attr, amt }, text: `"${pl.speech}," you say. Nods. Slapped shoulders. The words LAND — squad +${amt} ${A} tonight.` };
-  }
-  return { fx: null, text: `"${pl.speech}," you say. The room hears you. The rest is on them.` };
+  const O = pl.off.toUpperCase();
+  const scenes = [
+    'Nods. Slapped shoulders. Somebody kicks a chair over, affectionately.',
+    'The room goes still, then loud. Chairs go over.',
+    'Every head comes up at once. You can hear the arena through the wall.',
+    'For a second nobody breathes. Then everybody does.',
+  ];
+  return {
+    fx: [{ attr: pl.attr, amt: gain }, { attr: pl.off, amt: -loss }],
+    text: `"${pl.speech}," you say. ${pick(scenes)}\n\nTonight the squad plays +${gain} ${A} — and gives up ${loss} ${O} to do it.`,
+  };
 }
 
 /** Weeks before this speech can be given again (premium finds recharge). */
@@ -1186,7 +1210,7 @@ export function deliverSpeech(s: GameState, plan: PlanId): string | null {
   if (s.pregameWk || !s.knownPlans.includes(plan) || speechCooldown(s, plan) > 0) return null;
   s.plan = plan;
   s.pregameWk = true;
-  const out = rollSpeech(s, plan);
+  const out = rollSpeech(plan);
   s.speechFx = out.fx;
   const cd = planById(plan).cooldown;
   if (cd) s.speechCooldowns = { ...(s.speechCooldowns ?? {}), [plan]: cd };
@@ -1235,7 +1259,7 @@ export function deliverInstructions(s: GameState, instrId: string): string | nul
       save(s);
       return 'The plan leaks before warmups end. No edge tonight, and the league office sends a one-line holo: "we saw that."';
     }
-    s.speechFx = { attr: myBest, amt: -it.selfAmt };
+    s.speechFx = [{ attr: myBest, amt: -it.selfAmt }];
     save(s);
     return `"${it.call}," you say. They knew. They KNEW — they baited the counter and your whole game plan folds around it. Your squad plays −${it.selfAmt} ${myBest.toUpperCase()} tonight.`;
   }
@@ -1340,13 +1364,42 @@ export function toMatchup(s: GameState): void {
   save(s);
 }
 
-/** PLAY (held). The game sims when the queue clears. */
-export function playGame(s: GameState): void {
-  if (!s.pregameWk) return; // no tip-off before the pregame move
+/** THE FROZEN ONE knocks at PLAY: a reserve past his patience (and not
+    already heard this stretch) meets you at the locker room door. */
+function frozenKnock(s: GameState): Player | null {
+  const me = myTeam(s);
+  const floor = new Set(me.lineup.slots.slice(0, 6).filter((x): x is number => x !== null));
+  const angry = me.players
+    .filter((p) => p.outWeeks === 0 && !floor.has(p.id))
+    .filter((p) => {
+      const patience = p.patience ?? 4;
+      return p.dnp >= patience && p.dnp >= (p.gripe ?? 0) + patience;
+    })
+    .sort((a, b) => b.dnp - (b.patience ?? 4) - (a.dnp - (a.patience ?? 4)));
+  return angry[0] ?? null;
+}
+
+/** PLAY (held). The frozen one may stop you at the door first (false = no
+    tip-off yet, the story has the floor); otherwise the game sims when the
+    queue clears. */
+export function playGame(s: GameState): boolean {
+  if (!s.pregameWk) return false; // no tip-off before the pregame move
+  if (s.phase === 'matchup' && !s.queue.length) {
+    const knock = frozenKnock(s);
+    if (knock) {
+      knock.gripe = knock.dnp;
+      queueStory(s, 'frozen', 'start', knock.id, { games: knock.dnp });
+      save(s);
+      return false;
+    }
+  }
+  const me = myTeam(s);
+  s.preGame = { wins: me.wins, losses: me.losses, rank: 1 + sortedStandings(s).findIndex((t) => t.id === s.myTeamId) };
   s.phase = 'gamenight';
   s.lastResult = null;
   if (!s.queue.length && !s.end) simWeek(s);
   save(s);
+  return true;
 }
 
 /** An AI roster living a game night the way mine does: floor players spend
@@ -1382,7 +1435,15 @@ function simWeek(s: GameState): void {
   const me = myTeam(s);
   normalizeLineup(me);
   lastLevelUps = [];
+  const held = s.queue.length; // whatever the horn spawns waits for the score
+  simWeekInner(s, me);
+  // NEVER mid-game: injuries, ON FIRE, the frozen one — all of it holds
+  // until YOU WON / YOU LOST has been seen
+  if (s.queue.length > held) s.heldStories = [...(s.heldStories ?? []), ...s.queue.splice(held)];
+  save(s);
+}
 
+function simWeekInner(s: GameState, me: Team): void {
   if (isUtWeek(s) && s.ut) {
     const champ = utOpponent(s);
     if (!champ) return;
@@ -1390,10 +1451,9 @@ function simWeek(s: GameState): void {
     s.lastResult = out.result;
     applyGameEffects(s, out.won);
     s.myResults = [...(s.myResults ?? []), { week: s.week, win: out.won, text: `${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}` }];
-    s.ut.log.push(`${weekLabel(s)}: ${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}`);
+    s.ut.log.push(`${weekShort(s)}: ${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}`);
     if (out.won) s.heatB = clamp(s.heatB - 6, 0, 100);
     else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
-    save(s);
     return;
   }
 
@@ -1433,7 +1493,6 @@ function simWeek(s: GameState): void {
       aiPostGame(g.loser, false);
     }
   }
-  save(s);
 }
 
 /** The whole night lands here ONCE, after the horn — the full-game energy
@@ -1460,7 +1519,7 @@ function applyGameEffects(s: GameState, won: boolean): void {
       const lowEnergy = midGame <= 30;
       p.energy = clamp(p.energy - (30 + rand(29)), 0, 100);
       p.mood = clamp(p.mood + (won ? 8 : -3), 0, 100);
-      xpGain = 10 + rand(5);
+      xpGain = 14 + rand(7);
       p.dnp = 0;
       p.startStreak = (p.startStreak ?? 0) + 1;
       if (roll(lowEnergy ? 25 : 4)) {
@@ -1475,20 +1534,40 @@ function applyGameEffects(s: GameState, won: boolean): void {
     } else if (bn.has(p.id) || played.has(p.id)) {
       p.energy = clamp(p.energy - (16 + rand(15)), 0, 100);
       p.mood = clamp(p.mood + (won ? 5 : -5), 0, 100);
-      xpGain = 5 + rand(4);
+      xpGain = 8 + rand(5);
       p.dnp = 0;
+      p.gripe = 0;
       p.startStreak = 0;
     } else {
-      // street clothes: a win barely reaches them, a loss festers
+      // street clothes: a win barely reaches them, a loss festers — and the
+      // freeze itself becomes THE FROZEN ONE at the next PLAY, once his
+      // patience runs out (he knocks at the door, not on a Monday)
       p.dnp++;
       p.startStreak = 0;
       p.mood = clamp(p.mood + (won ? 2 : -8) - (p.dnp >= 3 ? 6 : 3), 0, 100);
-      // a long freeze becomes a STORY: the frozen-out talk, then worse
-      if ((p.dnp === 4 && roll(50)) || (p.dnp >= 6 && p.dnp % 3 === 0)) {
-        queueStory(s, 'frozen', 'start', p.id, { games: p.dnp });
+    }
+    if (st.has(p.id)) p.gripe = 0;
+    s.postGame.push({ playerId: p.id, energyP: p.energy - pre.e, mood: p.mood - pre.m, xpGain });
+  }
+
+  // THE PROMISE: you told the frozen one he'd play tonight. Did he?
+  const promise = s.promise;
+  s.promise = null;
+  if (promise) {
+    const kid = me.players.find((p) => p.id === promise.playerId);
+    if (kid) {
+      const onFloor = st.has(kid.id) || bn.has(kid.id) || played.has(kid.id);
+      if (!onFloor) {
+        // double mad: the word was given, and the seat was the same seat
+        queueStory(s, 'frozen', 'broken', kid.id);
+      } else {
+        queueStory(s, 'frozen', 'kept', kid.id);
+        // the one HE displaced can hold it against you
+        const displaced = me.players.filter((p) => promise.floor.includes(p.id) && !st.has(p.id) && !bn.has(p.id) && p.outWeeks === 0);
+        const grump = displaced.length ? pick(displaced) : roll(35) ? pick(me.players.filter((p) => p.id !== kid.id && p.outWeeks === 0)) : null;
+        if (grump && roll(displaced.length ? 60 : 35)) queueStory(s, 'frozen', 'unfair', grump.id, { who: kid.name });
       }
     }
-    s.postGame.push({ playerId: p.id, energyP: p.energy - pre.e, mood: p.mood - pre.m, xpGain });
   }
 
   // ON FIRE (printed rule): 25+ points lights a man up — everything he has
@@ -1519,54 +1598,60 @@ function applyGameEffects(s: GameState, won: boolean): void {
 
 export function continueFromResult(s: GameState): void {
   if (s.end) return;
+  s.preGame = null;
   if (isUtWeek(s) && s.ut) {
     const wonRound = s.lastResult?.win ?? false;
-    if (!wonRound) { endSeason(s, null); return; }
+    const champ = utOpponent(s);
+    const score = s.lastResult ? `${s.lastResult.myScore}–${s.lastResult.oppScore}` : '';
+    if (!wonRound) {
+      queueStory(s, 'bigbang_out', 'start', null, { round: s.ut.round, opp: champ?.name ?? 'the champions', score });
+      endSeason(s, null);
+      return;
+    }
     if (s.ut.round >= 2) {
-      // THE UNIVERSAL TITLE
+      // CHAMPIONS OF THE UNIVERSE
       s.utTitles++;
       s.trophies++;
       s.legacy += 10;
-      s.careerLog.push(`Season ${s.season}: WON THE UNIVERSAL TOURNAMENT.`);
+      s.careerLog.push(`Season ${s.season}: WON ${TOURNEY.name}.`);
+      queueStory(s, 'bigbang_champs', 'start', null, { opp: champ?.name ?? 'the last champion', score, fete: true });
       const legendaries = ITEMS.filter((i) => i.rarity === 'legendary');
       giveItem(s, pick(legendaries).id);
       endSeason(s, 'You cut the net in zero gravity. The confetti simply never lands.');
       return;
     }
     s.ut.round++;
-    // the other champions play each other; a stronger one awaits
-    s.ut.myNextOpp = clamp(s.ut.myNextOpp + 1 + rand(2), 0, s.ut.champs.length - 1);
+    // the bracket climbs THE SLIDE: a semifinal-tier champion, then the final's
+    s.ut.myNextOpp = s.ut.round === 1 ? 4 + rand(2) : 6;
     s.week++;
     startWeek(s);
     return;
   }
   if (s.week >= REGULAR_WEEKS) {
-    // the TOP TWO board the shuttle to the Universal Tournament — the crown
-    // still belongs to first place alone
+    // the TOP TWO board the shuttle to THE BIG BANG — the crown still belongs
+    // to first place alone
     const table = sortedStandings(s);
     const place = table.findIndex((x) => x.id === s.myTeamId) + 1;
+    const me = myTeam(s);
+    const rec = `${me.wins}–${me.losses}`;
     if (place <= 2) {
-      const me = myTeam(s);
       if (place === 1) {
         s.legacy += 3;
         s.trophies++;
-        s.careerLog.push(`Season ${s.season}: won the conference (${me.wins}–${me.losses}).`);
+        s.careerLog.push(`Season ${s.season}: won the conference (${rec}).`);
       } else {
         s.legacy += 1;
-        s.careerLog.push(`Season ${s.season}: runner-up (${me.wins}–${me.losses}) — took the second shuttle to the Universal Tournament.`);
+        s.careerLog.push(`Season ${s.season}: runner-up (${rec}) — took the second shuttle to ${TOURNEY.name}.`);
       }
-      // THE CAREER ARC: every piece of knowledge you've earned makes the
-      // tournament a little more winnable; every banner already hung makes
-      // the field hunt you harder. A rookie coach needs a miracle. A wise
-      // one hits streaks. A champion gets everyone's best punch.
-      const knowledge = Math.max(0, s.unlockedDrills.length + s.knownPlans.length + (s.knownInstr ?? []).length + s.unlockedRegions.length - 14);
-      const edge = Math.min(0.12, knowledge * 0.015);
-      const hunted = Math.min(3, s.utTitles) * 0.045;
-      s.ut = { round: 0, champs: genChamps(restedPower(me), s.season, 1 - edge + hunted), myNextOpp: 0, log: [] };
+      // the field is FIXED on the slide (65–75 · 70–80 · 75–85): you don't get
+      // a bracket sized to you, you climb to the bracket
+      s.ut = { round: 0, champs: genChamps(), myNextOpp: rand(4), log: [] };
+      queueStory(s, 'bigbang_invite', 'start', null, { place, record: rec, fete: true });
       s.week++;
       startWeek(s);
       return;
     }
+    queueStory(s, 'season_over', 'start', null, { place, record: rec });
     endSeason(s, null);
     return;
   }
@@ -1590,13 +1675,13 @@ function endSeason(s: GameState, utNote: string | null): void {
   s.seasonNotes = [];
   if (utNote) s.seasonNotes.push(utNote);
   if (s.ut && !utNote) {
-    s.seasonNotes.push(`The Universal Tournament run ends: ${s.ut.log.join(' · ')}.`);
+    s.seasonNotes.push(`${TOURNEY.name} run: ${s.ut.log.join(' · ')}.`);
     s.legacy += s.ut.round * 2;
   }
   s.seasonNotes.push(
     place === 1
       ? `You finished FIRST (${t.wins}–${t.losses}).`
-      : `You finished ${place}${['','st','nd','rd'][place] ?? 'th'} (${t.wins}–${t.losses}). Only the top two board the shuttle to the Universal Tournament. The boosters know that too.`
+      : `You finished ${place}${['','st','nd','rd'][place] ?? 'th'} (${t.wins}–${t.losses}). Only the top two board the shuttle to ${TOURNEY.name}. The boosters know that too.`
   );
   if (!s.ut && place > 1) s.careerLog.push(`Season ${s.season}: finished ${place}.`);
   s.ut = null;
@@ -1624,9 +1709,13 @@ function endSeason(s: GameState, utNote: string | null): void {
     });
   }
 
-  // AI teams roll over
+  // AI teams roll over — and THE SLIDE reshuffles: which program is the
+  // conference's best changes every summer, the ladder itself never does
+  const tiers = [...CONF_TIERS].sort(() => Math.random() - 0.5);
+  let ti = 0;
   for (const team of s.teams) {
     if (team.id === s.myTeamId) continue;
+    const target = tiers[ti++] - 2 + rand(5);
     team.players = team.players.filter((p) => p.classYear < 3 && ovr(p.attrs) < PRO_OVR);
     for (const p of team.players) {
       p.classYear++;
@@ -1637,15 +1726,13 @@ function endSeason(s: GameState, utNote: string | null): void {
     }
     const counter = { nextId: s.nextId };
     const names = takenNames(s);
-    // the other programs refill with playable transfer bodies (any class,
-    // best-of-two rolls a band down) — better than walk-ons, worse than a
-    // recruiting class you actually worked for
+    // the other programs refill with transfer bodies built to their tier
     while (team.players.length < ROSTER_SIZE) {
-      team.players.push(genPlayer(counter, -1, rand(4), undefined, names, 1, 1));
+      team.players.push(genPlayerAt(counter, target - 6 + rand(13), rand(4), undefined, names));
     }
     s.nextId = counter.nextId;
     ensureUniqueJerseys(team.players);
-    autoLineup(team);
+    settleTier(team, target);
   }
 
   s.heatS = clamp(s.heatS - 5, 0, 100);
@@ -1731,17 +1818,24 @@ export function effectiveChances(s: GameState): { prospect: Prospect; pct: numbe
 }
 
 export function resolveSigning(s: GameState): void {
+  // one holo-call per name: the wheel decides, the card shows the whole
+  // truth for the first time — signed or not
   for (const { prospect, pct } of effectiveChances(s)) {
-    if (Math.random() * 100 < pct) {
+    const commit = Math.random() * 100 < pct;
+    if (commit) {
       s.commits.push(prospectToPlayer(prospect));
-      s.signingResults.push(genderize(`✓ ${prospect.name} COMMITS! (${pct}% held) He announces it by skywriting over your stadium.`, prospect.form));
+      s.signingResults.push(`✓ ${prospect.name} commits`);
     } else {
-      s.signingResults.push(genderize(`✗ ${prospect.name} signs elsewhere (${pct}% missed). His holo-agent says it "wasn't personal." It was a little personal.`, prospect.form));
+      s.signingResults.push(`✗ ${prospect.name} signs elsewhere`);
     }
+    queueStory(s, 'signing_verdict', 'start', null, {
+      prospectId: prospect.id, name: prospect.name, commit, pct, wheel: true, alumForm: prospect.form,
+    });
   }
-  if (!s.signingResults.length) s.signingResults.push('You pursued nobody. The recruiting trail is quiet. Too quiet.');
-  // the verdicts get their OWN dialogue box
-  queueStory(s, 'notice', 'start', null, { tag: 'SIGNING DAY', text: s.signingResults.join('\n') });
+  if (!s.signingResults.length) {
+    s.signingResults.push('You pursued nobody.');
+    queueStory(s, 'notice', 'start', null, { tag: 'SIGNING DAY', text: 'You pursued nobody. The recruiting trail is quiet. Too quiet.' });
+  }
 
   // THE SUMMER: the returners develop BEFORE you pick — and it shows ON the
   // selection grid (old OVR blinking into the new one), not in a list dialog
@@ -1796,7 +1890,7 @@ export function finalizeRoster(s: GameState, chosenIds: number[]): boolean {
 
   // the ones you let go remember it
   for (const p of cut) {
-    if (ovr(p.attrs) >= 38 && roll(25)) {
+    if (ovr(p.attrs) >= 45 && roll(25)) {
       s.futureBeats.push({ weeksLeft: 2 + rand(5), defId: 'cut_revenge', beat: 'start', playerId: null, data: { cutName: p.name, cutForm: p.form } });
       break; // one grudge per summer is plenty
     }
@@ -1852,16 +1946,56 @@ export function startNewSeason(s: GameState): void {
 
 // ---- new game -------------------------------------------------------------------------------
 
+/** Nudge a roster until its six floor players average the tier (±2):
+    up by dragging attributes (and ceilings) along, down by shaving them. */
+function settleTier(team: Team, target: number): void {
+  autoLineup(team);
+  for (let guard = 0; guard < 400; guard++) {
+    const avg = floorAvg(team);
+    if (Math.abs(avg - target) <= 2) break;
+    const floor = team.lineup.slots.slice(0, 6).map((id) => team.players.find((p) => p.id === id)).filter((p): p is Player => !!p);
+    if (!floor.length) break;
+    const p = pick(floor);
+    if (avg < target) {
+      const room = ATTRS.filter((a) => p.attrs[a] < 25);
+      if (!room.length) continue;
+      const a = pick(room);
+      p.attrs[a]++;
+      if (p.pots[a] < p.attrs[a]) p.pots[a] = p.attrs[a];
+    } else {
+      const room = ATTRS.filter((a) => p.attrs[a] > 0);
+      if (!room.length) continue;
+      p.attrs[pick(room)]--;
+    }
+    if (guard % 8 === 7) autoLineup(team);
+  }
+  for (const p of team.players) p.startAttrs = copyAttrs(p.attrs);
+  autoLineup(team);
+}
+
 export function chooseTeam(s: GameState, teamId: number): void {
   s.myTeamId = teamId;
-  for (const t of s.teams) autoLineup(t);
   s.season = 0;
   const t = myTeam(s);
-  t.players = t.players.slice(0, 6);
-  for (const p of t.players) if (p.classYear === 0) p.classYear = 1 + rand(3);
-  const pool: Player[] = [...t.players];
   const counter = { nextId: s.nextId };
-  const names = takenNames(s);
+  // THE SLIDE, built around your pick: the five other programs take the
+  // conference tiers (shuffled — the best changes every year), your founding
+  // six sit around the founder tier: 4th–5th, with everything to build
+  const names = new Set<string>();
+  const tiers = [...CONF_TIERS].sort(() => Math.random() - 0.5);
+  let ti = 0;
+  for (const team of s.teams) {
+    if (team.id === teamId) continue;
+    const target = tiers[ti++] - 2 + rand(5);
+    team.players = genRosterAt(counter, target, names);
+    settleTier(team, target);
+  }
+  t.players = [];
+  for (let i = 0; i < 6; i++) {
+    t.players.push(genPlayerAt(counter, FOUNDER_TIER - 8 + rand(17), rand(3), undefined, names, 12 + rand(24)));
+  }
+  ensureUniqueJerseys(t.players);
+  const pool: Player[] = [...t.players];
   while (pool.length < SELECT_POOL_SIZE) pool.push(genWalkOn(counter, names));
   s.nextId = counter.nextId;
   s.selectPool = pool;

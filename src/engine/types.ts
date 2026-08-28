@@ -106,6 +106,10 @@ export interface Player {
   /** a delayed-outcome story is hanging over him — the sprite stays NERVOUS
       (worried) until the result beat lands */
   tense?: boolean;
+  /** games in street clothes before he knocks on your door (2–6, his temper) */
+  patience?: number;
+  /** the dnp count at his last complaint — he knocks again `patience` later */
+  gripe?: number;
   walkOn?: boolean;
   gem?: boolean;
   special?: 'daughter' | 'droid';
@@ -148,6 +152,9 @@ export interface Prospect {
   /** the truth (hidden until scouted) */
   attrs: AttrRec;
   pots: AttrRec;
+  /** college-readiness: the level he'd join at (2–4) — his numbers are where
+      that level puts him on his ceiling */
+  level?: number;
   /** scout actions absorbed — the observation fuzz tightens with each */
   scoutLevel: number;
   /** the coach's observation, error shrinking with scoutLevel */
@@ -320,7 +327,12 @@ export interface ChampTeam {
   bg: string;
   fg: string;
   plan: PlanId;
+  /** match power (≈ top-six average × 3 — the same number the bars run on) */
   power: number;
+  /** the bracket tier this champion was sized for: 0 = first round · 1 = semi · 2 = final */
+  tier: number;
+  /** the average player rating of their top six (the slide: 65–75 / 70–80 / 75–85) */
+  avg: number;
   /** the scout-report shape: a representative team kite */
   kite: AttrRec;
 }
@@ -428,8 +440,9 @@ export interface GameState {
   recruitActWk: boolean;
   /** the pregame move: mandatory, once — a SPEECH or LAST-MINUTE INSTRUCTIONS */
   pregameWk?: boolean;
-  /** the rolled speech outcome — or an instruction backfire on MY side */
-  speechFx?: SpeechFx | null;
+  /** THE SPEECH is a SHIFT: +amt in one attribute, −amt in its opposite — two
+      entries (or one negative entry: an instruction that got READ) */
+  speechFx?: SpeechFx[] | null;
   /** a landed instruction: THEIR side plays this (amt is negative) */
   oppFx?: SpeechFx | null;
   /** premium speeches recharge: planId → weeks until it can be given again */
@@ -442,6 +455,19 @@ export interface GameState {
   pregameFlags: { wallet?: boolean; cloak?: boolean; alarm?: boolean };
   lastResult: MyGameResult | null;
   postGame: PlayerDeltas[];
+  /** everything the horn caused (injuries, ON FIRE, the frozen one's verdict)
+      waits here until the final score has been seen — never mid-game */
+  heldStories?: StoryEvent[];
+  /** the record as it stood at tip-off: the header shows THIS while the game
+      plays — the result is only news at the horn */
+  preGame?: { wins: number; losses: number; rank: number } | null;
+  /** THE FROZEN ONE knocked at PLAY and you promised him the floor tonight:
+      who, and who stood on the floor when you said it (so the one HE displaces
+      can hold it against you after the game) */
+  promise?: { playerId: number; floor: number[]; week: number } | null;
+  /** the frozen one was told to earn it — tip-off resumes the moment the
+      story closes */
+  resumePlay?: boolean;
   /** WEEK START: the Monday report — banked XP + the weekend's recovery per player */
   weekRecap?: PlayerDeltas[];
   /** the week's stories, held until the coach walks into the building */

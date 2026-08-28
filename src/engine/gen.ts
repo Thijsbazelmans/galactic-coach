@@ -16,7 +16,7 @@ import {
 import type { AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
-export const SAVE_VERSION = 19;
+export const SAVE_VERSION = 20;
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
 export const UT_WEEKS = 3; // QF, SF, THE UNIVERSAL FINAL
 export const ROSTER_SIZE = 9;
@@ -30,8 +30,23 @@ export const AGING_SEASON = 21;
 export const LEVEL_CAP = 10;
 export const BAG_SIZE = 8; // two rows; THE NOTEBOOK stands tall on the left, forever
 export const MAX_PROSPECTS = 9;
-/** An overall this high gets pro scouts in the dorm lobby. */
-export const PRO_OVR = 52;
+/** An overall this high gets pro scouts in the dorm lobby (on THE SLIDE a
+    72 is a semifinal-tier starter — the ones who can win you THE BIG BANG
+    are exactly the ones the pros come for). */
+export const PRO_OVR = 72;
+
+// ---- THE SLIDE: the galaxy's strength ladder, fixed ------------------------------
+// Numbers are the average SLOT RATING of a team's six floor players. Your
+// tryouts land you 4th–5th in the conference; the conference top is a real
+// program; THE BIG BANG's field sits above all of it, the champion highest.
+// Which conference team is best reshuffles every summer — the ladder doesn't.
+
+/** the five AI programs in your conference, best → worst (±jitter) */
+export const CONF_TIERS = [62, 55, 49, 44, 38];
+/** your founding six (walk-ons fill the rest, weaker) */
+export const FOUNDER_TIER = 47;
+/** THE BIG BANG by round: first round · semifinal · the final */
+export const UT_TIERS: [number, number][] = [[65, 75], [70, 80], [75, 85]];
 /** Meters live around 75. Natural recovery drifts HOME, never past it —
     the extremes (elated/angry, pumped/sleeping) belong to stories. */
 export const METER_BASELINE = 75;
@@ -198,7 +213,70 @@ export function genPlayer(counter: { nextId: number }, bandShift: number, classY
     outWeeks: 0,
     outReason: '',
     dnp: 0,
+    patience: 2 + rand(5),
   };
+}
+
+/** A player built to a TARGET overall (THE SLIDE): the ceiling sits some way
+    above it, the level follows from how much of that ceiling he already is.
+    Used for every roster you never scout — the other programs, your founding
+    six — so the ladder holds regardless of what the band dice would say. */
+export function genPlayerAt(counter: { nextId: number }, target: number, classYear?: number, speciesId?: string, taken?: Set<string>, headroom = 8 + rand(22)): Player {
+  const spId = speciesId ?? rollSpecies(LEAGUE_ODDS);
+  const cy = classYear ?? rand(4);
+  const cur = clamp(Math.round(target), 4, 96);
+  const potOvr = clamp(cur + headroom, cur + 2, 99);
+  const pots = distribute(spId, potOvr);
+  const attrs = zeroAttrs();
+  for (const a of ATTRS) attrs[a] = clamp(Math.round(pots[a] * (cur / potOvr) + (Math.random() * 1.6 - 0.8)), 0, pots[a]);
+  // settle the rounding onto the target
+  let guard = 0;
+  while (ovr(attrs) < cur && guard++ < 60) {
+    const room = ATTRS.filter((a) => attrs[a] < pots[a]);
+    if (!room.length) break;
+    attrs[pick(room)]++;
+  }
+  while (ovr(attrs) > cur && guard++ < 120) {
+    const room = ATTRS.filter((a) => attrs[a] > 0);
+    if (!room.length) break;
+    attrs[pick(room)]--;
+  }
+  const frac = ovr(attrs) / Math.max(1, ovr(pots));
+  const level = clamp(Math.round((frac - 0.32) / 0.065), 0, LEVEL_CAP);
+  return {
+    id: counter.nextId++,
+    name: genName(taken),
+    speciesId: spId,
+    classYear: cy,
+    form: formFor(spId),
+    jersey: rand(56),
+    ...rollBody(spId),
+    attrs,
+    pots,
+    startAttrs: copyAttrs(attrs),
+    stats: zeroStats(),
+    career: zeroStats(),
+    level,
+    xp: 0,
+    energy: METER_BASELINE - 5 + rand(11),
+    mood: METER_BASELINE - 5 + rand(11),
+    outWeeks: 0,
+    outReason: '',
+    dnp: 0,
+    patience: 2 + rand(5),
+  };
+}
+
+/** Nine bodies around a tier: six around the target, three a step below —
+    the six who play average the tier. */
+export function genRosterAt(counter: { nextId: number }, tier: number, taken: Set<string>): Player[] {
+  const players: Player[] = [];
+  for (let i = 0; i < ROSTER_SIZE; i++) {
+    const t = i < 6 ? tier - 5 + rand(11) : tier - 14 + rand(9);
+    players.push(genPlayerAt(counter, t, undefined, undefined, taken));
+  }
+  ensureUniqueJerseys(players);
+  return players;
 }
 
 export function genWalkOn(counter: { nextId: number }, taken?: Set<string>): Player {
@@ -258,7 +336,10 @@ export function genProspect(counter: { nextId: number }, _seasonNo: number, sear
   const odds = SPECIES_ODDS[searchId] ?? SPECIES_ODDS.home;
   const spId = rollSpecies(odds);
   const pots = distribute(spId, rollPotOvr(spId));
-  const attrs = currentFromPots(pots, 0);
+  // college-ready: a recruit arrives at level 2–4 — a third to a half of his
+  // ceiling already — so a good class can turn a program in two seasons
+  const level = 2 + rand(3);
+  const attrs = currentFromPots(pots, level);
   const form = formFor(spId);
   const pr: Prospect = {
     id: counter.nextId++,
@@ -268,6 +349,7 @@ export function genProspect(counter: { nextId: number }, _seasonNo: number, sear
     ...rollBody(spId),
     attrs,
     pots,
+    level,
     scoutLevel: 0,
     seenAttrs: copyAttrs(attrs),
     seenPots: copyAttrs(pots),
@@ -284,7 +366,7 @@ export function genProspect(counter: { nextId: number }, _seasonNo: number, sear
   return pr;
 }
 
-/** Scouted recruits join with a little college-readiness (level 0–2), 0 XP. */
+/** Scouted recruits join at the readiness they were scouted at (level 2–4), 0 XP. */
 export function prospectToPlayer(pr: Prospect): Player {
   return {
     id: pr.id,
@@ -300,13 +382,14 @@ export function prospectToPlayer(pr: Prospect): Player {
     startAttrs: copyAttrs(pr.attrs),
     stats: zeroStats(),
     career: zeroStats(),
-    level: rand(3),
+    level: pr.level ?? 2 + rand(3),
     xp: 0,
     energy: METER_BASELINE - 5 + rand(11),
     mood: METER_BASELINE - 5 + rand(11),
     outWeeks: 0,
     outReason: '',
     dnp: 0,
+    patience: 2 + rand(5),
   };
 }
 
@@ -326,11 +409,9 @@ export function emptyLineup(): Lineup {
 
 function genTeam(counter: { nextId: number }, idx: number, taken: Set<string>): Team {
   const t = TEAM_TEMPLATES[idx];
-  const players: Player[] = [];
-  // founding rosters roll a band down — 97-potential kids don't start in
-  // your first tryout; you build toward them (or get lucky later)
-  for (let i = 0; i < ROSTER_SIZE; i++) players.push(genPlayer(counter, -1, undefined, undefined, taken));
-  ensureUniqueJerseys(players);
+  // a placeholder roster: chooseTeam() re-tiers the whole conference around
+  // whichever program you pick (THE SLIDE)
+  const players = genRosterAt(counter, CONF_TIERS[2], taken);
   return {
     id: idx,
     name: t.name,
@@ -366,14 +447,12 @@ export function genSchedule(teamCount: number): [number, number][][] {
   return [...half, ...back];
 }
 
-// ---- the Universal Tournament -------------------------------------------------------
+// ---- THE BIG BANG -------------------------------------------------------------------
 
-/** The Universal Tournament field. `diff` is THE CAREER ARC in one number:
-    a rookie coach faces it straight (1.0); every piece of KNOWLEDGE earned
-    (drills, speeches, star charts) shaves it down — the galaxy gets smaller
-    as you learn it — and every banner you've already hung raises it back up
-    (champions get HUNTED). */
-export function genChamps(myPower: number, _season: number, diff = 1): ChampTeam[] {
+/** THE BIG BANG field: seven champions on the fixed slide — four first-round
+    tiers (65–75), two semifinal tiers (70–80), one final tier (75–85). The
+    galaxy does not size itself to you: you climb to it. */
+export function genChamps(): ChampTeam[] {
   const names = [...CHAMP_NAMES];
   const champs: ChampTeam[] = [];
   for (let i = 0; i < 7; i++) {
@@ -381,9 +460,13 @@ export function genChamps(myPower: number, _season: number, diff = 1): ChampTeam
     const [planet, name] = names.splice(idx, 1)[0];
     const plan: PlanId = pick(PLANS).id;
     const planAttr = PLANS.find((p) => p.id === plan)!.attr;
-    // a representative team kite, spiked toward the plan's attribute
+    const tier = i < 4 ? 0 : i < 6 ? 1 : 2;
+    const [lo, hi] = UT_TIERS[tier];
+    const avg = lo + rand(hi - lo + 1);
+    // a representative team kite, spiked toward the plan's attribute, sized
+    // to the average
     const kite = zeroAttrs();
-    for (const a of ATTRS) kite[a] = a === planAttr ? 16 + rand(8) : 5 + rand(9);
+    for (const a of ATTRS) kite[a] = clamp(Math.round((avg / 4) * (a === planAttr ? 1.35 : 0.88) + rand(3) - 1), 1, 25);
     const colors = CHAMP_COLORS[i % CHAMP_COLORS.length];
     champs.push({
       name: `${planet} ${name}`,
@@ -391,9 +474,11 @@ export function genChamps(myPower: number, _season: number, diff = 1): ChampTeam
       bg: colors[0],
       fg: colors[1],
       plan,
-      // sized against your RESTED strength — but you arrive tired, streaks
-      // stacked, with no practice week between rounds; the rounds get harder.
-      power: Math.round(myPower * diff * (0.9 + rand(18) / 100 + i * 0.02)),
+      // the bars run on six floor players at 75/25: three starters ×0.75 +
+      // three bench ×0.25 = the average × 3
+      power: Math.round(avg * 3),
+      tier,
+      avg,
       kite,
     });
   }

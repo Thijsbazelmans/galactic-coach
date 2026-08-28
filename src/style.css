@@ -696,7 +696,8 @@ button.hold.wiggle::after {
   opacity: 0;
   animation: stickin 0.3s forwards;
 }
-.sticker.down { color: var(--r55); border-color: var(--r20); }
+.sticker.down { color: #ff4a3d; border-color: #5a1d18; }
+.sticker.up { color: #5fe07a; border-color: #1f5a2c; }
 .sticker.landed { animation: none; opacity: 1; }
 .sticker.blink { animation: stickin 0.3s forwards, blink 1s steps(2, start) infinite; }
 .sticker.landed.blink { animation: blink 1s steps(2, start) infinite; }
@@ -897,8 +898,18 @@ button.hold.wiggle::after {
 
 .odds { display: inline-block; font-size: 12px; letter-spacing: 0.5px; }
 .odds .tail { margin-right: 8px; white-space: nowrap; }
-.odds .tail.up { color: var(--r95); }
+/* NO NUMBERS: the weight of a tail says how live it is — dim, plain,
+   bright, blinking. UP tails lean green, DOWN tails lean red. */
+.odds .tail.up { color: var(--r55); }
 .odds .tail.down { color: var(--r55); }
+.odds .tail.up.r10 { color: var(--r75); }
+.odds .tail.down.r10 { color: var(--r75); }
+.odds .tail.up.r25 { color: #5fe07a; }
+.odds .tail.down.r25 { color: #ff9a2e; }
+.odds .tail.up.r50 { color: #5fe07a; font-weight: bold; animation: blink 1.4s steps(2, start) infinite; }
+.odds .tail.down.r50 { color: #ff4a3d; font-weight: bold; animation: blink 1.4s steps(2, start) infinite; }
+.gaintag.up { color: #5fe07a; }
+.gaintag.down { color: #ff4a3d; }
 .odds .tail i { color: var(--r35); font-style: italic; }
 .odds .cost { color: var(--r95); margin-right: 8px; font-weight: bold; }
 .xpg { color: var(--r95); margin-left: 4px; }
@@ -954,9 +965,10 @@ button.hold.wiggle::after {
 .imp-val { font-size: 34px; font-weight: bold; color: var(--r95); line-height: 1; }
 .imp-text { font-size: 20px; font-weight: bold; color: var(--r95); letter-spacing: 1px; }
 .imp-arrow { font-size: 16px; }
-.imp-row.up .imp-arrow { color: var(--r95); }
-.imp-row.down .imp-arrow { color: var(--r35); }
-.imp-row.down .imp-text { color: var(--r55); }
+/* the direction law in COLOR: UP is green, DOWN is red — arrows and numbers */
+.imp-row.up .imp-arrow, .imp-row.up .imp-val, .imp-row.up .imp-text { color: #5fe07a; }
+.imp-row.down .imp-arrow, .imp-row.down .imp-val, .imp-row.down .imp-text { color: #ff4a3d; }
+.imp-more { margin-top: 14px; font-size: 12px; letter-spacing: 2px; animation: blink 1.6s steps(2, start) infinite; }
 .imp-row.up.landed { animation: imp-pop 0.4s; }
 .imp-row.down.landed { animation: imp-shake 0.4s; }
 @keyframes imp-pop {
@@ -1032,8 +1044,8 @@ button.hold.wiggle::after {
 .gauge .gled.off { fill: var(--r20); opacity: 0.45; }
 /* the change language on a gauge: a switched LED blinks its verdict */
 .gauge .gband { animation: gblink 1.4s steps(1) infinite; }
-.gauge .gband.up { fill: var(--r95); }
-.gauge .gband.down { fill: #000; }
+.gauge .gband.up { fill: #5fe07a; }
+.gauge .gband.down { fill: #ff4a3d; }
 @keyframes gblink {
   0%, 49% { opacity: 0.95; }
   50%, 100% { opacity: 0.15; }
@@ -1067,6 +1079,32 @@ button.actmain.scopehl { border-color: var(--r95); }
 
 .tbar.cascflash { animation: cascpop 0.5s; }
 .tbar.cascflash .tbv { color: #fff; }
+/* THE GRADE: a letter in the OVR corner — F red … A white, S glows */
+.kovr.kgrade { font-size: 20px; letter-spacing: 1px; padding: 0 6px; }
+.numswap.kgrade { font-size: 20px; }
+.kovr.sgrade { text-shadow: 0 0 6px #fff, 0 0 12px #fff; animation: sglow 1.6s ease-in-out infinite; }
+@keyframes sglow {
+  50% { text-shadow: 0 0 2px #fff; }
+}
+/* the truth card on signing day stands a little larger */
+.modalcard.truth { width: 42%; max-width: 170px; }
+.modalcard.truth .ksvg, .modalcard.truth .klabel, .modalcard.truth .kbl, .modalcard.truth .kbr { opacity: 1; }
+/* CONFETTI: the moments that earn it */
+.storypanel.fete { position: relative; overflow: hidden; }
+.confetti { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.confetti i {
+  position: absolute;
+  top: -8px;
+  width: 6px; height: 10px;
+  opacity: 0.9;
+  animation: confall 3s linear infinite;
+}
+@keyframes confall {
+  0% { transform: translateY(-10px) rotate(0deg); }
+  100% { transform: translateY(110vh) rotate(720deg); }
+}
+.storypanel.fete > *:not(.confetti) { position: relative; z-index: 1; }
+.gn-final.title b { font-size: 26px; letter-spacing: 4px; text-shadow: 0 0 10px #fff; animation: sglow 1.6s ease-in-out infinite; }
 .tbar.cascbig { animation: cascpop-big 0.7s; }
 .tbar.cascbig .tbv { color: #fff; }
 @keyframes cascpop {
@@ -1180,8 +1218,8 @@ button.actmain.scopehl { border-color: var(--r95); }
 
 /* the XP ring's changed arc blinks (added bright / removed dim) */
 .krdelta { fill: none; stroke-width: 3.5; animation: gblink 1.4s steps(1) infinite; }
-.krdelta.up { stroke: var(--r95); }
-.krdelta.down { stroke: var(--r20); }
+.krdelta.up { stroke: #5fe07a; }
+.krdelta.down { stroke: #ff4a3d; }
 
 /* the team bars keep their delta visible: added blinks bright, removed dark */
 .tbdelta {
@@ -1192,8 +1230,8 @@ button.actmain.scopehl { border-color: var(--r95); }
   animation: gblink 1.4s steps(1) infinite;
   pointer-events: none;
 }
-.tbdelta.up { background: var(--r95); }
-.tbdelta.down { background: #000; }
+.tbdelta.up { background: #5fe07a; }
+.tbdelta.down { background: #ff4a3d; }
 
 /* THE REVEAL CARD: the picker-row preview of what you just received */
 .revealbox { flex: none; margin: 10px 0 4px; }
@@ -1313,8 +1351,8 @@ button.hrow b { color: var(--r95); }
 
 /* down-swaps read descending (the numSwap sets colors inline; this is the
    fallback weight) */
-.numswap.nsdown .ns-old { color: var(--r75); }
-.numswap.nsdown .ns-new { color: var(--r35); }
+.numswap.nsdown .ns-old { color: var(--r55); }
+.numswap.nsdown .ns-new { color: #ff4a3d; }
 
 /* the header's next-game row: plain text, opponent in their colors */
 button.hopp { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; min-width: 0; justify-self: start; color: var(--r95); font-weight: bold; }

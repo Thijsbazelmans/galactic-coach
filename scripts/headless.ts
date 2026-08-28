@@ -5,8 +5,8 @@
 
 import { PLANS } from '../src/engine/data';
 import { LEVEL_CAP, ROSTER_SIZE, newGameState } from '../src/engine/gen';
-import { meterMult, normalizeLineup } from '../src/engine/sim';
-import { ATTRS, bestAttr, ovr, sizeIndex } from '../src/engine/util';
+import { arrangeRow, floorAvg, meterMult, normalizeLineup } from '../src/engine/sim';
+import { ATTRS, bestAttr, ovr } from '../src/engine/util';
 import {
   actionGalaxy,
   beginWeek,
@@ -21,6 +21,7 @@ import {
   letGoPro,
   myTeam,
   playGame,
+  releaseHeldStories,
   resolveSigning,
   resolveStory,
   retire,
@@ -99,8 +100,9 @@ function playCareer(idx: number): CareerStats {
         const nine = [...s.selectPool].sort((a, b) => ovr(b.attrs) + ovr(b.pots) - (ovr(a.attrs) + ovr(a.pots))).slice(0, ROSTER_SIZE);
         const ids: number[] = [];
         for (let r = 0; r < 3; r++) {
-          const trio = nine.slice(r * 3, r * 3 + 3).sort((a, b) => sizeIndex(a) - sizeIndex(b)); // small→backcourt … big→frontcourt
-          ids.push(...trio.map((p) => p.id));
+          // each row stood where it grades best (the column reads the numbers)
+          const trio = arrangeRow(nine.slice(r * 3, r * 3 + 3));
+          ids.push(...trio.map((p) => p!.id));
         }
         if (!finalizeRoster(s, ids)) throw new Error('finalizeRoster failed');
         break;
@@ -181,21 +183,29 @@ function playCareer(idx: number): CareerStats {
         const cond = (p: import('../src/engine/types').Player): number =>
           ovr(p.attrs) * meterMult(p.energy) * meterMult(p.mood);
         const fit = t.players.filter((p) => p.outWeeks === 0).sort((a, b) => cond(b) - cond(a));
+        // the frozen one was promised the floor: he takes a bench seat
+        const promised = s.promise ? fit.find((p) => p.id === s.promise!.playerId) : undefined;
+        if (promised && fit.indexOf(promised) >= 6) {
+          fit.splice(fit.indexOf(promised), 1);
+          fit.splice(5, 0, promised);
+        }
         const slots: (number | null)[] = Array.from({ length: 9 }, () => null);
         [fit.slice(0, 3), fit.slice(3, 6), fit.slice(6, 9)].forEach((trio, r) => {
-          [...trio].sort((a, b) => sizeIndex(a) - sizeIndex(b)).forEach((p, c) => { slots[r * 3 + c] = p.id; });
+          arrangeRow(trio).forEach((p, c) => { slots[r * 3 + c] = p?.id ?? null; });
         });
         t.lineup.slots = slots;
         normalizeLineup(t);
-        const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id) && speechCooldown(s, pl.id) === 0);
-        // speak to the squad's strongest attribute (best odds of a useful ignition)
-        const sums = { skl: 0, ath: 0, frc: 0, brn: 0 };
-        for (const p of t.players) for (const a of ATTRS) sums[a] += p.attrs[a];
-        const targetAttr = bestAttr(sums);
-        const best: PlanId = (known.find((pl) => pl.attr === targetAttr) ?? known[0]).id;
-        if (deliverSpeech(s, best) === null) throw new Error('speech refused');
+        if (!s.pregameWk) {
+          const known = PLANS.filter((pl) => s.knownPlans.includes(pl.id) && speechCooldown(s, pl.id) === 0);
+          // speak to the squad's strongest attribute: the shift takes from its weak side
+          const sums = { skl: 0, ath: 0, frc: 0, brn: 0 };
+          for (const p of t.players) for (const a of ATTRS) sums[a] += p.attrs[a];
+          const targetAttr = bestAttr(sums);
+          const best: PlanId = (known.find((pl) => pl.attr === targetAttr) ?? known[0]).id;
+          if (deliverSpeech(s, best) === null) throw new Error('speech refused');
+        }
         if (isUtWeek(s)) utReached = Math.max(utReached, 1);
-        playGame(s);
+        playGame(s); // false = the frozen one knocked; the loop drains him and comes back
         break;
       }
       case 'gamenight': {
@@ -204,6 +214,14 @@ function playCareer(idx: number): CareerStats {
         if (!s.lastResult) break; // sim fires when the queue clears
         if (s.lastResult.myScore === s.lastResult.oppScore) throw new Error('the game ended tied');
         if (!s.lastResult.box.length) throw new Error('box score missing');
+        if (s.queue.length) throw new Error('a story butted into the live game');
+        if (process.env.LADDER && s.week === 10) {
+          // THE SLIDE, season by season: my six on the floor vs the conference
+          const t = myTeam(s);
+          const ladder = s.teams.map((tm) => `${tm.id === s.myTeamId ? '*' : ''}${Math.round(floorAvg(tm))}`).join(' ');
+          console.log(`  S${s.season} ${t.wins}–${t.losses} floor ${ladder} · heat ${s.heatS}/${s.heatB}`);
+        }
+        releaseHeldStories(s); // the box score press
         drainQueue(s);
         if ((s.phase as string) !== 'gamenight') break;
         continueFromResult(s);

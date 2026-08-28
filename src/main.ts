@@ -11,6 +11,7 @@ import {
   GALAXY_ACTS,
   INSTRUCTIONS,
   PLANS,
+  TOURNEY,
   drillKind,
   galaxyActById,
   instrById,
@@ -20,7 +21,7 @@ import {
   storyById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, REGULAR_WEEKS, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, matchAttrs, slotMult, slotPlayer, winShare } from './engine/sim';
+import { COL_LABELS, bestCol, grade, matchAttrs, slotPlayer, slotRating, winShare, type Grade } from './engine/sim';
 import {
   actionGalaxy,
   addNote,
@@ -44,6 +45,7 @@ import {
   myTeam,
   playGame,
   queueStory,
+  releaseHeldStories,
   resolveSigning,
   resolveStory,
   retire,
@@ -70,7 +72,7 @@ import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, perGame, potStars, rand } from './engine/util';
 import { PRACTICE_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
 
-const VERSION = 'v4.4';
+const VERSION = 'v4.5';
 
 let state: GameState = load() ?? freshGame();
 
@@ -106,6 +108,39 @@ function ramp(t: number): string {
 
 function vc(v: number): string {
   return ramp(0.2 + 0.8 * (clamp(v, 0, 100) / 100));
+}
+
+// ---- THE INDICATOR COLORS: red → orange → yellow → green → white -----------
+// Value gauges (energy, mood), the slot grade (F red … S white) and every
+// direction cue (UP green, DOWN red) speak this one scale — the team hue
+// stays for chrome, fills and the credits.
+
+const C_RED = '#ff4a3d';
+const C_ORANGE = '#ff9a2e';
+const C_YELLOW = '#ffd83d';
+const C_GREEN = '#5fe07a';
+const C_WHITE = '#ffffff';
+const UP_COLOR = C_GREEN;
+const DOWN_COLOR = C_RED;
+
+/** A 0–100 value on the five-step scale. */
+function heatColor(v: number): string {
+  if (v < 25) return C_RED;
+  if (v < 45) return C_ORANGE;
+  if (v < 65) return C_YELLOW;
+  if (v < 85) return C_GREEN;
+  return C_WHITE;
+}
+
+const GRADE_COLOR: Record<Grade, string> = { F: C_RED, D: C_ORANGE, C: C_YELLOW, B: C_GREEN, A: C_WHITE, S: C_WHITE };
+
+/** Darken a hex color toward black (f = 1 keeps it). */
+function shade(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.round(((n >> 16) & 255) * f);
+  const g = Math.round(((n >> 8) & 255) * f);
+  const b = Math.round((n & 255) * f);
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
 /** The brighter of a kit's two colors — dark-navy letters vanish on a black
@@ -148,7 +183,11 @@ interface ImpRow {
   up: boolean;
   color?: string;
 }
-let impact: { pid: number | null; rows: ImpRow[] } | null = null;
+/** ONE voice per dialog: the player's rewards/penalties (his sprite), then
+    the squad's, then the coach's world (credits, JOB SECURITY — the dean or
+    the booster standing over it). Separate screens, tapped through. */
+interface ImpPage { kind: 'player' | 'squad' | 'coach'; pid: number | null; rows: ImpRow[] }
+let impact: { pages: ImpPage[]; ix: number } | null = null;
 let impactPlayed = false;
 let impactTimers: number[] = [];
 let coachOpen = false;
@@ -169,6 +208,8 @@ let speechSheet = false;
 let uiWeekKey = '';
 /** what the chosen story choice meant to the player (acting at CHOICE time) */
 let chosenWant: 'love' | 'hate' | null = null;
+/** a story that rolls THE WHEEL before its verdict (signing day) has rolled */
+let wheelDone = false;
 /** THE ANIMATION BUILD: staged screen builds fire only on a screen CHANGE */
 let builtKey = '';
 /** rope→dial: the matchup OVERALL rope's rect, captured as PLAY is held */
@@ -263,8 +304,9 @@ function snapState(): Snap {
   };
 }
 
-/** Diff the world before/after a resolution into celebration rows. */
-function buildImpact(snap: Snap, fxList: Fx[], pid: number | null): { pid: number | null; rows: ImpRow[] } {
+/** Diff the world before/after a resolution into celebration pages — one
+    per voice: the player, the squad, the coach's world. */
+function buildImpact(snap: Snap, fxList: Fx[], pid: number | null): { pages: ImpPage[]; ix: number } {
   const t = myTeam(state);
   const rows: ImpRow[] = [];
   const was = pid !== null ? snap.players.get(pid) : undefined;
@@ -273,36 +315,47 @@ function buildImpact(snap: Snap, fxList: Fx[], pid: number | null): { pid: numbe
   if (was && p) {
     for (const a of ATTRS) {
       if (p.attrs[a] !== was.attrs[a]) {
-        rows.push({ label: ATTR_LABEL[a], from: was.attrs[a], to: p.attrs[a], up: p.attrs[a] > was.attrs[a], color: vc(p.attrs[a] * 4) });
+        rows.push({ label: ATTR_LABEL[a], from: was.attrs[a], to: p.attrs[a], up: p.attrs[a] > was.attrs[a] });
       }
     }
-    if (ovr(p.attrs) !== ovr(was.attrs)) rows.push({ label: 'OVERALL', from: ovr(was.attrs), to: ovr(p.attrs), up: ovr(p.attrs) > ovr(was.attrs), color: vc(ovr(p.attrs) * 1.6) });
+    if (ovr(p.attrs) !== ovr(was.attrs)) rows.push({ label: 'OVERALL', from: ovr(was.attrs), to: ovr(p.attrs), up: ovr(p.attrs) > ovr(was.attrs) });
     if (p.level !== was.level) rows.push({ label: 'LEVEL', from: was.level, to: p.level, up: p.level > was.level });
     const xpGain = fxList.reduce((a, f) => a + ((f.playerId ?? pid) === pid ? f.xp ?? 0 : 0), 0);
     if (xpGain > 0 && p.level === was.level) rows.push({ label: 'XP', text: `+${xpGain}`, up: true });
     const potD = ovr(p.pots) - ovr(was.pots);
     if (potD !== 0) rows.push({ label: 'POTENTIAL', text: `${potD > 0 ? '+' : ''}${potD} CEILING`, up: potD > 0 });
-    if (p.energy !== was.energy) rows.push({ label: 'ENERGY ⚡', from: was.energy, to: p.energy, up: p.energy > was.energy, color: vc(p.energy) });
-    if (p.mood !== was.mood) rows.push({ label: 'MOOD', from: was.mood, to: p.mood, up: p.mood > was.mood, color: vc(p.mood) });
+    if (p.energy !== was.energy) rows.push({ label: 'ENERGY ⚡', from: was.energy, to: p.energy, up: p.energy > was.energy });
+    if (p.mood !== was.mood) rows.push({ label: 'MOOD', from: was.mood, to: p.mood, up: p.mood > was.mood });
     if (p.outWeeks > 0 && p.outWeeks !== was.outWeeks) rows.push({ label: 'OUT', text: `${p.outWeeks} WEEK${p.outWeeks > 1 ? 'S' : ''}`, up: false });
     if (p.outWeeks === 0 && was.outWeeks > 0) rows.push({ label: 'BACK', text: 'READY TO PLAY', up: true });
   }
   // the rest of the squad, collapsed
+  const squad: ImpRow[] = [];
   const others = t.players.filter((q) => q.id !== pid && snap.players.has(q.id));
   for (const key of ['mood', 'energy'] as const) {
     const changed = others.filter((q) => q[key] !== snap.players.get(q.id)![key]);
     if (!changed.length) continue;
     const d = changed[0][key] - snap.players.get(changed[0].id)![key];
     const label = changed.length > 1 ? 'THE SQUAD' : changed[0].name;
-    rows.push({ label, text: `${key.toUpperCase()} ${d > 0 ? '+' : ''}${d}`, up: d > 0 });
+    squad.push({ label, text: `${key.toUpperCase()} ${d > 0 ? '+' : ''}${d}`, up: d > 0 });
   }
   // the coach's world
-  if (state.energy !== snap.energy) rows.push({ label: '¢ CREDITS', from: snap.energy, to: state.energy, up: state.energy > snap.energy });
+  const coach: ImpRow[] = [];
+  if (state.energy !== snap.energy) coach.push({ label: '¢ CREDITS', from: snap.energy, to: state.energy, up: state.energy > snap.energy });
   const sec0 = 100 - snap.heatS - snap.heatB;
   const sec1 = 100 - state.heatS - state.heatB;
-  if (sec1 !== sec0) rows.push({ label: 'JOB SECURITY', from: sec0, to: sec1, up: sec1 > sec0 });
-  if (state.legacy !== snap.legacy) rows.push({ label: 'LEGACY', from: snap.legacy, to: state.legacy, up: state.legacy > snap.legacy });
-  return { pid, rows };
+  if (sec1 !== sec0) coach.push({ label: 'JOB SECURITY', from: sec0, to: sec1, up: sec1 > sec0 });
+  if (state.legacy !== snap.legacy) coach.push({ label: 'LEGACY', from: snap.legacy, to: state.legacy, up: state.legacy > snap.legacy });
+  const pages: ImpPage[] = [];
+  if (rows.length) pages.push({ kind: 'player', pid, rows: [...rows, ...(pid !== null ? squad : [])] });
+  if (squad.length && (pid === null || !rows.length)) pages.push({ kind: 'squad', pid: null, rows: squad });
+  if (coach.length) pages.push({ kind: 'coach', pid: null, rows: coach });
+  return { pages, ix: 0 };
+}
+
+/** The impact page on screen (null when nothing changed). */
+function impactPage(): ImpPage | null {
+  return impact?.pages[impact.ix] ?? null;
 }
 
 /** The anticipation, then the verdict: split on the paragraph break when
@@ -334,7 +387,7 @@ function doResolve(key: string): void {
   const rBeats = splitBeats(res.resolved.resolvedText ?? '');
   if (rBeats.length) {
     storyMode = rBeats.length > 1 ? 'r-antic' : 'r-reveal';
-  } else if (impact.rows.length) {
+  } else if (impact.pages.length) {
     storyMode = 'impact';
   } else {
     dismissStory(state);
@@ -430,22 +483,34 @@ function finishTypeNow(): boolean {
 
 // ---- the odds line ---------------------------------------------------------------------------
 
+// NO PERCENTAGES: a choice shows its two tails as WORDS — what can go
+// wonderful, what can go wrong — and the weight of the tail (dim → bright →
+// blinking) says how live it is. You read the language; the odds you learn.
+function rung(pct: number): string {
+  if (pct <= 5) return 'r5';
+  if (pct <= 12) return 'r10';
+  if (pct <= 35) return 'r25';
+  return 'r50';
+}
+
 function oddsLine(up?: { pct: number; cls: string; note?: string }, down?: { pct: number; cls: string; note?: string }, cost?: number): string {
   const parts: string[] = [];
   if (cost) parts.push(`<span class="cost">${cost}¢</span>`);
-  if (up) parts.push(`<span class="tail up">▲ ${up.pct}% ${up.cls}${up.note ? ` <i>(${esc(up.note)})</i>` : ''}</span>`);
-  if (down) parts.push(`<span class="tail down">▼ ${down.pct}% ${down.cls}${down.note ? ` <i>(${esc(down.note)})</i>` : ''}</span>`);
+  if (up) parts.push(`<span class="tail up ${rung(up.pct)}">▲ ${up.cls}${up.note ? ` <i>(${esc(up.note)})</i>` : ''}</span>`);
+  if (down) parts.push(`<span class="tail down ${rung(down.pct)}">▼ ${down.cls}${down.note ? ` <i>(${esc(down.note)})</i>` : ''}</span>`);
   return parts.length ? `<span class="odds">${parts.join(' ')}</span>` : '';
 }
 
 // ---- the kite compass ----------------------------------------------------------
-// One shape says everything: SKL up, ATH right, FRC down, BRN left. The solid
-// kite is who he is, the outline is his potential, the faint dashes are where
-// the season started. Prospects render as a cloud that scouting sharpens.
+// One shape says everything: SKL up, FRC right, ATH down, BRN left — the
+// opposites share an axis (SKILL ↔ ATHLETICISM, BRAINS ↔ FIERCENESS), the way
+// the speeches trade them. The solid kite is who he is, the outline is his
+// potential, the faint dashes are where the season started. Prospects render
+// as a cloud that scouting sharpens.
 
 function kitePoints(v: AttrRec): string {
   const R = (x: number): number => 6 + (clamp(x, 0, 25) / 25) * 40;
-  return `50,${(50 - R(v.skl)).toFixed(1)} ${(50 + R(v.ath)).toFixed(1)},50 50,${(50 + R(v.frc)).toFixed(1)} ${(50 - R(v.brn)).toFixed(1)},50`;
+  return `50,${(50 - R(v.skl)).toFixed(1)} ${(50 + R(v.frc)).toFixed(1)},50 50,${(50 + R(v.ath)).toFixed(1)} ${(50 - R(v.brn)).toFixed(1)},50`;
 }
 
 // ---- the full-bleed square card -------------------------------------------------
@@ -472,7 +537,7 @@ function ringCounter(
     seg = `<circle class="krdelta ${clamped >= from ? 'up' : 'down'}" cx="18" cy="18" r="15.9155" stroke-dasharray="${hi - lo} 100" stroke-dashoffset="${-lo}" style="animation-delay:-${wallPhase(SWAP_MS)}ms"/>`;
   }
   const valHtml = opts.lvlFrom !== undefined && String(opts.lvlFrom) !== val
-    ? numSwap(opts.lvlFrom, val, 'var(--r95)', 'krnum')
+    ? numSwap(opts.lvlFrom, val, 'auto', 'krnum')
     : `<b>${val}</b>`;
   return `<span class="kring" ${title ? `title="${title}"` : ''}>
     <svg viewBox="0 0 36 36">
@@ -529,7 +594,7 @@ function squareKite(cur: AttrRec, o: SqOpts): string {
       ${o.start ? `<polygon class="k-start" points="${kitePoints(o.start)}"/>` : ''}
       ${shape}
     </svg>
-    ${lab('skl', 'n')}${lab('ath', 'e')}${lab('frc', 's')}${lab('brn', 'w')}
+    ${lab('skl', 'n')}${lab('frc', 'e')}${lab('ath', 's')}${lab('brn', 'w')}
     ${o.sprite ?? ''}
     <div class="ktop">${o.nameHtml}</div>
     ${o.blHtml ? `<span class="kbl">${o.blHtml}</span>` : ''}
@@ -564,11 +629,11 @@ const SWAP_MS = 1400;
 
 /** The change-direction law: UP blinks the new value BRIGHT, DOWN blinks it
     DARK (the old value shows the opposite weight). */
-function numSwap(from: number | string, to: number | string, colorTo: string, cls = ''): string {
-  const down = typeof from === 'number' && typeof to === 'number' && to < from;
+function numSwap(from: number | string, to: number | string, colorTo: string, cls = '', downHint?: boolean): string {
+  const down = downHint ?? (typeof from === 'number' && typeof to === 'number' && to < from);
   const d = `animation-delay:-${wallPhase(SWAP_MS)}ms`;
-  const oldStyle = down ? `color:var(--r75);${d}` : d;
-  const newStyle = down ? `color:var(--r35);${d}` : `color:${colorTo};${d}`;
+  const oldStyle = `color:var(--r55);${d}`;
+  const newStyle = `color:${down ? DOWN_COLOR : colorTo === 'auto' ? UP_COLOR : colorTo};${d}`;
   return `<span class="numswap ${cls} ${down ? 'nsdown' : ''}"><span class="ns-old" style="${oldStyle}">${from}</span><span class="ns-new" style="${newStyle}">${to}</span></span>`;
 }
 
@@ -588,7 +653,7 @@ function spotHtml(spot: 'main' | 'hi', labels: SpotLabel[] | undefined, pop: boo
     const anim = n > 1
       ? `animation:cyc${n} ${dur}ms infinite;animation-delay:${i * 1800 - wallPhase(dur)}ms`
       : pop ? `animation-delay:${popDelay}ms` : '';
-    return `<div class="sticker ${l.up === false ? 'down' : ''} ${l.blink ? 'blink' : ''} ${n > 1 ? 'cyc' : pop ? '' : 'landed'}" style="${anim}">${esc(l.text)}</div>`;
+    return `<div class="sticker ${l.up === false ? 'down' : l.up === true ? 'up' : ''} ${l.blink ? 'blink' : ''} ${n > 1 ? 'cyc' : pop ? '' : 'landed'}" style="${anim}">${esc(l.text)}</div>`;
   }).join('')}</div>`;
 }
 
@@ -623,7 +688,8 @@ function edgeGauge(side: 'l' | 'r', value: number, kind: 'boltx' | 'facex', _pid
     const w = 42 + (58 * b) / (GAUGE_LEDS - 1); // wider at the top
     const x = side === 'l' ? 0 : 100 - w;
     const on = b < lit;
-    const color = ramp(clamp((0.2 + 0.8 * (v / 100)) * (0.45 + 0.55 * (b / (GAUGE_LEDS - 1))), 0.06, 1));
+    // the value's color (red → white) across the stack, darker at the bottom
+    const color = shade(heatColor(v), 0.55 + 0.45 * (b / (GAUGE_LEDS - 1)));
     rects.push(`<rect class="gled ${on ? 'on' : 'off'}" x="${x}" y="${y}" width="${w}" height="${h}" ${on ? `fill="${color}"` : ''}/>`);
     // the change language: a light that switched state blinks its verdict
     if (on !== (b < litOld)) {
@@ -632,7 +698,7 @@ function edgeGauge(side: 'l' | 'r', value: number, kind: 'boltx' | 'facex', _pid
   }
   return `<span class="gauge g${side}">
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${rects.join('')}</svg>
-    <img class="gicon ${v < 25 ? 'blink' : ''}" src="${iconOutlinedUrl(kind, ramp(0.8))}" alt=""/>
+    <img class="gicon ${v < 25 ? 'blink' : ''}" src="${iconOutlinedUrl(kind, heatColor(v))}" alt=""/>
   </span>`;
 }
 
@@ -687,24 +753,49 @@ interface CardOpts {
   /** halftime: the reserves stayed in the locker room — greyed, unswappable */
   locked?: boolean;
   sitout?: boolean;
-  miscast?: number; // % penalty — main label + the OVR blinks its real cost
+  /** the column he stands in: the ROSTER card grades him THERE (F–S) */
+  col?: number;
   pick?: boolean; // selection screens
   /** THE SCOPE PREVIEW: this card is inside / outside a pending scoped action */
   scope?: 'in' | 'out';
 }
 
 /** The OVR corner: a small label above the number (mirrors the LVL ring).
-    A changed number — or a miscast's effective number — blinks in place. */
-function ovrBlock(p: Player, opts: { from?: number; miscast?: number } = {}): string {
+    A changed number blinks in place. */
+function ovrBlock(p: Player, opts: { from?: number } = {}): string {
   const o = ovr(p.attrs);
-  const color = vc(o * 1.6);
+  const color = heatColor(o);
   let num: string;
   if (opts.from !== undefined && opts.from !== o) num = numSwap(opts.from, o, color, 'kovr');
-  else if (opts.miscast && opts.miscast >= 8) {
-    const eff = Math.max(0, Math.round(o * (1 - opts.miscast / 100)));
-    num = numSwap(o, eff, color, 'kovr');
-  } else num = `<b class="kovr" style="color:${color}">${o}</b>`;
+  else num = `<b class="kovr" style="color:${color}">${o}</b>`;
   return `<span class="ovrwrap"><i class="klab">OVR</i>${num}</span>`;
+}
+
+const POS_SHORT = ['BACK', 'WING', 'FRONT'];
+
+/** THE GRADE: what he's worth in the slot he stands in — F red … A white,
+    S the exceptional letter above it. Every player's numbers are fixed; the
+    column reads them (BRAINS run the backcourt, ATHLETICISM the frontcourt,
+    the wing weighs nothing) and size fits or doesn't. Drag him and it
+    changes. A changed grade blinks old → new. */
+function gradeBlock(p: Player, col: number, opts: { fromOvr?: number } = {}): string {
+  const r = slotRating(p, col);
+  const g = grade(r);
+  const color = GRADE_COLOR[g];
+  let letter: string;
+  if (opts.fromOvr !== undefined && opts.fromOvr !== ovr(p.attrs)) {
+    // the summer / a drill moved the number: show the old grade blinking into
+    // the new one when the letter itself changed
+    const scale = ovr(p.attrs) > 0 ? opts.fromOvr / ovr(p.attrs) : 1;
+    const gFrom = grade(r * scale);
+    letter = gFrom !== g
+      ? numSwap(gFrom, g, color, 'kovr kgrade', ovr(p.attrs) < opts.fromOvr)
+      : `<b class="kovr kgrade ${g === 'S' ? 'sgrade' : ''}" style="color:${color}">${g}</b>`;
+  } else {
+    letter = `<b class="kovr kgrade ${g === 'S' ? 'sgrade' : ''}" style="color:${color}">${g}</b>`;
+  }
+  const off = bestCol(p) !== col && slotRating(p, bestCol(p)) >= r * 1.12;
+  return `<span class="ovrwrap"><i class="klab">${off ? '↔ ' : ''}${POS_SHORT[col]}</i>${letter}</span>`;
 }
 
 // The card, phone-first, one lens at a time. ROSTER: sprite centered, curved
@@ -722,7 +813,6 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   const nameHtml = `<span class="kname">${p.onFire ? '🔥 ' : ''}${esc(p.name)}</span>
       <span class="kyear">${CLASS_ABBR[Math.min(p.classYear, 3)].toUpperCase()}</span>`;
   const d = opts.delta;
-  const showMiscast = !!opts.miscast && opts.miscast >= 8 && !out && l === 0 && !opts.story;
   const ring = ringCounter(d?.xpProjPct ?? xpPct, 'LVL', String(p.level), `level ${p.level}/${LEVEL_CAP} · xp ${p.xp}/${p.level >= LEVEL_CAP ? '—' : xpNeed(p.level)}`, { deltaFromPct: d?.xpFromPct, lvlFrom: d?.lvlFrom });
   let body: string;
   if (opts.story && opts.storyView === 'abilities') {
@@ -733,7 +823,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       sprite: sprite(1.75, 'ksprite'),
       nameHtml,
       blHtml: ovrBlock(p),
-      brHtml: `<span class="kpot"><i>POT</i><b style="color:${vc(ovr(p.pots))}">${ovr(p.pots)}</b></span>`,
+      brHtml: `<span class="kpot"><i>POT</i><b style="color:${heatColor(ovr(p.pots))}">${ovr(p.pots)}</b></span>`,
     });
   } else if (l === 1 && !opts.story) {
     // the same square, sprite in the same spot — labels flank left (team
@@ -763,7 +853,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       start: p.startAttrs,
       nameHtml,
       blHtml: ovrBlock(p),
-      brHtml: `<span class="kpot"><i>POT</i><b style="color:${vc(ovr(p.pots))}">${ovr(p.pots)}</b></span>`,
+      brHtml: `<span class="kpot"><i>POT</i><b style="color:${heatColor(ovr(p.pots))}">${ovr(p.pots)}</b></span>`,
     });
   } else {
     // ROSTER — the default view, the compass gone: the sprite between two
@@ -775,12 +865,11 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       <div class="ktop">${nameHtml}</div>
       ${edgeGauge('l', p.energy, 'boltx', p.id, d?.e ?? 0)}
       ${edgeGauge('r', p.mood, 'facex', p.id, d?.m ?? 0)}
-      <span class="kbl">${ovrBlock(p, { from: d?.ovrFrom, miscast: showMiscast ? opts.miscast : 0 })}</span>
+      <span class="kbl">${opts.col !== undefined ? gradeBlock(p, opts.col, { fromOvr: d?.ovrFrom }) : ovrBlock(p, { from: d?.ovrFrom })}</span>
       <span class="kbr">${ring}</span>
     </div>`;
   }
   const mains: SpotLabel[] = [...(opts.mainLabels ?? [])];
-  if (showMiscast) mains.push({ text: `MISCAST −${opts.miscast}%`, up: false });
   const his: SpotLabel[] = [...(opts.hiLabels ?? [])];
   if (opts.sitout && l === 0 && !opts.story) his.push({ text: 'SITS OUT', up: false });
   return `<div class="pcard lens${l} sq ${out ? 'pout' : ''} ${opts.locked ? 'hlock' : ''} ${opts.draggable && !out && !opts.locked && l === 0 ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''} ${opts.scope === 'in' ? 'scopehl' : opts.scope === 'out' ? 'scopedim' : ''}"
@@ -791,6 +880,17 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
     ${out ? `<div class="ptag">OUT ${p.outWeeks}w</div>` : ''}
     ${opts.tag ? `<div class="cardtag ${opts.tagCls ?? ''}">${opts.tag}</div>` : ''}
   </div>`;
+}
+
+/** A prospect as a player card would see him — the TRUTH, no fuzz (signing day). */
+function prospectAsPlayer(pr: Prospect): Player {
+  return {
+    id: pr.id, name: pr.name, speciesId: pr.speciesId, form: pr.form, classYear: 0, jersey: 0,
+    heightCm: pr.heightCm, weightKg: pr.weightKg,
+    attrs: copyAttrs(pr.attrs), pots: copyAttrs(pr.pots), startAttrs: copyAttrs(pr.attrs),
+    stats: { gp: 0, pts: 0, reb: 0, stl: 0, ast: 0, mvp: 0 }, career: { gp: 0, pts: 0, reb: 0, stl: 0, ast: 0, mvp: 0 },
+    level: 0, xp: 0, energy: 75, mood: 75, outWeeks: 0, outReason: '', dnp: 0,
+  };
 }
 
 /** The masked rating: ?? → 4? or ?7 → 47. Digits reveal one at a time. */
@@ -832,7 +932,7 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
   // the rating unmasks digit by digit — ?? → 4? / ?7 → 47
   const mask = prospectMask(pr);
   const maskNum = pr.digits >= 2
-    ? `<b class="kovr" style="color:${vc(ovr(pr.seenAttrs) * 1.6)}">${mask}</b>`
+    ? `<b class="kovr" style="color:${heatColor(ovr(pr.seenAttrs))}">${mask}</b>`
     : `<span class="kovr prq">${mask}</span>`;
   const maskHtml = `<span class="ovrwrap"><i class="klab">OVR</i>${maskNum}</span>`;
   let body: string;
@@ -911,7 +1011,7 @@ function nextOppLabel(s: GameState): string {
 function nextOppRow(s: GameState): string {
   const champ = isUtWeek(s) ? utOpponent(s) : null;
   if (champ) {
-    return `${weekLabel(s)} · vs ${chip(champ.name, champ.bg, champ.fg, true)}`;
+    return `W<b>${REGULAR_WEEKS}</b>+${s.week - REGULAR_WEEKS} · vs ${chip(champ.name, champ.bg, champ.fg, true)}`;
   }
   const m = myMatchup(s);
   if (m) {
@@ -927,11 +1027,16 @@ function headerHtml(s: GameState): string {
   const cells = Array.from({ length: CACHE_MAX }, (_, i) =>
     `<span class="ecell ${i < s.energy ? 'on' : ''}" style="${i < s.energy ? `background:${ramp(0.35 + 0.55 * (i / CACHE_MAX))}` : ''}"></span>`
   ).join('');
-  const jobFlash = storyMode === 'impact' && heatShift !== null && (heatShift.dS !== 0 || heatShift.dB !== 0) && currentStory(s);
-  const rank = ordinal(1 + sortedStandings(s).findIndex((x) => x.id === s.myTeamId));
+  const jobFlash = storyMode === 'impact' && impactPage()?.kind === 'coach' && heatShift !== null && (heatShift.dS !== 0 || heatShift.dB !== 0) && currentStory(s);
+  // while the game PLAYS the header still shows the record as it stood at
+  // tip-off — the result is news at the horn, not before
+  const frozen = liveGameOn(s) && s.preGame ? s.preGame : null;
+  const rank = ordinal(frozen ? frozen.rank : 1 + sortedStandings(s).findIndex((x) => x.id === s.myTeamId));
+  const wins = frozen ? frozen.wins : t.wins;
+  const losses = frozen ? frozen.losses : t.losses;
   return `<div class="topbar ${gxResult ? 'spotlight' : ''} ${jobFlash ? 'jobflash' : ''}">
     <div class="hgrid">
-      <button class="hrow hopp" data-action="stand-open">${chip(t.name, t.bg, t.fg, true)} <b>${t.wins}–${t.losses}</b> · <b>${rank}</b></button>
+      <button class="hrow hopp" data-action="stand-open">${chip(t.name, t.bg, t.fg, true)} <b>${wins}–${losses}</b> · <b>${rank}</b></button>
       ${jobBar(s)}
       <button class="hrow hopp" data-action="sched-open">S<b>${Math.max(1, s.season)}</b> · ${nextOppRow(s)}</button>
       <div class="ebar" title="credits ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">
@@ -947,8 +1052,15 @@ function headerHtml(s: GameState): string {
   </div>`;
 }
 
+/** The live game is on: the score is still a secret. */
+function liveGameOn(s: GameState): boolean {
+  return s.phase === 'gamenight' && gnStage === 'beat' && !!s.lastResult;
+}
+
 // the schedule + standings dialogs (tap the header rows) — BLOCKED while a
-// story is up: Scoop's questions must be answered from memory or the notebook
+// story is up (Scoop's questions must be answered from memory or the
+// notebook) and while the game plays (no peeking at the result). One
+// replaces the other: tapping the second row closes the first.
 function schedModalHtml(s: GameState): string {
   if (!schedOpen) return '';
   const t = myTeam(s);
@@ -958,7 +1070,7 @@ function schedModalHtml(s: GameState): string {
     if (!g) continue;
     const home = g[0] === s.myTeamId;
     const opp = s.teams[home ? g[1] : g[0]];
-    const res = s.myResults?.find((r) => r.week === w);
+    const res = liveGameOn(s) && w === s.week ? undefined : s.myResults?.find((r) => r.week === w);
     const now = w === s.week && !isUtWeek(s);
     rows.push(`<tr class="${now ? 'me' : ''}">
       <td>W${w}</td>
@@ -979,7 +1091,7 @@ function standModalHtml(s: GameState): string {
   const table = sortedStandings(s)
     .map((tm, i) => `<tr class="${tm.id === s.myTeamId ? 'me' : ''}">
       <td>${i + 1}. ${chip(tm.name, tm.bg, tm.fg, true)}</td><td class="num">${tm.wins}–${tm.losses}</td></tr>
-      ${i === 1 ? '<tr class="utline"><td colspan="2">▲ THE UNIVERSAL TOURNAMENT ▲</td></tr>' : ''}`)
+      ${i === 1 ? `<tr class="utline"><td colspan="2">▲ ${TOURNEY.name} ▲</td></tr>` : ''}`)
     .join('');
   return `<div class="modalback" data-action="stand-close"><div class="modal">
     <span class="tag">THE STANDINGS</span>
@@ -1092,7 +1204,6 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
     const cells = [0, 1, 2].map((c) => {
       const idx = r * 3 + c;
       const p = slotPlayer(t, idx);
-      const mult = p && r < 2 ? slotMult(p, c) : 1;
       let delta: CardDelta | undefined;
       let mains: SpotLabel[] | undefined;
       let his: SpotLabel[] | undefined;
@@ -1162,7 +1273,7 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
       const scope = scopeSet && p ? (scopeSet.has(p.id) ? 'in' as const : 'out' as const) : undefined;
       return `<div class="gcell dropzone" data-zone="${idx}">
         ${p
-          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, miscast: Math.round((1 - mult) * 100), delta, mainLabels: mains, hiLabels: his, labelPop, popDelay, diamond, scope })
+          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, col: c, delta, mainLabels: mains, hiLabels: his, labelPop, popDelay, diamond, scope })
           : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');
@@ -1218,21 +1329,25 @@ function prospectGridHtml(s: GameState, scopeCount: number | null = null, signin
 
 // ---- the story takeover (hides grid + fourth row; the bag stays) ------------------------------------
 
-function impactHtml(s: GameState, noSprite = false): string {
-  if (!impact) return '';
-  const imp = impact;
+function impactHtml(s: GameState): string {
+  const page = impactPage();
+  if (!page) return '';
   const t = myTeam(s);
-  const p = !noSprite && imp.pid !== null ? t.players.find((x) => x.id === imp.pid) : undefined;
-  const rows = imp.rows.map((r) => `<div class="imp-row ${r.up ? 'up' : 'down'}">
+  const p = page.pid !== null ? t.players.find((x) => x.id === page.pid) : undefined;
+  // the direction law in color: UP green, DOWN red — numbers and arrows alike
+  const rows = page.rows.map((r) => `<div class="imp-row ${r.up ? 'up' : 'down'}">
     <span class="imp-lab">${esc(r.label)}</span>
     ${r.from !== undefined
-      ? `<span class="imp-val" data-from="${r.from}" data-to="${r.to}" style="${r.color ? `color:${r.color}` : ''}">${r.from}</span>`
+      ? `<span class="imp-val" data-from="${r.from}" data-to="${r.to}">${r.from}</span>`
       : `<span class="imp-text">${esc(r.text ?? '')}</span>`}
     <span class="imp-arrow">${r.up ? '▲' : '▼'}</span>
   </div>`).join('');
+  const more = impact && impact.ix < impact.pages.length - 1;
   return `<div class="impactpanel">
-    ${p ? `<span class="imp-sprite">${rigSpriteHtml(rigView(p, imp.rows.some((r) => !r.up) ? 'bad' : 'good'), { bg: t.bg, fg: t.fg }, 2)}</span><div class="imp-name">${esc(p.name)}</div>` : ''}
+    ${p ? `<span class="imp-sprite">${rigSpriteHtml(rigView(p, page.rows.some((r) => !r.up) ? 'bad' : 'good'), { bg: t.bg, fg: t.fg }, 2)}</span><div class="imp-name">${esc(p.name)}</div>` : ''}
+    ${page.kind === 'squad' ? '<div class="imp-name">THE SQUAD</div>' : ''}
     <div class="imp-rows">${rows}</div>
+    ${more ? '<div class="imp-more dim">▸ and then…</div>' : ''}
   </div>`;
 }
 
@@ -1257,8 +1372,7 @@ function revealPreview(kind: string, id: string): string {
     const pl = PLANS.find((x) => x.id === id);
     if (!pl) return '';
     return `<div class="drill sel revealrow">
-      <b>${pl.speech}</b> <span class="xpg">${ATTR_LABEL[pl.attr]}</span> <span class="xpg gaintag">${pl.workPct + pl.up}% +${pl.work[0]}–${pl.work[1]} ${ATTR_SHORT[pl.attr]}</span>${pl.cooldown ? ` <span class="xpg">${pl.cooldown}w recharge</span>` : ''}
-      ${oddsLine({ pct: pl.up, cls: 'SPIRIT', note: `IGNITES: squad +${pl.boost}` }, { pct: pl.down, cls: 'DRAMA', note: 'a believer lost' })}<br/>
+      <b>${pl.speech}</b> ${speechTrade(pl)}${pl.cooldown ? ` <span class="xpg">${pl.cooldown}w recharge</span>` : ''}<br/>
       <span class="ddesc">${esc(pl.fantasy)}</span>
     </div>`;
   }
@@ -1269,7 +1383,7 @@ function revealPreview(kind: string, id: string): string {
     const what = gains
       ? `<span class="xpg gaintag">${gains}</span>`
       : d.potChance
-        ? `<span class="xpg gaintag">${d.potChance}% +1 CEILING</span>`
+        ? `<span class="xpg gaintag">+1 CEILING, a coin flip each</span>`
         : `<span class="xpg">+${d.xp[0]}–${d.xp[1]} XP</span>`;
     return `<div class="drill sel revealrow">
       <b>${d.name}</b> ${what}
@@ -1290,8 +1404,7 @@ function revealPreview(kind: string, id: string): string {
     const it = INSTRUCTIONS.find((x) => x.id === id);
     if (!it) return '';
     return `<div class="drill sel revealrow">
-      <b>${it.name}</b> <span class="xpg gaintag">${it.hit}% they play −${it.oppAmt}</span>${it.cooldown ? ` <span class="xpg">${it.cooldown}w recharge</span>` : ''}
-      ${oddsLine({ pct: it.hit, cls: 'INTEL', note: 'you called it' }, { pct: it.backfire, cls: it.id === 'takeout' ? 'SCANDAL' : 'DRAMA', note: it.id === 'takeout' ? 'CAUGHT' : `you play −${it.selfAmt}` }, it.cost)}<br/>
+      <b>${it.name}</b> ${instrTrade(it)}${it.cooldown ? ` <span class="xpg">${it.cooldown}w recharge</span>` : ''}<br/>
       <span class="ddesc">${esc(it.desc)}</span>
     </div>`;
   }
@@ -1318,6 +1431,15 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
   if (ev.defId === 'item_offer' || ev.defId === 'supply' || ev.defId === 'bagfull') {
     return `<div class="revealbox">${revealPreview('item', (ev.data?.itemId as string) ?? '')}</div>`;
   }
+  if (ev.defId === 'signing_verdict') {
+    // SIGNING DAY: the whole truth, for the first time — the ABILITIES card
+    // of the kid on the line, in your colors if he's yours
+    const pr = s.prospects.find((x) => x.id === (ev.data?.prospectId as number));
+    if (!pr) return '';
+    const commit = ev.data?.commit === true;
+    const acting: 'good' | 'bad' | 'neutral' = storyMode === 'antic' ? 'neutral' : commit ? 'good' : 'bad';
+    return `<div class="modalcard truth">${playerCard(prospectAsPlayer(pr), { inert: true, story: acting, storyView: 'abilities', kit: commit ? kit : PRACTICE_KIT, labelPop: false })}</div>`;
+  }
   const p = ev.playerId !== null ? t0.players.find((x) => x.id === ev.playerId) : undefined;
   const resolved = !!ev.resolvedText;
   if (p) {
@@ -1328,7 +1450,7 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
     const acting: 'good' | 'bad' | 'worried' | 'neutral' = resolved
       ? chosenWant
         ? (chosenWant === 'love' ? 'good' : 'bad')
-        : (impact && impact.rows.some((r) => !r.up) ? 'bad' : 'good')
+        : (impact && impact.pages.some((pg) => pg.rows.some((r) => !r.up)) ? 'bad' : 'good')
       : storyMode === 'antic' ? 'neutral'
       : ev.choices?.length ? 'worried' : storySentiment(ev.tag);
     // the story picks its card backdrop: the ABILITIES compass for growth
@@ -1355,26 +1477,45 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
   return '';
 }
 
+/** Confetti for the moments that earn it. */
+function feteHtml(): string {
+  const bits = Array.from({ length: 26 }, (_, i) => {
+    const left = (i * 37 + 11) % 100;
+    const delay = ((i * 53) % 100) / 100 * 2.6;
+    const dur = 2.6 + ((i * 29) % 100) / 100 * 1.8;
+    const color = [C_RED, C_ORANGE, C_YELLOW, C_GREEN, C_WHITE][i % 5];
+    return `<i style="left:${left}%;animation-delay:-${delay.toFixed(2)}s;animation-duration:${dur.toFixed(2)}s;background:${color}"></i>`;
+  }).join('');
+  return `<div class="confetti" aria-hidden="true">${bits}</div>`;
+}
+
 function storyPanel(s: GameState): string {
   const ev = currentStory(s)!;
   const p = ev.playerId !== null ? myTeam(s).players.find((x) => x.id === ev.playerId) : undefined;
   const art = storyArt(s, ev);
+  const fete = ev.data?.fete === true ? feteHtml() : '';
   if (storyMode === 'impact') {
-    // a JOB SECURITY swing belongs to the dean/booster, not the player who
-    // caused it — the guilty party leaves the box, the angry (or delighted)
-    // figure stands over the stat change instead
+    // ONE VOICE PER SCREEN: the player's page carries his sprite; the coach's
+    // page carries the dean/booster standing over the JOB SECURITY change (or
+    // the story's own figure when only credits moved); the squad's page is
+    // bare. Tap through them one by one.
+    const page = impactPage();
     const heatMoved = heatShift !== null && (heatShift.dS !== 0 || heatShift.dB !== 0);
     const t = myTeam(s);
-    const heatArt = heatMoved
-      ? (() => {
-          const fig: FigureId = Math.abs(heatShift!.dS) >= Math.abs(heatShift!.dB) ? 'dean' : 'booster';
-          return `<div class="scenebox">${figureHtml(fig, figureVerdict(fig), { bg: t.bg, fg: t.fg }, 3)}</div>`;
-        })()
-      : '';
-    return `<div class="storypanel" data-action="story-tap" id="storypanel">
+    let pageArt = '';
+    if (page?.kind === 'coach') {
+      if (heatMoved) {
+        const fig: FigureId = Math.abs(heatShift!.dS) >= Math.abs(heatShift!.dB) ? 'dean' : 'booster';
+        pageArt = `<div class="scenebox">${figureHtml(fig, figureVerdict(fig), { bg: t.bg, fg: t.fg }, 3)}</div>`;
+      } else if (!p) {
+        pageArt = art;
+      }
+    }
+    return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
+      ${fete}
       <span class="tag">${esc(ev.tag)}</span>
-      ${heatMoved ? heatArt : p ? '' : art}
-      ${impactHtml(s, heatMoved)}
+      ${pageArt}
+      ${impactHtml(s)}
       <div class="modal-actions" id="modal-actions"><div class="taphint">▸ tap</div></div>
     </div>`;
   }
@@ -1396,7 +1537,8 @@ function storyPanel(s: GameState): string {
     } else {
       actions = '<div class="taphint">▸ tap</div>';
     }
-    return `<div class="storypanel" data-action="story-tap" id="storypanel">
+    return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
+      ${fete}
       <span class="tag">${esc(ev.tag)}</span>
       ${art}
       ${inChoices
@@ -1406,7 +1548,8 @@ function storyPanel(s: GameState): string {
     </div>`;
   }
   // a single typed beat, center stage (this layout never gains elements mid-read)
-  return `<div class="storypanel" data-action="story-tap" id="storypanel">
+  return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
+    ${fete}
     <span class="tag">${esc(ev.tag)}</span>
     ${art}
     <div class="typebox beatbox" id="typebox"></div>
@@ -1420,11 +1563,13 @@ function ordinal(n: number): string {
   return `${n}${['', 'st', 'nd', 'rd'][n] ?? 'th'}`;
 }
 
+// the four rows sit in their PAIRS: SKILL over ATHLETICISM, BRAINS over
+// FIERCENESS — a speech pushes one up and its partner down
 const BAR_ROWS: { a: Attr | 'all'; label: string }[] = [
   { a: 'skl', label: 'SKILL' },
   { a: 'ath', label: 'ATHLETICISM' },
-  { a: 'frc', label: 'FIERCENESS' },
   { a: 'brn', label: 'BRAINS' },
+  { a: 'frc', label: 'FIERCENESS' },
   { a: 'all', label: 'OVERALL' },
 ];
 
@@ -1545,8 +1690,21 @@ function drillRecap(d: (typeof DRILLS)[number]): string {
     return `${bits.join(' ')} · ${d.cost ? `${d.cost}¢` : '0¢'}`;
   }
   const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
-  const pot = d.potChance ? `${d.potChance}% +1 CEILING` : '';
+  const pot = d.potChance ? '+1 CEILING · coin flips' : '';
   return `${[gains, pot].filter(Boolean).join(' · ') || `+${d.xp[0]}–${d.xp[1]} XP`} · SQUAD · ${d.cost}¢`;
+}
+
+/** A speech's trade, printed: what it gives, what it takes. */
+function speechTrade(pl: (typeof PLANS)[number]): string {
+  return `<span class="xpg gaintag up">+${pl.gain[0]}–${pl.gain[1]} ${ATTR_LABEL[pl.attr]}</span> <span class="xpg gaintag down">−${pl.loss[0]}–${pl.loss[1]} ${ATTR_LABEL[pl.off]}</span>`;
+}
+
+/** An instruction's two tails, in words. */
+function instrTrade(it: (typeof INSTRUCTIONS)[number]): string {
+  const down = it.id === 'takeout'
+    ? { pct: it.backfire, cls: 'SCANDAL', note: 'CAUGHT — the league reviews the tape' }
+    : { pct: it.backfire, cls: 'DRAMA', note: `they read you: squad −${it.selfAmt}` };
+  return `<span class="xpg gaintag">they play −${it.oppAmt} if it lands</span> ${oddsLine({ pct: it.hit, cls: 'INTEL', note: 'you called it' }, down, it.cost)}`;
 }
 
 /** WEEK START: the Monday report — the weekend's recovery and banked XP per
@@ -1579,7 +1737,7 @@ function gxScopeWord(act: (typeof GALAXY_ACTS)[number]): string {
 /** One-line recap of a galaxy act for the main button. */
 function gxActSub(act: (typeof GALAXY_ACTS)[number]): string {
   if (act.kind === 'scout') return `reveal ${act.reveals![0]}–${act.reveals![1]} facets · ${gxScopeWord(act)} · ${act.cost}¢`;
-  if (act.kind === 'recruit') return `+${act.gain![0]}–${act.gain![1]}% commit · ${gxScopeWord(act)} · ${act.cost}¢`;
+  if (act.kind === 'recruit') return `+${act.gain![0]}–${act.gain![1]}% commit · ${gxScopeWord(act)}${(act.risk ?? 0) >= 6 ? ' · some may sour' : ''} · ${act.cost}¢`;
   return `new talent for the board · ${act.cost ? `${act.cost}¢` : 'FREE'}`;
 }
 
@@ -1647,9 +1805,12 @@ function stageMatchup(s: GameState): string {
   // lineup and the honest ropes; the outcome shows as a strip over the bars
   let landedLine = '';
   if (s.pregameWk) {
+    const fxs = s.speechFx ?? [];
+    const gain = fxs.find((f) => f.amt > 0);
+    const loss = fxs.find((f) => f.amt < 0);
     if (s.oppFx) landedLine = `✓ THE CALL LANDS — they play ${s.oppFx.amt} ${ATTR_SHORT[s.oppFx.attr]} tonight`;
-    else if (s.speechFx && s.speechFx.amt < 0) landedLine = `▼ THEY READ YOU — your squad plays ${s.speechFx.amt} ${ATTR_SHORT[s.speechFx.attr]} tonight`;
-    else if (s.speechFx) landedLine = `${s.speechFx.amt >= planById(s.plan).boost ? '🔥 THE ROOM IGNITED' : '✓ the words LAND'} — squad +${s.speechFx.amt} ${ATTR_SHORT[s.speechFx.attr]} tonight`;
+    else if (!gain && loss) landedLine = `▼ THEY READ YOU — your squad plays ${loss.amt} ${ATTR_SHORT[loss.attr]} tonight`;
+    else if (gain) landedLine = `✓ the words LAND — squad +${gain.amt} ${ATTR_SHORT[gain.attr]}${loss ? ` · ${loss.amt} ${ATTR_SHORT[loss.attr]}` : ''} tonight`;
     else landedLine = 'the move is made. the rest is on them';
   }
   const landed = landedLine ? `<div class="fourthrow slim"><div class="report">${landedLine}</div></div>` : '';
@@ -1678,8 +1839,7 @@ function speechSheetHtml(s: GameState): string {
       return `<div class="drill locked"><b>${pl.speech}</b> <span class="dim">— recharging, ${cd} week${cd === 1 ? '' : 's'}</span></div>`;
     }
     return `<button class="drill ${sel.kind === 'speech' && sel.id === pl.id ? 'sel' : ''}" data-action="speech-pick" data-id="${pl.id}">
-      <b>${pl.speech}</b> <span class="xpg">${ATTR_LABEL[pl.attr]}</span> <span class="xpg gaintag">${pl.workPct + pl.up}% +${pl.work[0]}–${pl.work[1]} ${ATTR_SHORT[pl.attr]}</span>${pl.cooldown ? ` <span class="xpg">${pl.cooldown}w recharge</span>` : ''}
-      ${oddsLine({ pct: pl.up, cls: 'SPIRIT', note: `IGNITES: squad +${pl.boost}` }, { pct: pl.down, cls: 'DRAMA', note: 'a believer lost' })}<br/>
+      <b>${pl.speech}</b> ${speechTrade(pl)}${pl.cooldown ? ` <span class="xpg">${pl.cooldown}w recharge</span>` : ''}<br/>
       <span class="ddesc">${esc(pl.fantasy)}</span>
     </button>`;
   }).join('');
@@ -1689,18 +1849,14 @@ function speechSheetHtml(s: GameState): string {
     if (cd > 0) {
       return `<div class="drill locked"><b>${it.name}</b> <span class="dim">— recharging, ${cd} week${cd === 1 ? '' : 's'}</span></div>`;
     }
-    const down = it.id === 'takeout'
-      ? { pct: it.backfire, cls: 'SCANDAL' as const, note: 'CAUGHT — the league reviews the tape' }
-      : { pct: it.backfire, cls: 'DRAMA' as const, note: `they read you: squad −${it.selfAmt}` };
     return `<button class="drill ${sel.kind === 'instr' && sel.id === it.id ? 'sel' : ''}" data-action="instr-pick" data-id="${it.id}">
-      <b>${it.name}</b> <span class="xpg gaintag">${it.hit}% they play −${it.oppAmt}</span>${it.cooldown ? ` <span class="xpg">${it.cooldown}w recharge</span>` : ''}
-      ${oddsLine({ pct: it.hit, cls: 'INTEL', note: 'you called it' }, down, it.cost)}<br/>
+      <b>${it.name}</b> ${instrTrade(it)}${it.cooldown ? ` <span class="xpg">${it.cooldown}w recharge</span>` : ''}<br/>
       <span class="ddesc">${esc(it.desc)}</span>
     </button>`;
   }).join('');
   return `<div class="modalback sheet" data-action="speech-sheet-close"><div class="modal sheetup scrolly">
     <span class="tag">THE PREGAME MOVE</span>
-    <div class="sheethead">THE SPEECH — rouse the room</div>
+    <div class="sheethead">THE SPEECH — a trade: one thing up, its opposite down</div>
     ${speeches}
     <div class="sheethead">LAST-MINUTE INSTRUCTIONS — play the tape</div>
     ${instrs}
@@ -1730,22 +1886,17 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
   const sep0 = (home ? 1 - share : share) * 100;
   // a finished game renders its final frame statically (the same math the
   // ticker runs) under the big verdict
-  let l = 0, rr = 0, sep = sep0, lW = 0, rW = 0;
+  let l = 0, rr = 0;
   if (final) {
     l = home ? final.opp : final.my;
     rr = home ? final.my : final.opp;
-    const k = 100 / Math.max(1, l + rr);
-    const lw = l * k;
-    const rw = rr * k;
-    const overL = Math.max(0, lw - sep0);
-    const overR = Math.max(0, rw - (100 - sep0));
-    sep = clamp(sep0 + overL - overR, 2, 98);
-    lW = Math.min(lw, sep);
-    rW = Math.min(rw, 100 - sep);
   }
+  const f = liveFrame(l, rr, final ? 1 : 0);
+  const titleGame = isUtWeek(s) && (s.ut?.round ?? 0) >= 2;
   // centered, the whole screen used: AWAY on top, @, HOME — then open air
-  // where the score tag lives, hovering above the rope. The closer the score
-  // rides to the middle, the tighter the night.
+  // where the score tag lives, hovering above the bar. The bar LIGHTS from
+  // the center outward as the clock runs; the line inside the lit part is
+  // who leads, and by how much (away's share of the points, left).
   return `<div class="needle-stage lg-stage" id="needle-stage">
     <div class="ns-title">${title}</div>
     <div class="lg-vs">
@@ -1756,16 +1907,27 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
     <div class="lg-air"></div>
     <div class="bigrope live" id="bigrope">
       <span class="lg-rating" style="left:${sep0}%"></span>
-      <span class="lg-fill" id="lgl" style="left:${sep - lW}%;width:${lW}%;background:${away.bg}"></span>
-      <span class="lg-fill" id="lgr" style="left:${sep}%;width:${rW}%;background:${homeT.bg}"></span>
-      <span class="brsplit ${final ? 'landed' : ''}" id="lgsep" style="left:${sep}%"></span>
-      <div class="livescore" id="livescore" style="left:${sep}%"><b id="lsl">${l}</b><span class="lsdot">·</span><b id="lsr">${rr}</b></div>
+      <span class="lg-fill" id="lgl" style="left:${f.lo}%;width:${f.sep - f.lo}%;background:${away.bg}"></span>
+      <span class="lg-fill" id="lgr" style="left:${f.sep}%;width:${f.hi - f.sep}%;background:${homeT.bg}"></span>
+      <span class="brsplit ${final ? 'landed' : ''}" id="lgsep" style="left:${f.sep}%"></span>
+      <div class="livescore" id="livescore" style="left:${f.sep}%"><b id="lsl">${l}</b><span class="lsdot">·</span><b id="lsr">${rr}</b></div>
     </div>
-    ${final ? `<div class="gn-final ${final.win ? 'won' : 'lost'}">
-      <b>${final.win ? 'YOU WON' : 'YOU LOST'}</b>
+    ${final ? `<div class="gn-final ${final.win ? 'won' : 'lost'} ${final.win && titleGame ? 'title' : ''}">
+      <b>${final.win ? (titleGame ? 'CHAMPIONS OF THE UNIVERSE' : 'YOU WON') : 'YOU LOST'}</b>
       <span class="gn-score">${final.my} – ${final.opp}</span>
     </div>` : '<div class="lg-air"></div>'}
   </div>`;
+}
+
+/** One frame of the live bar: t = how much of the game has run (0–1); the
+    lit stretch is [50−50t, 50+50t]; inside it, the line sits at away's
+    share of the points (40–20 away ⇒ two thirds of the light is theirs). */
+function liveFrame(l: number, r: number, t: number): { lo: number; hi: number; sep: number } {
+  const tt = clamp(t, 0, 1);
+  const lo = 50 - 50 * tt;
+  const hi = 50 + 50 * tt;
+  const shareL = l + r > 0 ? l / (l + r) : 0.5;
+  return { lo, hi, sep: lo + (hi - lo) * shareL };
 }
 
 function stageGamenight(s: GameState): string {
@@ -1794,7 +1956,7 @@ function stageGamenight(s: GameState): string {
     ? `<table class="standings">${sortedStandings(s)
         .map((t, i) => `<tr class="${t.id === s.myTeamId ? 'me' : ''}">
           <td>${i + 1}. ${chip(t.name, t.bg, t.fg, true)}</td><td class="num">${t.wins}–${t.losses}</td></tr>
-          ${i === 1 ? '<tr class="utline"><td colspan="2">▲ THE UNIVERSAL TOURNAMENT ▲</td></tr>' : ''}`)
+          ${i === 1 ? `<tr class="utline"><td colspan="2">▲ ${TOURNEY.name} ▲</td></tr>` : ''}`)
         .join('')}</table>`
     : `<div class="report">${(s.ut?.log ?? []).map((l) => `<div>${esc(l)}</div>`).join('')}</div>`;
   const others = s.resultsLog.length
@@ -1839,6 +2001,7 @@ function stageTeamSelect(s: GameState): string {
       return `<div class="gcell dropzone" data-zone="${idx}">${playerCard(p, {
         lens,
         tag,
+        col: c,
         draggable: lens === 0,
         kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT,
         delta: grew && sumBatch?.render ? { ovrFrom: sum.ovrFrom } : undefined,
@@ -1874,7 +2037,7 @@ function stageDepartures(s: GameState): string {
     <div class="report">${notes}</div>
     ${pros}
     <div class="report">LEGACY <b style="color:${vc(clamp(s.legacy, 0, 100))}">${s.legacy}</b>
-      <span class="dim">· ${s.trophies}🏆 · ${s.utTitles} UT · ${s.totalWins}W</span><br/>
+      <span class="dim">· ${s.trophies}🏆 · ${s.utTitles}× ${TOURNEY.short} · ${s.totalWins}W</span><br/>
       <button class="hold danger" data-action="retire">🏁 RETIRE — LOCK IN YOUR LEGACY</button></div>`;
 }
 
@@ -1894,7 +2057,7 @@ function stageGameover(s: GameState): string {
     <p class="sub">${esc(e.text)}</p>
     <div class="report">
       <div>SEASONS <b>${s.season}</b> · LEGACY <b style="color:${vc(clamp(s.legacy, 0, 100))}">${s.legacy}</b></div>
-      <div>${s.trophies}🏆 · ${s.utTitles} UNIVERSAL · ${s.totalWins} WINS</div>
+      <div>${s.trophies}🏆 · ${s.utTitles}× ${TOURNEY.short} · ${s.totalWins} WINS</div>
     </div>
     ${s.careerLog.length ? `<div class="report dim">${s.careerLog.slice(-8).map((l) => `<div>${esc(l)}</div>`).join('')}</div>` : ''}
   </div>`;
@@ -1902,9 +2065,8 @@ function stageGameover(s: GameState): string {
 
 function stagePickTeam(s: GameState): string {
   const cards = s.teams.map((t) => {
-    const avg = Math.round(t.players.reduce((a, p) => a + ovr(p.attrs), 0) / t.players.length);
     return `<button class="teampickbtn" data-action="pick-team" data-id="${t.id}" style="background:${t.bg};color:${t.fg}">
-      <b>${esc(teamLabel(t))}</b><br/><span>${esc(t.region)} · avg overall ${avg}</span></button>`;
+      <b>${esc(teamLabel(t))}</b><br/><span>${esc(t.region)} · ${esc(t.planet)}</span></button>`;
   }).join('');
   return `<h1>GALACTIC COACH</h1>
     <p class="sub">3-on-3. Every choice has two tails.</p>
@@ -1964,10 +2126,10 @@ function nav(s: GameState): string {
       if (sel.kind === 'instr') {
         const it = instrById(sel.id);
         const cant = s.energy < it.cost;
-        return navAction(`▶ INSTRUCT — ${it.name}`, cant ? `NEED ${it.cost}¢` : `${it.hit}% they play −${it.oppAmt} · ${it.backfire}% ${it.id === 'takeout' ? 'CAUGHT' : `you play −${it.selfAmt}`}${it.cost ? ` · ${it.cost}¢` : ''}`, 'speech-run', 'speech-sheet', { disabled: cant });
+        return navAction(`▶ INSTRUCT — ${it.name}`, cant ? `NEED ${it.cost}¢` : `lands: they play −${it.oppAmt} · read: ${it.id === 'takeout' ? 'CAUGHT' : `you play −${it.selfAmt}`}${it.cost ? ` · ${it.cost}¢` : ''}`, 'speech-run', 'speech-sheet', { disabled: cant });
       }
       const pl = planById(sel.id);
-      return navAction(`▶ SPEECH — ${pl.speech}`, `${pl.workPct + pl.up}% squad +${pl.work[0]}–${pl.work[1]} ${ATTR_SHORT[pl.attr]} · ${pl.up}% IGNITES +${pl.boost} · ${pl.down}% a believer lost`, 'speech-run', 'speech-sheet');
+      return navAction(`▶ SPEECH — ${pl.speech}`, `squad +${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]} · −${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]} tonight`, 'speech-run', 'speech-sheet');
     }
     case 'gamenight': {
       if (!s.lastResult || gnStage === 'beat') return navMain('…', 'noop', true);
@@ -2004,7 +2166,7 @@ function drillSheetHtml(s: GameState): string {
       const what = gains
         ? `<span class="xpg gaintag">${gains}</span>`
         : d.potChance
-          ? `<span class="xpg gaintag">${d.potChance}% +1 CEILING</span>`
+          ? `<span class="xpg gaintag">+1 CEILING, a coin flip each</span>`
           : d.xp[1] > 0
             ? `<span class="xpg">+${d.xp[0]}–${d.xp[1]} XP</span>`
             : `<span class="xpg">${(d.recover?.mood ?? 0) > (d.recover?.energy ?? 0) ? 'squad MOOD up' : 'squad ⚡ up'}</span>`;
@@ -2036,7 +2198,7 @@ function galaxySheetHtml(s: GameState): string {
     const what = a.reveals
       ? `<span class="xpg">${a.reveals[0]}–${a.reveals[1]} facets · ${gxScopeWord(a)}</span>`
       : a.gain
-        ? `<span class="xpg">+${a.gain[0]}–${a.gain[1]}% · ${gxScopeWord(a)}${a.risk ? ` · ${a.risk}% backfire each` : ''}</span>`
+        ? `<span class="xpg">+${a.gain[0]}–${a.gain[1]}% · ${gxScopeWord(a)}${(a.risk ?? 0) >= 6 ? ' · some may sour' : a.risk ? ' · rarely sours' : ''}</span>`
         : `<span class="xpg">1${a.twoChance ? '–2' : ''} new name${a.twoChance ? 's' : ''}</span>`;
     return `<button class="drill ${selId === a.id ? 'sel' : ''}" data-action="gx-pick" data-id="${a.id}" ${grounded ? 'disabled' : ''}>
       <b>${a.name}</b>${grounded ? ' <span class="blink">GROUNDED</span>' : ''} ${what}
@@ -2148,7 +2310,7 @@ function coachModalHtml(s: GameState): string {
   return `<div class="modalback"><div class="modal">
     <span class="tag">THE COACH</span>
     <div class="report">LEGACY <b style="color:${vc(clamp(s.legacy, 0, 100))}">${s.legacy}</b>
-      · ${s.trophies}🏆 · ${s.utTitles} UT · ${s.totalWins}W · season ${s.season}${s.season >= 20 ? ' <span class="blink">— you feel the years</span>' : ''}</div>
+      · ${s.trophies}🏆 · ${s.utTitles}× ${TOURNEY.short} · ${s.totalWins}W · season ${s.season}${s.season >= 20 ? ' <span class="blink">— you feel the years</span>' : ''}</div>
     <div class="report"><b>KNOWLEDGE</b>${tactics}${instrs}${drills}${regions}</div>
     <button class="wide" data-action="toggle-tips">ASSISTANT AUTO-TIPS: ${s.tipsAuto ? 'ON' : 'OFF'}</button>
     <p class="dim">GALACTIC COACH ${VERSION}</p>
@@ -2203,6 +2365,7 @@ function render(): void {
     heatShift = null;
     jobAnimDone = false;
     chosenWant = null;
+    wheelDone = false;
     if (ev.resolvedText) {
       storyMode = splitBeats(ev.resolvedText).length > 1 ? 'r-antic' : 'r-reveal';
     } else {
@@ -2402,7 +2565,6 @@ function showWheel(chancePct: number, success: boolean, label: string, onDone: (
           <circle class="whbright" cx="18" cy="18" r="15.9155" stroke-dasharray="${pct} 100"/>
         </svg>
         <div class="whneedle" id="whneedle"></div>
-        <div class="whpct">${pct}%</div>
       </div>
       <div class="wheelverdict hide" id="whverdict">${success ? '▲ IT LANDS' : '▼ IT MISSES'}</div>
     </div>`;
@@ -2500,7 +2662,7 @@ function postRender(): void {
     if (storyMode === 'impact' && !impactPlayed) animateImpact();
     // THE HOT SEAT moves like the energy blast: everything else dims and the
     // job-security darkness visibly eats (or gives back) its ground
-    if (storyMode === 'impact' && heatShift && (heatShift.dS !== 0 || heatShift.dB !== 0) && !jobAnimDone) {
+    if (storyMode === 'impact' && impactPage()?.kind === 'coach' && heatShift && (heatShift.dS !== 0 || heatShift.dB !== 0) && !jobAnimDone) {
       jobAnimDone = true;
       const l = document.querySelector('.jobbar .jdark.l') as HTMLElement | null;
       const rr = document.querySelector('.jobbar .jdark.r') as HTMLElement | null;
@@ -2556,7 +2718,7 @@ function postRender(): void {
   });
 }
 
-function animateLiveGame(myPts: number, oppPts: number, share: number, home: boolean, onDone: () => void): void {
+function animateLiveGame(myPts: number, oppPts: number, _share: number, home: boolean, onDone: () => void): void {
   const lgl = document.getElementById('lgl');
   const lgr = document.getElementById('lgr');
   const lgsep = document.getElementById('lgsep');
@@ -2564,30 +2726,22 @@ function animateLiveGame(myPts: number, oppPts: number, share: number, home: boo
   const lsl = document.getElementById('lsl');
   const lsr = document.getElementById('lsr');
   if (!lgl || !lgr || !lgsep || !score || !lsl || !lsr) { onDone(); return; }
-  const sep0 = (home ? 1 - share : share) * 100;
   const leftFinal = home ? oppPts : myPts;
   const rightFinal = home ? myPts : oppPts;
   const total = Math.max(1, leftFinal + rightFinal);
-  // equal ground per point: at the EXPECTED split both bars kiss their edges
-  // exactly at the buzzer — outscoring your rating pushes the separator
-  const k = 100 / total;
+  // the clock is the points: the light grows from the center as they fall,
+  // and the line inside it is who leads and by how much
   let l = 0;
   let r = 0;
   let done = false;
   const apply = (): void => {
-    const lw = l * k;
-    const rw = r * k;
-    const overL = Math.max(0, lw - sep0);
-    const overR = Math.max(0, rw - (100 - sep0));
-    const sep = clamp(sep0 + overL - overR, 2, 98);
-    const lW = Math.min(lw, sep);
-    const rW = Math.min(rw, 100 - sep);
-    lgl.style.left = `${sep - lW}%`;
-    lgl.style.width = `${lW}%`;
-    lgr.style.left = `${sep}%`;
-    lgr.style.width = `${rW}%`;
-    lgsep.style.left = `${sep}%`;
-    score.style.left = `${sep}%`;
+    const f = liveFrame(l, r, (l + r) / total);
+    lgl.style.left = `${f.lo}%`;
+    lgl.style.width = `${f.sep - f.lo}%`;
+    lgr.style.left = `${f.sep}%`;
+    lgr.style.width = `${f.hi - f.sep}%`;
+    lgsep.style.left = `${f.sep}%`;
+    score.style.left = `${f.sep}%`;
     lsl.textContent = String(l);
     lsr.textContent = String(r);
   };
@@ -2907,7 +3061,10 @@ function executeAction(action: string, id: string): void {
     case 'to-recruiting': drillSheet = false; drillDeltas = null; toRecruiting(state); break;
     case 'to-matchup': galaxySheet = false; gxStickers = null; toMatchup(state); break;
     case 'to-signing': toSigning(state); break;
-    case 'gn-verdict': gnStage = 'verdict'; clearFloatTimers(); break;
+    case 'gn-verdict':
+      // the score has been seen: everything the horn caused may speak now
+      // (injuries, ON FIRE, the frozen one) — then the box score
+      gnStage = 'verdict'; clearFloatTimers(); releaseHeldStories(state); break;
     case 'gn-table': gnStage = 'table'; clearFloatTimers(); break;
     case 'continue-result': gnStage = 'beat'; clearFloatTimers(); drillDeltas = null; gxStickers = null; continueFromResult(state); break;
 
@@ -2959,9 +3116,9 @@ function executeAction(action: string, id: string): void {
       const text = deliverSpeech(state, sel.id);
       if (text) {
         toast = text;
-        const fx = state.speechFx;
+        const fx = state.speechFx?.find((f) => f.amt > 0);
         if (fx) {
-          // the ignition cascades once the toast closes: cards → bar → OVERALL
+          // the shift cascades once the toast closes: cards → bars → OVERALL
           speechCasc = { attr: fx.attr, amt: fx.amt };
           cascArmed = 'speech';
         } else {
@@ -2970,12 +3127,14 @@ function executeAction(action: string, id: string): void {
       }
       break;
     }
-    case 'play-game':
+    case 'play-game': {
       gnStage = 'beat';
       clearFloatTimers();
       ropeFrom = (document.querySelector('.tbars.mu .tbar.big .tbtrack') as HTMLElement | null)?.getBoundingClientRect() ?? null;
-      playGame(state);
+      // the frozen one may stop you at the door — no tip-off, no flip
+      if (!playGame(state)) ropeFrom = null;
       break;
+    }
 
     case 'convince-pro': {
       const p = myTeam(state).players.find((x) => x.id === Number(id));
@@ -3042,8 +3201,14 @@ app.addEventListener('click', (e) => {
       if (!ev) break;
       if (storyMode === 'impact') {
         if (!impactPlayed) { finishImpactNow(); return; } // first tap: land everything
-        clearFloatTimers();
         clearImpactTimers();
+        if (impact && impact.ix < impact.pages.length - 1) {
+          // the next voice gets its own screen
+          impact.ix++;
+          impactPlayed = false;
+          break;
+        }
+        clearFloatTimers();
         impact = null;
         dismissStory(state);
         storyUid = -1;
@@ -3051,10 +3216,20 @@ app.addEventListener('click', (e) => {
       }
       if (finishTypeNow()) return; // finish the current beat instantly
       if (!stageTyped || storyMode === 'choices') return;
-      if (storyMode === 'antic') { storyMode = 'reveal'; stageTyped = false; break; }
+      if (storyMode === 'antic') {
+        // signing day: the wheel decides between the ring and the answer
+        if (ev.data?.wheel && !wheelDone) {
+          wheelDone = true;
+          const pct = (ev.data.pct as number) ?? 0;
+          const commit = ev.data.commit === true;
+          showWheel(pct, commit, `SIGNING ${String(ev.data.name ?? '').toUpperCase()}?`, () => { storyMode = 'reveal'; stageTyped = false; render(); });
+          return;
+        }
+        storyMode = 'reveal'; stageTyped = false; break;
+      }
       if (storyMode === 'r-antic') { storyMode = 'r-reveal'; stageTyped = false; break; }
       if (storyMode === 'r-reveal') {
-        if (impact && impact.rows.length) { storyMode = 'impact'; impactPlayed = false; break; }
+        if (impact && impact.pages.length) { storyMode = 'impact'; impactPlayed = false; break; }
         impact = null;
         dismissStory(state);
         storyUid = -1;
@@ -3090,9 +3265,9 @@ app.addEventListener('click', (e) => {
 
     case 'bag-item': itemUi = id; break;
     case 'item-close': itemUi = null; break;
-    case 'sched-open': if (!currentStory(state)) schedOpen = true; break;
+    case 'sched-open': if (!currentStory(state) && !liveGameOn(state)) { schedOpen = true; standOpen = false; } break;
     case 'sched-close': schedOpen = false; break;
-    case 'stand-open': if (!currentStory(state)) standOpen = true; break;
+    case 'stand-open': if (!currentStory(state) && !liveGameOn(state)) { standOpen = true; schedOpen = false; } break;
     case 'stand-close': standOpen = false; break;
     case 'notebook': {
       const ev = currentStory(state);

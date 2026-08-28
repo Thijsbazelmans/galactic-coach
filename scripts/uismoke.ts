@@ -124,8 +124,9 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('k-pot')) throw new Error('potential outline missing on ABILITIES');
   must('[data-action="lens-set"]', 'lens set 0');
 
-  // the ROSTER card: LED gauges, OVR bottom-left, XP ring bottom-right
-  if (!app.innerHTML.includes('kovr')) throw new Error('card OVR missing');
+  // the ROSTER card: LED gauges, the slot GRADE bottom-left, XP ring bottom-right
+  if (!app.innerHTML.includes('kgrade')) throw new Error('card grade missing');
+  if (app.innerHTML.includes('MISCAST')) throw new Error('MISCAST should be dead');
   if (!app.innerHTML.includes('kring')) throw new Error('XP ring missing');
   if (!app.innerHTML.includes('gauge gl')) throw new Error('energy gauge missing');
   if (!app.innerHTML.includes('gauge gr')) throw new Error('mood gauge missing');
@@ -178,7 +179,7 @@ async function main(): Promise<void> {
   if (app.innerHTML.includes('scoutbtn')) throw new Error('the scout button should be gone');
   if (!app.querySelector('.navbar [data-action="play-game"]')) throw new Error('PLAY missing from the nav after the speech');
 
-  // play the game → the whole night runs on one rope
+  // play the game → the whole night runs on one split
   anyWin.gcAction('play-game', '');
   drain();
   drain();
@@ -199,8 +200,9 @@ async function main(): Promise<void> {
   if (!/YOU WON|YOU LOST/.test(app.innerHTML)) throw new Error('YOU WON / YOU LOST missing after the horn');
   if (!app.querySelector('.navbar [data-action="gn-verdict"]')) throw new Error('BOX SCORE continue missing');
 
-  // → the box score grid
+  // → the horn's consequences speak now (held during the game), then the box score grid
   anyWin.gcAction('gn-verdict', '');
+  drain();
   if (!/VICTORY|DEFEAT/.test(app.innerHTML)) throw new Error('box score screen missing');
   if (!app.innerHTML.includes('GAME MVP')) throw new Error('MVP tag missing on the box-score grid');
 
