@@ -285,6 +285,13 @@ button.hold.wiggle::after {
 .bslot.legendary { border-width: 2px; border-color: var(--r95); }
 .bslot.spent { opacity: 0.4; }
 .bslot .bshort { font-size: 10px; letter-spacing: 1px; }
+/* WHO the item is for, always on the slot: one player · one recruit · the squad */
+.bslot .btgt { font-size: 6px; letter-spacing: 0.5px; color: var(--r55); line-height: 1; margin-top: 1px; white-space: nowrap; }
+.bslot.t-team .btgt { color: #5fe07a; }
+.bslot.t-prospect .btgt { color: #ffd83d; }
+.itemwho { display: inline-block; margin-top: 6px; font-size: 11px; letter-spacing: 1px; font-weight: bold; color: var(--r95); }
+.itemwho.t-team { color: #5fe07a; }
+.itemwho.t-prospect { color: #ffd83d; }
 .bslot.pulse { animation: pulseglow 1s infinite; }
 @keyframes pulseglow {
   0%, 100% { background: transparent; }

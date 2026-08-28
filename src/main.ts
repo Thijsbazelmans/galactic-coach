@@ -1119,8 +1119,10 @@ function bagBar(s: GameState): string {
     if (!id) return '<div class="bslot empty">·</div>';
     const item = itemById(id);
     const spent = item.rarity === 'legendary' && s.legendariesUsed.includes(item.id);
-    return `<button class="bslot filled ${item.rarity} ${usableInStory.has(id) ? 'pulse' : ''} ${spent ? 'spent' : ''}"
-      data-action="bag-item" data-id="${item.id}" data-bagitem="${item.id}">◆<span class="bshort">${item.short}</span></button>`;
+    // WHO it's for, always visible: one player · one recruit · the whole squad
+    const tgt = item.target === 'player' ? '● ONE' : item.target === 'prospect' ? '● RECRUIT' : '●●● TEAM';
+    return `<button class="bslot filled ${item.rarity} t-${item.target} ${usableInStory.has(id) ? 'pulse' : ''} ${spent ? 'spent' : ''}"
+      data-action="bag-item" data-id="${item.id}" data-bagitem="${item.id}">◆<span class="bshort">${item.short}</span><span class="btgt">${tgt}</span></button>`;
   }).join('');
   return `<div class="bagbar tworow">${noteSlot}${slots}</div>`;
 }
@@ -2278,17 +2280,23 @@ function itemModalHtml(s: GameState): string {
   const spent = item.rarity === 'legendary' && s.legendariesUsed.includes(item.id);
   const ev = currentStory(s);
   const storyKey = ev?.choices?.find((c) => c.itemId === item.id && !ev.resolvedText)?.key ?? null;
-  const phaseOk = !ev && ['practice', 'matchup', 'scouting', 'recruiting'].includes(s.phase) && itemAllowedNow(s, item.id);
-  const needsDrag = item.target === 'player' && storyKey === null && phaseOk;
+  const phaseOk = !ev && itemAllowedNow(s, item.id);
+  const needsDrag = item.target !== 'team' && storyKey === null && phaseOk;
   const usable = !spent && !needsDrag && (storyKey !== null || phaseOk);
+  const who = item.target === 'player'
+    ? '● ONE PLAYER — drag it onto his card'
+    : item.target === 'prospect'
+      ? '● ONE RECRUIT — drag it onto his card on the big board'
+      : '●●● THE WHOLE SQUAD — drag it anywhere, or USE NOW';
   return `<div class="modalback" data-action="item-close"><div class="modal">
     <div class="itemcard ${item.rarity}">
       <b>◆ ${esc(item.name)}</b> <span class="dim">${item.rarity}${item.rarity === 'legendary' ? ' · once/season' : ''}</span><br/>
       <i class="dim">${esc(item.flavor)}</i><br/>
-      ${esc(item.effectText)}<br/>${oddsLine(item.up, item.down)}
+      ${esc(item.effectText)}<br/>${oddsLine(item.up, item.down)}<br/>
+      <span class="itemwho t-${item.target}">${who}</span>
     </div>
     <button class="wide hold" data-action="use-item" data-id="${item.id}" ${usable ? '' : 'disabled'}>
-      ${spent ? 'USED THIS SEASON' : storyKey ? '◆ USE IT ON THIS STORY' : needsDrag ? '↷ DRAG IT ONTO A PLAYER' : usable ? 'USE NOW' : 'NOT THE MOMENT'}</button>
+      ${spent ? 'USED THIS SEASON' : storyKey ? '◆ USE IT ON THIS STORY' : needsDrag ? (item.target === 'prospect' ? '↷ DRAG IT ONTO A RECRUIT' : '↷ DRAG IT ONTO A PLAYER') : usable ? 'USE NOW' : 'NOT THE MOMENT'}</button>
     <button class="wide" data-action="item-close">CLOSE</button>
   </div></div>`;
 }
@@ -2895,6 +2903,19 @@ function dropItemOnPlayer(itemId: string, playerId: number): void {
   if (text) toast = text;
 }
 
+/** A recruit item dragged onto a big-board card. */
+function dropItemOnProspect(itemId: string, prospectId: number): void {
+  const text = useItem(state, itemId, { prospectId });
+  if (text) toast = text;
+  gxStickers = null;
+}
+
+/** A squad item dropped anywhere on the stage: it just happens. */
+function dropItemOnTeam(itemId: string): void {
+  const text = useItem(state, itemId, {});
+  if (text) toast = text;
+}
+
 function activateDrag(): void {
   if (!ptr || ptr.active) return;
   ptr.active = true;
@@ -2922,10 +2943,13 @@ function targetAtPoint(): Element | null {
   if (!el) return null;
   if (ptr.kind === 'item') {
     if (currentStory(state)) return el.closest('.storypanel');
-    // a player item lands on a squad card
+    const target = itemById(ptr.itemId).target;
+    // a player item lands on a squad card, a recruit item on a board card,
+    // a squad item anywhere on the stage
     const card = el.closest('.pcard[data-pid]');
-    if (card && card.getAttribute('data-kind') !== 'pr') return card;
-    return null;
+    if (target === 'player') return card && card.getAttribute('data-kind') !== 'pr' ? card : null;
+    if (target === 'prospect') return card && card.getAttribute('data-kind') === 'pr' ? card : null;
+    return el.closest('.middle');
   }
   return el.closest('.dropzone');
 }
@@ -2944,7 +2968,12 @@ function endDrag(drop: boolean): void {
       if (ptr.kind === 'card') handleDrop(Number(target.getAttribute('data-zone')), ptr.pid);
       else if (ptr.kind === 'pr') handleProspectDrop(Number(target.getAttribute('data-zone')), ptr.pid);
       else if (currentStory(state)) dropItemOnStory(ptr.itemId);
-      else dropItemOnPlayer(ptr.itemId, Number(target.getAttribute('data-pid')));
+      else {
+        const target0 = itemById(ptr.itemId).target;
+        if (target0 === 'player') dropItemOnPlayer(ptr.itemId, Number(target.getAttribute('data-pid')));
+        else if (target0 === 'prospect') dropItemOnProspect(ptr.itemId, Number(target.getAttribute('data-pid')));
+        else dropItemOnTeam(ptr.itemId);
+      }
       ptr = null;
       render();
       return;
@@ -2957,9 +2986,10 @@ app.addEventListener('pointerdown', (e) => {
   const bag = (e.target as HTMLElement).closest('.bslot.filled') as HTMLElement | null;
   if (bag) {
     const itemId = bag.getAttribute('data-bagitem')!;
-    const playerDrag = itemById(itemId).target === 'player' && itemAllowedNow(state, itemId)
-      && ['practice', 'matchup', 'gamenight'].includes(state.phase) && !currentStory(state);
-    if (currentStory(state) || playerDrag) {
+    // every item DRAGS whenever the moment allows it (a refusal bounces)
+    const canDrag = itemAllowedNow(state, itemId) && !currentStory(state)
+      && !(itemById(itemId).rarity === 'legendary' && state.legendariesUsed.includes(itemId));
+    if (currentStory(state) || canDrag) {
       ptr = {
         pointerId: e.pointerId, kind: 'item', pid: -1, itemId, el: bag,
         startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY,

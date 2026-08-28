@@ -1328,6 +1328,47 @@ roll); speech shift sizes (+3–4 per player ≈ +9–12 on the bars, the number
 Thijs quoted); the frozen one's «unfair» odds (60% the displaced, else
 35%); the horn's stories land after YOU WON/LOST and before the box score.
 
+## v4.5.1 — THE RUBBER BAND & THE ITEM PASS (Aug 28, 2026, same session)
+
+Thijs's follow-up on v4.5: never winning is too steep — proper management
+should get you somewhere you CAN win, then it gets a little harder, and a
+collapse makes it a little easier again. And items.
+
+**THE RUBBER BAND.** The slide stays; the field breathes. Base BIG BANG tiers
+came down a notch (first round 62–72 · semi 68–78 · final 72–82) and
+`s.fieldShift` rides on top: every title +3 (cap +9), every season without a
+tournament WIN (missed it, or out in the first round) −2 (floor −6). It
+lands on the champions' averages in full and on the conference tiers by
+half. A 72-floor roster at shift 0 wins the whole thing about 1-in-8 trips,
+a 76-floor one about 1-in-5; after two titles the same roster is back to
+1-in-15 until it slips. PRO_OVR 72→75 so the core that can win isn't poached
+the summer it arrives.
+
+**EVERY ITEM DRAGS, AND SAYS WHO IT'S FOR.** `ItemDef.target` is
+`'player' | 'prospect' | 'team'` (required). The bag slot wears a badge
+(● ONE / ● RECRUIT / ●●● TEAM) and the item card prints the target line.
+Player items drop on a squad card, recruit items on a big-board card (new:
+the VIP pass, THE SEER'S LENS and THE BLANK CHECK hit the kid you DROP THEM
+ON — no more random picks), team items drop anywhere on the stage (or USE
+NOW). Xarter and the Chrono Sip target the player you choose. Drags are
+allowed wherever `itemAllowedNow` says yes (recruit items on the scouting/
+recruiting/signing boards); a refusal still bounces without spending.
+
+**MEDICINE vs. TIME.** Every absence has a KIND (`Player.outKind`,
+`Fx.outKind`): an injury (the injury story, the vial's aftermath, the
+gravity ankle, festival crutches, the mineral medbay) or an absence
+(festival, the pregnancy week, the newborn, exchange, suspensions,
+hearings — the default). MEDICAL items take weeks off injuries only, on any
+week, compounding, with a small risk of adding one: PATCH KIT −1 (5%
+"the tape lied"), SNAKE OIL usually −1 / sometimes −2 / sometimes +1,
+CRYO CHAMBER TOKEN −2 (10%), METEOR ICE PACK halves (2%), BEELZEBUB'S VIAL
+back tonight. TIME items (a localized time machine — he lives the week, we
+don't) take weeks off absences only, same shape: A POCKET WEEK −1 (8% lost
+in time, +1), THE LOCALIZED TIME LOOP −2 (15%). Each family refuses the
+other kind with the reason printed. Snake oil and the pocket week joined
+the supply-closet drip. The old bug (a 1-week patch returning a pregnant
+player or a festival-goer) is gone by construction.
+
 ## v5.0 DESIGN — THE STORY WEB (Aug 24, 2026 — dictation #3; NOT BUILT in-game yet)
 
 Thijs's redesign of ALL storytelling, dictated while reviewing THE

@@ -627,9 +627,10 @@ export interface ItemDef {
   flavor: string;
   effectText: string;
   context: string[];
-  /** 'player' items are DRAGGED onto a card — usable whenever a player grid
-      is on screen, not just in their story context */
-  target?: 'player';
+  /** every item DRAGS: 'player' onto one squad card, 'prospect' onto one
+      big-board card, 'team' anywhere on the screen (the whole squad / the
+      night / the coach's world). Printed on the bag slot and the card. */
+  target: 'player' | 'prospect' | 'team';
   /** a refusal reason means the drop bounces WITHOUT consuming the item */
   check?: (ctx: StoryCtx) => string | null;
   up?: OddsTail;
@@ -644,6 +645,44 @@ function tails(up: number, down: number): 'up' | 'down' | 'mid' {
   return 'mid';
 }
 
+/** MEDICAL items work on injuries only — and on any week of them. */
+function medicalCheck(p: Player | null, idle: string): string | null {
+  if (!p || p.outWeeks === 0) return `nobody hurt there — ${idle}`;
+  if (p.outKind !== 'injury') return `that's not an injury (${p.outReason}) — medicine can't hurry it, time can`;
+  return null;
+}
+
+/** Take `weeks` off an injury, with a small chance the cure adds one. */
+function medicalUse(p: Player, weeks: number, riskPct: number, good: string, bad: string): StoryResolution {
+  if (roll(riskPct)) return { text: `${bad} ${p.name}: ${p.outWeeks} weeks → ${p.outWeeks + 1}.`, fx: [{ playerId: p.id, outWeeks: p.outWeeks + 1, outReason: p.outReason }] };
+  const left = Math.max(0, p.outWeeks - weeks);
+  return {
+    text: left === 0 ? `${good} ${p.name} jogs it off like it never happened.` : `${good} ${p.name}: ${p.outWeeks} weeks → ${left}.`,
+    fx: [{ playerId: p.id, outWeeks: left, outReason: p.outReason }],
+  };
+}
+
+/** TIME items work on non-injury absences: he lives the weeks, we don't. */
+function timeCheck(p: Player | null, idle: string): string | null {
+  if (!p || p.outWeeks === 0) return `nobody away there — ${idle}`;
+  if (p.outKind === 'injury') return `that's an injury (${p.outReason}) — time heals it no faster, medicine does`;
+  return null;
+}
+
+/** Take `weeks` off an absence, with a chance he gets lost in time instead. */
+function timeUse(p: Player, weeks: number, riskPct: number): StoryResolution {
+  if (roll(riskPct)) {
+    return { text: `The field flickers. ${p.name} steps out a week LATER than he went in, holding a newspaper from a Thursday that hasn't happened. ${p.outWeeks} weeks → ${p.outWeeks + 1}.`, fx: [{ playerId: p.id, outWeeks: p.outWeeks + 1, outReason: p.outReason }] };
+  }
+  const left = Math.max(0, p.outWeeks - weeks);
+  return {
+    text: left === 0
+      ? `The field hums. For ${p.name} the whole absence happens between two of your heartbeats. He's back — and slightly tanned.`
+      : `The field hums. ${p.name} lives ${weeks === 1 ? 'a week' : `${weeks} weeks`} of ${p.outReason || 'it'} while you blink. ${p.outWeeks} weeks → ${left}.`,
+    fx: [{ playerId: p.id, outWeeks: left, outReason: p.outReason }],
+  };
+}
+
 export const ITEMS: ItemDef[] = [
   {
     id: 'vial',
@@ -651,10 +690,10 @@ export const ITEMS: ItemDef[] = [
     name: "BEELZEBUB'S VIAL",
     rarity: 'rare',
     flavor: '"One sip. Ask nothing." — the doctor on stAroid-5',
-    effectText: '100% back on his feet tonight, full energy',
+    effectText: 'an injured player: back on his feet tonight, full energy',
     context: ['injury', 'pregame'],
     target: 'player',
-    check: (ctx) => (ctx.player && ctx.player.outWeeks > 0 ? null : 'nobody hurt there — the vial waits'),
+    check: (ctx) => medicalCheck(ctx.player, 'the vial waits'),
     up: { pct: 2, cls: 'BREAKTHROUGH' },
     down: { pct: 25, cls: 'INJURY' },
     use: (ctx) => {
@@ -664,7 +703,7 @@ export const ITEMS: ItemDef[] = [
       if (t === 'down') {
         return {
           text: `${p.name} downs the vial and feels INCREDIBLE — for six hours. Then his legs stop answering. The team doctor won't even look at you. 3 weeks in the medbay.`,
-          fx: [{ playerId: p.id, outWeeks: 3, outReason: 'Beelzebub aftermath', levelDelta: -1, mood: -10 }],
+          fx: [{ playerId: p.id, outWeeks: 3, outReason: 'Beelzebub aftermath', outKind: 'injury', levelDelta: -1, mood: -10 }],
         };
       }
       if (t === 'up') {
@@ -685,20 +724,21 @@ export const ITEMS: ItemDef[] = [
     name: "XARTER'S INVITATION",
     rarity: 'legendary',
     flavor: 'The mind-controlling trainer takes one pupil a year.',
-    effectText: 'a level, instantly, and a body rebuilt for speed',
+    effectText: 'one player: a level, instantly, and a body rebuilt for speed',
     context: ['practice'],
+    target: 'player',
+    check: (ctx) => (ctx.player && ctx.player.outWeeks === 0 ? null : 'he can\'t travel to Xarter like that'),
     up: { pct: 5, cls: 'BREAKTHROUGH' },
     down: { pct: 10, cls: 'SCANDAL' },
     use: (ctx) => {
-      const squad = ctx.team().filter((p) => p.outWeeks === 0);
-      const p = squad.sort((a, b) => b.attrs.ath - a.attrs.ath)[0] ?? null;
+      const p = ctx.player ?? ctx.team().filter((q) => q.outWeeks === 0).sort((a, b) => b.attrs.ath - a.attrs.ath)[0] ?? null;
       if (!p) return { text: 'Nobody is fit to travel to Xarter. The invitation dissolves.' };
       const t = tails(5, 10);
       const base: Fx = { playerId: p.id, levelDelta: 1, attr: { ath: 2 } };
       if (t === 'down') {
         return {
           text: `${p.name} returns from Coach Xarter faster than physics — and wrong behind the eyes. Mid-scrimmage he bites a teammate's leg. The league opens a file with your name on it.`,
-          fx: [base, { playerId: p.id, outWeeks: 3, outReason: 'suspension (the biting)', attr: { frc: 2, brn: -2 } }, { heatS: 15 }],
+          fx: [base, { playerId: p.id, outWeeks: 3, outReason: 'suspension (the biting)', outKind: 'away', attr: { frc: 2, brn: -2 } }, { heatS: 15 }],
         };
       }
       if (t === 'up') {
@@ -716,13 +756,14 @@ export const ITEMS: ItemDef[] = [
     name: 'CHRONO SIP',
     rarity: 'legendary',
     flavor: 'Time is a liquid if you know the right bartender.',
-    effectText: 'three levels of growth, instantly',
+    effectText: 'one player: three levels of growth, instantly',
     context: ['practice'],
+    target: 'player',
+    check: (ctx) => (ctx.player && ctx.player.level < 10 ? null : 'he is already who he will be'),
     up: { pct: 2, cls: 'BREAKTHROUGH' },
     down: { pct: 10, cls: 'DRAMA' },
     use: (ctx) => {
-      const squad = ctx.team().filter((p) => p.outWeeks === 0 && p.level < 10);
-      const p = squad.sort((a, b) => ovr(b.pots) - ovr(a.pots))[0] ?? null;
+      const p = ctx.player ?? ctx.team().filter((q) => q.outWeeks === 0 && q.level < 10).sort((a, b) => ovr(b.pots) - ovr(a.pots))[0] ?? null;
       if (!p) return { text: 'Everyone is already who they will be. The sip goes flat.' };
       const t = tails(2, 10);
       if (t === 'down') {
@@ -747,15 +788,16 @@ export const ITEMS: ItemDef[] = [
     name: 'METEOR ICE PACK',
     rarity: 'common',
     flavor: 'Cold from before the solar system. The honest one.',
-    effectText: 'recovery time halved',
+    effectText: 'MEDICAL · an injury: recovery time halved',
     context: ['injury'],
     target: 'player',
-    check: (ctx) => (ctx.player && ctx.player.outWeeks > 0 ? null : 'nobody hurt there — the ice sweats patiently'),
+    check: (ctx) => medicalCheck(ctx.player, 'the ice sweats patiently'),
     up: { pct: 2, cls: 'SPIRIT' },
-    down: { pct: 2, cls: 'DRAIN' },
+    down: { pct: 2, cls: 'INJURY' },
     use: (ctx) => {
       const p = ctx.player;
       if (!p || p.outWeeks === 0) return { text: 'Nobody is hurt. The ice pack sweats patiently.' };
+      if (roll(2)) return { text: `The meteor ice is TOO cold. ${p.name} adds a week of frostbite to the diagnosis.`, fx: [{ playerId: p.id, outWeeks: p.outWeeks + 1, outReason: p.outReason }] };
       const newWeeks = Math.max(1, Math.ceil(p.outWeeks / 2));
       return {
         text: `The meteor ice does its ancient work. ${p.name}'s recovery: ${p.outWeeks} weeks → ${newWeeks}.`,
@@ -769,8 +811,9 @@ export const ITEMS: ItemDef[] = [
     name: 'NEBULA ESPRESSO',
     rarity: 'common',
     flavor: 'Brewed under pressure. Like everyone here.',
-    effectText: 'squad +20 energy tonight, −30 crash next week',
+    effectText: 'THE SQUAD: +20 energy tonight, −30 crash next week',
     context: ['pregame'],
+    target: 'team',
     up: { pct: 2, cls: 'SPIRIT' },
     down: { pct: 2, cls: 'DRAMA' },
     use: () => ({
@@ -785,8 +828,9 @@ export const ITEMS: ItemDef[] = [
     name: 'MOOD KARAOKE CHIP',
     rarity: 'common',
     flavor: 'Contains every power ballad ever written, in every language, at once.',
-    effectText: 'squad mood +15',
+    effectText: 'THE SQUAD: mood +15',
     context: ['mood', 'practice'],
+    target: 'team',
     up: { pct: 5, cls: 'SPIRIT' },
     down: { pct: 2, cls: 'DRAMA' },
     use: (ctx) => {
@@ -805,18 +849,23 @@ export const ITEMS: ItemDef[] = [
     name: 'STUDY-BUDDY HOLOGRAM',
     rarity: 'common',
     flavor: 'A tutor of light. Extremely thorough. Slightly too thorough.',
-    effectText: 'he passes',
+    effectText: 'one player: he passes the exam (or a study week: +1 BRAINS, −10 energy)',
     context: ['academic'],
+    target: 'player',
     up: { pct: 2, cls: 'BREAKTHROUGH' },
     down: { pct: 10, cls: 'SCANDAL' },
     use: (ctx) => {
       const p = ctx.player;
       if (!p) return { text: 'No exams loom. The hologram recites poetry to itself.' };
+      if (!ctx.data.exam && p.outWeeks === 0) {
+        // no exam looming: a study week, thorough as ever
+        return { text: `${p.name} studies with the hologram for a week. It quizzes him in his sleep. He passes things that weren't even assigned.`, fx: [{ playerId: p.id, attr: { brn: 1 }, energyP: -10 }] };
+      }
       const t = tails(2, 10);
       if (t === 'down') {
         return {
           text: `The hologram, being thorough, SAT THE EXAM ITSELF wearing ${p.name}'s face. It scored a perfect 100, which was the giveaway. Identity-fraud paperwork is en route.`,
-          fx: [{ heatS: 15 }, { playerId: p.id, outWeeks: 1, outReason: 'hologram hearing' }],
+          fx: [{ heatS: 15 }, { playerId: p.id, outWeeks: 1, outReason: 'hologram hearing', outKind: 'away' }],
         };
       }
       if (t === 'up') return { text: `${p.name} studies with the hologram and something CLICKS. He aces it — and his game IQ came along.`, fx: [{ playerId: p.id, outWeeks: 0, attr: { brn: 2 }, mood: 8 }] };
@@ -829,8 +878,9 @@ export const ITEMS: ItemDef[] = [
     name: 'KAPPA NEBULA VIP PASS',
     rarity: 'rare',
     flavor: 'Laminated. Glowing. Slightly sticky.',
-    effectText: 'a recruit falls in love with campus: commitment +25%',
+    effectText: 'one recruit falls in love with campus: commitment +25%',
     context: ['recruiting'],
+    target: 'prospect',
     up: { pct: 5, cls: 'INTEL' },
     down: { pct: 25, cls: 'DRAMA' },
     use: (ctx) => {
@@ -862,7 +912,7 @@ export const ITEMS: ItemDef[] = [
     name: 'GRAVITY BOOTS',
     rarity: 'rare',
     flavor: 'Every step is leg day.',
-    effectText: 'a body permanently rebuilt: +ATHLETICISM',
+    effectText: 'one player: a body permanently rebuilt, +ATHLETICISM',
     context: ['practice'],
     target: 'player',
     up: { pct: 2, cls: 'BREAKTHROUGH' },
@@ -873,7 +923,7 @@ export const ITEMS: ItemDef[] = [
       if (!p) return { text: 'No legs available for leg day.' };
       const t = tails(2, 25);
       if (t === 'down') {
-        return { text: `${p.name} wears the gravity boots for a week and his ankle files a formal complaint. 2 weeks.`, fx: [{ playerId: p.id, attr: { ath: 1 }, outWeeks: 2, outReason: 'gravity ankle' }] };
+        return { text: `${p.name} wears the gravity boots for a week and his ankle files a formal complaint. 2 weeks.`, fx: [{ playerId: p.id, attr: { ath: 1 }, outWeeks: 2, outReason: 'gravity ankle', outKind: 'injury' }] };
       }
       if (t === 'up') return { text: `${p.name} wears the gravity boots and becomes LOAD-BEARING. The floor creaks respectfully.`, fx: [{ playerId: p.id, attr: { ath: 2 }, anyAttr: 2 }] };
       return { text: `${p.name} trains a week in the gravity boots. His footsteps now have bass.`, fx: [{ playerId: p.id, attr: { ath: 2 } }] };
@@ -885,8 +935,9 @@ export const ITEMS: ItemDef[] = [
     name: 'THE REFEREE\'S "LOST" WALLET',
     rarity: 'rare',
     flavor: 'You found it. You could return it. You could return it COURTSIDE.',
-    effectText: 'tonight, the whistle leans your way',
+    effectText: 'TONIGHT: the whistle leans your way',
     context: ['pregame'],
+    target: 'team',
     up: { pct: 2, cls: 'WINDFALL' },
     down: { pct: 50, cls: 'SCANDAL' },
     use: (ctx) => {
@@ -905,8 +956,9 @@ export const ITEMS: ItemDef[] = [
     name: 'CLOAKING DOUBT',
     rarity: 'rare',
     flavor: 'A device that makes your game plan look like every game plan.',
-    effectText: "opponent's plan is random tonight",
+    effectText: "TONIGHT: their coach prepared for the wrong team",
     context: ['pregame'],
+    target: 'team',
     up: { pct: 5, cls: 'INTEL' },
     down: { pct: 2, cls: 'DRAMA' },
     use: (ctx) => {
@@ -923,7 +975,7 @@ export const ITEMS: ItemDef[] = [
     name: 'THE GOLDEN WHISTLE',
     rarity: 'common',
     flavor: 'Blow it once and one player hears nothing else for a week.',
-    effectText: 'private training session: +1 attribute',
+    effectText: 'one player: a private training session, +1 attribute',
     context: ['practice'],
     target: 'player',
     up: { pct: 5, cls: 'BREAKTHROUGH' },
@@ -943,7 +995,7 @@ export const ITEMS: ItemDef[] = [
     name: 'THE QUIET WORD',
     rarity: 'common',
     flavor: 'A closed office door and two cups of nebula tea.',
-    effectText: 'a private talk: mood +20, energy +10',
+    effectText: 'one player: a private talk, mood +20, energy +10',
     context: ['mood', 'practice'],
     target: 'player',
     up: { pct: 5, cls: 'SPIRIT' },
@@ -1016,8 +1068,9 @@ export const ITEMS: ItemDef[] = [
     name: 'PROTO-PROTEIN BARS',
     rarity: 'common',
     flavor: 'Tastes like drywall. Works like a miracle.',
-    effectText: 'squad energy +8',
+    effectText: 'THE SQUAD: energy +8',
     context: ['practice', 'pregame'],
+    target: 'team',
     up: { pct: 2, cls: 'SPIRIT' },
     down: { pct: 2, cls: 'DRAMA' },
     use: () => ({ text: 'The squad chews through the crate with the joyless efficiency of professionals. Legs feel new.', fx: [{ teamEnergyP: 8 }] }),
@@ -1028,8 +1081,9 @@ export const ITEMS: ItemDef[] = [
     name: 'SIGNED LEGEND POSTER',
     rarity: 'common',
     flavor: 'A holo-poster of the greatest to ever do it, signed in three dimensions.',
-    effectText: 'squad mood +10',
+    effectText: 'THE SQUAD: mood +10',
     context: ['mood', 'practice'],
+    target: 'team',
     up: { pct: 2, cls: 'SPIRIT' },
     down: { pct: 2, cls: 'DRAMA' },
     use: () => ({ text: 'The poster goes up in the locker room. Everyone pretends not to look at it. Everyone looks at it.', fx: [{ teamMood: 10 }] }),
@@ -1040,8 +1094,9 @@ export const ITEMS: ItemDef[] = [
     name: 'FIRE ALARM CODES',
     rarity: 'rare',
     flavor: "The access codes to the visitors' hotel fire panel. You didn't buy these. Officially.",
-    effectText: 'their hotel evacuates at 3am — they play tired',
+    effectText: 'TONIGHT: their hotel evacuates at 3am — they play tired',
     context: ['pregame'],
+    target: 'team',
     up: { pct: 2, cls: 'WINDFALL' },
     down: { pct: 25, cls: 'SCANDAL' },
     use: (ctx) => {
@@ -1060,13 +1115,20 @@ export const ITEMS: ItemDef[] = [
     name: "THE SEER'S LENS",
     rarity: 'rare',
     flavor: 'Ground from the eye of a dead comet. Shows only true things.',
-    effectText: 'one unknown prospect: fully revealed',
+    effectText: 'one recruit: fully revealed',
     context: ['recruiting'],
+    target: 'prospect',
+    check: (ctx) => {
+      const pr = ctx.s.prospects.find((x) => x.id === ctx.data.prospectId);
+      return pr && pr.seenSkill && pr.seenPot && pr.digits >= 2 ? 'you already know everything about him' : null;
+    },
     up: { pct: 5, cls: 'INTEL' },
     down: { pct: 2, cls: 'DRAMA' },
     use: (ctx) => {
       const pool = ctx.s.prospects.filter((pr) => !pr.seenSkill || !pr.seenPot || pr.digits < 2);
-      const pr = pool.length ? pick(pool) : null;
+      const pr = ctx.data.prospectId !== undefined
+        ? ctx.s.prospects.find((x) => x.id === ctx.data.prospectId) ?? null
+        : pool.length ? pick(pool) : null;
       if (!pr) return { text: 'You raise the lens to the board. You already know everything it could tell you.' };
       pr.seenSkill = true;
       pr.seenPot = true;
@@ -1083,8 +1145,9 @@ export const ITEMS: ItemDef[] = [
     name: "BOOSTER'S BLANK CHECK",
     rarity: 'rare',
     flavor: 'The amount is blank. The strings are not.',
-    effectText: 'a prospect signs. Today.',
+    effectText: 'one recruit signs. Today.',
     context: ['recruiting'],
+    target: 'prospect',
     up: { pct: 2, cls: 'LOOT' },
     down: { pct: 25, cls: 'SCANDAL' },
     use: (ctx) => {
@@ -1115,16 +1178,76 @@ ITEMS.push(
     name: 'PATCH KIT',
     rarity: 'common',
     flavor: 'Tape, spray, and a lie about how bad it looked.',
-    effectText: 'a 1-week knock, gone',
+    effectText: 'MEDICAL · an injury: one week off it',
     context: ['injury'],
     target: 'player',
-    check: (ctx) => (ctx.player && ctx.player.outWeeks === 1 ? null : 'only patches a 1-week knock'),
+    check: (ctx) => medicalCheck(ctx.player, 'the tape stays in the roll'),
     up: { pct: 2, cls: 'SPIRIT' },
-    down: { pct: 2, cls: 'DRAIN' },
+    down: { pct: 5, cls: 'INJURY' },
+    use: (ctx) => medicalUse(ctx.player!, 1, 5, 'Tape, spray, done.', 'The tape lied about how bad it looked.'),
+  },
+  {
+    id: 'snakeoil',
+    short: 'OIL',
+    name: 'SNAKE OIL',
+    rarity: 'common',
+    flavor: 'From a man with a cart, a hat, and no fixed address.',
+    effectText: 'MEDICAL · an injury: usually a week off it. Usually.',
+    context: ['injury'],
+    target: 'player',
+    check: (ctx) => medicalCheck(ctx.player, 'the salesman shrugs'),
+    up: { pct: 10, cls: 'BREAKTHROUGH' },
+    down: { pct: 10, cls: 'INJURY' },
     use: (ctx) => {
       const p = ctx.player!;
-      return { text: `Tape, spray, done. ${p.name} jogs it off like it never happened.`, fx: [{ playerId: p.id, outWeeks: 0 }] };
+      const t = tails(10, 10);
+      if (t === 'up') return { text: `The oil works ABSURDLY well. ${p.name} walks in two days later asking why everyone looks so surprised.`, fx: [{ playerId: p.id, outWeeks: Math.max(0, p.outWeeks - 2), outReason: p.outReason }] };
+      if (t === 'down') return { text: `The oil was, it turns out, actual snake. ${p.name} adds a rash and a week.`, fx: [{ playerId: p.id, outWeeks: p.outWeeks + 1, outReason: p.outReason }] };
+      if (roll(30)) return { text: `The oil smells like a promise and does nothing. ${p.name} heals on schedule.` };
+      return { text: `The oil does... something. ${p.name} is a week ahead of the chart, and nobody wants to know why.`, fx: [{ playerId: p.id, outWeeks: Math.max(0, p.outWeeks - 1), outReason: p.outReason }] };
     },
+  },
+  {
+    id: 'cryo',
+    short: 'CRYO',
+    name: 'CRYO CHAMBER TOKEN',
+    rarity: 'rare',
+    flavor: 'One session in the pro clinic\'s freezer. Bring a blanket.',
+    effectText: 'MEDICAL · an injury: two weeks off it',
+    context: ['injury'],
+    target: 'player',
+    check: (ctx) => medicalCheck(ctx.player, 'the chamber hums for nobody'),
+    up: { pct: 5, cls: 'BREAKTHROUGH' },
+    down: { pct: 10, cls: 'INJURY' },
+    use: (ctx) => medicalUse(ctx.player!, 2, 10, 'The chamber hisses open.', 'The chamber hisses open a day late — frostbite on top of everything.'),
+  },
+  {
+    id: 'pocketweek',
+    short: 'WEEK',
+    name: 'A POCKET WEEK',
+    rarity: 'common',
+    flavor: 'A localized time machine the size of a lunchbox. He lives the week; you don\'t.',
+    effectText: 'TIME · an absence (not an injury): one week less of it',
+    context: ['away'],
+    target: 'player',
+    check: (ctx) => timeCheck(ctx.player, 'the lunchbox stays shut'),
+    up: { pct: 2, cls: 'SPIRIT' },
+    down: { pct: 8, cls: 'DRAMA' },
+    use: (ctx) => timeUse(ctx.player!, 1, 8),
+  },
+  {
+    id: 'timeloop',
+    short: 'LOOP',
+    name: 'THE LOCALIZED TIME LOOP',
+    rarity: 'rare',
+    flavor: 'A ring of light around one person. Inside it, Tuesday happens fourteen times.',
+    effectText: 'TIME · an absence (not an injury): two weeks less of it',
+    context: ['away'],
+    target: 'player',
+    check: (ctx) => timeCheck(ctx.player, 'the ring finds nobody to circle'),
+    up: { pct: 2, cls: 'SPIRIT' },
+    down: { pct: 15, cls: 'DRAMA' },
+    use: (ctx) => timeUse(ctx.player!, 2, 15),
   },
   {
     id: 'juice',
@@ -1181,7 +1304,7 @@ ITEMS.push(
 
 /** The supply-closet drip: an item most weeks — small, single-use, meant to
     be SPENT (the notebook holds the fifth slot forever). */
-export const SMALL_ITEMS = ['patch', 'juice', 'cocoa', 'pass', 'protein', 'poster'];
+export const SMALL_ITEMS = ['patch', 'juice', 'cocoa', 'pass', 'protein', 'poster', 'snakeoil', 'pocketweek'];
 
 export function itemById(id: string): ItemDef {
   return ITEMS.find((i) => i.id === id)!;
@@ -1395,12 +1518,13 @@ export const STORIES: StoryDef[] = [
       const p = ctx.player!;
       const weeks = ctx.data.weeks as number;
       const levelLoss = ctx.data.levelLoss as boolean;
+      const label = (ctx.data.label as string) ?? 'the injury';
       if (key === 'push') {
         const t = tails(10, 50);
         if (t === 'down') {
           return {
             text: `${p.name} plays through it and something GOES. What was ${weeks} weeks is now ${weeks * 2}. The med staff writes your name on a whiteboard with an unkind diagram.`,
-            fx: [{ playerId: p.id, outWeeks: weeks * 2, outReason: 'made it worse', mood: -8, ...(weeks * 2 >= 4 ? { levelDelta: -1, skill: -(2 + rand(3)) } : {}) }],
+            fx: [{ playerId: p.id, outWeeks: weeks * 2, outReason: label, outKind: 'injury', mood: -8, ...(weeks * 2 >= 4 ? { levelDelta: -1, skill: -(2 + rand(3)) } : {}) }],
           };
         }
         if (t === 'up') {
@@ -1419,12 +1543,12 @@ export const STORIES: StoryDef[] = [
       if (t === 'down') {
         return {
           text: `${p.name} settles in to heal — then a complication. One extra week, and the med staff's tone got shorter.`,
-          fx: [{ playerId: p.id, outWeeks: weeks + 1, outReason: 'complication', ...(weeks + 1 >= 4 && levelLoss ? { levelDelta: -1, skill: -(2 + rand(3)) } : {}) }],
+          fx: [{ playerId: p.id, outWeeks: weeks + 1, outReason: `${label} (complication)`, outKind: 'injury', ...(weeks + 1 >= 4 && levelLoss ? { levelDelta: -1, skill: -(2 + rand(3)) } : {}) }],
         };
       }
       return {
         text: `${p.name} settles into the bio-lab. The tank hums. ${weeks} week${weeks === 1 ? '' : 's'} of waiting starts now.`,
-        fx: [{ playerId: p.id, outWeeks: weeks, ...(levelLoss ? { levelDelta: -1, skill: -(2 + rand(3)) } : {}) }],
+        fx: [{ playerId: p.id, outWeeks: weeks, outReason: label, outKind: 'injury', ...(levelLoss ? { levelDelta: -1, skill: -(2 + rand(3)) } : {}) }],
       };
     },
   },
@@ -1644,7 +1768,7 @@ export const STORIES: StoryDef[] = [
       const p = pname(ctx);
       let text: string;
       let fx: Fx[];
-      if (roll < 15) { text = `${p} is back from the festival — on crutches. Traditional cliff-diving, third cousin's dare. Two more weeks.`; fx = [{ outWeeks: 2, outReason: 'festival cliff-diving', energyP: -20 }]; }
+      if (roll < 15) { text = `${p} is back from the festival — on crutches. Traditional cliff-diving, third cousin's dare. Two more weeks.`; fx = [{ outWeeks: 2, outKind: 'injury', outReason: 'festival cliff-diving', energyP: -20 }]; }
       else if (roll < 30) { text = `${p} is back from the festival... married. There are also, somehow, triplets. He keeps drifting off mid-drill to look at holos of them.`; fx = [{ mood: -6, attr: { brn: 1 } }]; }
       else if (roll < 65) { text = `${p} is back from the festival glowing. Grandma's cooking, twelve naps, zero basketball. He looks five years younger.`; fx = [{ mood: 22, energyP: 20 }]; }
       else if (roll < 85) { text = `${p} is back from the festival with six new abs. The ceremonial gravity-crunches are not ceremonial.`; fx = [{ attr: { ath: 2 }, mood: 8 }]; }
@@ -1678,7 +1802,7 @@ export const STORIES: StoryDef[] = [
       }
       const t = tails(25, 25);
       if (t === 'up') return { text: `The monk diet WORKED?? ${p.name} is denser somehow. The training staff refuses to explain the scale readout. The monks, impressed, send a care package.`, fx: [{ playerId: p.id, attr: { ath: 2 }, weightKg: 6, mood: 5 }, { giveItem: 'protein' }] };
-      if (t === 'down') return { text: `${p.name} spent three days of mineral week in the medical bay. He is not, it turns out, a Petran monk.`, fx: [{ playerId: p.id, energyP: -30, mood: -6, outWeeks: 1, outReason: 'gravel recovery' }] };
+      if (t === 'down') return { text: `${p.name} spent three days of mineral week in the medical bay. He is not, it turns out, a Petran monk.`, fx: [{ playerId: p.id, energyP: -30, mood: -6, outWeeks: 1, outKind: 'injury', outReason: 'gravel recovery' }] };
       return { text: `${p.name} quit the mineral diet on day two and ate an entire celebration cake about it. He regrets nothing.`, fx: [{ playerId: p.id, mood: 10, weightKg: 3 }] };
     },
   },

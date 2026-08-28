@@ -26,6 +26,10 @@ import {
   BAG_SIZE,
   CACHE_MAX,
   CONF_TIERS,
+  FIELD_EASE,
+  FIELD_HUNT,
+  FIELD_MAX,
+  FIELD_MIN,
   FOUNDER_TIER,
   LEVEL_CAP,
   MAX_PROSPECTS,
@@ -333,8 +337,13 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
     if (fx.mood) p.mood = clamp(p.mood + moodOf(fx.mood), 0, 100);
     if (fx.weightKg) p.weightKg = Math.max(35, p.weightKg + fx.weightKg);
     if (fx.outWeeks !== undefined) {
+      const wasOut = p.outWeeks > 0;
       p.outWeeks = fx.outWeeks;
       p.outReason = fx.outWeeks > 0 ? fx.outReason ?? p.outReason ?? 'unspecified' : '';
+      // the KIND decides which item can shorten it: a running absence keeps
+      // its kind (medicine and time machines only change the weeks); a fresh
+      // one is AWAY unless the source says injury
+      p.outKind = fx.outWeeks > 0 ? fx.outKind ?? (wasOut ? p.outKind ?? 'away' : 'away') : undefined;
       if (fx.outWeeks > 0) p.onFire = false; // nothing burns in a bio-lab tank
       normalizeLineup(t);
     }
@@ -1269,10 +1278,12 @@ export function deliverInstructions(s: GameState, instrId: string): string | nul
 }
 
 /** Which item contexts the current phase accepts ('mood' is always welcome).
-    Player-target items are usable whenever a player grid is on screen. */
+    Player-target items are usable whenever a player grid is on screen;
+    recruit-target items whenever the big board is. */
 export function itemAllowedNow(s: GameState, itemId: string): boolean {
   const item = itemById(itemId);
   if (item.target === 'player' && ['practice', 'matchup', 'weekstart', 'gamenight', 'teamSelect'].includes(s.phase)) return true;
+  if (item.target === 'prospect' && ['scouting', 'recruiting', 'signing'].includes(s.phase)) return true;
   const phaseCtx: Record<string, string[]> = {
     practice: ['practice'],
     matchup: ['pregame'],
@@ -1613,6 +1624,8 @@ export function continueFromResult(s: GameState): void {
       s.utTitles++;
       s.trophies++;
       s.legacy += 10;
+      // the field starts hunting you
+      s.fieldShift = Math.min(FIELD_MAX, (s.fieldShift ?? 0) + FIELD_HUNT);
       s.careerLog.push(`Season ${s.season}: WON ${TOURNEY.name}.`);
       queueStory(s, 'bigbang_champs', 'start', null, { opp: champ?.name ?? 'the last champion', score, fete: true });
       const legendaries = ITEMS.filter((i) => i.rarity === 'legendary');
@@ -1643,9 +1656,9 @@ export function continueFromResult(s: GameState): void {
         s.legacy += 1;
         s.careerLog.push(`Season ${s.season}: runner-up (${rec}) — took the second shuttle to ${TOURNEY.name}.`);
       }
-      // the field is FIXED on the slide (65–75 · 70–80 · 75–85): you don't get
-      // a bracket sized to you, you climb to the bracket
-      s.ut = { round: 0, champs: genChamps(), myNextOpp: rand(4), log: [] };
+      // the field sits on the slide (62–72 · 68–78 · 72–82) plus THE RUBBER
+      // BAND: it hunts a champion and eases off a program that fell
+      s.ut = { round: 0, champs: genChamps(s.fieldShift ?? 0), myNextOpp: rand(4), log: [] };
       queueStory(s, 'bigbang_invite', 'start', null, { place, record: rec, fete: true });
       s.week++;
       startWeek(s);
@@ -1678,6 +1691,9 @@ function endSeason(s: GameState, utNote: string | null): void {
     s.seasonNotes.push(`${TOURNEY.name} run: ${s.ut.log.join(' · ')}.`);
     s.legacy += s.ut.round * 2;
   }
+  // THE RUBBER BAND eases: a season without a tournament WIN (missed it, or
+  // out in the first round) lets the field relax a notch
+  if (!utNote && (!s.ut || s.ut.round === 0)) s.fieldShift = Math.max(FIELD_MIN, (s.fieldShift ?? 0) - FIELD_EASE);
   s.seasonNotes.push(
     place === 1
       ? `You finished FIRST (${t.wins}–${t.losses}).`
@@ -1715,7 +1731,9 @@ function endSeason(s: GameState, utNote: string | null): void {
   let ti = 0;
   for (const team of s.teams) {
     if (team.id === s.myTeamId) continue;
-    const target = tiers[ti++] - 2 + rand(5);
+    // half the rubber band reaches the conference: a champion's league
+    // gets a little hungrier, a fallen program's a little kinder
+    const target = tiers[ti++] - 2 + rand(5) + Math.round((s.fieldShift ?? 0) / 2);
     team.players = team.players.filter((p) => p.classYear < 3 && ovr(p.attrs) < PRO_OVR);
     for (const p of team.players) {
       p.classYear++;

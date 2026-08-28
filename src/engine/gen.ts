@@ -33,7 +33,7 @@ export const MAX_PROSPECTS = 9;
 /** An overall this high gets pro scouts in the dorm lobby (on THE SLIDE a
     72 is a semifinal-tier starter — the ones who can win you THE BIG BANG
     are exactly the ones the pros come for). */
-export const PRO_OVR = 72;
+export const PRO_OVR = 75;
 
 // ---- THE SLIDE: the galaxy's strength ladder, fixed ------------------------------
 // Numbers are the average SLOT RATING of a team's six floor players. Your
@@ -46,7 +46,12 @@ export const CONF_TIERS = [62, 55, 49, 44, 38];
 /** your founding six (walk-ons fill the rest, weaker) */
 export const FOUNDER_TIER = 47;
 /** THE BIG BANG by round: first round · semifinal · the final */
-export const UT_TIERS: [number, number][] = [[65, 75], [70, 80], [75, 85]];
+export const UT_TIERS: [number, number][] = [[62, 72], [68, 78], [72, 82]];
+/** the rubber band: per title / per season without a tournament win, and its walls */
+export const FIELD_HUNT = 3;
+export const FIELD_EASE = 2;
+export const FIELD_MAX = 9;
+export const FIELD_MIN = -6;
 /** Meters live around 75. Natural recovery drifts HOME, never past it —
     the extremes (elated/angry, pumped/sleeping) belong to stories. */
 export const METER_BASELINE = 75;
@@ -450,9 +455,11 @@ export function genSchedule(teamCount: number): [number, number][][] {
 // ---- THE BIG BANG -------------------------------------------------------------------
 
 /** THE BIG BANG field: seven champions on the fixed slide — four first-round
-    tiers (65–75), two semifinal tiers (70–80), one final tier (75–85). The
-    galaxy does not size itself to you: you climb to it. */
-export function genChamps(): ChampTeam[] {
+    tiers (62–72), two semifinal tiers (68–78), one final tier (72–82) — plus
+    THE RUBBER BAND (`shift`): the field hunts a champion and eases off a
+    program that fell. The galaxy does not size itself to you: you climb to
+    it, and then it climbs a little too. */
+export function genChamps(shift = 0): ChampTeam[] {
   const names = [...CHAMP_NAMES];
   const champs: ChampTeam[] = [];
   for (let i = 0; i < 7; i++) {
@@ -462,7 +469,7 @@ export function genChamps(): ChampTeam[] {
     const planAttr = PLANS.find((p) => p.id === plan)!.attr;
     const tier = i < 4 ? 0 : i < 6 ? 1 : 2;
     const [lo, hi] = UT_TIERS[tier];
-    const avg = lo + rand(hi - lo + 1);
+    const avg = clamp(lo + rand(hi - lo + 1) + Math.round(shift), 30, 96);
     // a representative team kite, spiked toward the plan's attribute, sized
     // to the average
     const kite = zeroAttrs();

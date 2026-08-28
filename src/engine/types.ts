@@ -99,6 +99,9 @@ export interface Player {
   onFire?: boolean;
   outWeeks: number;
   outReason: string;
+  /** WHY he's out: an injury (medicine takes weeks off it) or an absence —
+      festival, exchange, suspension, a newborn (only time itself helps) */
+  outKind?: 'injury' | 'away';
   /** consecutive games without minutes */
   dnp: number;
   /** consecutive games STARTED — the weekend recovery shrinks as it stacks */
@@ -227,6 +230,9 @@ export interface Fx {
   teamEnergyP?: number;
   outWeeks?: number;
   outReason?: string;
+  /** injury (medical items apply) or away (time items apply); an unset kind
+      on a fresh absence means AWAY, on a running absence keeps what it was */
+  outKind?: 'injury' | 'away';
   /** a delayed outcome hangs over him: he stays NERVOUS until the result
       beat lands (cleared automatically when his next story resolves) */
   tense?: boolean;
@@ -405,6 +411,11 @@ export interface GameState {
   legacy: number;
   trophies: number;
   utTitles: number;
+  /** THE RUBBER BAND on the slide: every BIG BANG title raises the field
+      (+3 per title, cap +9); a season without a tournament win eases it
+      (−2, floor −6). Applied to the champions' averages, half to the
+      conference tiers. */
+  fieldShift?: number;
   totalWins: number;
 
   /** popup queue for the current phase + scheduled future beats */
