@@ -561,7 +561,7 @@ const STORIES = [
       {
         key: 'start', setup: 'A micrometeorite shreds the cargo bay — and your scout reports fly out through the hole. Every dossier, spinning off in a slow, expensive constellation.',
         choices: [
-          { label: 'WATCH THEM GO', up: '2% INTEL', down: '2% DRAIN', out: { mid: 'A season of scouting drifts off sunward. Somewhere out there, a very informed comet. Every prospect on the board is a stranger again.' } },
+          { label: 'WATCH THEM GO', up: '2% INTEL', down: '2% DRAIN', out: { mid: 'A season of scouting drifts off sunward. Somewhere out there, a very informed comet. Every prospect on the board is a stranger again — and the board SHUFFLES (the rows refile in no order you remember).' } },
           { label: 'SUIT UP AND CHASE THEM (1¢)', cost: 1, up: '50% INTEL', down: '10% INJURY', out: { up: 'You spacewalk with a net like a lunatic and catch nearly all of it. The intel survives.', mid: 'Two folders and a lot of vacuum. Intel: gone.', down: 'A meteorite catches you back. Intel gone and your shoulder clicks now.' } },
         ],
       },

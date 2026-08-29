@@ -2509,22 +2509,26 @@ export const STORIES: StoryDef[] = [
     }),
     resolve: (key, ctx) => {
       const wipe = (): void => {
+        // the intel goes — and so does the ORDER: the board refiles itself
+        // in no sequence you remember, so re-scouting really starts over
+        // (unless you remember their actual names. Unlikely.)
         for (const pr of ctx.s.prospects) {
           pr.scoutLevel = 0;
           pr.seenSkill = false;
           pr.seenPot = false;
           pr.digits = 0;
         }
+        ctx.s.prospects.sort(() => Math.random() - 0.5);
       };
       if (key === 'eva') {
         const t = tails(50, 10);
         if (t === 'up') return { text: 'You spacewalk with a net like a lunatic and catch nearly all of it. The scouting intel survives.', };
         if (t === 'down') { wipe(); return { text: 'You catch three dossiers and a meteorite catches you. The intel is gone and your shoulder clicks now.', }; }
         wipe();
-        return { text: 'You catch two folders and a lot of vacuum. The rest is a constellation now. Intel: gone.', };
+        return { text: 'You catch two folders and a lot of vacuum. The rest is a constellation now. Intel: gone, and the board refiles itself in an order you have never seen.', };
       }
       wipe();
-      return { text: 'You watch a season of scouting drift off sunward. Somewhere out there, a very informed comet. Every prospect on the board is a stranger again.', fx: [] };
+      return { text: 'You watch a season of scouting drift off sunward. Somewhere out there, a very informed comet. Every prospect on the board is a stranger again — and the refiled board is in no order you remember.', fx: [] };
     },
   },
 

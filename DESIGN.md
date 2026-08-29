@@ -1447,6 +1447,10 @@ senior (his card, his career line), and the RETIRE button asks through the
 dean in the empty gym (`retire_ask`; `Fx.gameover: 'retired'`). Item
 texts are they/them unless a specific athlete is named.
 
+**The hull breach shuffles the board.** Losing the scouting intel now also
+refiles the nine in a random order — re-scouting truly starts over
+(unless you remember their actual names. Unlikely.)
+
 **Discovery reveals one thing.** Every name that reaches the board — a
 search find or the opening nine — arrives with one facet known: a rating
 digit (two in three) or the ceiling stars (`discoveryReveal`). Nobody is
