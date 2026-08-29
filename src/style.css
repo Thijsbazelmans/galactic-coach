@@ -1432,8 +1432,8 @@ button.actmain.scopehl { border-color: var(--r95); }
 
 /* the XP ring's changed arc blinks (added bright / removed dim) */
 .krdelta { fill: none; stroke-width: 3.5; animation: gblink 1.4s steps(1) infinite; }
-.krdelta.up { stroke: #ffffff; stroke-width: 4.5; filter: drop-shadow(0 0 2px #fff); }
-.krdelta.down { stroke: #ff4a3d; }
+.krdelta.up { stroke: #5fe07a; stroke-width: 4.5; filter: drop-shadow(0 0 2px #5fe07a); }
+.krdelta.down { stroke: #ff4a3d; stroke-width: 4.5; filter: drop-shadow(0 0 2px #ff4a3d); }
 
 /* the team bars keep their delta visible: added blinks bright, removed dark */
 .tbdelta {
