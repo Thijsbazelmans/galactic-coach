@@ -751,6 +751,28 @@ button.hold.wiggle::after {
 
 .actrow { display: flex; gap: 5px; }
 
+/* ---- THE TACTICS BOARD: two schemes between the grid and the bars ----------- */
+
+.tacboard { flex: none; margin: 3px 0 2px 17px; display: flex; flex-direction: column; gap: 3px; }
+.tacrow { display: flex; gap: 4px; }
+.tacbtn {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 3px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  border-color: var(--rline);
+  line-height: 1.1;
+}
+.tacbtn b { font-size: 11px; letter-spacing: 0.5px; color: var(--r55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tacbtn span { font-size: 8px; letter-spacing: 0.5px; }
+.tacbtn span.dim { color: var(--r35); }
+.tacbtn.sel { border: 2px solid var(--r95); padding: 2px 1px; }
+.tacbtn.sel b { color: var(--r95); }
+
 /* ---- the team bars: five totals, ranks, and the matchup tug-of-war ---------- */
 
 .tbars { flex: none; margin: 2px 0 2px 17px; display: flex; flex-direction: column; gap: 0; }

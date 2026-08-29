@@ -1732,6 +1732,31 @@ system."** So:
 - The NEXT YEAR scouting hint now counts columns (BACK/WING/FRONT by
   where each returner rates best) instead of position letters.
 
+## v4.8 — THE TACTICS BOARD (Aug 29, 2026 — "adds a lot of tactical options")
+
+Two rows of three buttons in the space between the 3×3 and the team bars
+on PRACTICE — offense over defense, one per row always lit:
+
+- **PLAY CALL | TRIANGLE | FAST BREAK** and **ZONE | MAN 2 MAN | PRESS.**
+- The middles are neutral: your numbers translate to the team totals 1:1.
+- Each outer scheme weighs one attribute **+20% team-wide** and its
+  opposite **−20%** (Thijs's example: 10 BRN / 5 FRC in a ZONE plays as
+  12 / 4): PLAY CALL = SKILL, FAST BREAK = ATHLETICISM, ZONE = BRAINS,
+  PRESS = FIERCENESS. The 20% is a first guess — knob `TAC_SHIFT` in
+  sim.ts, to be tuned from play.
+- **W1 opens on TRIANGLE / MAN 2 MAN and the schemes PERSIST** week to
+  week (and season to season) until changed — a save setting, not a
+  weekly pick. Changing one snapshots the bars and cascades the change.
+- The multipliers land after the speech shift and ride into everything:
+  the practice bars, the matchup ropes, the bookie, the game itself, and
+  which attribute craters when an instruction gets READ.
+- **Yours alone — AI opponents play vanilla.** Thijs's call: whether the
+  field needs compensating (or the founding six a trim) is "a playthrough
+  worth of experience" — BALANCE WATCH: a team that aligns both schemes
+  with its shape gains real power on a SHARP-6 winshare curve, on top of
+  speeches. Knobs if it proves too strong: `TAC_SHIFT` 0.2, CONF_TIERS,
+  FOUNDER_TIER.
+
 ### Backlog (in rough priority)
 
 **Scratched (Thijs, Aug 29) — do not resurface:** instruction-night squad

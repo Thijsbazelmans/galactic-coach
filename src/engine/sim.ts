@@ -200,6 +200,25 @@ export function normalizeLineup(t: Team): void {
 
 const PLAN_FOR_ATTR: Record<Attr, PlanId> = { skl: 'showtime', ath: 'rungun', frc: 'lockdown', brn: 'clockwork' };
 
+// ---- THE TACTICS BOARD (yours alone — AI teams play vanilla) -----------------
+// Two schemes, set at practice, persistent until changed: OFFENSE (PLAY CALL /
+// TRIANGLE / FAST BREAK) and DEFENSE (ZONE / MAN 2 MAN / PRESS). The middle
+// options are neutral (numbers translate 1:1); each outer one weighs an
+// attribute +20% team-wide and its opposite −20% — a brainy team in a ZONE
+// gets MORE out of its brains than it loses in fierceness.
+
+export const TAC_SHIFT = 0.2;
+
+/** Per-attribute team multipliers for a scheme pair. */
+export function tacticsMult(tacO?: string, tacD?: string): AttrRec {
+  const m: AttrRec = { skl: 1, ath: 1, frc: 1, brn: 1 };
+  if (tacO === 'playcall') { m.skl += TAC_SHIFT; m.ath -= TAC_SHIFT; }
+  else if (tacO === 'fastbreak') { m.ath += TAC_SHIFT; m.skl -= TAC_SHIFT; }
+  if (tacD === 'zone') { m.brn += TAC_SHIFT; m.frc -= TAC_SHIFT; }
+  else if (tacD === 'press') { m.frc += TAC_SHIFT; m.brn -= TAC_SHIFT; }
+  return m;
+}
+
 /** The night's split as a percentage — what the bookie prints. */
 export function bookieLine(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null, home: boolean): number {
   const { mine, theirs } = gameRope(s, me, opp, champ, home, s.speechFx ?? null);
@@ -240,7 +259,7 @@ function playerCond(p: Player): number {
 /** Per-attribute weighted team values (the four bar rows). fx = the speech
     shift (or an instruction that got read); forms = tonight's hot/cold rolls
     (game night only). */
-export function matchAttrs(t: Team, fx: SpeechFx | SpeechFx[] | null = null, forms?: Forms): AttrRec {
+export function matchAttrs(t: Team, fx: SpeechFx | SpeechFx[] | null = null, forms?: Forms, tac?: AttrRec | null): AttrRec {
   const fxs: SpeechFx[] = fx ? (Array.isArray(fx) ? fx : [fx]) : [];
   const out = zeroAttrs();
   for (let c = 0; c < 3; c++) {
@@ -256,13 +275,14 @@ export function matchAttrs(t: Team, fx: SpeechFx | SpeechFx[] | null = null, for
       }
     }
   }
-  for (const a of ATTRS) out[a] = Math.round(out[a] * 10) / 10;
+  // THE TACTICS BOARD lands last, team-wide: ±20% on a scheme's attribute
+  for (const a of ATTRS) out[a] = Math.round(out[a] * (tac?.[a] ?? 1) * 10) / 10;
   return out;
 }
 
 /** The whole bar: the four rows added up. */
-export function teamPower(t: Team, fx: SpeechFx | SpeechFx[] | null = null, forms?: Forms): number {
-  return ovr(matchAttrs(t, fx, forms));
+export function teamPower(t: Team, fx: SpeechFx | SpeechFx[] | null = null, forms?: Forms, tac?: AttrRec | null): number {
+  return ovr(matchAttrs(t, fx, forms, tac));
 }
 
 /** Meter-neutral strength: the same total with everyone standing at the
@@ -463,7 +483,8 @@ function gameRope(
   forms?: Forms
 ): { mine: number; theirs: number } {
   const [vm, vt] = champ ? [1, 1] : home ? [1.03, 1] : [1, 1.03];
-  let mine = teamPower(me, fx, forms) * vm;
+  // THE TACTICS BOARD is the coach's edge: only MY side runs a scheme
+  let mine = teamPower(me, fx, forms, tacticsMult(s.tacO, s.tacD)) * vm;
   if (s.easyNight) mine *= 0.93; // coasting: less burn, less punch
   // their locker room hears a speech too — the same shift we get, aimed at
   // their strength (fairness law) — and a LANDED instruction drags their side

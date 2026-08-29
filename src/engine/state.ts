@@ -65,8 +65,16 @@ import {
   simAiGame,
   simMyGame,
   starters,
+  tacticsMult,
   verdictLines,
 } from './sim';
+
+/** THE TACTICS BOARD: set a scheme (persistent until changed). */
+export function setTactic(s: GameState, row: 'o' | 'd', id: string): void {
+  if (row === 'o') s.tacO = id;
+  else s.tacD = id;
+  save(s);
+}
 import type {
   Alumnus,
   ChampTeam,
@@ -1345,7 +1353,7 @@ function rollInstruction(s: GameState, instrId: string): string {
   const m = myMatchup(s);
   const champ = isUtWeek(s) ? utOpponent(s) : null;
   const theirBest = champ ? bestAttr(champ.kite) : m ? bestAttr(matchAttrs(m.opponent)) : 'skl';
-  const myBest = bestAttr(matchAttrs(me));
+  const myBest = bestAttr(matchAttrs(me, null, undefined, tacticsMult(s.tacO, s.tacD)));
   const A = theirBest.toUpperCase();
   const r = Math.random() * 100;
   if (r < it.hit) {

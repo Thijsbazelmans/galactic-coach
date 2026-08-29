@@ -21,7 +21,7 @@ import {
   storyById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, REGULAR_WEEKS, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, bestCol, bookieLine, grade, matchAttrs, posArrows, slotPlayer, slotRating, winShare, type Grade } from './engine/sim';
+import { COL_LABELS, bestCol, bookieLine, grade, matchAttrs, posArrows, slotPlayer, slotRating, tacticsMult, winShare, type Grade } from './engine/sim';
 import {
   actionGalaxy,
   addNote,
@@ -52,6 +52,7 @@ import {
   retire,
   runDrill,
   save,
+  setTactic,
   showTip,
   sortedStandings,
   speechCooldown,
@@ -1683,12 +1684,36 @@ const BAR_ROWS: { a: Attr | 'all'; label: string }[] = [
   { a: 'all', label: 'OVERALL' },
 ];
 
+/** THE TACTICS BOARD: two schemes between the grid and the bars — offense
+    up top, defense below, one per row always lit. The middles are neutral;
+    the outer four trade one attribute against its opposite, ±20% team-wide.
+    Set once, kept until changed (W1 opens on TRIANGLE / MAN 2 MAN). */
+const TAC_ROWS: { key: 'o' | 'd'; opts: { id: string; name: string; sub: string }[] }[] = [
+  { key: 'o', opts: [
+    { id: 'playcall', name: 'PLAY CALL', sub: '+SKL −ATH' },
+    { id: 'triangle', name: 'TRIANGLE', sub: 'balanced' },
+    { id: 'fastbreak', name: 'FAST BREAK', sub: '+ATH −SKL' },
+  ] },
+  { key: 'd', opts: [
+    { id: 'zone', name: 'ZONE', sub: '+BRN −FRC' },
+    { id: 'man', name: 'MAN 2 MAN', sub: 'balanced' },
+    { id: 'press', name: 'PRESS', sub: '+FRC −BRN' },
+  ] },
+];
+
+function tacticsBoard(s: GameState): string {
+  const sel = { o: s.tacO ?? 'triangle', d: s.tacD ?? 'man' };
+  return `<div class="tacboard">${TAC_ROWS.map((row) => `<div class="tacrow">${row.opts.map((o) =>
+    `<button class="tacbtn ${sel[row.key] === o.id ? 'sel' : ''}" data-action="tac-set" data-id="${row.key}:${o.id}"><b>${o.name}</b><span class="${o.sub === 'balanced' ? 'dim' : 'gaintag'}">${o.sub}</span></button>`
+  ).join('')}</div>`).join('')}</div>`;
+}
+
 /** PRACTICE: five progress bars + division rank per row — on the MATCH
     weighting (starters ×75% + bench ×25%, unavailable bodies add nothing),
     exactly the numbers the ropes will run on. */
 function teamBarsPractice(s: GameState): string {
   const t = myTeam(s);
-  const all = s.teams.map((tm) => ({ id: tm.id, sums: matchAttrs(tm) }));
+  const all = s.teams.map((tm) => ({ id: tm.id, sums: tm.id === s.myTeamId ? matchAttrs(tm, null, undefined, tacticsMult(s.tacO, s.tacD)) : matchAttrs(tm) }));
   const mine = all.find((x) => x.id === t.id)!.sums;
   const rows = BAR_ROWS.map(({ a, label }) => {
     const val = (x: AttrRec): number => (a === 'all' ? ovr(x) : x[a]);
@@ -1733,7 +1758,7 @@ function teamBarsMatchup(s: GameState, opts: { fx?: SpeechFx | SpeechFx[] | null
     <b class="tbv"></b>
   </div>`;
   const fx = opts.fx !== undefined ? opts.fx : s.speechFx ?? null;
-  const mine = matchAttrs(t, fx, opts.forms);
+  const mine = matchAttrs(t, fx, opts.forms, tacticsMult(s.tacO, s.tacD));
   const mineTotal = ovr(mine);
   let theirs: AttrRec | null = null;
   let theirsTotal = 0;
@@ -1844,9 +1869,9 @@ function practiceScope(s: GameState): Set<number> | null {
 }
 
 function stagePractice(s: GameState): string {
-  // the RUN button lives in the nav now (the continue button IS the action
-  // button) — the space under the grid belongs to the team bars alone
-  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, lens === 0, lens, lens === 0 ? practiceScope(s) : null)}<div class="botstack">${teamBarsPractice(s)}</div>`;
+  // the RUN button lives in the nav; the space between the grid and the
+  // bars belongs to THE TACTICS BOARD — pick a scheme, watch the bars move
+  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, lens === 0, lens, lens === 0 ? practiceScope(s) : null)}<div class="botstack">${tacticsBoard(s)}${teamBarsPractice(s)}</div>`;
 }
 
 /** «ALL 9» / «PICK 6» / «PICK 3» — the scope, printed everywhere: a scoped
@@ -3409,6 +3434,16 @@ function executeAction(action: string, id: string): void {
       break;
     }
     case 'drill-pick': selectedDrill = id; drillSheet = false; break;
+    case 'tac-set': {
+      // the scheme changes and the bars must SHOW it: snapshot, swap, cascade
+      const [rowk, tid] = id.split(':');
+      const cur = rowk === 'o' ? (state.tacO ?? 'triangle') : (state.tacD ?? 'man');
+      if (cur === tid) break;
+      captureBars();
+      cascArmed = 'bars';
+      setTactic(state, rowk as 'o' | 'd', tid);
+      break;
+    }
     case 'speech-pick': selPregame = { kind: 'speech', id: id as PlanId }; speechSheet = false; break;
     case 'instr-pick': selPregame = { kind: 'instr', id }; speechSheet = false; break;
     case 'board-confirm-do': {

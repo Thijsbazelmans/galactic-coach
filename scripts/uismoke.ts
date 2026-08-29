@@ -133,6 +133,25 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('gled')) throw new Error('LED gauge rects missing');
   if (!app.innerHTML.includes('ksprite')) throw new Error('centered sprite missing');
 
+  // THE TACTICS BOARD: two rows between the grid and the bars, middles lit
+  // by default (TRIANGLE / MAN 2 MAN), persistent until changed
+  if (app.querySelectorAll('.tacboard .tacrow').length !== 2) throw new Error('tactics board missing');
+  if (app.querySelectorAll('.tacboard .tacbtn').length !== 6) throw new Error('expected six tactic buttons');
+  const selTacs = [...app.querySelectorAll('.tacbtn.sel b')].map((el) => (el as unknown as { textContent: string }).textContent);
+  if (selTacs.join(',') !== 'TRIANGLE,MAN 2 MAN') throw new Error(`wrong default tactics: ${selTacs.join(',')}`);
+  anyWin.gcAction('tac-set', 'd:zone');
+  if ((gc.state() as any).tacD !== 'zone') throw new Error('tactic did not persist to state');
+  // the math, engine-side (the DOM number is mid-cascade at this moment):
+  // ZONE = BRAINS ×1.2, FIERCENESS ×0.8, team-wide
+  const sim = await import('../src/engine/sim');
+  const st2 = gc.state() as any;
+  const me2 = st2.teams[st2.myTeamId];
+  const plain = sim.matchAttrs(me2);
+  const zoned = sim.matchAttrs(me2, null, undefined, sim.tacticsMult(st2.tacO, st2.tacD));
+  if (Math.abs(zoned.brn - plain.brn * 1.2) > 0.2) throw new Error(`ZONE brn off: ${plain.brn} → ${zoned.brn}`);
+  if (Math.abs(zoned.frc - plain.frc * 0.8) > 0.2) throw new Error(`ZONE frc off: ${plain.frc} → ${zoned.frc}`);
+  anyWin.gcAction('tac-set', 'd:man'); // back to neutral for the rest of the run
+
   // MANDATORY practice: the nav IS the action button until the drill runs
   if (!app.querySelector('.navbar [data-action="drill-run"]')) throw new Error('RUN button missing from the nav');
   anyWin.gcAction('to-recruiting', ''); // must refuse

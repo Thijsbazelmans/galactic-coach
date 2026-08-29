@@ -573,6 +573,8 @@ export function newGameState(): GameState {
     sitouts: [],
     drillReport: null,
     voyageRolled: false,
+    tacO: 'triangle',
+    tacD: 'man',
     plan: 'showtime',
     pregameFlags: {},
     lastResult: null,

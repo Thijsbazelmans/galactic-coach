@@ -477,6 +477,12 @@ export interface GameState {
   drillReport: string | null;
   voyageRolled: boolean;
 
+  /** THE TACTICS BOARD (set at practice, persistent until changed — yours
+      alone, AI teams play vanilla): offense PLAY CALL/TRIANGLE/FAST BREAK,
+      defense ZONE/MAN 2 MAN/PRESS. Middles are neutral; the outer four weigh
+      one attribute +20% team-wide and its opposite −20%. */
+  tacO?: string;
+  tacD?: string;
   plan: PlanId;
   pregameFlags: { wallet?: boolean; cloak?: boolean; alarm?: boolean };
   lastResult: MyGameResult | null;

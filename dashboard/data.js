@@ -862,6 +862,16 @@ const ACTIONS = {
     name: '2 · PRACTICE (mandatory — pick one and HOLD RUN)',
     groups: [
       {
+        name: 'THE TACTICS BOARD (v4.8 — free, persistent, YOURS ALONE: AI teams play vanilla; one per row always lit, W1 opens TRIANGLE / MAN 2 MAN)', rows: [
+          { id: 'tac-playcall', name: 'PLAY CALL', cost: 0, scope: 'offense', effect: 'team SKL ×1.2 · ATH ×0.8', desc: 'Run the sets. Shooters get their looks; nobody runs.' },
+          { id: 'tac-triangle', name: 'TRIANGLE', cost: 0, scope: 'offense', effect: 'neutral — numbers translate 1:1', desc: 'The balanced offense.' },
+          { id: 'tac-fastbreak', name: 'FAST BREAK', cost: 0, scope: 'offense', effect: 'team ATH ×1.2 · SKL ×0.8', desc: 'Outrun everything. Polish optional.' },
+          { id: 'tac-zone', name: 'ZONE', cost: 0, scope: 'defense', effect: 'team BRN ×1.2 · FRC ×0.8', desc: 'Positions, rotations, reads — the thinking defense.' },
+          { id: 'tac-man', name: 'MAN 2 MAN', cost: 0, scope: 'defense', effect: 'neutral — numbers translate 1:1', desc: 'The balanced defense.' },
+          { id: 'tac-press', name: 'PRESS', cost: 0, scope: 'defense', effect: 'team FRC ×1.2 · BRN ×0.8', desc: 'Full-court aggression. Thinking is for the bus.' },
+        ],
+      },
+      {
         name: 'TRAIN (XP — levels bank +2 points YOU place)', rows: [
           { id: 'shootaround', name: 'SHOOTAROUND', cost: 1, effect: '2–4 XP · −3 energy', up: '2% SPIRIT', down: '2% INJURY', desc: 'Racks of shots under the practice dome. Injury cause: "rolled an ankle stepping on a loose ball. A loose ball. In shootaround."' },
           { id: 'scrimmage', name: 'FULL SCRIMMAGE', cost: 2, effect: '4–6 XP · −6 energy', up: '5% SPIRIT', down: '5% INJURY', desc: 'Starters against bench, refs bribed with sandwiches. Cause: "took a charge from a teammate who forgot it was scrimmage."' },
