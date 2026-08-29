@@ -1944,7 +1944,9 @@ function speechRow(pl: (typeof PLANS)[number], tag: 'button' | 'div', cls: strin
   if (pl.cooldown) facts.push(fact(`${pl.cooldown}w recharge`, 0));
   const flop = pl.kind === 'shift' ? (pl.premium ? SPEECH_FLOP_PREMIUM : SPEECH_FLOP) : pl.kind === 'rally' ? 50 : 0;
   const down = flop ? { pct: flop, cls: 'DRAIN', note: pl.kind === 'rally' ? 'a coin flip, the roof on or off' : "it doesn't take" } : undefined;
-  return pickerRow({ tag, cls, attrs, name: pl.speech, down, facts, risk: pl.kind === 'easy' ? 'safe' : riskLevel(flop), desc: pl.fantasy });
+  // nothing is RISKED by a speech — only a chance nothing is gained — so the
+  // sticker stays TRADE (the DRAIN tail already says it can fall flat)
+  return pickerRow({ tag, cls, attrs, name: pl.speech, down, facts, risk: pl.kind === 'easy' ? 'safe' : pl.kind === 'rally' ? 'risky' : 'trade', desc: pl.fantasy });
 }
 
 /** An instruction row. Never "if it lands" — the tails say so. */
