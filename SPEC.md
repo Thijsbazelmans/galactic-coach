@@ -610,7 +610,6 @@ raised during review and deliberately parked:
   alumni encounters and locker-room stories a memory; too much bookkeeping
   for v1 — alumni stay random for now (§10.5).
 - **A legendary item that adds a level** (§2.4).
-- **The post-game speech** choice after losses.
 - **Buying a void-taken player back** as a designed legendary arc —
   currently just a rare alumni story.
 - And the two dedicated sessions: **species design** and **story writing**

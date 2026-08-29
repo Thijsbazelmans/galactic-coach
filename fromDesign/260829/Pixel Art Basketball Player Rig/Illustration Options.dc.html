@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin: 0; background: #0a0c14; }
+  a { color: #b6f36a; text-decoration: none; }
+  a:hover { color: #f36ad2; }
+  canvas { image-rendering: pixelated; display: block; }
+</style>
+</helmet>
+<section style="padding:34px 38px 10px;color:#dfe3f2;font-family:'IBM Plex Mono',monospace">
+  <div style="margin-bottom:24px">
+    <div style="font-family:'Silkscreen',monospace;font-size:11px;letter-spacing:3px;color:#b6f36a;margin-bottom:8px">ICBA &middot; ILLUSTRATION OPTIONS &middot; TURN 5</div>
+    <div style="font-family:'Silkscreen',monospace;font-size:28px;color:#f4f6ff">TITLE SCREEN</div>
+  </div>
+  <div id="5a" style="border:2px solid #232a44;background:#0f1220;padding:14px;display:inline-block;margin-bottom:30px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:14px">
+      <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">5a</span>
+      <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">MARCH MANIACS</span>
+    </div>
+    <canvas data-opt="5a" data-grid="128" width="640" height="360"></canvas>
+    <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:80ch;line-height:1.5">MARCH bounces on the beat over MANIACS; a basketball orbits the title; scrolling subtitle ticker in the house pixel font; hoop court-side, ringed planet drifting low, PRESS START blinking in the team color.</div>
+  </div>
+  <div style="margin-bottom:24px">
+    <div style="font-family:'Silkscreen',monospace;font-size:11px;letter-spacing:3px;color:#b6f36a;margin-bottom:8px">ICBA &middot; ILLUSTRATION OPTIONS &middot; TURN 4</div>
+    <div style="font-family:'Silkscreen',monospace;font-size:28px;color:#f4f6ff">SEASON MOMENTS</div>
+    <div style="font-size:12px;color:#818ab0;margin-top:8px;max-width:70ch;line-height:1.6">Three full-scene illustrations for the season arc: reaching the big tournament, winning it all, and the season ending early.</div>
+  </div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:30px">
+    <sc-for list="{{ seasonScenes }}" as="c" hint-placeholder-count="3">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:14px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" data-grid="64" width="256" height="176"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:40ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="margin-bottom:24px">
+    <div style="font-family:'Silkscreen',monospace;font-size:11px;letter-spacing:3px;color:#b6f36a;margin-bottom:8px">ICBA &middot; ILLUSTRATION OPTIONS &middot; TURN 3</div>
+    <div style="font-family:'Silkscreen',monospace;font-size:28px;color:#f4f6ff">THE CAMPUS CAST</div>
+    <div style="font-size:12px;color:#818ab0;margin-top:8px;max-width:70ch;line-height:1.6">Eight recurring characters built from the game species, each with the standard four states: neutral, worried (exclamation + sweat), mad (skull + shrug), elated (star + cheer, gold eyes).</div>
+  </div>
+  <sc-for list="{{ chars3 }}" as="g" hint-placeholder-count="8">
+    <div style="margin-bottom:26px">
+      <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:0 0 12px">{{ g.name }}</div>
+      <div id="{{ g.gid }}" style="border:2px solid #232a44;background:#0f1220;padding:14px;display:inline-block">
+        <div style="display:flex;gap:14px;flex-wrap:wrap">
+          <sc-for list="{{ g.states }}" as="c" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+              <canvas data-opt="{{ c.id }}" data-grid="64" width="256" height="176"></canvas>
+              <div style="font-size:10px;color:#c8cddb;letter-spacing:1px">{{ c.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:10px;color:#818ab0;margin-top:10px;max-width:80ch;line-height:1.5">{{ g.note }}</div>
+      </div>
+    </div>
+  </sc-for>
+</section>
+
+<section style="padding:34px 38px 10px;color:#dfe3f2;font-family:'IBM Plex Mono',monospace">
+  <div style="margin-bottom:24px">
+    <div style="font-family:'Silkscreen',monospace;font-size:11px;letter-spacing:3px;color:#b6f36a;margin-bottom:8px">ICBA &middot; ILLUSTRATION OPTIONS &middot; TURN 2 &middot; BUILT FROM PICKS <a href="#1a">1a</a> <a href="#1d">1d</a> <a href="#1g">1g</a> <a href="#1i">1i</a></div>
+    <div style="font-family:'Silkscreen',monospace;font-size:28px;color:#f4f6ff">STORY SCENES + STATES</div>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:22px 0 12px">TEAM BUS &middot; THE FLAT-NOSE &middot; STORY SITUATIONS</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ busScenes }}" as="c" hint-placeholder-count="3">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" data-grid="64" width="384" height="192"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:44ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">SCOUT SAUCER &middot; STORY SITUATIONS</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ saucerScenes }}" as="c" hint-placeholder-count="3">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" data-grid="48" width="288" height="168"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:34ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">THE DEAN &middot; FOUR STATES</div>
+  <div id="2g" style="border:2px solid #232a44;background:#0f1220;padding:14px;display:inline-flex;gap:14px;flex-wrap:wrap">
+    <sc-for list="{{ deanStates }}" as="c" hint-placeholder-count="4">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+        <canvas data-opt="{{ c.id }}" data-grid="64" width="256" height="176"></canvas>
+        <div style="font-size:10px;color:#c8cddb;letter-spacing:1px">{{ c.label }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">THE BOOSTER &middot; FOUR STATES</div>
+  <div id="2h" style="border:2px solid #232a44;background:#0f1220;padding:14px;display:inline-flex;gap:14px;flex-wrap:wrap">
+    <sc-for list="{{ boosterStates }}" as="c" hint-placeholder-count="4">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+        <canvas data-opt="{{ c.id }}" data-grid="64" width="256" height="176"></canvas>
+        <div style="font-size:10px;color:#c8cddb;letter-spacing:1px">{{ c.label }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">THE REPORTER &middot; &ldquo;SCOOP&rdquo; QUAZAR &middot; FOUR STATES</div>
+  <div id="2i" style="border:2px solid #232a44;background:#0f1220;padding:14px;display:inline-block;margin-bottom:30px">
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <sc-for list="{{ reporterStates }}" as="c" hint-placeholder-count="4">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+          <canvas data-opt="{{ c.id }}" data-grid="64" width="256" height="176"></canvas>
+          <div style="font-size:10px;color:#c8cddb;letter-spacing:1px">{{ c.label }}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="font-size:10px;color:#818ab0;margin-top:10px;max-width:80ch;line-height:1.5">Six-legged beat reporter for the Galactic Hoops Gazette: fedora with a team-color band, loud orange suit, empty press room with step-and-repeat backdrop, podium mics, and a blinking ON AIR sign.</div>
+  </div>
+</section>
+
+<section ref="{{ pageRef }}" style="padding:34px 38px 70px;color:#dfe3f2;font-family:'IBM Plex Mono',monospace">
+  <div style="margin-bottom:24px">
+    <div style="font-family:'Silkscreen',monospace;font-size:11px;letter-spacing:3px;color:#b6f36a;margin-bottom:8px">ICBA &middot; ILLUSTRATION OPTIONS &middot; TURN 1</div>
+    <div style="font-family:'Silkscreen',monospace;font-size:28px;color:#f4f6ff">SHIPS + CHARACTERS</div>
+    <div style="font-size:12px;color:#818ab0;margin-top:8px;max-width:70ch;line-height:1.6">Pick one per group; the chosen ships then get their three scene variants (space / stranded / hoop). Same palette + pixel rules as the <a href="Terran Guard Study.dc.html">sprite study</a>.</div>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:22px 0 12px">A &middot; TEAM BUS SPACESHIP</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ busCards }}" as="c" hint-placeholder-count="3">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" width="384" height="192"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:44ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">B &middot; SCOUT SHIP</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ scoutCards }}" as="c" hint-placeholder-count="3">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" width="288" height="168"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:34ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">C &middot; THE DEAN &middot; XS SCALE</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ deanCards }}" as="c" hint-placeholder-count="2">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" width="384" height="264"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:44ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="font-family:'Silkscreen',monospace;font-size:13px;color:#b6f36a;letter-spacing:2px;margin:26px 0 12px">D &middot; THE BOOSTER &middot; XL SCALE &middot; ROBOTA</div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap">
+    <sc-for list="{{ boosterCards }}" as="c" hint-placeholder-count="2">
+      <div id="{{ c.id }}" style="border:2px solid #232a44;background:#0f1220;padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-family:'Silkscreen',monospace;font-size:12px;color:#0a0c14;background:#b6f36a;padding:2px 8px">{{ c.id }}</span>
+          <span style="font-size:11px;color:#f4f6ff;letter-spacing:1px">{{ c.name }}</span>
+        </div>
+        <canvas data-opt="{{ c.id }}" width="384" height="264"></canvas>
+        <div style="font-size:10px;color:#818ab0;margin-top:9px;max-width:44ch;line-height:1.5">{{ c.note }}</div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#b6f36a&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#b6f36a&quot;,&quot;#f3c46a&quot;,&quot;#6ad2f3&quot;,&quot;#f36ad2&quot;],&quot;section&quot;:&quot;Team kit&quot;}}">
+const BODY='#2e3d74', DARK='#232c4e', WIN='#7fd8ec', WHITE='#e8ecf8', CHROME='#9aa3b5', CHROME_D='#5f6878',
+  FL1='#ffd76a', FL2='#e08a3c', RED='#f36a6a', SPACE='#0a0c14', DIM='#39406b';
+
+const DEAN = [
+"........hhh.............",
+"........hhh.............",
+".......hhhhhhhhh........",
+".......hhhhhhhhhh.......",
+".......hssssssssh.......",
+".......hkeksskekh.......",
+".......hsssssssdh.......",
+".......hsskksssdh.......",
+"........ssssssss........",
+"..........ssss..........",
+".........wwwwww.........",
+"......uuuuuuuuuuuu......",
+"....uuuuuUUwwUUuuuuu....",
+"....uuuuuUUwwUUuuuuu....",
+"....uuuuuuUwwUuuuuuu....",
+"....uu.uuuukuuuuu.uu....",
+"....ss.uuuuuuuuuu.ss....",
+".......uuuuuuuuuu.......",
+".......UUUUUUUUUU.......",
+".......UUUUUUUUUU.......",
+"......UUUUUUUUUUUU......",
+"......UUUUUUUUUUUU......",
+".........ss..ss.........",
+".........ss..ss.........",
+".........ss..ss.........",
+"........ooo..ooo........"];
+
+const BOOSTER = [
+".............cc.............",
+".............cc.............",
+".........cccccccccc.........",
+".........cCccccccCc.........",
+".........cekccccekc.........",
+".........cccccccccc.........",
+".........cckkkkkkcc.........",
+".........cccccccccc.........",
+"............ccc.............",
+"....uuuuuuuuuuuuuuuuuuuu....",
+"....uuuuuuuUUttUUuuuuuuu....",
+"....uuuuuuuUUttUUuuuuuuu....",
+"....uuuuuggggggggguuuuuu....",
+"....uu.uuuuuuuuuuuuuu.uu....",
+"....uu.uuuuuuuuuuuuuu.uu....",
+"....uu.uuuuuuttuuuuuu.uu....",
+"....uu.uuuuuuttuuuuuu.uu....",
+"....uu.uuuuuuuuuuuuuu.uu....",
+"....uu.uuuuuuuuuuuuuu.uu....",
+"....cc.uuuuuuuuuuuuuu.cc....",
+".......uuuuuuuuuuuuuu.......",
+".......uuuuuuuuuuuuuu.......",
+"........ccc......ccc........",
+"........ccc......ccc........",
+"........cCc......cCc........",
+"........ccc......ccc........",
+"........ccc......ccc........",
+"........cCc......cCc........",
+"........ccc......ccc........",
+"........ccc......ccc........",
+"........ccc......ccc........",
+"........ccc......ccc........",
+"......ooooo....ooooo........",
+"......ooooo....ooooo........"];
+
+function edited(base, edits) {
+  const m = base.map(r => r.split(''));
+  edits.forEach(([y, x, ch]) => { if (m[y]) m[y][x] = ch; });
+  return m.map(r => r.join(''));
+}
+function rowset(map, y, str) { const m = map.slice(); m[y] = str; return m; }
+
+// Dean B: bob hair, accent scarf, pantsuit
+let DEAN_B = DEAN.slice();
+DEAN_B = rowset(DEAN_B, 0, "........................");
+DEAN_B = rowset(DEAN_B, 1, "........................");
+DEAN_B = rowset(DEAN_B, 2, ".......hhhhhhhhhh.......");
+DEAN_B = rowset(DEAN_B, 3, "......hhhhhhhhhhhh......");
+DEAN_B = rowset(DEAN_B, 4, "......hhsssssssshh......");
+DEAN_B = rowset(DEAN_B, 5, "......hhkeksskekhh......");
+DEAN_B = rowset(DEAN_B, 6, "......hhsssssssdhh......");
+DEAN_B = rowset(DEAN_B, 10, ".........tttttt.........");
+DEAN_B = rowset(DEAN_B, 18, ".......uuuu..uuuu.......");
+DEAN_B = rowset(DEAN_B, 19, ".......uuuu..uuuu.......");
+DEAN_B = rowset(DEAN_B, 20, ".......uuuu..uuuu.......");
+DEAN_B = rowset(DEAN_B, 21, ".......uuuu..uuuu.......");
+DEAN_B = rowset(DEAN_B, 22, ".......uuuu..uuuu.......");
+DEAN_B = rowset(DEAN_B, 23, ".........ss..ss.........");
+DEAN_B = rowset(DEAN_B, 24, "........ooo..ooo........");
+DEAN_B = rowset(DEAN_B, 25, "........................");
+
+// Booster B: flat head, visor shades, letterman sleeves
+let BOOSTER_B = BOOSTER.slice();
+BOOSTER_B = rowset(BOOSTER_B, 0, "............................");
+BOOSTER_B = rowset(BOOSTER_B, 1, "............................");
+BOOSTER_B = rowset(BOOSTER_B, 4, ".........ckkkkkkkkc.........");
+for (let y = 13; y <= 18; y++) BOOSTER_B = edited(BOOSTER_B, [[y,4,'w'],[y,5,'w'],[y,22,'w'],[y,23,'w']]);
+BOOSTER_B = edited(BOOSTER_B, [[10,11,'u'],[10,12,'u'],[10,15,'u'],[10,16,'u'],[11,11,'u'],[11,12,'u'],[11,15,'u'],[11,16,'u'],[15,13,'u'],[15,14,'u'],[16,13,'u'],[16,14,'u']]);
+
+const DEAN_STATES = {
+  neutral: [],
+  worried: [[7,9,'k'],[7,12,'k']],
+  mad: [[4,10,'k'],[4,13,'k'],[6,10,'k'],[6,11,'k'],[7,9,'k'],[7,12,'k'],[7,10,'e'],[7,11,'e']],
+  elated: [[5,8,'y'],[5,9,'y'],[5,10,'y'],[5,13,'y'],[5,14,'y'],[5,15,'y'],[6,9,'k'],[6,12,'k'],[7,9,'k'],[7,12,'k'],[7,10,'e'],[7,11,'e'],[8,10,'k'],[8,11,'k']]
+};
+const DEAN_CHEER = [[15,4,'.'],[15,5,'.'],[16,4,'.'],[16,5,'.'],[15,18,'.'],[15,19,'.'],[16,18,'.'],[16,19,'.'],
+  [11,4,'u'],[11,5,'u'],[10,4,'u'],[10,5,'u'],[9,4,'s'],[9,5,'s'],
+  [11,18,'u'],[11,19,'u'],[10,18,'u'],[10,19,'u'],[9,18,'s'],[9,19,'s']];
+const BOOSTER_CHEER = [];
+for (let y = 13; y <= 19; y++) [4,5,22,23].forEach(x => BOOSTER_CHEER.push([y,x,'.']));
+[[8,'u'],[7,'u']].forEach(([y,ch]) => [4,5,22,23].forEach(x => BOOSTER_CHEER.push([y,x,ch])));
+[4,5,22,23].forEach(x => BOOSTER_CHEER.push([6,x,'c']));
+
+const REPORTER = [
+"..........ffff............",
+"..........ffff............",
+".........tttttt...........",
+".......ffffffffff.........",
+"........ssssssss..........",
+"........sekseksd..........",
+"........ssssssss..........",
+"........sskkssss..........",
+".........ssssss...........",
+"...........ss.............",
+"..........wwww............",
+"......uuuuuuuuuuuu........",
+"....uuuuuUUwwUUuuuuu......",
+"....uuuuuUUwwUUuuuuu......",
+"....uu.uuuuuuuuuu.uu......",
+"....uu.uuuukuuuuu.uu......",
+"....ss.uuuuuuuuuu.ss......",
+".......uuuuuuuuuu.........",
+".......uuuuuuuuuu.........",
+".......uu..uu..uu.........",
+".......uu..uu..uu.........",
+".......uu..uu..uu.........",
+".......uu..uu..uu.........",
+".......ss..ss..ss.........",
+"......ooo.ooo.ooo.........",
+"......ooo.ooo.ooo........."];
+const REPORTER_STATES = {
+  neutral: [],
+  worried: [[7,9,'k'],[7,12,'k']],
+  mad: [[4,9,'k'],[4,10,'k'],[4,12,'k'],[4,13,'k'],[6,10,'k'],[6,11,'k'],[7,9,'k'],[7,12,'k'],[7,10,'e'],[7,11,'e']],
+  elated: [[5,9,'y'],[5,10,'y'],[5,12,'y'],[5,13,'y'],[6,9,'k'],[6,12,'k'],[7,9,'k'],[7,12,'k'],[7,10,'e'],[7,11,'e'],[8,10,'k'],[8,11,'k']]
+};
+const REPORTER_CHEER = [];
+for (let y = 14; y <= 16; y++) [4,5,18,19].forEach(x => REPORTER_CHEER.push([y,x,'.']));
+[[11,'u'],[10,'u']].forEach(([y,ch]) => [4,5,18,19].forEach(x => REPORTER_CHEER.push([y,x,ch])));
+[4,5,18,19].forEach(x => REPORTER_CHEER.push([9,x,'s']));
+const BOOSTER_STATES = {
+  neutral: [],
+  worried: [[6,11,'c'],[6,16,'c']],
+  mad: [[3,10,'k'],[3,11,'k'],[3,15,'k'],[3,16,'k'],[5,12,'k'],[5,13,'k'],[5,14,'k'],[5,15,'k'],[6,12,'e'],[6,15,'e']],
+  elated: [[4,10,'y'],[4,11,'y'],[4,16,'y'],[4,17,'y'],[6,12,'e'],[6,13,'e'],[6,14,'e'],[6,15,'e']]
+};
+
+function mkClear(rows, cols) { const a = []; rows.forEach(y => cols.forEach(x => a.push([y, x, '.']))); return a; }
+function mkFill(rows, cols, ch) { const a = []; rows.forEach(y => cols.forEach(x => a.push([y, x, ch]))); return a; }
+const STD_BLINK = [[5,9,'s'],[5,12,'s']];
+
+const ORACLE3 = [
+".........ee.ee............",
+".........ek.ek............",
+"..........s..s............",
+"..........ssss............",
+".........ssssss...........",
+".........ssssss...........",
+"........ssssssss..........",
+"........sskkssss..........",
+".........ssssss...........",
+".......uuuuuuuuuu.........",
+"......uuuutttuuuuu........",
+".....uu.uuuuuuuuu.uu......",
+".....uu.uuuuuuuuu.uu......",
+".....ss.uuuuuuuuu.ss......",
+".......uuuuuuuuuu.........",
+"........uuuuuuuu..........",
+".........uuuuuu...........",
+".........u.uu.u...........",
+"..........u..u............"];
+const ORACLE3_ST = {
+  neutral: [],
+  worried: [[7,9,'k'],[7,12,'k']],
+  mad: [[0,9,'k'],[0,10,'k'],[0,12,'k'],[0,13,'k'],[7,9,'k'],[7,12,'k'],[7,10,'e'],[7,11,'e']],
+  elated: [[0,9,'y'],[0,10,'y'],[0,12,'y'],[0,13,'y'],[1,9,'y'],[1,10,'y'],[1,12,'y'],[1,13,'y'],[7,10,'e'],[7,11,'e'],[8,10,'k'],[8,11,'k']]
+};
+
+const CHEER3 = [
+"........h......h..........",
+".........h....h...........",
+".........h....h...........",
+"........hhhhhhhh..........",
+"........ssssssss..........",
+"........sekseksd..........",
+"........ssssssss..........",
+"........sskkssss..........",
+".........ssssss...........",
+"...........ss.............",
+".......tttttttttt.........",
+"...gg..tttttttttt..gg.....",
+"..gggg.tttttttttt.gggg....",
+"..gggg.wwwwwwwwww.gggg....",
+"...gg..tttttttttt..gg.....",
+".......t.tt..tt.t.........",
+"......ss.ss..ss.ss........",
+"......ss.ss..ss.ss........",
+"......ww.ww..ww.ww........",
+"......oo.oo..oo.oo........"];
+
+const NERD3 = [
+"..........................",
+"........kkk.kkk...........",
+"........kek.kek...........",
+"........kkk.kkk...........",
+".........s...s............",
+".........s...s............",
+".........ssssss...........",
+"........sskkssss..........",
+".........ssssss...........",
+"...........ss.............",
+".......wwwwwwwwww.........",
+".....ss.wwwwttwwww.ss.....",
+".....ss.wwwwttwwww.ss.....",
+".....ss.wwwwttwwww.ss.....",
+".......UUUUUUUUUU.........",
+"......UU.UU.UU.UU.........",
+"......UU.UU.UU.UU.........",
+"......oo.oo.oo.oo........."];
+const NERD3_ST = {
+  neutral: [],
+  worried: [[7,9,'k'],[7,12,'k']],
+  mad: [[0,8,'k'],[0,9,'k'],[0,13,'k'],[0,14,'k'],[7,9,'k'],[7,12,'k'],[7,10,'e'],[7,11,'e']],
+  elated: [[2,9,'y'],[2,13,'y'],[7,10,'e'],[7,11,'e'],[8,10,'k'],[8,11,'k']]
+};
+
+const EQUIP3 = [
+"..........................",
+"..........................",
+"..........................",
+"..........................",
+"........ssssssss..........",
+"........sekseksd..........",
+"........ssssssss..........",
+"........sskkssss..........",
+".........ssssss...........",
+"...........ss.............",
+".......uuuuuuuuuu.........",
+"..ss.uuuuuuuuuuuuuu.ss....",
+"..ss.uuuuuuuuuuuuuu.ss....",
+".....uu.uuuuuuuuu.uu......",
+".....uu.uuuuuuuuu.uu......",
+".....ss.wwwwwwwww.ss......",
+".......UUUUUUUUUU.........",
+".......ss......ss.........",
+".......ww......ww.........",
+".......oo......oo........."];
+
+const COACH3 = [
+"......hh........hh........",
+"......hh.hhhhhh.hh........",
+"......hhhhhhhhhhhh........",
+"......hhhssssssshh........",
+"......hhsekseksdhh........",
+".......hssssssssh.........",
+".......hsskkssssh.........",
+"......hh.ssssss.hh........",
+"......hh...ss...hh........",
+".......uuuuuuuuuu.........",
+".....uuuuuuuuuuuuuu.......",
+".....uu.uuuuuuuuu.uu......",
+".....uu.uuwwuuuuu.uu......",
+".....uu.uuuuuuuuu.uu......",
+".....uu.uuuuuuuuu.CC......",
+".....ss.uuuuuuuuu.CC......",
+".......uuuuuuuuuu.........",
+".......UUUUUUUUUU.........",
+".......UU......UU.........",
+".......UU......UU.........",
+".......ss......ss.........",
+".......ss......ss.........",
+".......ss......ss.........",
+".......ss......ss.........",
+".......oo......oo........."];
+
+const REF3 = [
+"..........................",
+"..........................",
+"..........................",
+"........ssssssss..........",
+"........ssssdsss..........",
+"........sekseksd..........",
+"........ssssssss..........",
+"........sskkssss..........",
+".........ssssss...........",
+"...........ss.............",
+".......wkwkwkwkww.........",
+"....ss.wkwkwkwkww.ss......",
+"....ss.wkwkwkwkww.ss......",
+"....ss.wkwkwkwkww.ss......",
+"....ss.wkwkwkwkww.ss......",
+".......UUUUUUUUUU.........",
+".......UU......UU.........",
+".......ss......ss.........",
+".......dd......dd.........",
+".......oo......oo........."];
+
+const GAS3 = [
+"..........................",
+".........uuuuuu...........",
+".........uuuuuuuu.........",
+"..........................",
+"........ssssssss..........",
+"........sekseksd..........",
+"........ssssssss..........",
+"........sskkssss..........",
+".........ssssss...........",
+"...........ss.............",
+".......uuuuuuuuuu.........",
+".....ss.uuutttuuuu.ss.....",
+".....ss.uuutttuuuu.ss.....",
+".....ss.uuuuuuuuuu.ss.....",
+".......ssssssssss.........",
+"........ssssssss..........",
+".......ssssssssss.........",
+"........ssssssss..........",
+".......ssssssssss.........",
+"......oooo....oooo........"];
+
+const GOBLIN3 = [
+"...........yy.............",
+"...........cc.............",
+"........cccccccc..........",
+"........cccccccc..........",
+"........cccccccc..........",
+"........cekcekcc..........",
+"........cccccccc..........",
+"........cckkcccc..........",
+".........cccccc...........",
+"...........cc.............",
+".......uuuuuuuuuu.........",
+".....cc.uuuuuuuuuu.cc.....",
+".....cc.uuuuuuuuuu.cc.....",
+".....ww.uuuuuuuuuu.cc.....",
+".......uuuuuuuuuu.........",
+".......cc......cc.........",
+".......oo......oo........."];
+const BOOKIE3 = [
+"........kkkkkkkk..........",
+".......kkkkkkkkkk.........",
+"........tttttttt..........",
+"........ssssssss..........",
+"........sKsseksd..........",
+"........ssssssss..........",
+"........ssKKgsss..........",
+".........ssssss...........",
+"...........ss.............",
+".......uuKuKuKuu..........",
+".....uuuuKuKuKuuuu........",
+".....uu.uKuKuKuu.uu.......",
+".....uu.KuKuKuKu.uu.......",
+".....uu.uKuKuKuu.uu.......",
+".....ss.KuKuKuKu.ss.......",
+".......UUUUUUUUUU.........",
+".......UU......UU.........",
+".......UU......UU.........",
+".......ss......ss.........",
+".......oo......oo........."];
+const BOOKIE3_ST = {
+  neutral: [],
+  worried: [[6,9,'K'],[6,12,'K']],
+  mad: [[3,9,'K'],[3,10,'K'],[3,12,'K'],[3,13,'K'],[6,9,'K'],[6,12,'K'],[6,10,'e'],[6,11,'e'],[6,13,'s']],
+  elated: [[4,9,'y'],[4,10,'y'],[4,12,'y'],[4,13,'y'],[6,9,'K'],[6,12,'K'],[6,10,'e'],[6,11,'e'],[7,10,'K'],[7,11,'K']]
+};
+const GOBLIN_MINI = [
+"...yy...",
+"cccccccc",
+"cekcekcc",
+"cckkcccc",
+".cccccc.",
+"cc.cc.cc",
+"oo.oo.oo"];
+
+const CHARS3 = {
+  oracle: { map: ORACLE3, states: ORACLE3_ST, blink: null, oy: 18, bob: 1, bg: 'oracleBg', fx: [37,3,35,19],
+    cheer: mkClear([11,12,13],[5,6,18,19]).concat(mkFill([9,10],[5,6,18,19],'u'), mkFill([8],[5,6,18,19],'s')),
+    pal: { s:'#a9d6e8', d:'#7fb5cc', k:'#1a1e2e', e:'#f4f6fa', u:'#4a3f7a', U:'#37305c', y:'#ffd76a' } },
+  cheerleader: { map: CHEER3, states: REPORTER_STATES, blink: STD_BLINK, oy: 20, bg: 'cheerBg', fx: [42,3,35,21],
+    cheer: mkClear([11,12,13,14],[2,3,4,5,18,19,20,21]).concat(mkFill([1,2,3,4],[3,4,5,6,17,18,19,20],'g')),
+    pal: { s:'#c98a3f', d:'#a06a26', h:'#5a3a1a', k:'#1a1e2e', e:'#f4f6fa', g:'#f4f6fa', w:'#e8ecf8', o:'#1a1e2e', y:'#ffd76a' } },
+  nerd: { map: NERD3, states: NERD3_ST, blink: null, oy: 22, bg: 'nerdBg', fx: [37,4,35,23],
+    cheer: mkClear([11,12,13],[5,6,19,20]).concat(mkFill([8,9,10],[5,6,19,20],'s')),
+    pal: { s:'#c9a53f', d:'#a37f2c', k:'#1a1e2e', e:'#f4f6fa', w:'#e8ecf8', U:'#6b4a2f', o:'#1a1e2e', y:'#ffd76a' } },
+  equip: { map: EQUIP3, states: REPORTER_STATES, blink: STD_BLINK, oy: 20, bg: 'equipBg', fx: [37,3,35,21],
+    cheer: mkClear([11,12],[2,3,21,22]).concat(mkFill([9,10],[2,3,21,22],'u'), mkFill([8],[2,3,21,22],'s')),
+    pal: { s:'#b0614a', d:'#8a4634', k:'#1a1e2e', e:'#f4f6fa', u:'#4a5a5f', U:'#37454a', w:'#e8ecf8', o:'#1a1e2e', y:'#ffd76a' } },
+  coach: { map: COACH3, states: REPORTER_STATES, blink: STD_BLINK, oy: 15, bg: 'coachBg', fx: [37,3,35,16],
+    cheer: mkClear([11,12,13,14,15],[5,6,18,19]).concat(mkFill([9],[5,6],'u'), mkFill([9],[18,19],'u'), mkFill([8],[5,6,18,19],'s')),
+    pal: { s:'#5d3a24', d:'#472b18', h:'#14100c', k:'#1a1e2e', e:'#f4f6fa', u:'#2e3d74', U:'#232c4e', w:'#ffd76a', C:'#c8a06a', o:'#1a1e2e', y:'#ffd76a' } },
+  ref: { map: REF3, states: REPORTER_STATES, blink: STD_BLINK, oy: 20, bg: 'refBg', fx: [37,3,35,21],
+    cheer: mkClear([11,12,13,14],[4,5,18,19]).concat(mkFill([8,9,10],[4,5,18,19],'s')),
+    pal: { s:'#8a8f98', d:'#5f6470', k:'#1a1e2e', e:'#f4f6fa', w:'#e8ecf8', U:'#3c4150', o:'#1a1e2e', y:'#ffd76a' } },
+  gas: { map: GAS3, states: REPORTER_STATES, blink: STD_BLINK, oy: 20, bg: 'gasBg', fx: [37,3,35,21], ripple: [14,18],
+    cheer: mkClear([11,12,13],[5,6,19,20]).concat(mkFill([8,9,10],[5,6,19,20],'s')),
+    pal: { s:'#78b955', d:'#5f9a40', k:'#1a1e2e', e:'#f4f6fa', u:'#4a5a7a', o:'#1a1e2e', y:'#ffd76a' } },
+  bookie: { map: BOOKIE3, states: BOOKIE3_ST, blink: [[4,9,'s']], oy: 20, bg: 'bookieBg', fx: [37,3,35,21],
+    cheer: mkClear([11,12,13,14],[5,6,17,18]).concat(mkFill([9,10],[5,6,17,18],'u'), mkFill([8],[5,6,17,18],'s')),
+    pal: { s:'#c08a5e', d:'#a06f45', k:'#6b4a2f', K:'#1a1e2e', e:'#f4f6fa', t:'#8a3d33', u:'#3c3a45', U:'#2b2933', g:'#ffd76a', w:'#e8ecf8', o:'#1a1e2e', y:'#ffd76a' } },
+  goblin: { map: GOBLIN3, states: REPORTER_STATES, blink: null, oy: 23, bg: 'goblinBg', fx: [37,3,35,24],
+    cheer: mkClear([11,12,13],[5,6,19,20]).concat(mkFill([8,9,10],[5,6,19,20],'c'), [[7,5,'w'],[7,6,'w']]),
+    pal: { c:'#9aa3b5', C:'#5f6878', k:'#1a1e2e', e:'#f4f6fa', u:'#4a5058', w:'#c8cdd6', o:'#1a1e2e', y:'#ffd76a' } }
+};
+
+class Component extends DCLogic {
+  _f = 0;
+  componentDidMount() {
+    this.paint();
+    this._t = setTimeout(() => this.paint(), 300);
+    this._iv = setInterval(() => { this._f = (this._f + 1) % 48; this.paint(); }, 180);
+  }
+  componentWillUnmount() { clearTimeout(this._t); clearInterval(this._iv); }
+
+  acc() { return this.props.accent || '#b6f36a'; }
+
+  stars(R, W, H, f) {
+    R(0, 0, W, H, SPACE);
+    for (let i = 0; i < 26; i++) {
+      const x = (i * 13 + 5) % W, y = (i * 7 + 3) % H;
+      if ((i + f) % 9 < 7) R(x, y, 1, 1, i % 3 ? DIM : WHITE);
+    }
+  }
+  speedlines(R, f) {
+    for (let i = 0; i < 3; i++) R(1 + ((f * 5 + i * 9) % 14), 8 + i * 8, 4, 1, DIM);
+  }
+
+  busBody(R, ox, y, o) {
+    const ACC = this.acc(), f = this._f;
+    if (o.flame) { const len = 3 + f % 3; R(ox + 6 - len, y + 4, len, 2, FL2); R(ox + 7 - len, y + 4, len - 1, 1, FL1); }
+    R(ox + 6, y + 3, 4, 4, CHROME_D);
+    R(ox + 10, y, 42, 10, BODY); R(ox + 10, y, 42, 2, DARK);
+    R(ox + 52, y + 1, 2, 9, BODY); R(ox + 54, y + 3, 1, 6, BODY);
+    R(ox + 48, y + 2, 4, 4, WIN);
+    for (let i = 0; i < 4; i++) R(ox + 13 + i * 8, y + 3, 5, 3, WIN);
+    R(ox + 10, y + 7, 45, 2, ACC);
+    R(ox + 8, y - 3, 4, 3, ACC);
+    if (o.lights) R(ox + 53, y + 8, 2, 1, FL1);
+    if (o.beacon) R(ox + 30, y - 2, 2, 2, RED);
+    if (o.glow && f % 2) { R(ox + 18, y + 11, 4, 1, WIN); R(ox + 32, y + 11, 4, 1, WIN); R(ox + 44, y + 11, 4, 1, WIN); }
+    if (o.door) { R(ox + 42, y + 2, 5, 8, '#141828'); R(ox + 42, y + 2, 1, 8, ACC); }
+  }
+  busA(R, f) { // boxy team bus, in flight
+    const y = 11 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 64, 32, f); this.speedlines(R, f);
+    this.busBody(R, 0, y, { flame: 1, glow: 1, lights: 1, beacon: f % 4 < 2 });
+  }
+  planetSky(R, W, H) {
+    R(0, 0, W, H, '#1a1226');
+    for (let i = 0; i < 12; i++) R((i * 17 + 3) % W, (i * 5 + 1) % 12, 1, 1, DIM);
+    const mx = W - 18;
+    R(mx + 2, 3, 6, 1, '#3c3152'); R(mx, 4, 10, 2, '#3c3152'); R(mx - 1, 6, 12, 3, '#3c3152');
+    R(mx, 9, 10, 2, '#3c3152'); R(mx + 2, 11, 6, 1, '#3c3152');
+    R(mx + 3, 5, 2, 2, '#2a2340'); R(mx + 6, 8, 2, 1, '#2a2340');
+  }
+  barren(R, W, H, gy) {
+    R(0, gy, W, H - gy, '#6e5638'); R(0, gy, W, 1, '#8a6d47');
+    R(5, gy - 2, 4, 2, '#5a4630'); R(W - 14, gy - 3, 5, 3, '#5a4630');
+    R(16, gy + 3, 2, 1, '#5a4630'); R(W - 24, gy + 5, 3, 1, '#5a4630');
+  }
+  smoke(R, f, sx, sy, n) {
+    for (let i = 0; i < n; i++) {
+      const rise = (f * 2 + i * 5) % 14;
+      if (rise > 1) R(sx + ((f + i) % 3) - 1, sy - rise, rise > 8 ? 3 : rise > 4 ? 2 : 1, 1, i % 2 ? '#8a8f9e' : '#6d7699');
+    }
+  }
+  courtNight(R, W, H, f, gy, px) {
+    this.stars(R, W, H, f);
+    R(0, gy, W, H - gy, '#3c4150'); R(0, gy, W, 1, '#6d7699');
+    R(px, gy - 14, 2, 14, CHROME_D);
+    R(px - 4, gy - 18, 2, 10, '#e8ecf8'); R(px - 4, gy - 18, 2, 1, CHROME_D);
+    R(px - 8, gy - 14, 4, 1, FL2);
+    R(px - 8, gy - 13, 1, 1, '#e8ecf8'); R(px - 5, gy - 13, 1, 1, '#e8ecf8');
+    R(px - 7, gy - 12, 1, 1, '#e8ecf8'); R(px - 6, gy - 11, 1, 1, '#e8ecf8');
+    R(px - 2, gy - 15, 2, 1, CHROME_D); // board-to-pole arm
+  }
+  hoopBall(R, f, px, gy) {
+    const b = [0, 3, 5, 3][f % 4];
+    R(px - 7, gy - 2 - b, 2, 2, '#c9752e');
+  }
+  busStranded(R, f) {
+    this.planetSky(R, 64, 32); this.barren(R, 64, 32, 24);
+    this.busBody(R, 0, 14, { beacon: f % 2 });
+    this.smoke(R, f, 8, 16, 3);
+    if (f % 5 === 0) R(5, 20, 1, 1, FL1);
+  }
+  busHoop(R, f) {
+    this.courtNight(R, 64, 32, f, 24, 56);
+    this.busBody(R, -8, 14, { lights: f % 8 < 4, door: 1 });
+    this.hoopBall(R, f, 56, 24);
+  }
+  saucerBody(R, ox, y, lightFn) {
+    R(ox + 20, y, 8, 2, WIN); R(ox + 18, y + 2, 12, 2, WIN);
+    R(ox + 10, y + 4, 28, 3, CHROME); R(ox + 8, y + 5, 32, 2, CHROME);
+    R(ox + 14, y + 7, 20, 2, CHROME_D);
+    for (let i = 0; i < 7; i++) R(ox + 11 + i * 4, y + 5, 2, 1, lightFn(i));
+  }
+  saucerStranded(R, f) {
+    this.planetSky(R, 48, 28); this.barren(R, 48, 28, 21);
+    this.saucerBody(R, 0, 12, i => (i * 3 + f) % 7 < 1 ? FL1 : DARK);
+    this.smoke(R, f, 23, 11, 3);
+    R(21, 17, 1, 2, '#1a1e2e'); R(22, 18, 1, 1, '#1a1e2e');
+  }
+  saucerHoop(R, f) {
+    const ACC = this.acc();
+    this.courtNight(R, 48, 28, f, 21, 40);
+    this.saucerBody(R, -8, 12, i => (i + Math.floor(f / 3)) % 7 === 0 ? ACC : DARK);
+    this.hoopBall(R, f, 40, 21);
+  }
+  drawIcon(R, x, y, pat) {
+    const IC = { e: '#f4f6fa', k: '#1a1e2e', y: '#ffd76a', c: '#7fd8ec' };
+    pat.forEach((row, ry) => row.split('').forEach((ch, rx) => { if (ch !== '.') R(x + rx, y + ry, 1, 1, IC[ch]); }));
+  }
+
+  busB(R, f) { // sleek shuttle
+    const ACC = this.acc(), y = 10 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 64, 32, f); this.speedlines(R, f);
+    const len = 4 + f % 3;
+    R(10 - len, y + 8, len, 2, FL2); R(11 - len, y + 8, len - 1, 1, FL1);
+    R(13, y - 4, 3, 4, ACC); R(11, y, 6, 6, ACC);
+    R(14, y + 4, 36, 2, BODY); R(12, y + 6, 42, 4, BODY); R(14, y + 10, 36, 2, DARK);
+    R(54, y + 6, 4, 4, BODY); R(58, y + 7, 2, 2, BODY);
+    R(20, y + 6, 28, 2, WIN);
+    for (let i = 0; i < 6; i++) R(24 + i * 5, y + 6, 1, 2, DARK);
+    R(12, y + 9, 42, 1, ACC);
+    R(56, y + 8, 2, 1, FL1);
+    if (f % 3 === 0) R(50, y + 5, 2, 1, WHITE);
+  }
+  busC(R, f) { // heavy hauler
+    const ACC = this.acc(), y = 9 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 64, 32, f); this.speedlines(R, f);
+    const len = 3 + f % 3;
+    R(8 - len, y + 6, len, 2, FL2); R(8 - len, y + 11, len, 2, FL2);
+    R(9 - len, y + 6, len - 1, 1, FL1); R(9 - len, y + 11, len - 1, 1, FL1);
+    R(8, y + 5, 3, 4, CHROME_D); R(8, y + 10, 3, 4, CHROME_D);
+    R(11, y + 4, 38, 12, BODY); R(11, y + 4, 38, 2, DARK);
+    R(42, y, 12, 5, BODY); R(50, y + 1, 3, 3, WIN);
+    R(11, y + 10, 43, 2, ACC);
+    for (let i = 0; i < 3; i++) R(15 + i * 9, y + 7, 6, 2, DARK);
+    R(49, y + 5, 8, 11, BODY); R(54, y + 8, 3, 4, WIN);
+    if (f % 4 < 2) R(46, y - 3, 1, 3, CHROME), R(45, y - 4, 3, 1, RED);
+  }
+
+  scoutA(R, f) { // saucer
+    const ACC = this.acc(), y = 8 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 48, 28, f); this.speedlines(R, f);
+    R(20, y, 8, 2, WIN); R(18, y + 2, 12, 2, WIN);
+    R(10, y + 4, 28, 3, CHROME); R(8, y + 5, 32, 2, CHROME);
+    R(14, y + 7, 20, 2, CHROME_D);
+    for (let i = 0; i < 7; i++) R(11 + i * 4, y + 5, 2, 1, (i + f) % 4 === 0 ? ACC : DARK);
+    if (f % 2) R(22, y + 9, 4, 1, WIN);
+  }
+  scoutB(R, f) { // fighter
+    const ACC = this.acc(), y = 9 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 48, 28, f); this.speedlines(R, f);
+    const len = 3 + f % 3;
+    R(10 - len, y + 5, len, 2, FL2); R(11 - len, y + 5, len - 1, 1, FL1);
+    R(12, y - 1, 3, 5, ACC);
+    R(12, y + 4, 26, 4, BODY); R(38, y + 5, 6, 2, BODY); R(44, y + 5, 2, 1, DARK);
+    R(24, y + 2, 7, 2, WIN);
+    R(16, y + 8, 10, 2, ACC); R(14, y + 10, 6, 1, ACC);
+    R(12, y + 5, 26, 1, DARK);
+  }
+  scoutC(R, f) { // pod
+    const ACC = this.acc(), y = 8 + (f % 4 < 2 ? 0 : 1);
+    this.stars(R, 48, 28, f); this.speedlines(R, f);
+    const len = 2 + f % 3;
+    R(16 - len, y + 6, len, 2, FL2);
+    R(16, y + 5, 3, 4, CHROME_D);
+    R(19, y + 1, 14, 12, BODY);
+    R(19, y + 1, 14, 1, DARK); R(19, y + 12, 14, 1, DARK);
+    R(20, y, 12, 1, BODY); R(20, y + 13, 12, 1, BODY);
+    R(24, y + 4, 6, 5, WIN); R(24, y + 4, 6, 1, DARK);
+    R(19, y + 10, 14, 2, ACC);
+    R(26, y - 4, 1, 4, CHROME);
+    if (f % 4 < 2) R(25, y - 5, 3, 1, RED);
+  }
+
+  deanPal() { return { h: '#b9bec9', s: '#c08a5e', d: '#a06f45', k: '#1a1e2e', e: '#f4f6fa',
+    w: '#e8ecf8', u: '#6b4a2f', U: '#4e3520', o: '#3a2a1c', t: this.acc(), y: '#ffd76a' }; }
+  reporterPal() { return { f: '#6b4a2f', s: '#5bc8af', d: '#3fa389', k: '#1a1e2e', e: '#f4f6fa',
+    w: '#e8ecf8', u: '#f3903f', U: '#c96f26', o: '#3a2a1c', t: this.acc(), y: '#ffd76a' }; }
+  boosterPal() { return { c: CHROME, C: CHROME_D, k: '#1a1e2e', e: '#f4f6fa',
+    u: '#2a2135', U: '#1a1626', t: this.acc(), g: '#ffd76a', o: '#1a1e2e', w: '#e8ecf8', y: '#ffd76a' }; }
+
+  drawMap(R, map, pal, ox, oy) {
+    map.forEach((row, y) => row.split('').forEach((ch, x) => {
+      if (ch !== '.') R(ox + x, oy + y, 1, 1, pal[ch] || '#ff00ff');
+    }));
+  }
+
+  stateRows(base, who, state, f) {
+    const cfg = {
+      dean: { st: DEAN_STATES, ch: DEAN_CHEER, he: 9, blink: [[5,9],[5,14]] },
+      booster: { st: BOOSTER_STATES, ch: BOOSTER_CHEER, he: 8, blink: null },
+      reporter: { st: REPORTER_STATES, ch: REPORTER_CHEER, he: 9, blink: [[5,9],[5,12]] }
+    }[who];
+    const cheer = state === 'elated' && f % 8 < 4, shrug = state === 'mad' && f % 8 < 3;
+    const m = edited(base, (cfg.st[state] || []).concat(cheer ? cfg.ch : [])).map(r => r.split(''));
+    if (cfg.blink && (state === 'neutral' || state === 'worried') && f % 14 < 2)
+      cfg.blink.forEach(([y, x]) => { m[y][x] = 's'; });
+    return { rows: m.map(r => r.join('')), shrug, he: cfg.he };
+  }
+  drawChar(R, S, pal, ox, oy) {
+    if (S.shrug) { // head sinks into the shoulders
+      this.drawMap(R, S.rows.slice(S.he + 1), pal, ox, oy + S.he + 1);
+      this.drawMap(R, S.rows.slice(0, S.he + 1), pal, ox, oy + 1);
+    } else this.drawMap(R, S.rows, pal, ox, oy);
+  }
+  stateFx(R, f, state, ix, iy, sx, sy) {
+    const big = f % 6 < 3;
+    const SK_BIG = [".eeeee.", "ekeeeke", "eeekeee", ".eeeee.", ".e.e.e."], SK_SM = ["..eee..", ".ekeke.", "..eee.."];
+    const ST_BIG = ["..y..", ".yyy.", "yyyyy", ".yyy.", "..y.."], ST_SM = [".y.", "yyy", ".y."];
+    const EX_BIG = ["cc", "cc", "cc", "..", "cc"], EX_SM = ["c", "c", ".", "c"];
+    if (state === 'mad') this.drawIcon(R, ix, iy, big ? SK_BIG : SK_SM);
+    if (state === 'elated') this.drawIcon(R, ix, iy, big ? ST_BIG : ST_SM);
+    if (state === 'worried') {
+      this.drawIcon(R, ix + (big ? 0 : 1), iy + (big ? 0 : 1), big ? EX_BIG : EX_SM);
+      R(sx, sy + (f % 6), 1, f % 6 > 2 ? 2 : 1, '#7fd8ec');
+    }
+  }
+  deanScene(R, f, map, state) { // monochrome sepia college building
+    state = state || 'neutral';
+    const W = 64, H = 44;
+    R(0, 0, W, H, '#241f19');
+    R(0, 10, W, 26, '#2a231b');
+    for (let i = 0; i < 6; i++) R(32 - (i + 1) * 4, 2 + i, (i + 1) * 8, 1, '#3a3128'); // pediment
+    R(4, 8, 56, 3, '#4e4234');
+    [6, 14, 44, 52].forEach(x => { R(x, 11, 5, 25, '#3a3128'); R(x, 11, 1, 25, '#4e4234'); R(x - 1, 11, 7, 2, '#4e4234'); });
+    R(0, 36, W, 3, '#4e4234'); R(0, 39, W, 5, '#3a3128'); // steps
+    this.drawChar(R, this.stateRows(map, 'dean', state, f), this.deanPal(), 20, 13);
+    this.stateFx(R, f, state, 39, 6, 37, 14);
+  }
+  char3(R, f, key, state) {
+    const C = CHARS3[key];
+    this[C.bg](R, f);
+    const cheer = state === 'elated' && f % 8 < 4, shrug = state === 'mad' && f % 8 < 3;
+    const m = edited(C.map, (C.states[state] || []).concat(cheer ? C.cheer : [])).map(r => r.split(''));
+    if (C.blink && (state === 'neutral' || state === 'worried') && f % 14 < 2) C.blink.forEach(([y, x, ch]) => { m[y][x] = ch; });
+    if (C.ripple) for (let y = C.ripple[0]; y <= C.ripple[1]; y++) {
+      const ph = (y + Math.floor(f / 2)) % 4;
+      if (ph === 0) { m[y].pop(); m[y].unshift('.'); } else if (ph === 2) { m[y].shift(); m[y].push('.'); }
+    }
+    const oy = C.oy + (C.bob ? (f % 8 < 4 ? 0 : 1) : 0);
+    const pal = Object.assign({ t: this.acc() }, C.pal);
+    this.drawChar(R, { rows: m.map(r => r.join('')), shrug, he: 8 }, pal, 19, oy);
+    if (key === 'equip') { // mop in one wide hand, bucket by the other
+      R(20, oy - 4, 1, 16, '#8a6d47'); // mop handle up from the low-left hand
+      R(18, oy + 12, 5, 2, '#c8cdd6'); R(18, oy + 14, 1, 2, '#e8ecf8'); R(20, oy + 14, 1, 2, '#e8ecf8'); R(22, oy + 14, 1, 2, '#e8ecf8');
+      R(40, oy + 12, 6, 4, '#5f6878'); R(41, oy + 12, 4, 1, '#7fd8ec'); R(39, oy + 11, 8, 1, '#3c4150'); // bucket + water + rim
+    }
+    if (key === 'goblin') { // three mini goblins alongside
+      const bob = f % 6 < 3 ? 0 : 1;
+      this.drawMap(R, GOBLIN_MINI, pal, 6, 32 + bob);
+      this.drawMap(R, GOBLIN_MINI, pal, 48, 33 - bob);
+    }
+    this.stateFx(R, f, state, C.fx[0], C.fx[1], C.fx[2], C.fx[3]);
+  }
+  oracleBg(R, f) {
+    R(0, 0, 64, 44, '#150f24');
+    for (let i = 0; i < 14; i++) { const x = (i * 9 + 2) % 64, y = (i * 5 + 1) % 40; if ((i + f) % 7 < 5) R(x, y, 1, 1, '#3c3152'); }
+    [[8, 10], [56, 22]].forEach(([x, y], i) => { const b = (Math.floor(f / 3) + i) % 2; R(x, y + b, 2, 3, '#7fd8ec'); R(x, y + 1 + b, 2, 1, '#e8ecf8'); });
+    // tiny hut on the ground behind her
+    R(48, 30, 12, 10, '#241b3d'); R(47, 30, 14, 1, '#3c3152');
+    for (let i = 0; i < 5; i++) R(49 + i, 25 + i, 12 - i * 2 + (i ? 0 : 0), 1, '#4a3f7a'); // roof
+    R(50, 26, 8, 1, '#4a3f7a'); R(51, 25, 6, 1, '#4a3f7a'); R(52, 24, 4, 1, '#4a3f7a'); R(53, 23, 2, 1, '#4a3f7a');
+    R(52, 34, 3, 6, '#150f24'); // doorway
+    R(56, 32, 2, 2, f % 6 < 3 ? '#ffd76a' : '#8a6d2f'); // lit window
+    R(12, 40, 40, 4, '#241b3d'); if (f % 4 < 2) R(16, 39, 32, 1, '#7fd8ec');
+  }
+  cheerBg(R, f) {
+    R(0, 0, 64, 40, '#3a2d20');
+    for (let y = 8; y < 36; y += 8) R(0, y, 64, 1, '#2e2318');
+    for (let i = 0; i < 8; i++) { const x = 2 + i * 8, c = i % 2 ? this.acc() : '#e8ecf8'; R(x, 2, 4, 2, c); R(x + 1, 4, 2, 1, c); }
+    R(0, 40, 64, 4, '#8a6d47'); R(0, 40, 64, 1, '#a3855c');
+  }
+  nerdBg(R, f) {
+    R(0, 0, 64, 40, '#241f19');
+    const cols = ['#8a3d33', '#2e3d74', '#5f9a40', '#8a6d2f', '#4a3f7a'];
+    for (let sy = 0; sy < 3; sy++) { const y = 3 + sy * 12; R(2, y + 8, 60, 2, '#4e4234'); for (let i = 0; i < 15; i++) { const dy = i % 3 === 0 ? 1 : 0; R(3 + i * 4, y + dy, 3, 8 - dy, cols[(i + sy) % 5]); } }
+    R(0, 40, 64, 4, '#3a3128');
+  }
+  equipBg(R, f) { // quiet hallway: lockers + wet floor sign
+    R(0, 0, 64, 40, '#2a2d33');
+    R(0, 24, 64, 1, '#3c4150');
+    for (let i = 0; i < 8; i++) { const x = 2 + i * 8; R(x, 4, 6, 20, '#3c4855'); R(x, 4, 6, 1, '#4d5a68'); R(x + 2, 12, 2, 1, '#1a1e2e'); }
+    R(0, 40, 64, 4, '#454a52'); R(0, 40, 64, 1, '#5a606a');
+    R(50, 32, 8, 8, '#ffd76a'); R(53, 33, 2, 5, '#1a1e2e'); // wet floor cone
+    if (f % 4 < 2) R(30 + (f % 8), 41, 3, 1, '#7fd8ec'); // wet shine
+  }
+  coachBg(R, f) {
+    R(0, 0, 64, 40, '#241f19');
+    R(8, 6, 30, 18, '#e8ecf8'); R(8, 6, 30, 1, '#3c4150'); R(8, 23, 30, 1, '#3c4150'); R(8, 6, 1, 18, '#3c4150'); R(37, 6, 1, 18, '#3c4150');
+    R(12, 10, 2, 2, '#1a1e2e'); R(12, 16, 2, 2, '#1a1e2e'); R(28, 13, 2, 2, '#8a3d33');
+    R(16 + (f % 4), 14, 3, 1, this.acc());
+    R(44, 26, 16, 3, '#4e4234'); R(45, 29, 2, 6, '#3a3128'); R(57, 29, 2, 6, '#3a3128');
+    R(0, 40, 64, 4, '#8a6d47'); R(0, 40, 64, 1, '#a3855c');
+  }
+  refBg(R, f) {
+    R(0, 0, 64, 26, '#141828');
+    R(0, 26, 64, 18, '#8a6d47'); R(0, 26, 64, 1, '#a3855c');
+    const L = '#a89066';
+    R(20, 32, 24, 1, L); R(18, 33, 2, 6, L); R(44, 33, 2, 6, L); R(20, 39, 24, 1, L);
+    R(22, 3, 20, 10, '#0f1220'); R(22, 3, 20, 1, '#232a44');
+    const on = f % 6 < 3;
+    R(25, 6, 4, 4, on ? '#b6f36a' : '#26301c'); R(35, 6, 4, 4, on ? '#26301c' : '#8a3d33'); R(31, 7, 2, 2, '#3c4150');
+  }
+  gasBg(R, f) {
+    this.stars(R, 64, 44, f);
+    R(0, 38, 64, 6, '#2a231b'); R(0, 38, 64, 1, '#3a3128');
+    R(4, 16, 12, 22, '#3c4150'); R(5, 18, 10, 6, f % 8 < 4 ? this.acc() : '#26301c'); R(6, 26, 8, 2, '#141828');
+    R(16, 20, 2, 2, '#5f6878'); R(18, 21, 1, 14, '#5f6878');
+    R(6, 5, 10, 6, '#8a3d33'); R(7, 6, 8, 4, f % 2 ? '#ffd76a' : '#e08a3c'); R(10, 11, 2, 5, '#5f6878');
+  }
+  titleScene(R, f) { // MARCH MANIACS title screen, 128x72 grid
+    const ACC = this.acc();
+    // deep space + twinkle
+    R(0, 0, 128, 72, SPACE);
+    for (let i = 0; i < 46; i++) {
+      const x = (i * 17 + 5) % 128, y = (i * 11 + 3) % 72;
+      if ((i + f) % 9 < 7) R(x, y, 1, 1, i % 3 ? DIM : WHITE);
+    }
+    // ringed planet drifting low-left
+    R(8, 52, 12, 8, '#4a3f7a'); R(10, 50, 8, 2, '#4a3f7a'); R(10, 60, 8, 2, '#4a3f7a');
+    R(11, 54, 3, 2, '#37305c'); R(16, 57, 2, 1, '#37305c');
+    R(4, 56, 20, 1, '#7fd8ec'); R(2, 57, 24, 1, '#5a9ab0');
+    // 5px pixel font
+    const F = {
+      'M': ['10001','11011','10101','10001','10001'], 'A': ['01110','10001','11111','10001','10001'],
+      'R': ['11110','10001','11110','10100','10011'], 'C': ['01111','10000','10000','10000','01111'],
+      'H': ['10001','10001','11111','10001','10001'], 'N': ['10001','11001','10101','10011','10001'],
+      'I': ['11111','00100','00100','00100','11111'], 'S': ['01111','10000','01110','00001','11110'],
+      'T': ['11111','00100','00100','00100','00100'], 'E': ['11111','10000','11110','10000','11111'],
+      'G': ['01111','10000','10011','10001','01111'], 'L': ['10000','10000','10000','10000','11111'],
+      'O': ['01110','10001','10001','10001','01110'], 'B': ['11110','10001','11110','10001','11110'],
+      'K': ['10001','10010','11100','10010','10001'], 'D': ['11110','10001','10001','10001','11110'],
+      'U': ['10001','10001','10001','10001','01110'], 'P': ['11110','10001','11110','10000','10000']
+    };
+    const word = (str, x0, y0, sc, col, shad) => {
+      let x = x0;
+      str.split('').forEach(ch => {
+        if (ch === ' ') { x += 4 * sc; return; }
+        (F[ch] || []).forEach((row, ry) => row.split('').forEach((v, rx) => {
+          if (v === '1') {
+            if (shad) R(x + rx * sc + 1, y0 + ry * sc + 1, sc, sc, shad);
+            R(x + rx * sc, y0 + ry * sc, sc, sc, col);
+          }
+        }));
+        x += 6 * sc;
+      });
+    };
+    // titles: MARCH bounces, MANIACS holds
+    const bounce = [0, -1, -2, -1][Math.floor(f / 2) % 4];
+    word('MARCH', 34, 12 + bounce, 2, '#ffd76a', '#7d4315');
+    word('MANIACS', 23, 26, 2, WHITE, DARK);
+    // spinning ball as the dot of the "I" beat — orbits the title
+    const TBALL = [".OOO.", "OQPQO", "QQQQQ", "OQOQO", ".OOO."];
+    const orb = f % 12, ox = 64 + Math.round(Math.cos(orb / 12 * 6.283) * 46), oy2 = 22 + Math.round(Math.sin(orb / 12 * 6.283) * 14);
+    TBALL.forEach((row, ry) => row.split('').forEach((ch, rx) => {
+      if (ch !== '.') R(ox + rx, oy2 + ry, 1, 1, ch === 'O' ? '#c9752e' : ch === 'Q' ? '#7d4315' : '#e08a3c');
+    }));
+    // hoop at right court-side; ball swishes when it passes
+    R(104, 40, 1, 14, '#3c4150'); R(101, 36, 1, 5, '#5a6070'); R(102, 40, 2, 1, '#3c4150');
+    R(97, 41, 5, 1, '#8a6d47'); R(97, 42, 1, 3, '#5a6070'); R(101, 42, 1, 3, '#5a6070'); R(98, 45, 3, 1, '#5a6070');
+    // subtitle: one word flashes after the next, centered
+    const words = ['AN', 'INTERGALACTIC', 'COLLEGE', 'BASKETBALL', 'MADNESS', 'SIMULATOR'];
+    const w = words[Math.floor(f / 2) % words.length];
+    word(w, 64 - w.length * 3, 62, 1, '#818ab0', null);
+    // PRESS START blink
+    if (f % 8 < 5) word('PRESS START', 31, 48, 1, ACC, null);
+  }
+  tourneyScene(R, f) { // made it to the big tournament
+    const ACC = this.acc();
+    this.stars(R, 64, 44, f);
+    // searchlight beams sweeping like windshield wipers (behind the arena)
+    const ph = [0, 1, 2, 3, 2, 1][f % 6]; // sweep angle 0..3 and back
+    [[16, 26], [48, 26]].forEach(([bx, by], s) => {
+      const a = s ? 3 - ph : ph; // opposite phases
+      for (let i = 0; i < 12; i++) {
+        const dx = Math.round((a - 1.5) * i * 0.6); // lean varies with sweep
+        R(bx + dx - 1 + (s ? -i >> 2 : i >> 2), by - 2 - i * 2, 2 + (i >> 2), 2, i < 4 ? '#c8cdd6' : '#8a91a6');
+      }
+    });
+    // giant tournament arena dome on the horizon — warm stone, distinct from the blue bus
+    R(6, 26, 52, 12, '#5c4a33'); R(6, 26, 52, 1, '#7a6344');
+    for (let i = 0; i < 6; i++) R(14 + i * 6, 20 - i % 2, 4, 6 + i % 2, '#6e5638'); // dome ribs
+    R(10, 22, 44, 4, '#6e5638'); R(28, 14, 8, 8, '#7a6344'); R(30, 10, 4, 4, ACC); // spire beacon
+    if (f % 4 < 2) R(31, 8, 2, 2, '#ffd76a');
+    R(0, 38, 64, 6, '#141828'); R(0, 38, 64, 1, '#232a44');
+    // the team bus arriving, headlights on
+    this.busBody(R, -4, 27, { lights: 1, beacon: f % 4 < 2 });
+    // marquee banner
+    R(16, 2, 32, 8, '#0f1220'); R(16, 2, 32, 1, ACC); R(16, 9, 32, 1, ACC);
+    const on = f % 6 < 3;
+    [[20,4],[26,4],[32,4],[38,4],[44,4]].forEach(([x, y], i) => R(x, y + 1, 3, 3, (i + (on ? 0 : 1)) % 2 ? '#ffd76a' : ACC));
+  }
+  champScene(R, f) { // won the championship
+    const ACC = this.acc();
+    R(0, 0, 64, 44, '#141828');
+    // confetti
+    for (let i = 0; i < 22; i++) {
+      const x = (i * 11 + f * 2 * (i % 2 ? 1 : -1) + 64) % 64, y = (i * 7 + f * 3) % 40;
+      R(x, y, 1, i % 3 ? 1 : 2, [ACC, '#ffd76a', '#f36ad2', '#7fd8ec'][i % 4]);
+    }
+    R(0, 40, 64, 4, '#232a44'); R(0, 40, 64, 1, '#39406b');
+    // podium
+    R(20, 30, 24, 10, '#2e3d74'); R(20, 30, 24, 1, ACC); R(29, 33, 6, 5, '#232c4e');
+    // giant trophy: cup, handles, stem, base
+    const G = '#ffd76a', Gd = '#c9973f';
+    R(26, 10, 12, 8, G); R(27, 18, 10, 2, Gd); R(24, 11, 2, 4, G); R(38, 11, 2, 4, G);
+    R(30, 20, 4, 4, Gd); R(28, 24, 8, 2, G); R(26, 26, 12, 2, Gd);
+    R(28, 12, 2, 4, '#fff2c0'); // shine
+    // popping star bursts
+    const big = f % 6 < 3;
+    [[10, 8], [50, 14], [14, 24]].forEach(([x, y], i) => {
+      const b = (i + (big ? 0 : 1)) % 2;
+      if (b) { R(x, y - 1, 1, 3, '#f4f6fa'); R(x - 1, y, 3, 1, '#f4f6fa'); }
+      else R(x, y, 1, 1, '#8a8f9e');
+    });
+    if (f % 4 < 2) { R(22, 6, 2, 2, ACC); R(42, 5, 2, 2, ACC); } // camera flashes
+  }
+  lostScene(R, f) { // missed the tournament / lost the big game
+    R(0, 0, 64, 44, '#10131c');
+    // rain
+    for (let i = 0; i < 14; i++) {
+      const x = (i * 9 + 4) % 64, y = ((i * 13) + f * 5) % 38;
+      R(x, y, 1, 2, '#39406b');
+    }
+    R(0, 38, 64, 6, '#141828'); R(0, 38, 64, 1, '#232a44');
+    // court markings, barely visible in the dark
+    R(24, 40, 16, 1, '#1e2436'); R(10, 41, 2, 2, '#1e2436'); R(52, 41, 2, 2, '#1e2436');
+    // lone hoop in the rain: pole, backboard, drooping rim + sagging net
+    R(46, 12, 2, 26, '#3c4150'); // pole
+    R(44, 26, 4, 1, '#2b3040'); // pole base
+    R(40, 8, 2, 10, '#5a6070'); R(40, 8, 2, 1, '#3c4150'); R(42, 12, 4, 1, '#3c4150'); // backboard + arm
+    R(34, 14, 6, 1, '#8a6d47'); R(33, 15, 2, 1, '#8a6d47'); // rim, tipped down at the front
+    R(33, 16, 1, 4, '#5a6070'); R(38, 15, 1, 5, '#5a6070'); R(34, 19, 2, 1, '#5a6070'); R(36, 20, 2, 1, '#5a6070'); // sagging net
+    if (f % 5 < 1) R(34, 21, 1, 2, '#39406b'); // drip off the net
+    // the ball, left at center court, not bouncing
+    R(30, 36, 3, 2, '#7d4315'); R(30, 35, 3, 1, '#c9752e');
+    // single flickering lamp
+    R(10, 0, 1, 8, '#3c4150'); R(9, 8, 3, 2, f % 9 < 6 ? '#8a6d2f' : '#4e4234');
+    if (f % 2) R(18, 41, 8, 1, '#1c2542'); // puddle shimmer
+  }
+  bookieBg(R, f) { // back alley; a much larger creature sits in the shadows
+    R(0, 0, 64, 40, '#12101a');
+    R(0, 0, 64, 14, '#1a1626');
+    // hulking silhouette seated behind, off to the right
+    const S = '#221e30';
+    R(34, 6, 22, 34, S); R(30, 12, 6, 22, S); R(54, 12, 8, 22, S); // torso + arms
+    R(38, 0, 14, 8, S); R(36, 2, 2, 4, S); R(52, 2, 2, 4, S); // head + horn nubs
+    R(28, 30, 8, 10, S); R(56, 30, 8, 10, S); // knees
+    if (f % 8 < 5) { R(41, 3, 2, 2, '#8a3d33'); R(47, 3, 2, 2, '#8a3d33'); } // slow-blinking red eyes
+    if (f % 16 > 11) { R(43, 8 - (f % 2), 4, 1, '#3c3152'); } // low breath puff
+    R(0, 40, 64, 4, '#1c1926'); R(0, 40, 64, 1, '#2b2735');
+    // hanging bulb, flickers
+    R(10, 0, 1, 6, '#3c4150'); R(9, 6, 3, 3, f % 7 < 5 ? '#ffd76a' : '#8a6d2f');
+    R(4, 22, 8, 10, '#2b2933'); R(5, 23, 6, 3, '#3c3a45'); // crate of "ledgers"
+  }
+  goblinBg(R, f) { // workshop wall with a big spanner
+    R(0, 0, 64, 44, '#181420');
+    R(0, 40, 64, 4, '#232030'); R(0, 40, 64, 1, '#3c4150');
+    // three wall spanners, big to small
+    const S = '#8a919e', Sd = '#5f6878';
+    const spanner = (x, y, len) => {
+      R(x, y + 1, 3, 2, S); R(x - 1, y, 2, 2, S); R(x - 1, y + 3, 2, 2, S); // open jaw
+      R(x + 3, y + 1, len, 2, S); R(x + 3, y + 2, len, 1, Sd); // shaft
+      R(x + 3 + len, y, 3, 4, S); R(x + 4 + len, y + 1, 1, 2, '#181420'); // ring head
+    };
+    spanner(22, 2, 22);
+    spanner(26, 10, 15);
+    spanner(30, 17, 9);
+    if (f % 3 < 2) { R(12, 34 + (f % 2), 2, 1, '#ffd76a'); R(14, 33, 1, 1, '#f4f6fa'); } // weld sparks
+  }
+  reporterScene(R, f, state) { // empty press room
+    state = state || 'neutral';
+    const ACC = this.acc(), W = 64, H = 44;
+    R(0, 0, W, 40, '#1c2136');
+    for (let gy = 0; gy < 5; gy++) for (let gx = 0; gx < 8; gx++) { // step-and-repeat backdrop
+      const x = 3 + gx * 8 + (gy % 2) * 4, y = 3 + gy * 7;
+      if ((gx + gy) % 2) R(x, y, 2, 2, '#2e3d74'); else R(x, y + 1, 2, 1, '#39406b');
+    }
+    R(0, 40, W, 4, '#141828'); R(0, 40, W, 1, '#232a44'); // floor
+    R(6, 26, 10, 14, '#2a3152'); R(5, 25, 12, 2, '#3c4668'); // podium
+    R(8, 20, 1, 5, CHROME_D); R(11, 21, 1, 4, CHROME_D); // mic stalks
+    R(7, 19, 2, 2, '#1a1e2e'); R(10, 20, 2, 2, '#1a1e2e');
+    R(45, 4, 14, 7, '#141828'); R(45, 4, 14, 1, '#232a44'); // ON AIR sign
+    R(47, 6, 10, 3, f % 6 < 3 ? RED : '#5a2430');
+    this.drawChar(R, this.stateRows(REPORTER, 'reporter', state, f), this.reporterPal(), 24, 14);
+    this.stateFx(R, f, state, 17, 7, 41, 16);
+  }
+
+  boosterScene(R, f, map, state) { // cadillac ship behind him
+    state = state || 'neutral';
+    const ACC = this.acc(), W = 64, H = 44;
+    this.stars(R, W, H, f);
+    R(0, 38, W, 6, '#2a231b'); R(0, 38, W, 1, '#3a3128'); // landing pad
+    const by = 20 + (f % 6 < 3 ? 0 : 1); // hover bob
+    R(2, by - 6, 3, 6, '#d16a9e'); R(4, by - 4, 3, 4, '#d16a9e'); // tail fins
+    R(3, by - 6, 1, 2, RED);
+    R(2, by, 60, 8, '#d16a9e'); R(2, by, 60, 2, '#a84a7c');
+    R(2, by + 4, 60, 1, '#d8dde8'); // chrome trim
+    R(34, by - 5, 14, 5, WIN); R(34, by - 5, 14, 1, '#a84a7c'); // canopy
+    R(58, by + 1, 4, 6, '#d8dde8'); // chrome grille
+    if (f % 2) R(8, by + 8, 48, 1, ACC); // hover glow
+    const S = this.stateRows(map, 'booster', state, f);
+    this.drawChar(R, S, this.boosterPal(), 18, 5);
+    // cigar + ember + smoke (rides the shrug)
+    const cy = 11 + (S.shrug ? 1 : 0);
+    R(35, cy, 4, 1, '#8a5a32'); R(39, cy, 1, 1, f % 2 ? '#ff6a4a' : FL1);
+    for (let i = 0; i < 3; i++) {
+      const rise = (f * 1 + i * 4) % 12;
+      if (rise > 1) R(39 + (f + i) % 2, cy - 1 - rise, rise > 7 ? 2 : 1, 1, '#8a8f9e');
+    }
+    this.stateFx(R, f, state, 10, 2, 26, 6);
+  }
+
+  paint = () => {
+    if (!this._root) return;
+    const f = this._f;
+    document.querySelectorAll('canvas[data-opt]').forEach(cv => {
+      const ctx = cv.getContext('2d');
+      const grid = +cv.dataset.grid || (cv.dataset.opt[0] === '1' && cv.dataset.opt[1] >= 'd' && cv.dataset.opt[1] <= 'f' ? 48 : 64);
+      const sc = cv.width / grid;
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      const R = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x * sc, y * sc, w * sc, h * sc); };
+      switch (cv.dataset.opt) {
+        case '1a': this.busA(R, f); break;
+        case '1b': this.busB(R, f); break;
+        case '1c': this.busC(R, f); break;
+        case '1d': this.scoutA(R, f); break;
+        case '1e': this.scoutB(R, f); break;
+        case '1f': this.scoutC(R, f); break;
+        case '1g': this.deanScene(R, f, DEAN); break;
+        case '1h': this.deanScene(R, f, DEAN_B); break;
+        case '1i': this.boosterScene(R, f, BOOSTER); break;
+        case '1j': this.boosterScene(R, f, BOOSTER_B); break;
+        case '2a': this.busA(R, f); break;
+        case '2b': this.busStranded(R, f); break;
+        case '2c': this.busHoop(R, f); break;
+        case '2d': this.scoutA(R, f); break;
+        case '2e': this.saucerStranded(R, f); break;
+        case '2f': this.saucerHoop(R, f); break;
+        case '5a': this.titleScene(R, f); break;
+        case '4a': this.tourneyScene(R, f); break;
+        case '4b': this.champScene(R, f); break;
+        case '4c': this.lostScene(R, f); break;
+        default: {
+          const m3 = cv.dataset.opt.match(/^3([a-z]+)-(\w+)$/);
+          if (m3) { this.char3(R, f, m3[1], m3[2]); break; }
+          const mm = cv.dataset.opt.match(/^2([ghi])-(\w+)$/);
+          if (mm && mm[1] === 'g') this.deanScene(R, f, DEAN, mm[2]);
+          else if (mm && mm[1] === 'h') this.boosterScene(R, f, BOOSTER, mm[2]);
+          else if (mm) this.reporterScene(R, f, mm[2]);
+        }
+      }
+    });
+  };
+
+  renderVals() {
+    const ST = ['neutral', 'worried', 'mad', 'elated'];
+    return {
+      pageRef: el => { this._root = el; if (el) this.paint(); },
+      busScenes: [
+        { id: '2a', name: 'IN TRANSIT', note: 'The pick from 1a as-is: engine flame, hover shimmer, beacon, speed lines.' },
+        { id: '2b', name: 'STRANDED', note: 'Down on a barren dustball: dead engine venting smoke, hazard beacon blinking fast, a spark now and then, distant cratered moon.' },
+        { id: '2c', name: 'AT THE HOOP', note: 'Parked courtside at night, door open, headlights idling, a lone ball bouncing under the hoop.' }
+      ],
+      saucerScenes: [
+        { id: '2d', name: 'IN TRANSIT', note: 'Rim lights chasing, tractor shimmer, speed lines.' },
+        { id: '2e', name: 'STRANDED', note: 'Grounded on the dustball, cracked hull, rim lights sputtering, smoke off the dome.' },
+        { id: '2f', name: 'AT THE HOOP', note: 'Parked by the court, lights on slow idle, ball bouncing.' }
+      ],
+      deanStates: ST.map(s => ({ id: '2g-' + s, label: s.toUpperCase() })),
+      boosterStates: ST.map(s => ({ id: '2h-' + s, label: s.toUpperCase() })),
+      reporterStates: ST.map(s => ({ id: '2i-' + s, label: s.toUpperCase() })),
+      seasonScenes: [
+        { id: '4a', name: 'MADE THE TOURNAMENT', note: 'The team bus pulls up to the great stone arena dome: wiper-sweep searchlights raking the sky, beacon spire, chasing marquee lights.' },
+        { id: '4b', name: 'CHAMPIONS', note: 'The gold trophy on the podium: falling confetti in team colors, popping star bursts, camera flashes.' },
+        { id: '4c', name: 'SEASON OVER', note: 'Rain over an empty outdoor court. A lone hoop with a drooping rim and sagging net, one flickering lamp, the ball left at center court.' }
+      ],
+      chars3: [
+        { key: 'oracle', gid: '3a', name: 'THE ORACLE · NIMBUS', note: 'Floating mist-seer in a violet robe with a gem band. Bobs gently in a crystal cave; the pool below her pulses. She never blinks.' },
+        { key: 'cheerleader', gid: '3b', name: 'HEAD CHEERLEADER · HEXID', note: 'Six limbs: two arms with pom-poms, four legs in matching high-tops. Antennae, team-color uniform. Cheering throws all the poms up.' },
+        { key: 'nerd', gid: '3c', name: 'CAMPUS NERD · OCULID', note: 'Runs the tutoring program. Square glasses ON the eye stalks, tie, four legs. Library stacks behind. Elated turns the lenses gold.' },
+        { key: 'equip', gid: '3d', name: 'THE JANITOR · QUADRAN', note: 'Four arms: side pair on hips, wide pair with mop and water bucket. Quiet locker hallway, wet-floor cone, freshly mopped shine.' },
+        { key: 'coach', gid: '3e', name: 'ASSISTANT COACH · TERRAN', note: 'Tall dark-skinned femme terran — a head taller than the rest: twin ponytails, long torso and legs, track jacket, whistle, clipboard. Whiteboard with X-and-O play, the arrow ticks across.' },
+        { key: 'ref', gid: '3f', name: 'THE REFEREE · PETRAN', note: 'Stone golem in vertical stripes — utterly immovable calls. Cracked shins, center circle and a blinking scoreboard behind.' },
+        { key: 'bookie', gid: '3i', name: 'THE BOOKIE · TERRAN(?)', note: 'Crooked odds-maker: fedora low over one permanently squinted eye, red band, pinstripe suit, gold tooth. Behind him in the alley shadows, something much larger sits and slowly blinks red.' },
+        { key: 'gas', gid: '3g', name: 'GAS STATION ATTENDANT · GELID', note: 'Liquid body in a service cap, ring stack rippling below the coveralls. Fuel pump with a glowing screen, hose, buzzing sign.' },
+        { key: 'goblin', gid: '3h', name: 'TECH-GOBLINS · MECHANICAL', note: 'A crew of tiny grey-metal repair bots — one lead with two bobbing helpers — antenna bulbs, grille mouths. A giant spanner hangs on the workshop wall; weld sparks fly.' }
+      ].map(c => ({ gid: c.gid, name: c.name, note: c.note, states: ST.map(s => ({ id: '3' + c.key + '-' + s, label: s.toUpperCase() })) })),
+      busCards: [
+        { id: '1a', name: 'THE FLAT-NOSE', note: 'Classic school-bus box with a rear booster, roof fin, blinking beacon and hover skids. Reads instantly as "the team bus".' },
+        { id: '1b', name: 'THE STREAK', note: 'Low sleek shuttle: continuous window strip, big accent tail fin, one long engine. Faster, cockier program.' },
+        { id: '1c', name: 'THE HAULER', note: 'Two-deck heavy transport with a raised cockpit and twin stacked engines. Cargo doors for the gear.' }
+      ],
+      scoutCards: [
+        { id: '1d', name: 'SAUCER', note: 'One-coach saucer with a chasing rim-light ring.' },
+        { id: '1e', name: 'DART', note: 'Swept single-seat fighter, accent fin and wing.' },
+        { id: '1f', name: 'POD', note: 'Rounded capsule, big porthole, blinking antenna.' }
+      ],
+      deanCards: [
+        { id: '1g', name: 'DEAN · BUN + SKIRT SUIT', note: 'Gray bun, round glasses (she blinks behind them), brown skirt suit with white blouse, in front of the college pediment and columns — background stays monochrome sepia.' },
+        { id: '1h', name: 'DEAN · BOB + PANTSUIT', note: 'Sharper: short gray bob, accent scarf, brown pantsuit. Same monochrome college backdrop.' }
+      ],
+      boosterCards: [
+        { id: '1i', name: 'BOOSTER · THE SUIT', note: 'Chrome robota in a dark suit, accent tie, gold chain, antenna. Cigar burns and puffs pixel smoke; his pink cadillac-ship hovers behind on a glowing skirt, fins up.' },
+        { id: '1j', name: 'BOOSTER · THE LETTERMAN', note: 'Flat-top chassis, full visor shades, letterman jacket with white sleeves over the chain. Same cigar, same cadillac.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -7,7 +7,7 @@
 // Every player has fixed ability numbers; the slot he stands in decides his
 // GRADE (F–S) — and the team numbers under the lineup.
 
-import { ATTR_STAT, PLANS, planById } from './data';
+import { ATTR_STAT, PLANS, STAT_WORD, planById } from './data';
 import type { Attr, AttrRec, BoxRow, ChampTeam, GameState, MyGameResult, PlanId, Player, SpeechFx, Team } from './types';
 import { ATTRS, attrEff, bestAttr, clamp, ovr, pick, rand, roll, sizeIndex, zeroAttrs } from './util';
 
@@ -60,12 +60,38 @@ export function slotAttrs(p: Player, col: number): AttrRec {
   return out;
 }
 
-/** The slot RATING (0–100): what this player is worth standing THERE. */
-export function slotRating(p: Player, col: number): number {
+export const POS_LETTERS = ['G', 'F', 'C'];
+
+/** The slot rating BEFORE the position penalty: what the numbers alone say. */
+export function rawSlotRating(p: Player, col: number): number {
   return Math.round(ovr(slotAttrs(p, col)) * 10) / 10;
 }
 
-/** The column he'd rate highest in. */
+/** THE MISMATCH PENALTY: a player standing outside his assigned position
+    plays a notch worse — one column off ×0.93, two off ×0.86 — UNLESS his
+    numbers there are at least as good as at home (a forward with guard
+    BRAINS is a guard who happens to be listed F). A retrained position
+    keeps the old home penalty-free (pos2). */
+export function posPenalty(p: Player, col: number): number {
+  const pos = p.pos;
+  if (pos === undefined || col === pos || col === p.pos2) return 1;
+  if (rawSlotRating(p, col) >= rawSlotRating(p, pos)) return 1;
+  return Math.abs(col - pos) === 1 ? 0.95 : 0.89;
+}
+
+/** Mismatch arrows for the card: 0 = no penalty here, 1–2 = columns off. */
+export function posArrows(p: Player, col: number): number {
+  if (posPenalty(p, col) >= 1) return 0;
+  return Math.abs(col - (p.pos ?? col));
+}
+
+/** The slot RATING (0–100): what this player is worth standing THERE —
+    numbers × column weights × size fit × the position penalty. */
+export function slotRating(p: Player, col: number): number {
+  return Math.round(rawSlotRating(p, col) * posPenalty(p, col) * 10) / 10;
+}
+
+/** The column he'd rate highest in (penalty included — his real best home). */
 export function bestCol(p: Player): number {
   let best = 1;
   let bestV = -1;
@@ -74,6 +100,23 @@ export function bestCol(p: Player): number {
     if (v > bestV) { bestV = v; best = c; }
   }
   return best;
+}
+
+/** The RETRAINING check: when a player's raw numbers clearly outgrow his
+    listed position, the label follows the game — he becomes the new spot,
+    and the old one stays a second home. Returns the new column, or null. */
+export function checkPosChange(p: Player): number | null {
+  const pos = p.pos;
+  if (pos === undefined) return null;
+  for (let c = 0; c < 3; c++) {
+    if (c === pos) continue;
+    if (rawSlotRating(p, c) >= rawSlotRating(p, pos) * 1.06) {
+      p.pos2 = pos;
+      p.pos = c;
+      return c;
+    }
+  }
+  return null;
 }
 
 /** F–S from a slot rating. S is the exceptional letter above A. */
@@ -204,7 +247,7 @@ export function matchAttrs(t: Team, fx: SpeechFx | SpeechFx[] | null = null, for
     for (const [row, w] of [[0, 0.75], [1, 0.25]] as [number, number][]) {
       const p = slotPlayer(t, row * 3 + c);
       if (!p || !available(p)) continue;
-      const cond = playerCond(p) * w * formMult(forms, p.id);
+      const cond = playerCond(p) * w * formMult(forms, p.id) * posPenalty(p, c);
       const fit = sizeFit(p, c);
       for (const a of ATTRS) {
         let v = p.attrs[a];
@@ -236,13 +279,16 @@ export function restedPower(t: Team): number {
   return Math.round(sum * 10) / 10;
 }
 
-/** The average slot rating of the six on the floor (the tier number). */
+/** The average RAW slot rating of the six on the floor (the tier number).
+    Raw on purpose: THE SLIDE measures talent, and settleTier() nudges AI
+    rosters onto it — were the mismatch penalty counted here, the other
+    programs would be compensated for it while yours eats it. */
 export function floorAvg(t: Team): number {
   const vals: number[] = [];
   for (let c = 0; c < 3; c++) {
     for (const row of [0, 1]) {
       const p = slotPlayer(t, row * 3 + c);
-      if (p && available(p)) vals.push(slotRating(p, c));
+      if (p && available(p)) vals.push(rawSlotRating(p, c));
     }
   }
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
@@ -314,10 +360,13 @@ export function dealBox(me: Team, myScore: number, plan: PlanId, forms?: Forms):
     ...benchPlayers(me).filter(available).map((p) => ({ p, w: 1 * formMult(forms, p.id) })),
   ];
   if (!pool.length) return [];
+  // one attribute per column: SKILL scores, FIERCENESS owns the glass,
+  // ATHLETICISM jumps the lanes, BRAINS runs the show — distribution, not
+  // outcomes; starters (w=3) still out-touch the bench (w=1)
   const speechAttr = planById(plan).attr;
   const pts = dealStat(pool, myScore, (p) => attrEff(p, 'skl') + attrEff(p, 'ath') * 0.3);
-  const reb = dealStat(pool, 16 + rand(11), (p) => attrEff(p, 'ath') + sizeIndex(p) * 2);
-  const stl = dealStat(pool, 3 + rand(7) + (speechAttr === 'frc' ? 3 : 0), (p) => attrEff(p, 'frc'));
+  const reb = dealStat(pool, 16 + rand(11), (p) => attrEff(p, 'frc') + sizeIndex(p) * 2);
+  const stl = dealStat(pool, 3 + rand(7) + (speechAttr === 'ath' ? 3 : 0), (p) => attrEff(p, 'ath'));
   const ast = dealStat(pool, 6 + rand(7) + (speechAttr === 'brn' ? 3 : 0), (p) => attrEff(p, 'brn'));
   return pool
     .map(({ p }) => ({
@@ -394,7 +443,7 @@ export function verdictLines(
   if (won) heroLine = `${hero.name} was built for this.`;
   else if (misplaced.length) heroLine = `${misplaced[0].p.name} was out of position in the ${COL_LABELS[misplaced[0].c].toLowerCase()} all night.`;
   else if (goatMuted) heroLine = `${goat.name} played half a step slow — ${mine.attr === 'ath' || mine.attr === 'frc' ? '⚡ was low' : goat.form === 'femme' ? "her head wasn't here" : "his head wasn't here"}.`;
-  else heroLine = `${goat.name} never fit the plan tonight — his ${ATTR_STAT[mine.attr]} column says it all.`;
+  else heroLine = `${goat.name} never fit the plan tonight — the ${STAT_WORD[ATTR_STAT[mine.attr]]} column says it all.`;
   return { wheelLine, heroLine };
 }
 

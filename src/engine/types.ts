@@ -33,7 +33,9 @@ export interface SpeechFx {
 }
 
 // ---- the box score ----------------------------------------------------------
-// One stat per attribute: points=SKL, rebounds=ATH, steals=FRC, assists=BRN.
+// One stat per attribute: points=SKL, rebounds=FRC, steals=ATH, assists=BRN —
+// brainy players run the offense, fierce ones own the glass, athletes jump
+// the passing lanes, skilled ones score. Distribution, not outcomes.
 
 export interface StatLine {
   gp: number;
@@ -79,6 +81,14 @@ export interface Player {
   jersey: number;
   heightCm: number;
   weightKg: number;
+  /** his POSITION, assigned at generation: 0 = G (backcourt), 1 = F (wing),
+      2 = C (frontcourt). Standing elsewhere costs a mismatch penalty —
+      unless his numbers there are as good as at home (train a forward
+      enough BRAINS and he's a guard who can also play forward). */
+  pos?: number;
+  /** a retrained position keeps the old one as a second home: no mismatch
+      penalty at either */
+  pos2?: number;
   /** the four attributes, 0–25 each */
   attrs: AttrRec;
   /** per-attribute personal ceiling: attrs ≤ pots ≤ species caps */
@@ -152,6 +162,8 @@ export interface Prospect {
   form?: 'masc' | 'femme' | 'x';
   heightCm: number;
   weightKg: number;
+  /** his position (G/F/C) — scoutable; the sprite's size is a giveaway */
+  pos?: number;
   /** the truth (hidden until scouted) */
   attrs: AttrRec;
   pots: AttrRec;
@@ -166,6 +178,10 @@ export interface Prospect {
   /** revealed facets */
   seenSkill: boolean; // the ability cloud shows
   seenPot: boolean; // the potential cloud shows
+  seenPos?: boolean; // his position (G/F/C) is known
+  /** the BLANK CHECK landed: he signed then and there — greyed on the
+      board, unremovable, committed */
+  signed?: boolean;
   digits: 0 | 1 | 2; // rating digits revealed: ?? → X?/?X → XX
   digitFirst: 'tens' | 'ones'; // which digit the first reveal uncovered
   blurb: string;

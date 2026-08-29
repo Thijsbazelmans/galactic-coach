@@ -1610,8 +1610,124 @@ still waits for authored modules + an explicit GO (see v5.0 below).
   half of the priority-board question).
 - The omen's new reward: one random board name fully revealed.
 
+## v4.7 — REAL POSITIONS & THE MOODY MONDAYS (Aug 29, 2026 — the full Aug 29 list in one swing)
+
+Thijs's entire Aug 29 playtest list shipped at once, plus the position
+system with retraining. The heart of it:
+
+- **REAL POSITIONS.** Every player (and prospect) is GENERATED with a
+  position — G/F/C from the body with drift (`posFor`), so frontcourts
+  exist again. Standing outside it costs a MISMATCH PENALTY on the slot
+  rating and match power (×0.95 one column off, ×0.89 two) — UNLESS his
+  raw numbers there are at least as good as at home: train a forward
+  enough BRAINS and he's a guard, no penalty. **RETRAINING** makes it
+  official (weekly check + POSITION CHANGE notice; the old spot stays a
+  penalty-free second home via `pos2`; summers relabel quietly). The card
+  label is now the assigned letter (white = neutral information) with 1–2
+  down-arrows when the current slot is penalized. Position is a SCOUTABLE
+  facet (digit → digit → HIS SPOT → the whole picture; discovery can
+  reveal it; the sprite's size was always a hint). Old saves migrate in
+  place (no SAVE_VERSION bump).
+- **THE BLANK CHECK actually signs**: the recruit is SIGNED on the spot —
+  greyed on the board, unremovable, skipped by decay/recruiting/letters,
+  auto-committed on signing day ("signed weeks ago"). Two new
+  commitment-chunk items take the old behavior: BOOSTER'S PLEDGE (+20)
+  and THE WAR CHEST (+40, scandal tail). A recruit who LEANS AWAY is a
+  story now (THE COLD SHOULDER: call him or give him space, it can
+  escalate to NO CONTACT), and COMMIT SWINGS happen on their own weekly.
+- **MOODY MONDAYS**: above-baseline mood decays faster (−5), recovery is
+  stingier (+4), and any player can catch a bad Monday (25%, −2..−7) —
+  mood rotation matters like energy rotation now. And a body that DIDN'T
+  play blows past the baseline: a week in street clothes can fill the
+  tank to 100 — deliberately a coach-only tool (the AI's perfect-rotation
+  autopilot would milk it harder than any human; harness verified at the
+  old baseline: ~3.7 wins/season, 6/16 retired, UT reach 15/16).
+- **Box score by ability**: SKILL scores, FIERCENESS rebounds,
+  ATHLETICISM steals, BRAINS assists (ATTR_STAT swapped league-wide);
+  starters still out-touch the bench. The recap spells stats out
+  ("the assists column"), never "his ast column".
+- **The box score reads in PASSES**: one player at a time, three sweeps —
+  THE LINES (MVP/STANDOUT/OFF DAY), then BANKED XP on the rings, then
+  ⚡ & MOOD on the gauges. No rearranging in the box-score view.
+- **Sticker rework**: the anchored ±numbers are borderless now, blinking
+  green↔white (up) / white↔red (down) BESIDE the thing they changed —
+  next to the bolt, the face, the XP ring (its inactive track is near-
+  black now, the filled arc near-white), abilities under his feet. The
+  gauge icon blinks the same verdict.
+- **Game night**: both teams wear planet + name; THE BOOKIE prints a real
+  moneyline (−185 / +240, the % one tap away); the live rope AMPLIFIES
+  the lead ×2 so the swing feels like the night; the back-and-forth tick
+  itself untouched (Thijs: "strangely fun — keep").
+- **Scoped actions pick their targets**: PICK 3 / PICK 6 acts need names
+  HIGHLIGHTED on the board (tap to toggle, the nav counts down, the run
+  reads exactly those); rows stay the priority ladder for decay/letters.
+  Board QoL: the full-board lecture reads once then becomes a hint about
+  the kid; after a search the board dims and the FOUND names glow; under
+  the board a counter (N scouting/recruiting weeks left, counting an
+  unspent this-week) plus the NEXT YEAR line (who returns, G/F/C counts,
+  the thin attribute) — the ability cloud is back on the big board once
+  the full number is known (sharp once the whole picture is).
+- **The week opens with THE WEEKLY BUDGET**: the dean hands over the
+  envelope (heat-aware snark, mortality-aware at 0¢) before anything else
+  knocks; tournament weeks skip her (you're on the road).
+- **Location-true stories**: the oracle can't fire while the ship is
+  grounded; local searches (rec center / home planet) ride the BUS, not
+  the saucer. Story frames never jump: a fixed art region tops every
+  dialog, words start in the same place every beat.
+- **Language pass**: no "if it lands" anywhere (the arrows say it), no
+  system language in display text (THE RALLY's scene rewritten), the ON
+  FIRE "check on Monday" tell dropped, tournament scout reports are
+  funny now (CHAMP_STYLE lines per speech, no dead tactics).
+- **Blinking pass**: items never blink; the notebook pulses ONLY when a
+  live Scoop question's answer is on its pages (blinking is reserved for
+  the future tutorial).
+- **White is neutral**: the indicator scale tops out at MINT, not white
+  (heatColor, grades A/S) — white belongs to names and information now.
+- **The frame**: view tabs sit ABOVE the big action button; the chrome
+  budget counts safe-area insets so the tryout 3×4 grid fits a real
+  iPhone again; confetti replaced by THE STARBURST (zero-g sparkles that
+  twinkle, drift up, never land).
+- **New faces (fromDesign/260829)**: THE JANITOR (supply-closet scene:
+  shelves, swinging bulb, mop and bucket) replaces the equipment manager
+  as the item-giver; THE ASSISTANT COACH (gym whiteboard scene, whistle,
+  clipboard) fronts every assistant tip — the future tutorial guide.
+- **Season-close fixes**: a runner-up who RODE the shuttle is never
+  scolded about missing it; the champion's books-close leads with the
+  title; growth story: THE GROWTH SPURT (a kid grows out of this world,
+  or shrinks — the columns read him differently after).
+
+**Calls Claude made inside v4.7 (Thijs to veto):**
+- The sit-out-to-100 energy boost is YOURS ALONE — the AI keeps the old
+  baseline recovery (its optimal rotation would exploit the mechanic
+  beyond any human use; without this the harness lost ~8 points of
+  winrate to the field).
+- Mismatch penalties are deliberately mild (×0.95/×0.89) and waived
+  whenever raw numbers carry the slot — positions shape choices, they
+  don't invalidate rosters. Retraining triggers at raw ≥ 1.06× home.
+- The dean's budget dialog is tap-through (no choice) so the week still
+  opens fast.
+- Scoped acts fall back to top-rows when no names are picked (headless
+  compatibility) — in the UI the run button refuses until the count is
+  met.
+
 ### Backlog (in rough priority)
 
+**Scratched (Thijs, Aug 29) — do not resurface:** instruction-night squad
+buff, priority-board open half (signing-day penalties reading rows),
+halftime-only speeches, row-/group-scoped practice drills, and the
+post-game speech after losses (removed from SPEC §17).
+
+- **Thijs's Aug 29 playtest notes — SHIPPED, the whole list, as v4.7**
+  (see the entry above): real positions with retraining, the blank-check
+  split + lean-away stories, moody Mondays + the sit-out tool, box score
+  by ability and in passes, borderless anchored stickers, moneyline
+  bookie, the amplified rope, scoped-action target picking, the weekly
+  budget, location-true stories, the language/blinking/white passes, the
+  janitor + the assistant coach, the season-close fixes, the growth
+  spurt, the starburst, the tryout-grid fit.
+  STILL OPEN from that drop: the first-season TUTORIAL is where the
+  blinking went to live — the assistant coach (his figure now exists)
+  walks the first weeks; still undesigned (see «Succinct tutorial»).
 - **STORY OVERHAUL NOTE (Thijs, Aug 28): BRAINS ↔ SCHOOL.** Tie the players'
   BRAINS stat to school issues in the story web: a kid put on extra classes
   (academic probation, a failed exam, a tutor the dean assigns) has his
@@ -1621,10 +1737,11 @@ still waits for authored modules + an explicit GO (see v5.0 below).
   as the festival gamble: a cost now, a possible gain later. Candidate
   characters: the dean, a professor, the tutor. Candidate moments: week
   start, post-game (grades post after the weekend).
-- **Balance watch, v4.5 edition (THE SLIDE)**: harness ~44–55% wins, BIG
-  BANG reached 4/4 careers, 0 titles, 1-in-4 fired. Verify a human can
-  climb (65–75 floor by season 4–6) without it feeling like a wall in
-  seasons 1–2. Knobs listed in NEXT SESSION.
+- **Balance watch, v4.5 edition (THE SLIDE) — VERIFIED by the Aug 29
+  playtest**: Thijs's verdict: "the balance in this last playthrough felt
+  pretty good! It was fun to play, not too difficult." Harness numbers
+  (~44–55% wins, BIG BANG 4/4 careers, 0 titles, 1-in-4 fired) stand as
+  the baseline; no knob turns needed for now.
 
 - **Walk-ons fill HOLES (Thijs, Aug 24)**: the walk-on pool (tryouts AND
   the offseason selection pool) should read the roster and lean toward
@@ -1636,20 +1753,14 @@ still waits for authored modules + an explicit GO (see v5.0 below).
 - **MISCAST on the selection grid — CLOSED by v4.5**: the slot GRADE
   (F–S) reads the column he stands in on every grid, tryouts included;
   MISCAST itself is dead.
-- **Instruction nights have no squad buff (watch in play)**: choosing
-  LAST-MINUTE INSTRUCTIONS over the speech means your room gets no lift —
-  the gamble is pure opponent-sabotage. If that trade feels flat in
-  Thijs's next playtest, let a LANDED call also settle your own room
-  (+1 somewhere) so tape-over-talk never feels like a skipped speech.
 - **The scouting/recruiting split — SHIPPED as v4.4** (two separate weekly
   stops, booster-assisted recruiting, last-minute instructions).
 - **More instructions**: the pregame-move family has room — findable
   counters keyed to specific champion gimmicks, a "steal their signals"
   arc with an integrity tail, instruction-flavored items.
-- **The facilities manager gets a face**: Thijs is illustrating the
-  equipment manager (THE SUPPLY CLOSET). When the art lands in
-  `fromDesign/`, wire a `facilities` FigureId into rig.ts and hang the
-  supply/item_offer stories on it.
+- **The facilities manager gets a face — SHIPPED in v4.7**: THE JANITOR
+  (FigureId `janitor`, supply-closet scene) fronts THE SUPPLY CLOSET now;
+  hanging more item/facility stories on him stays open for the story pass.
 - **Balance watch, v4.4 edition**: harness ~50% win / 3-in-10 fired /
   ~2.8 titles over a full career under random play (a human should land
   well above). Verify it FEELS like a fight, not a wall. Knobs: stipend 5,
@@ -1683,17 +1794,12 @@ still waits for authored modules + an explicit GO (see v5.0 below).
   that hand you a player while the roster is full should reuse the 3×4
   swap grid (the mechanic + confirm dialog exist; only the story hook is
   missing).
-- **Priority board, open half**: should signing-day letter penalties
-  read the rows (TARGETS at full strength, penalties biting downward)?
-  Decided not to build until discussed.
-- **Halftime-only speeches** (design space; STARDUST and THE ENGINE
-  shipped as regular premium speeches in v4.0).
-- **Row-/group-scoped practice drills** (starters-only conditioning,
-  bench-only reps) — THE SCOPE PREVIEW law already supports them.
 - **More stories, always**: further femme arcs, more x-form-flavored
   stories for the three x species, more item-granting outcomes.
 - **Succinct tutorial**: auto-tips are OFF by default; the ? tips were
-  refreshed for v4.0 but the real onboarding is still undesigned.
+  refreshed for v4.0 but the real onboarding is still undesigned. The
+  ASSISTANT COACH figure exists as of v4.7 (he fronts every tip) and the
+  first-season blinking budget is reserved for this.
 - **SPEC.md rewrite**: it still describes the dead v1.0 axis model, the
   dead tactics wheel — and now also dead species caps.
 - **Balance watch**: post-v4.0 baseline ~64% win rate / ~3.2–3.7 titles

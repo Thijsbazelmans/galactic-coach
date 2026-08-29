@@ -21,7 +21,7 @@ import {
   storyById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, REGULAR_WEEKS, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, bestCol, bookieLine, grade, matchAttrs, slotPlayer, slotRating, winShare, type Grade } from './engine/sim';
+import { COL_LABELS, POS_LETTERS, bestCol, bookieLine, grade, matchAttrs, posArrows, slotPlayer, slotRating, winShare, type Grade } from './engine/sim';
 import {
   actionGalaxy,
   addNote,
@@ -73,7 +73,7 @@ import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, perGame, potStars, rand } from './engine/util';
 import { PRACTICE_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
 
-const VERSION = 'v4.6';
+const VERSION = 'v4.7';
 
 // ---- THE UPDATE CHECK -----------------------------------------------------------
 // The home-screen app on iOS keeps stale HTML for a long time. On launch and
@@ -135,16 +135,17 @@ function vc(v: number): string {
   return ramp(0.2 + 0.8 * (clamp(v, 0, 100) / 100));
 }
 
-// ---- THE INDICATOR COLORS: red → orange → yellow → green → white -----------
-// Value gauges (energy, mood), the slot grade (F red … S white) and every
-// direction cue (UP green, DOWN red) speak this one scale — the team hue
-// stays for chrome, fills and the credits.
+// ---- THE INDICATOR COLORS: red → orange → yellow → green → mint ------------
+// Value gauges (energy, mood), the slot grade (F red … S mint) and every
+// direction cue (UP green, DOWN red) speak this one scale. WHITE left the
+// scale on purpose: white is NEUTRAL now — free for names, chrome and
+// information that carries no verdict.
 
 const C_RED = '#ff4a3d';
 const C_ORANGE = '#ff9a2e';
 const C_YELLOW = '#ffd83d';
 const C_GREEN = '#5fe07a';
-const C_WHITE = '#ffffff';
+const C_MINT = '#a8ffc2';
 const UP_COLOR = C_GREEN;
 const DOWN_COLOR = C_RED;
 
@@ -154,10 +155,10 @@ function heatColor(v: number): string {
   if (v < 45) return C_ORANGE;
   if (v < 65) return C_YELLOW;
   if (v < 85) return C_GREEN;
-  return C_WHITE;
+  return C_MINT;
 }
 
-const GRADE_COLOR: Record<Grade, string> = { F: C_RED, D: C_ORANGE, C: C_YELLOW, B: C_GREEN, A: C_WHITE, S: C_WHITE };
+const GRADE_COLOR: Record<Grade, string> = { F: C_RED, D: C_ORANGE, C: C_YELLOW, B: C_GREEN, A: C_MINT, S: C_MINT };
 
 /** Darken a hex color toward black (f = 1 keeps it). */
 function shade(hex: string, f: number): string {
@@ -261,6 +262,9 @@ let cutConfirm = false;
 let boardConfirm = false;
 // game night: the live game → YOU WON / YOU LOST → the box score → the league
 let gnStage: 'beat' | 'final' | 'recap' | 'verdict' | 'table' = 'beat';
+/** the box score reads in PASSES — one player at a time, three sweeps:
+    the lines, then the XP, then what the night cost (⚡/mood) */
+let boxPass = 0;
 let progressTimer: number | null = null;
 let floatTimers: number[] = [];
 
@@ -738,7 +742,7 @@ function edgeGauge(side: 'l' | 'r', value: number, kind: 'boltx' | 'facex', _pid
   }
   return `<span class="gauge g${side} ${off ? 'goff' : ''}">
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${rects.join('')}</svg>
-    <img class="gicon ${v < 25 && !off ? 'blink' : ''}" src="${iconOutlinedUrl(kind, off ? '#556' : heatColor(v))}" alt=""/>
+    <img class="gicon ${v < 25 && !off ? 'blink' : ''} ${delta > 0 ? 'dup' : delta < 0 ? 'ddown' : ''}" src="${iconOutlinedUrl(kind, off ? '#556' : heatColor(v))}" alt=""/>
   </span>`;
 }
 
@@ -811,13 +815,13 @@ function ovrBlock(p: Player, opts: { from?: number } = {}): string {
   return `<span class="ovrwrap"><i class="klab">OVR</i>${num}</span>`;
 }
 
-const POS_SHORT = ['BACK', 'WING', 'FRONT'];
-
-/** THE GRADE: what he's worth in the slot he stands in — F red … A white,
-    S the exceptional letter above it. Every player's numbers are fixed; the
-    column reads them (BRAINS run the backcourt, ATHLETICISM the frontcourt,
-    the wing weighs nothing) and size fits or doesn't. Drag him and it
-    changes. A changed grade blinks old → new. */
+/** THE GRADE: what he's worth in the slot he stands in — F red … A/S mint.
+    Every player's numbers are fixed; the column reads them (BRAINS run the
+    backcourt, ATHLETICISM the frontcourt, the wing weighs nothing), size
+    fits or doesn't, and standing outside his POSITION costs — unless his
+    numbers there are as good as at home. The label is his assigned letter
+    (G/F/C); the down-arrows behind it are the mismatch penalty in THIS
+    slot: one per column off, none when his stats carry him there. */
 function gradeBlock(p: Player, col: number, opts: { fromOvr?: number } = {}): string {
   const r = slotRating(p, col);
   const g = grade(r);
@@ -834,13 +838,12 @@ function gradeBlock(p: Player, col: number, opts: { fromOvr?: number } = {}): st
   } else {
     letter = `<b class="kovr kgrade ${g === 'S' ? 'sgrade' : ''}" style="color:${color}">${g}</b>`;
   }
-  // the label always names where he BELONGS; its color says how far this
-  // slot is from that: white = right (or as good), yellow = one column off,
-  // red = two columns off
-  const best = bestCol(p);
-  const bestR = slotRating(p, best);
-  const fit = r >= bestR * 0.96 ? 'fit-ok' : Math.abs(best - col) <= 1 ? 'fit-near' : 'fit-far';
-  return `<span class="ovrwrap"><i class="klab poslab ${fit}">${POS_SHORT[best]}</i>${letter}</span>`;
+  const posL = POS_LETTERS[p.pos ?? bestCol(p)];
+  const arrows = posArrows(p, col);
+  const arrowHtml = arrows > 0
+    ? `<span class="posarr ${arrows >= 2 ? 'far' : 'near'}">${'▼'.repeat(Math.min(2, arrows))}</span>`
+    : '';
+  return `<span class="ovrwrap"><i class="klab poslab">${posL}${arrowHtml}</i>${letter}</span>`;
 }
 
 // The card, phone-first, one lens at a time. ROSTER: sprite centered, curved
@@ -957,6 +960,8 @@ interface ProspectCardOpts {
   dim?: boolean;
   scope?: 'in' | 'out';
   labelPop?: boolean;
+  /** a scoped action wants targets: this card toggles on tap */
+  selectable?: boolean;
   /** SIGNING DAY on the board: tap to pursue; the effective % labels the card */
   signing?: { selected: boolean; effPct?: number };
 }
@@ -967,10 +972,14 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
     PRACTICE_KIT, 1.75, 'ksprite');
   const sp = speciesById(pr.speciesId);
   const spCls = sp.rarity >= 3 ? 'sprare blink' : sp.rarity === 2 ? 'sprare' : '';
-  const nameHtml = `<span class="kname">${esc(pr.name)}</span>`;
+  // his POSITION is a scoutable facet — the sprite's size is the giveaway
+  const posBit = `<span class="kyear">${pr.seenPos ? POS_LETTERS[pr.pos ?? 1] : '?'}</span>`;
+  const nameHtml = `<span class="kname">${esc(pr.name)}</span>${posBit}`;
   // the COM ring speaks the change language: the swing blinks on the arc
   const commitFrom = gxStickers?.get(pr.id)?.find((st) => st.commitFrom !== undefined)?.commitFrom;
-  const ring = ringCounter(pr.commitPct, 'COM', `${pr.commitPct}`, `commitment ${pr.commitPct}%`, { deltaFromPct: commitFrom });
+  const ring = pr.signed
+    ? `<span class="kpot signedink"><i>INK</i><b>✓</b></span>`
+    : ringCounter(pr.commitPct, 'COM', `${pr.commitPct}`, `commitment ${pr.commitPct}%`, { deltaFromPct: commitFrom });
   const imgDim = rigSpriteHtml(
     { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, form: pr.form, mood: 'neutral', energy: 'normal', fire: false },
     PRACTICE_KIT, 1.75, 'ksprite dimspr');
@@ -1006,9 +1015,22 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
       centerHtml: stars,
     });
   } else {
-    // BIG BOARD — no compass: the stranger himself, the masked rating, the
-    // commitment ring
+    // BIG BOARD: the stranger himself, the masked rating, the commitment
+    // ring — and once the full NUMBER is known, the ability cloud glows
+    // behind him (sharp only when the whole picture is), so fierceness can
+    // be compared across the board at a glance
+    const cloud = pr.digits >= 2
+      ? `<svg class="ksvg bare" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${
+          pr.seenSkill
+            ? `<polygon class="k-cur" points="${kitePoints(pr.seenAttrs)}"/>`
+            : `<g class="k-cloud" filter="url(#prblur${pr.id})"><defs><filter id="prblur${pr.id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3.2"/></filter></defs>
+              <polygon points="${kitePoints(pr.seenAttrs)}" transform="rotate(-9 50 50) translate(-3 2)"/>
+              <polygon points="${kitePoints(pr.seenAttrs)}" transform="rotate(8 50 50) translate(3 -2)"/>
+              <polygon points="${kitePoints(pr.seenAttrs)}"/></g>`
+        }</svg>`
+      : '';
     body = `<div class="ksq roster">
+      ${cloud}
       ${img}
       <div class="ktop">${nameHtml}</div>
       <span class="kbl">${maskHtml}</span>
@@ -1017,11 +1039,16 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
   }
   const mains: SpotLabel[] = (gxStickers?.get(pr.id) ?? []).map((st) => ({ text: st.text, up: st.up }));
   if (opts.signing?.selected) mains.push({ text: opts.signing.effPct !== undefined ? `LETTER →${opts.signing.effPct}%` : 'LETTER', up: true });
-  const act = opts.signing ? `data-action="pursue" data-id="${pr.id}"` : '';
-  return `<div class="pcard prospect sq ${opts.draggable ? 'grabbable' : ''} ${opts.dim ? 'cutcard' : ''} ${opts.signing?.selected ? 'picked' : ''} ${opts.scope === 'in' ? 'scopehl' : opts.scope === 'out' ? 'scopedim' : ''}" data-kind="pr" data-pid="${pr.id}" ${act}>
+  const act = opts.signing && !pr.signed
+    ? `data-action="pursue" data-id="${pr.id}"`
+    : opts.selectable && !pr.signed
+      ? `data-action="gx-target" data-id="${pr.id}"`
+      : '';
+  return `<div class="pcard prospect sq ${opts.draggable && !pr.signed ? 'grabbable' : ''} ${opts.dim ? 'cutcard' : ''} ${pr.signed ? 'signedpr' : ''} ${opts.signing?.selected || (opts.signing && pr.signed) ? 'picked' : ''} ${opts.scope === 'in' ? 'scopehl' : opts.scope === 'out' ? 'scopedim' : ''}" data-kind="pr" data-pid="${pr.id}" ${act}>
     ${body}
     ${spotHtml('main', mains, opts.labelPop !== false)}
-    ${pr.bannedWeeks > 0 ? `<div class="ptag blink">BANNED ${pr.bannedWeeks}w</div>` : ''}
+    ${pr.signed ? `<div class="ptag">✓ SIGNED</div>` : ''}
+    ${pr.bannedWeeks > 0 && !pr.signed ? `<div class="ptag blink">BANNED ${pr.bannedWeeks}w</div>` : ''}
   </div>`;
 }
 
@@ -1149,18 +1176,13 @@ function standModalHtml(s: GameState): string {
 // ---- THE BAG bar (always there) -------------------------------------------------------------------
 
 function bagBar(s: GameState): string {
+  // NOTHING down here blinks anymore — blinking is for the tutorial (later).
+  // One exception, by law: THE NOTEBOOK pulses when the ANSWER to a live
+  // Scoop question is already on its pages — never to tell you to write.
   const ev = currentStory(s);
-  const usableInStory = new Set(
-    (ev?.choices ?? []).filter((c) => c.itemId && !ev?.resolvedText).map((c) => c.itemId as string)
-  );
-  // THE NOTEBOOK holds the first slot, forever — during a Scoop question it
-  // pulses if the answer is on its pages
   const canAnswer = ev?.defId === 'scoop_question' && !ev.resolvedText
     && s.notebook.some((n) => n.key === ev.data?.noteKey);
-  // TWO ROWS now: the notebook stands tall on the left (both rows), eight
-  // item slots fill the 4×2 grid beside it
-  const noteworthy = !ev && s.phase === 'gamenight' && gnStage === 'verdict' && !!s.lastResult && !s.notebook.some((n) => n.key === `res:${s.season}:${s.week}`);
-  const noteSlot = `<button class="bslot filled notebook tall ${canAnswer || noteworthy ? 'pulse' : ''}" data-action="notebook">▤<span class="bshort">NOTES</span></button>`;
+  const noteSlot = `<button class="bslot filled notebook tall ${canAnswer ? 'pulse' : ''}" data-action="notebook">▤<span class="bshort">NOTES</span></button>`;
   const slots = Array.from({ length: BAG_SIZE }, (_, i) => {
     const id = s.bag[i];
     if (!id) return '<div class="bslot empty">·</div>';
@@ -1168,7 +1190,7 @@ function bagBar(s: GameState): string {
     const spent = item.rarity === 'legendary' && s.legendariesUsed.includes(item.id);
     // WHO it's for, always visible: one player · one recruit · the whole squad
     const tgt = item.target === 'player' ? '● ONE' : item.target === 'prospect' ? '● RECRUIT' : '●●● TEAM';
-    return `<button class="bslot filled ${item.rarity} t-${item.target} ${usableInStory.has(id) ? 'pulse' : ''} ${spent ? 'spent' : ''}"
+    return `<button class="bslot filled ${item.rarity} t-${item.target} ${spent ? 'spent' : ''}"
       data-action="bag-item" data-id="${item.id}" data-bagitem="${item.id}">◆<span class="bshort">${item.short}</span><span class="btgt">${tgt}</span></button>`;
   }).join('');
   return `<div class="bagbar tworow">${noteSlot}${slots}</div>`;
@@ -1266,28 +1288,41 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
       let labelPop = true;
       let popDelay = 0;
       if (p && showGame) {
-        // THE FINAL HORN: the line in the main spot, the meters blinking
-        // their deltas in place, the MVP and the FORM ROLL smack across the
-        // player — XP waits for the WEEK START report. (ON FIRE needs no
+        // THE FINAL HORN reads in PASSES, one player at a time: PASS ONE the
+        // box-score lines (with the MVP and the FORM ROLL smack across the
+        // player), PASS TWO the XP banked toward Monday, PASS THREE what the
+        // night cost — ⚡ and mood blinking on the gauges. (ON FIRE needs no
         // label: he burns.)
         const d = s.postGame.find((x) => x.playerId === p.id);
         const row = s.lastResult?.box.find((x) => x.playerId === p.id);
         const form = s.lastResult?.forms?.[p.id];
         if (d || row || form) {
-          const b = batchFor(`game:${wkKey}`, true);
+          const b = batchFor(`game:${wkKey}:${boxPass}`, true);
           if (b.render) {
-            delta = { e: d?.energyP ?? 0, m: d?.mood ?? 0 };
-            mains = row ? [{ text: statLine(row), up: row.pts >= 20 ? true : undefined }] : [];
-            his = [];
-            if (s.lastResult?.mvpId === p.id) his.push({ text: '★ GAME MVP', up: true });
-            if (form === 1) {
-              const gain = s.lastResult?.formGain?.[p.id];
-              his.push({ text: `STANDOUT!${gain ? ` ${gain}` : ''}`, up: true });
-              if (gain) delta.ovrFrom = ovr(p.attrs) - 1;
+            if (boxPass === 0) {
+              mains = row ? [{ text: statLine(row), up: row.pts >= 20 ? true : undefined }] : [];
+              his = [];
+              if (s.lastResult?.mvpId === p.id) his.push({ text: '★ GAME MVP', up: true });
+              if (form === 1) {
+                const gain = s.lastResult?.formGain?.[p.id];
+                his.push({ text: `STANDOUT!${gain ? ` ${gain}` : ''}`, up: true });
+                if (gain) delta = { ovrFrom: ovr(p.attrs) - 1 };
+              }
+              if (form === -1) his.push({ text: 'OFF DAY', up: false });
+            } else if (boxPass === 1) {
+              if (d && d.xpGain > 0) {
+                const need = p.level >= LEVEL_CAP ? 0 : xpNeed(p.level);
+                delta = { xp: d.xpGain };
+                if (need > 0) {
+                  delta.xpFromPct = Math.min(100, Math.round((p.xp / need) * 100));
+                  delta.xpProjPct = Math.min(100, Math.round(((p.xp + d.xpGain) / need) * 100));
+                }
+              }
+            } else {
+              delta = { e: d?.energyP ?? 0, m: d?.mood ?? 0 };
             }
-            if (form === -1) his.push({ text: 'OFF DAY', up: false });
             labelPop = b.animate;
-            popDelay = 320 + sweep * 300;
+            popDelay = 320 + sweep * 420;
             sweep++;
           }
         }
@@ -1344,7 +1379,7 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
 // the letters: tap a name to pursue it.
 const BOARD_ROW_LABELS = ['TARGETS', 'BACKUPS', 'LAST RESORTS'];
 
-function prospectGridHtml(s: GameState, scopeCount: number | null = null, signing = false): string {
+function prospectGridHtml(s: GameState, pickCount: number | null = null, signing = false): string {
   // a blank column-header row keeps the cards in exactly the same spot as
   // the practice grid — screens must not jump
   const colHead = `<div class="colhead"><span class="rowlabel"></span><span></span><span></span><span></span></div>`;
@@ -1357,11 +1392,15 @@ function prospectGridHtml(s: GameState, scopeCount: number | null = null, signin
     const cells = [0, 1, 2].map((c) => {
       const idx = r * 3 + c;
       const pr = s.prospects[idx];
-      const scope = scopeCount !== null && pr ? (idx < scopeCount ? 'in' as const : 'out' as const) : undefined;
+      // a scoped action wants targets: picked names blink in, the rest dim
+      const scope = pickCount !== null && pr ? (gxSel.has(pr.id) ? 'in' as const : 'out' as const) : undefined;
       return `<div class="gcell ${signing ? '' : 'dropzone'}" data-zone="${idx}">${pr
         ? prospectCard(pr, lens, {
             draggable: !signing,
             scope,
+            selectable: pickCount !== null,
+            // the new name has the stage: the standing board steps back
+            dim: swapping,
             labelPop: gxBatch?.animate ?? true,
             signing: signing ? { selected: pr.selected, effPct: chances.find((x) => x.prospect.id === pr.id)?.pct } : undefined,
           })
@@ -1370,15 +1409,16 @@ function prospectGridHtml(s: GameState, scopeCount: number | null = null, signin
     rows.push(`<div class="gridrow"><div class="rowlabel">${BOARD_ROW_LABELS[r]}</div>${cells}</div>`);
   }
   // the 4th row exists only while new names wait — whoever sits there when
-  // you confirm is gone forever
+  // you confirm is gone forever. The FOUND ones are the bright ones: the
+  // board dims, the new faces glow, the focus lands where the news is.
   if (swapping && !signing) {
     const cells = [0, 1, 2].map((c) => {
       const pr = s.pendingRecruits[c];
       return `<div class="gcell dropzone" data-zone="${9 + c}">${pr
-        ? prospectCard(pr, lens, { draggable: true, dim: true })
+        ? prospectCard(pr, lens, { draggable: true, scope: 'in' })
         : `<div class="pod empty">·</div>`}</div>`;
     }).join('');
-    rows.push(`<div class="gridrow cutrow"><div class="rowlabel">OUT</div>${cells}</div>`);
+    rows.push(`<div class="gridrow cutrow foundrow"><div class="rowlabel">OUT</div>${cells}</div>`);
   }
   return `<div class="grid">${colHead}${rows.join('')}</div>`;
 }
@@ -1484,8 +1524,12 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
   if (ev.defId === 'reveal') {
     return `<div class="revealbox">${revealPreview((ev.data?.kind as string) ?? 'item', (ev.data?.id as string) ?? '')}</div>`;
   }
-  if (ev.defId === 'item_offer' || ev.defId === 'supply' || ev.defId === 'bagfull') {
+  if (ev.defId === 'item_offer' || ev.defId === 'bagfull') {
     return `<div class="revealbox">${revealPreview('item', (ev.data?.itemId as string) ?? '')}</div>`;
+  }
+  // the assistant coach fronts every tip — the future tutorial voice
+  if (ev.tag === 'ASSISTANT COACH') {
+    return `<div class="scenebox">${figureHtml('assistant', 'neutral', kit, 3)}</div>`;
   }
   if (ev.defId === 'graduation' && ev.data?.player) {
     const gp = ev.data.player as Player;
@@ -1537,16 +1581,20 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
   return '';
 }
 
-/** Confetti for the moments that earn it. */
+/** THE STARBURST: confetti falls, and falling is for planets. The moments
+    that earn it get drifting zero-g star sparkles instead — they twinkle,
+    they rise a little, they never land. */
 function feteHtml(): string {
-  const bits = Array.from({ length: 26 }, (_, i) => {
+  const bits = Array.from({ length: 22 }, (_, i) => {
     const left = (i * 37 + 11) % 100;
-    const delay = ((i * 53) % 100) / 100 * 2.6;
-    const dur = 2.6 + ((i * 29) % 100) / 100 * 1.8;
-    const color = [C_RED, C_ORANGE, C_YELLOW, C_GREEN, C_WHITE][i % 5];
-    return `<i style="left:${left}%;animation-delay:-${delay.toFixed(2)}s;animation-duration:${dur.toFixed(2)}s;background:${color}"></i>`;
+    const top = (i * 29 + 7) % 100;
+    const delay = ((i * 53) % 100) / 100 * 3.2;
+    const dur = 3 + ((i * 31) % 100) / 100 * 2.4;
+    const color = [C_YELLOW, C_GREEN, C_MINT, C_ORANGE][i % 4];
+    const glyph = i % 3 === 0 ? '✦' : i % 3 === 1 ? '✧' : '·';
+    return `<i style="left:${left}%;top:${top}%;animation-delay:-${delay.toFixed(2)}s;animation-duration:${dur.toFixed(2)}s;color:${color}">${glyph}</i>`;
   }).join('');
-  return `<div class="confetti" aria-hidden="true">${bits}</div>`;
+  return `<div class="starburst" aria-hidden="true">${bits}</div>`;
 }
 
 function storyPanel(s: GameState): string {
@@ -1574,7 +1622,7 @@ function storyPanel(s: GameState): string {
     return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
       ${fete}
       <span class="tag">${esc(ev.tag)}</span>
-      ${pageArt}
+      <div class="storyart">${pageArt}</div>
       ${impactHtml(s)}
       <div class="modal-actions" id="modal-actions"><div class="taphint">▸ tap</div></div>
     </div>`;
@@ -1600,18 +1648,20 @@ function storyPanel(s: GameState): string {
     return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
       ${fete}
       <span class="tag">${esc(ev.tag)}</span>
-      ${art}
+      <div class="storyart">${art}</div>
       ${inChoices
         ? `<div class="typebox">${esc(beats[beats.length - 1])}</div>`
         : `<div class="typebox" id="typebox"></div>`}
       <div class="modal-actions ${inChoices ? '' : 'hide'}" id="modal-actions">${actions}</div>
     </div>`;
   }
-  // a single typed beat, center stage (this layout never gains elements mid-read)
+  // a single typed beat — the SAME frame as every other beat: the art region
+  // holds the top (even when empty), the words start in the same place every
+  // message, nothing ever jumps between beats
   return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
     ${fete}
     <span class="tag">${esc(ev.tag)}</span>
-    ${art}
+    <div class="storyart">${art}</div>
     <div class="typebox beatbox" id="typebox"></div>
     <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap</div></div>
   </div>`;
@@ -1768,12 +1818,13 @@ function speechSub(pl: (typeof PLANS)[number]): string {
   return `+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}  −${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}`;
 }
 
-/** An instruction's two tails, in words. */
+/** An instruction's two tails, in words. Never "if it lands" — the risk
+    arrows already say so; conditionals are implied everywhere. */
 function instrTrade(it: (typeof INSTRUCTIONS)[number]): string {
   const down = it.id === 'takeout'
     ? { pct: it.backfire, cls: 'SCANDAL', note: 'CAUGHT — the league reviews the tape' }
     : { pct: it.backfire, cls: 'DRAMA', note: `they read you: squad −${it.selfAmt}` };
-  return `<span class="xpg gaintag">they play −${it.oppAmt} if it lands</span> ${oddsLine({ pct: it.hit, cls: 'INTEL', note: 'you called it' }, down, it.cost)}`;
+  return `<span class="xpg gaintag">they play −${it.oppAmt}</span> ${oddsLine({ pct: it.hit, cls: 'INTEL', note: 'you called it' }, down, it.cost)}`;
 }
 
 /** WEEK START: the Monday report — the weekend's recovery and banked XP per
@@ -1798,9 +1849,10 @@ function stagePractice(s: GameState): string {
   return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, lens === 0, lens, lens === 0 ? practiceScope(s) : null)}<div class="botstack">${teamBarsPractice(s)}</div>`;
 }
 
-/** «ALL 9» / «TOP 6» / «TARGETS» — the scope, printed everywhere. */
+/** «ALL 9» / «PICK 6» / «PICK 3» — the scope, printed everywhere: a scoped
+    action works the names YOU highlight first. */
 function gxScopeWord(act: (typeof GALAXY_ACTS)[number]): string {
-  return act.scope === 3 ? 'TARGETS' : act.scope === 6 ? 'TOP 6' : 'ALL 9';
+  return act.scope ? `PICK ${act.scope}` : 'ALL 9';
 }
 
 /** One-line recap of a galaxy act for the main button. */
@@ -1819,25 +1871,63 @@ function boardSel(s: GameState): { actId: string; done: boolean } {
     : { actId: selScout, done: !!s.scoutActWk };
 }
 
-/** The pending board pick's scope preview (null = no preview). */
-function galaxyScope(s: GameState): number | null {
+/** target picks for a scoped board action — the coach highlights the names */
+let gxSel = new Set<number>();
+
+/** How many names the pending board act needs highlighted (null = none). */
+function galaxyPickCount(s: GameState): number | null {
   const { actId, done } = boardSel(s);
   const act = galaxyActById(actId);
   const grounded = s.groundedWeeks > 0 && act.kind === 'search' && !act.local;
   const disabled = grounded || s.energy < act.cost;
-  const scoped = !done && !s.pendingRecruits.length && !disabled && act.kind !== 'search' && s.prospects.length > 0 && !!act.scope;
-  return scoped ? (act.scope ?? 9) : null;
+  if (done || s.pendingRecruits.length || disabled || act.kind === 'search' || !act.scope) return null;
+  const avail = s.prospects.filter((pr) => act.kind !== 'recruit' || !pr.signed).length;
+  if (!avail) return null;
+  return Math.min(act.scope, avail);
+}
+
+/** Names still on the board only — picks go stale when the board changes. */
+function pruneGxSel(s: GameState, need: number | null): void {
+  for (const id of [...gxSel]) if (!s.prospects.some((pr) => pr.id === id)) gxSel.delete(id);
+  if (need === null) gxSel.clear();
+}
+
+/** NEXT YEAR, at a glance: who returns when the seniors walk — and what the
+    room runs short of. The scouting hint that makes the board a plan. */
+function nextYearLine(s: GameState): string {
+  const t = myTeam(s);
+  const returning = t.players.filter((p) => p.classYear < 3);
+  const leaving = t.players.length - returning.length;
+  if (!returning.length) return `NEXT YEAR: everybody walks. Scout like it.`;
+  const byPos = [0, 1, 2].map((c) => returning.filter((p) => (p.pos ?? 1) === c).length);
+  const holes = [0, 1, 2].filter((c) => byPos[c] === 0).map((c) => POS_LETTERS[c]);
+  const sums = { skl: 0, ath: 0, frc: 0, brn: 0 };
+  for (const p of returning) for (const a of ATTRS) sums[a] += p.attrs[a];
+  const low = ATTRS.reduce((worst, a) => (sums[a] < sums[worst] ? a : worst), 'skl' as Attr);
+  const bits = [`${returning.length} return${leaving ? `, ${leaving} walk` : ''}`, `${byPos.map((n, c) => `${POS_LETTERS[c]}×${n}`).join(' ')}`];
+  if (holes.length) bits.push(`no ${holes.join('/')} coming back`);
+  else bits.push(`thin on ${ATTR_SHORT[low]}`);
+  return `NEXT YEAR: ${bits.join(' · ')}`;
 }
 
 /** SCOUTING and RECRUITING: the same board, two different weeks' moves. */
 function stageBoard(s: GameState): string {
   const swapping = s.pendingRecruits.length > 0;
-  const title = s.phase === 'recruiting' ? 'RECRUITING' : 'SCOUTING';
+  const scouting = s.phase === 'scouting';
+  const title = scouting ? 'SCOUTING' : 'RECRUITING';
+  const need = swapping ? null : galaxyPickCount(s);
+  pruneGxSel(s, need);
+  // how many board weeks are left this season — counting this one while its
+  // move is still unspent
+  const done = scouting ? s.scoutActWk : s.recruitActWk;
+  const weeksLeft = Math.max(0, REGULAR_WEEKS - s.week) + (done ? 0 : 1);
+  const infoRows = swapping ? '' : `
+      ${need !== null ? `<div class="fourthrow slim"><div class="report">HIGHLIGHT ${need} NAME${need === 1 ? '' : 'S'} FOR THE ACTION — tap the cards (${gxSel.size}/${need})</div></div>` : ''}
+      <div class="fourthrow slim"><div class="report dim">${weeksLeft} ${title} WEEK${weeksLeft === 1 ? '' : 'S'} LEFT THIS SEASON · ${esc(nextYearLine(s))}</div></div>
+      ${scouting && s.groundedWeeks > 0 ? `<div class="fourthrow slim"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — local searches only</div></div>` : ''}`;
   return `<h2 class="gridhead">${title}</h2>
-    ${prospectGridHtml(s, swapping ? null : galaxyScope(s))}
-    <div class="botstack">
-      ${s.phase === 'scouting' && s.groundedWeeks > 0 && !swapping ? `<div class="fourthrow slim"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — local searches only</div></div>` : ''}
-    </div>`;
+    ${prospectGridHtml(s, need)}
+    <div class="botstack">${infoRows}</div>`;
 }
 
 function hue(hex: string): number {
@@ -1953,7 +2043,8 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
     : m
       ? { name: oppName, bg: m.opponent.bg, fg: m.opponent.fg }
       : { name: oppName, bg: '#555', fg: '#ddd' };
-  const mineChip = { name: t.name, bg: t.bg, fg: t.fg };
+  // both sides read planet + name on game night — the opponent always did
+  const mineChip = { name: teamLabel(t), bg: t.bg, fg: t.fg };
   const away = home ? opp : mineChip;
   const homeT = home ? mineChip : opp;
   const clash = Math.min(Math.abs(hue(away.bg) - hue(homeT.bg)), 360 - Math.abs(hue(away.bg) - hue(homeT.bg))) < 40;
@@ -1974,10 +2065,11 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
   const total = r0 ? Math.max(1, r0.myScore + r0.oppScore) : 1;
   const f = liveFrame(l, rr, final ? 1 : (l + rr) / total);
   const titleGame = isUtWeek(s) && (s.ut?.round ?? 0) >= 2;
-  // THE BOOKIE: the night's odds, printed once, before the ball goes up
+  // THE BOOKIE: the night's line, printed the way bookies print — a
+  // moneyline (favorites minus, dogs plus), the raw % one tap away
   const m0 = myMatchup(s);
   const pct = final ? 0 : bookieLine(s, t, champ ? null : m0?.opponent ?? null, champ, home);
-  const bookie = final ? '' : `<div class="bookie">THE BOOKIE HAS YOU AT <b>${pct}%</b></div>`;
+  const bookie = final ? '' : `<div class="bookie" title="win chance ${pct}%">THE BOOKIE HAS YOU AT <b>${moneyline(pct)}</b></div>`;
   // centered, the whole screen used: AWAY on top, @, HOME — then open air
   // where the score tag lives, hovering above the bar. The bar LIGHTS from
   // the center outward as the clock runs; the line inside the lit part is
@@ -2004,15 +2096,27 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
   </div>`;
 }
 
+/** The moneyline: how a bookie prints a win chance — favorites minus,
+    underdogs plus, rounded to the nearest 5 like a chalkboard would. */
+function moneyline(pct: number): string {
+  const p = clamp(pct, 5, 95) / 100;
+  const ml = p >= 0.5
+    ? -Math.round((p / (1 - p)) * 100 / 5) * 5
+    : Math.round(((1 - p) / p) * 100 / 5) * 5;
+  return ml > 0 ? `+${ml}` : `${ml}`;
+}
+
 /** One frame of the live bar: t = how much of the game has run (0–1); the
-    lit stretch is [50−50t, 50+50t]; inside it, the line sits at away's
-    share of the points (40–20 away ⇒ two thirds of the light is theirs). */
+    lit stretch is [50−50t, 50+50t]. The line inside it AMPLIFIES the lead
+    (×2 around the middle) — a rope that only whispered the score felt like
+    a muted version of the night, so now it swings like the night does. */
 function liveFrame(l: number, r: number, t: number): { lo: number; hi: number; sep: number } {
   const tt = clamp(t, 0, 1);
   const lo = 50 - 50 * tt;
   const hi = 50 + 50 * tt;
   const shareL = l + r > 0 ? l / (l + r) : 0.5;
-  return { lo, hi, sep: lo + (hi - lo) * shareL };
+  const swung = clamp(0.5 + (shareL - 0.5) * 2, 0.04, 0.96);
+  return { lo, hi, sep: lo + (hi - lo) * swung };
 }
 
 function stageGamenight(s: GameState): string {
@@ -2053,13 +2157,14 @@ function stageGamenight(s: GameState): string {
       </div>`;
   }
   if (gnStage === 'verdict') {
-    // the box score: the grid in its usual pixels, the league's other
-    // results below it — the screen worth a note
+    // the box score reads in three passes — one player at a time: the
+    // lines, the XP, the tanks. No rearranging here: the night is over.
+    const passName = ['THE LINES', 'BANKED XP', '⚡ & MOOD'][boxPass] ?? '';
     const others = s.resultsLog.length
       ? `<div class="report dim others"><div class="othershead">AROUND THE LEAGUE</div>${s.resultsLog.map((l) => `<div>${esc(l)}</div>`).join('')}</div>`
       : '';
-    return `<h2 class="gridhead ${r.win ? 'won' : 'lost'}">BOX SCORE ${r.myScore}–${r.oppScore}</h2>
-      ${gridHtml(s, true, lens)}
+    return `<h2 class="gridhead ${r.win ? 'won' : 'lost'}">BOX SCORE ${r.myScore}–${r.oppScore} <span class="venuetag" style="background:var(--r35);color:var(--rbg)">${passName}</span></h2>
+      ${gridHtml(s, false, lens)}
       <div class="botstack">${others}</div>`;
   }
   // THE STANDINGS
@@ -2217,8 +2322,10 @@ function nav(s: GameState): string {
       if (s.scoutActWk) return navGo('PRACTICE', 'to-practice');
       const act = galaxyActById(selScout);
       const grounded = s.groundedWeeks > 0 && act.kind === 'search' && !act.local;
-      const disabled = grounded ? 'GROUNDED' : s.energy < act.cost ? `NEED ${act.cost}¢` : null;
-      return navAction(`▶ ${GX_VERB[act.kind]} — ${act.name}`, disabled ?? gxActSub(act), 'gx-run', 'gx-sheet', { disabled: !!disabled, scoped: galaxyScope(s) !== null });
+      const need = galaxyPickCount(s);
+      const short = need !== null && gxSel.size < need;
+      const disabled = grounded ? 'GROUNDED' : s.energy < act.cost ? `NEED ${act.cost}¢` : short ? `HIGHLIGHT ${need - gxSel.size} MORE NAME${need - gxSel.size === 1 ? '' : 'S'}` : null;
+      return navAction(`▶ ${GX_VERB[act.kind]} — ${act.name}`, disabled ?? gxActSub(act), 'gx-run', 'gx-sheet', { disabled: !!disabled, scoped: need !== null && !short });
     }
     case 'practice': {
       if (s.trainedThisWeek) return navGo('RECRUITING', 'to-recruiting');
@@ -2229,9 +2336,11 @@ function nav(s: GameState): string {
     case 'recruiting': {
       if (s.recruitActWk) return navGo('THE MATCHUP', 'to-matchup');
       const act = galaxyActById(selRecruit);
-      const disabled = s.energy < act.cost ? `NEED ${act.cost}¢` : null;
+      const need = galaxyPickCount(s);
+      const short = need !== null && gxSel.size < need;
+      const disabled = s.energy < act.cost ? `NEED ${act.cost}¢` : short ? `HIGHLIGHT ${need - gxSel.size} MORE NAME${need - gxSel.size === 1 ? '' : 'S'}` : null;
       const verb = act.via === 'booster' ? 'THE BOOSTER' : 'RECRUIT';
-      return navAction(`▶ ${verb} — ${act.name}`, disabled ?? gxActSub(act), 'gx-run', 'gx-sheet', { disabled: !!disabled, scoped: galaxyScope(s) !== null });
+      return navAction(`▶ ${verb} — ${act.name}`, disabled ?? gxActSub(act), 'gx-run', 'gx-sheet', { disabled: !!disabled, scoped: need !== null && !short });
     }
     case 'matchup': {
       if (s.pregameWk) return navMain('PLAY', 'play-game');
@@ -2239,7 +2348,7 @@ function nav(s: GameState): string {
       if (sel.kind === 'instr') {
         const it = instrById(sel.id);
         const cant = s.energy < it.cost;
-        return navAction(`▶ INSTRUCT — ${it.name}`, cant ? `NEED ${it.cost}¢` : `lands: they play −${it.oppAmt} · read: ${it.id === 'takeout' ? 'CAUGHT' : `you play −${it.selfAmt}`}${it.cost ? ` · ${it.cost}¢` : ''}`, 'speech-run', 'speech-sheet', { disabled: cant });
+        return navAction(`▶ INSTRUCT — ${it.name}`, cant ? `NEED ${it.cost}¢` : `they play −${it.oppAmt} · read: ${it.id === 'takeout' ? 'CAUGHT' : `you play −${it.selfAmt}`}${it.cost ? ` · ${it.cost}¢` : ''}`, 'speech-run', 'speech-sheet', { disabled: cant });
       }
       const pl = planById(sel.id);
       return navAction(`▶ SPEECH — ${pl.speech}`, speechSub(pl), 'speech-run', 'speech-sheet');
@@ -2248,7 +2357,11 @@ function nav(s: GameState): string {
       if (!s.lastResult || gnStage === 'beat') return navMain('…', 'noop', true);
       if (gnStage === 'final') return navGo('THE RECAP', 'gn-recap');
       if (gnStage === 'recap') return navGo('THE BOX SCORE', 'gn-verdict');
-      if (gnStage === 'verdict') return navGo('THE STANDINGS', 'gn-table');
+      if (gnStage === 'verdict') {
+        if (boxPass === 0) return navGo('THE XP', 'gn-pass');
+        if (boxPass === 1) return navGo('⚡ & MOOD', 'gn-pass');
+        return navGo('THE STANDINGS', 'gn-table');
+      }
       return navGo('NEXT WEEK', 'continue-result');
     }
     case 'departures': {
@@ -2373,10 +2486,11 @@ function boardConfirmHtml(s: GameState): string {
 function gxResultHtml(s: GameState): string {
   if (!gxResult) return '';
   const t = myTeam(s);
-  // a search is a saucer trip: it flies out first; the verdict scene lands
-  // when the report finishes typing (postRender swaps it)
+  // a search is a trip: the ride heads out first — the saucer for deep
+  // space, the BUS for local runs (the rec center is a drive, not a
+  // launch); the verdict scene lands when the report finishes typing
   const scene = gxResult.art
-    ? `<div class="scenebox" id="gxscene">${sceneHtml('saucer-move', { bg: t.bg, fg: t.fg }, 3)}</div>`
+    ? `<div class="scenebox" id="gxscene">${sceneHtml(gxResult.art.startsWith('bus') ? 'bus-move' : 'saucer-move', { bg: t.bg, fg: t.fg }, 3)}</div>`
     : '';
   return `<div class="modalback gxback" data-action="gx-result-tap"><div class="modal gxmodal">
     <span class="tag">THE TRAIL</span>
@@ -2464,6 +2578,8 @@ function render(): void {
     selScout = 'reccenter';
     selRecruit = 'groupchat';
     selPregame = null;
+    gxSel.clear();
+    boxPass = 0;
     stickerBatches.clear();
   }
 
@@ -2526,9 +2642,12 @@ function render(): void {
   const lensHtml = gridScreen && !ev
     ? lensBar(prospectScreen ? PROSPECT_LENS_NAMES : LENS_NAMES)
     : '';
+  // the bottom stack, rearranged (Aug 29): view tabs FIRST, then the one
+  // big action/continue button, then THE BAG — the tabs change what you
+  // see, the button moves you on, in that reading order
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
     ? `<div class="midwrap"><div class="middle solo">${middle}</div>${overlays}</div>${navHtml}`
-    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${overlays}</div>${navHtml}${lensHtml}${bagBar(state)}`;
+    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${overlays}</div>${lensHtml}${navHtml}${bagBar(state)}`;
 
   // THE ANIMATION BUILD: a screen CHANGE builds in stages — title first (you
   // know where you are), content next, the action button last (you know where
@@ -2750,9 +2869,9 @@ function postRender(): void {
     floatTimers.push(window.setTimeout(() => {
       if (gxResult === r) typewrite(box0 as HTMLElement | null, r.text, () => {
         revealActions();
-        // the saucer lands only at the HOOP (a find); trouble stays airborne —
+        // the ride parks at the HOOP only on a find; trouble stays airborne —
         // the story that follows does the reveal
-        if (r.art === 'saucer-hoop') {
+        if (r.art === 'saucer-hoop' || r.art === 'bus-hoop') {
           const el = document.getElementById('gxscene');
           const t = myTeam(state);
           if (el) el.innerHTML = sceneHtml(r.art as SceneId, { bg: t.bg, fg: t.fg }, 3);
@@ -3248,7 +3367,8 @@ function executeAction(action: string, id: string): void {
       // the score has been seen: everything the horn caused may speak now
       // (the frozen one, the fire going out) — then the recap
       gnStage = 'recap'; clearFloatTimers(); releaseHeldStories(state); break;
-    case 'gn-verdict': gnStage = 'verdict'; clearFloatTimers(); break;
+    case 'gn-verdict': gnStage = 'verdict'; boxPass = 0; clearFloatTimers(); break;
+    case 'gn-pass': boxPass = Math.min(2, boxPass + 1); break;
     case 'gn-table': gnStage = 'table'; clearFloatTimers(); break;
     case 'continue-result': gnStage = 'beat'; clearFloatTimers(); cardDeltas = null; gxStickers = null; liveProg = null; continueFromResult(state); break;
 
@@ -3256,11 +3376,23 @@ function executeAction(action: string, id: string): void {
       const { actId } = boardSel(state);
       const act = galaxyActById(actId);
       lens = 0; // stickers land on the BIG BOARD, wherever you ran it from
-      const out = actionGalaxy(state, actId);
+      const need = galaxyPickCount(state);
+      if (need !== null && gxSel.size < need) break; // highlight your names first
+      const out = actionGalaxy(state, actId, need !== null ? [...gxSel] : undefined);
+      gxSel.clear();
       if (out) {
         if (out.perProspect.size) gxStickers = out.perProspect;
         gxResult = { text: out.text, cost: act.cost, played: false, art: out.art };
       }
+      break;
+    }
+    case 'gx-target': {
+      // a scoped action wants targets: tap toggles the highlight, capped
+      const need = galaxyPickCount(state);
+      if (need === null) break;
+      const pid = Number(id);
+      if (gxSel.has(pid)) gxSel.delete(pid);
+      else if (gxSel.size < need) gxSel.add(pid);
       break;
     }
 
@@ -3269,6 +3401,7 @@ function executeAction(action: string, id: string): void {
     case 'gx-pick': {
       if (galaxyActById(id).kind === 'recruit') selRecruit = id;
       else selScout = id;
+      gxSel.clear(); // a new action wants its own targets
       galaxySheet = false;
       break;
     }

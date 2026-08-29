@@ -1073,7 +1073,7 @@ export function iconOutlinedUrl(kind: IconKind, color = '#7dfc9a'): string {
 // as the player rigs. The team's color is the accent (stripe, fin, tie).
 
 export type SceneId = 'bus-move' | 'bus-stranded' | 'bus-hoop' | 'saucer-move' | 'saucer-stranded' | 'saucer-hoop';
-export type FigureId = 'dean' | 'booster' | 'scoop';
+export type FigureId = 'dean' | 'booster' | 'scoop' | 'janitor' | 'assistant';
 export type FigureMood = 'neutral' | 'worried' | 'mad' | 'elated';
 
 const IL_BODY = '#2e3d74', IL_DARK = '#232c4e', IL_WIN = '#7fd8ec', IL_WHITE = '#e8ecf8',
@@ -1299,6 +1299,61 @@ const REPORTER_MAP = [
   '......ooo.ooo.ooo.........',
   '......ooo.ooo.ooo.........'];
 
+// THE JANITOR (fromDesign/260829): flat cap, grey coveralls, chest patch in
+// team color — the item-giver of THE SUPPLY CLOSET. Face shares the dean's
+// pixel coordinates, so the mood edits are shared too.
+const JANITOR_MAP = [
+  '........cccccccc........',
+  '.......cccccccccc.......',
+  '......cccccccccccc......',
+  '.......cssssssssc.......',
+  '.......cssssssssc.......',
+  '.......ckeksskekc.......',
+  '.......cssssssssc.......',
+  '.......csskksssdc.......',
+  '........ssssssss........',
+  '..........ssss..........',
+  '.........uuuuuu.........',
+  '......uuuuuuuuuuuu......',
+  '....uuuuuuUttUuuuuuu....',
+  '....uu.uuuUttUuuu.uu....',
+  '....uu.uuuuuuuuuu.uu....',
+  '....uu.uuuuUUuuuu.uu....',
+  '....ss.uuuuuuuuuu.ss....',
+  '.......uuuuuuuuuu.......',
+  '.......uuu....uuu.......',
+  '.......uuu....uuu.......',
+  '.......UUu....uUU.......',
+  '......ooo......ooo......',
+  '......ooo......ooo......'];
+
+// THE ASSISTANT COACH (fromDesign/260829): team-color cap and jacket stripe,
+// a whistle on a cord, a clipboard always in hand — the future tutorial voice.
+const ASSISTANT_MAP = [
+  '........tttttttt........',
+  '.......tttttttttt.......',
+  '......tttttttttttt......',
+  '.......tsssssssst.......',
+  '.......tsssssssst.......',
+  '.......tkeksskekt.......',
+  '.......tsssssssst.......',
+  '.......tsskksssdt.......',
+  '........ssssssss........',
+  '..........ssss..........',
+  '.........uuyuuu.........',
+  '......uuuuuyuuuuuu......',
+  '....uuuuutttttuuuuuu....',
+  '....uu.uuutttuuuu.uu....',
+  '....uu.uuuuuuuuuu.uu....',
+  '....uu.uuuuuuuuuu.uu....',
+  '....ss.uuuuuuuuuu.bb....',
+  '.......uuuuuuuuuu.bb....',
+  '.......UUu....uUU.......',
+  '.......UUu....uUU.......',
+  '.......UUu....uUU.......',
+  '......ooo......ooo......',
+  '......ooo......ooo......'];
+
 const DEAN_STATES: Record<FigureMood, PixEdit[]> = {
   neutral: [],
   worried: [[7, 9, 'k'], [7, 12, 'k']],
@@ -1337,6 +1392,15 @@ const REPORTER_CHEER: PixEdit[] = (() => {
   return out;
 })();
 
+const WORKER_CHEER: PixEdit[] = (() => {
+  // arms up: the sleeves leave the sides and rise past the shoulders
+  const out: PixEdit[] = [];
+  for (let y = 13; y <= 16; y++) [4, 5, 18, 19].forEach((x) => out.push([y, x, '.']));
+  ([[11, 'u'], [10, 'u']] as [number, string][]).forEach(([y, ch]) => [4, 5, 18, 19].forEach((x) => out.push([y, x, ch])));
+  [4, 5, 18, 19].forEach((x) => out.push([9, x, 's']));
+  return out;
+})();
+
 function deanPal(acc: string): Record<string, string> {
   return { h: '#b9bec9', s: '#c08a5e', d: '#a06f45', k: '#1a1e2e', e: '#f4f6fa',
     w: '#e8ecf8', u: '#6b4a2f', U: '#4e3520', o: '#3a2a1c', t: acc, y: '#ffd76a' };
@@ -1348,6 +1412,15 @@ function boosterPal(acc: string): Record<string, string> {
 function reporterPal(acc: string): Record<string, string> {
   return { f: '#6b4a2f', s: '#5bc8af', d: '#3fa389', k: '#1a1e2e', e: '#f4f6fa',
     w: '#e8ecf8', u: '#f3903f', U: '#c96f26', o: '#3a2a1c', t: acc, y: '#ffd76a' };
+}
+function janitorPal(acc: string): Record<string, string> {
+  return { c: '#3d5a63', s: '#c08a5e', d: '#a06f45', k: '#1a1e2e', e: '#f4f6fa',
+    u: '#5a6472', U: '#3e4650', t: acc, o: '#26262e', w: '#e8ecf8', y: '#ffd76a' };
+}
+function assistantPal(acc: string): Record<string, string> {
+  return { s: '#8a5a36', d: '#6d4527', k: '#1a1e2e', e: '#f4f6fa',
+    u: '#2e3d74', U: '#232c4e', t: acc, o: '#e8ecf8', b: '#b9bec9',
+    w: '#e8ecf8', y: '#ffd76a' };
 }
 
 function ilDrawMap(R: RFn, map: string[], pal: Record<string, string>, ox: number, oy: number): void {
@@ -1364,7 +1437,7 @@ function ilDrawIcon(R: RFn, x: number, y: number, pat: string[]): void {
 // the dean before the sepia college pediment, the booster on the landing pad
 // with his pink cadillac-ship idling, Scoop in the empty press room under
 // the blinking ON AIR sign.
-const FIGURE_SIZE: Record<FigureId, [number, number]> = { dean: [64, 44], booster: [64, 44], scoop: [64, 44] };
+const FIGURE_SIZE: Record<FigureId, [number, number]> = { dean: [64, 44], booster: [64, 44], scoop: [64, 44], janitor: [64, 44], assistant: [64, 44] };
 
 interface FigState { rows: string[]; shrug: boolean; he: number }
 
@@ -1373,6 +1446,9 @@ function figState(who: FigureId, state: FigureMood, f: number): FigState {
     dean: { base: DEAN_MAP, st: DEAN_STATES, ch: DEAN_CHEER, he: 9, blink: [[5, 9], [5, 14]] as [number, number][] },
     booster: { base: BOOSTER_MAP, st: BOOSTER_STATES, ch: BOOSTER_CHEER, he: 8, blink: null },
     scoop: { base: REPORTER_MAP, st: REPORTER_STATES, ch: REPORTER_CHEER, he: 9, blink: [[5, 9], [5, 12]] as [number, number][] },
+    // the janitor and the assistant share the dean's face coordinates
+    janitor: { base: JANITOR_MAP, st: DEAN_STATES, ch: WORKER_CHEER, he: 9, blink: [[5, 9], [5, 14]] as [number, number][] },
+    assistant: { base: ASSISTANT_MAP, st: DEAN_STATES, ch: WORKER_CHEER, he: 9, blink: [[5, 9], [5, 14]] as [number, number][] },
   }[who];
   const cheer = state === 'elated' && f % 8 < 4;
   const shrug = state === 'mad' && f % 8 < 3;
@@ -1438,6 +1514,40 @@ function drawFigure(R: RFn, who: FigureId, state: FigureMood, acc: string, f: nu
     R(47, 6, 10, 3, f % 6 < 3 ? IL_RED : '#5a2430');
     drawChar(R, figState('scoop', state, f), reporterPal(acc), 24, 14);
     stateFx(R, f, state, 17, 7, 41, 16);
+    return;
+  }
+  if (who === 'janitor') {
+    // THE SUPPLY CLOSET: shelf of boxes, a swinging bulb, the mop and bucket
+    R(0, 0, W, H, '#1c1913');
+    R(0, 40, W, 4, '#141210'); R(0, 40, W, 1, '#2e2a22'); // floor
+    R(2, 8, 24, 2, '#4e4234'); R(2, 22, 24, 2, '#4e4234'); // shelf planks
+    [[3, 3], [10, 2], [17, 4]].forEach(([x, off]) => { R(x, off, 6, 5, '#5a4630'); R(x, off, 6, 1, '#6e5638'); });
+    [[4, 17], [12, 16], [19, 18]].forEach(([x, yy]) => { R(x, yy, 5, 5, '#3e3a4e'); R(x, yy, 5, 1, '#55506a'); });
+    // the hanging bulb, swinging one pixel, flickering warm
+    const bx = 44 + (f % 8 < 4 ? 0 : 1);
+    R(bx, 0, 1, 5, IL_CHROME_D);
+    R(bx - 1, 5, 3, 3, f % 11 === 0 ? '#8a6d47' : IL_FL1);
+    if (f % 11 !== 0) R(bx - 3, 8, 7, 1, 'rgba(255,215,106,0.25)');
+    // the mop leans on the wall; the bucket waits
+    R(56, 12, 1, 26, '#8a5a32'); R(57, 12, 1, 26, '#6d4527');
+    R(54, 36, 5, 4, '#d8dde8'); R(54, 36, 5, 1, '#9aa3b5');
+    R(48, 34, 7, 6, '#4e5a66'); R(48, 34, 7, 1, '#7fd8ec');
+    drawChar(R, figState('janitor', state, f), janitorPal(acc), 20, 15);
+    stateFx(R, f, state, 34, 4, 32, 12);
+    return;
+  }
+  if (who === 'assistant') {
+    // the practice gym: wood floor, a whiteboard mid-diagram, a blinking play
+    R(0, 0, W, 36, '#241f19');
+    R(0, 36, W, 8, '#6e5638'); R(0, 36, W, 1, '#8a6d47'); // hardwood
+    R(3, 4, 24, 18, '#e8ecf8'); R(2, 3, 26, 1, '#4e4234'); R(2, 22, 26, 1, '#4e4234'); // whiteboard
+    // X's, O's and the arrow — the play under construction
+    [[6, 8], [11, 15], [20, 9]].forEach(([x, yy]) => { R(x, yy, 2, 2, '#1a1e2e'); });
+    [[9, 12], [17, 17], [22, 15]].forEach(([x, yy]) => { R(x, yy, 2, 2, '#f36a6a'); });
+    R(8, 6, 10, 1, '#1a1e2e'); R(17, 5, 1, 3, '#1a1e2e');
+    if (f % 6 < 3) R(13, 12, 2, 2, acc); // the option he keeps circling
+    drawChar(R, figState('assistant', state, f), assistantPal(acc), 30, 13);
+    stateFx(R, f, state, 50, 4, 48, 12);
     return;
   }
   // the booster: starfield, landing pad, the pink cadillac-ship idling behind

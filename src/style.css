@@ -18,7 +18,11 @@
      row or the message-bar + action stack. Chrome ≈ header + title + colhead +
      margins + bag + lens + nav. */
   --colw: calc((min(480px, 100vw) - 43px) / 3);
-  --rowh: calc((100dvh - 330px) / 4);
+  /* the chrome budget counts the safe areas too — the two-row bag + lens bar
+     pushed the old 330px guess past the truth on a real iPhone, and the
+     tryout 4th row slid off the screen */
+  --chrome: calc(338px + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
+  --rowh: calc((100dvh - var(--chrome)) / 4);
   --cardh: max(64px, min(var(--colw), var(--rowh)));
 }
 
@@ -384,6 +388,12 @@ button.hold.wiggle::after {
 /* the 4th row is the DOOR: whoever sits there is on the way out */
 .gridrow.cutrow .pcard, .pcard.cutcard { opacity: 0.55; }
 .gridrow.cutrow .rowlabel { color: var(--r55); }
+/* …except when the door row holds the NEW names: they get the stage while
+   the standing board dims behind them */
+.gridrow.foundrow .pcard { opacity: 1; }
+/* a SIGNED recruit: ink is dry — greyed, locked, going nowhere */
+.pcard.signedpr { opacity: 0.6; filter: grayscale(0.55); }
+.kpot.signedink b { color: #5fe07a; font-size: 15px; }
 
 /* the bottom stack grows FROM the bottom: message bar + actions hug the nav */
 .botstack { flex: none; margin-top: auto; display: flex; flex-direction: column; }
@@ -462,8 +472,10 @@ button.hold.wiggle::after {
 /* the ring counter: XP around LVL (players) · commitment (prospects) */
 .kring { position: relative; width: 32px; height: 32px; display: block; background: rgba(0, 0, 0, 0.72); border-radius: 50%; }
 .kring svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
-.krbg { fill: none; stroke: var(--r20); stroke-width: 3.5; }
-.krfill { fill: none; stroke: var(--r75); stroke-width: 3.5; }
+/* the inactive track is nearly black, the filled arc nearly white — the
+   brightness gap must read at a glance, and it didn't */
+.krbg { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 3.5; }
+.krfill { fill: none; stroke: var(--r95); stroke-width: 3.5; }
 .krtxt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; gap: 1px; }
 .krtxt i { font-style: normal; font-size: 6px; letter-spacing: 0.5px; color: var(--r75); }
 .krtxt b { font-size: 11px; color: var(--r95); }
@@ -596,6 +608,8 @@ button.hold.wiggle::after {
   border-top: 1px solid var(--rline);
 }
 .lensbar + .bagbar { border-top: none; padding-top: 0; }
+/* the tabs now sit ABOVE the big button: they share one panel edge */
+.lensbar + .navbar { border-top: none; padding-top: 0; }
 .lensbar .lenstab {
   flex: 1; margin: 0; padding: 5px 2px;
   font-size: 12px; letter-spacing: 1.5px; font-weight: bold;
@@ -942,8 +956,19 @@ button.hold.wiggle::after {
 .tw-line { display: block; width: 100%; }
 .tw-rest { visibility: hidden; }
 .ghost { visibility: hidden; }
-/* a lone beat gets center stage */
-.typebox.beatbox { flex: 1 1 auto; display: flex; align-items: center; font-size: 19px; line-height: 1.55; }
+/* THE STORY FRAME never moves: the art region holds the top of the panel at
+   a fixed height (empty or not), so the illustration always sits in the
+   same place and the words always start under it — between beats, between
+   choices and verdicts, nothing jumps */
+.storyart {
+  flex: none;
+  min-height: 148px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.storyart .scenebox, .storyart .modalcard, .storyart .revealbox { margin-top: 4px; margin-bottom: 4px; }
+.typebox.beatbox { flex: none; font-size: 19px; line-height: 1.55; }
 
 /* ---- the impact: one stat at a time, full focus ---------------------------------- */
 
@@ -1094,33 +1119,42 @@ button.actmain.scopehl { border-color: var(--r95); }
   text-shadow: 0 0 3px #000, 1px 1px 0 #000;
 }
 .numswap.kgrade { font-size: 24px; font-family: Impact, "Arial Black", "Helvetica Neue", sans-serif; }
-/* the position label names where he BELONGS: white = fits, yellow = one
-   column off, red = two off */
-.ovrwrap .klab.poslab { font-size: 8px; letter-spacing: 1.5px; }
-.poslab.fit-ok { color: #fff; }
-.poslab.fit-near { color: #ffd83d; }
-.poslab.fit-far { color: #ff4a3d; animation: blink 1.2s steps(2, start) infinite; }
+/* the position label is his assigned letter (G/F/C) — white is NEUTRAL
+   information; the down-arrows behind it are the mismatch penalty in THIS
+   slot (one per column off, none when his stats carry him there) */
+.ovrwrap .klab.poslab { font-size: 9px; letter-spacing: 1px; color: #fff; }
+.poslab .posarr { font-size: 7px; letter-spacing: 0; margin-left: 1px; }
+.poslab .posarr.near { color: #ffd83d; }
+.poslab .posarr.far { color: #ff4a3d; }
 /* a player OUT: both gauges dark */
 .gauge.goff { opacity: 0.35; }
-/* THE ANCHORED STICKERS: each change blinks on the thing it changed */
+/* THE ANCHORED STICKERS: a bare ± number, no box, blinking BESIDE the thing
+   it changed — ⚡ next to the bolt, MOOD next to the face, +XP beside the
+   ring, ability points under his feet on the left. UP swings green↔white,
+   DOWN swings white↔red. */
 .astick {
   position: absolute;
   z-index: 6;
-  background: #000;
-  border: 1px solid var(--r55);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: bold;
-  padding: 1px 4px;
   white-space: nowrap;
-  animation: stickin 0.3s forwards, blink 1.1s 0.3s steps(2, start) infinite;
+  text-shadow: 0 0 3px #000, 1px 1px 0 #000;
+  animation: stickin 0.3s forwards;
   pointer-events: none;
 }
-.astick.up { color: #5fe07a; border-color: #1f5a2c; }
-.astick.down { color: #ff4a3d; border-color: #5a1d18; }
-.astick.a-ring { right: 2px; bottom: 30px; }
-.astick.a-gl { left: 2px; top: 17px; }
-.astick.a-gr { right: 2px; top: 17px; }
-.astick.a-ovr { left: 2px; bottom: 30px; }
+.astick.up { animation: stickin 0.3s forwards, aup 1.1s 0.3s steps(2, start) infinite; }
+.astick.down { animation: stickin 0.3s forwards, adown 1.1s 0.3s steps(2, start) infinite; }
+@keyframes aup { 0%, 49% { color: #5fe07a; } 50%, 100% { color: #fff; } }
+@keyframes adown { 0%, 49% { color: #fff; } 50%, 100% { color: #ff4a3d; } }
+.astick.a-ring { right: 34px; bottom: 8px; }
+.astick.a-gl { left: 13px; top: 12px; }
+.astick.a-gr { right: 13px; top: 12px; }
+.astick.a-ovr { left: 3px; bottom: 34px; }
+/* the icon beside a swinging number blinks the same verdict */
+.gauge .gicon.dup { animation: iblinku 1.1s steps(2, start) infinite; }
+.gauge .gicon.ddown { animation: iblinkd 1.1s steps(2, start) infinite; }
+@keyframes iblinku { 50% { filter: drop-shadow(0 0 3px #5fe07a) brightness(1.6); } }
+@keyframes iblinkd { 50% { filter: drop-shadow(0 0 3px #ff4a3d) brightness(1.6); } }
 /* THE RECAP: the night's faces over the story */
 .recapfaces { display: flex; justify-content: center; gap: 14px; margin: 6px 0 8px; flex: none; }
 .recapface { display: flex; flex-direction: column; align-items: center; gap: 3px; }
@@ -1146,21 +1180,24 @@ button.actmain.scopehl { border-color: var(--r95); }
 /* the truth card on signing day stands a little larger */
 .modalcard.truth { width: 42%; max-width: 170px; }
 .modalcard.truth .ksvg, .modalcard.truth .klabel, .modalcard.truth .kbl, .modalcard.truth .kbr { opacity: 1; }
-/* CONFETTI: the moments that earn it */
+/* THE STARBURST: zero-g sparkles for the moments that earn them — they
+   twinkle, they drift UP a little, they never land (confetti falls, and
+   falling is for planets) */
 .storypanel.fete { position: relative; overflow: hidden; }
-.confetti { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
-.confetti i {
+.starburst { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.starburst i {
   position: absolute;
-  top: -8px;
-  width: 6px; height: 10px;
-  opacity: 0.9;
-  animation: confall 3s linear infinite;
+  font-style: normal;
+  font-size: 13px;
+  animation: stardrift 4s ease-in-out infinite;
+  text-shadow: 0 0 6px currentColor;
 }
-@keyframes confall {
-  0% { transform: translateY(-10px) rotate(0deg); }
-  100% { transform: translateY(110vh) rotate(720deg); }
+@keyframes stardrift {
+  0%, 100% { opacity: 0; transform: translateY(6px) scale(0.6); }
+  35% { opacity: 1; transform: translateY(-4px) scale(1.15); }
+  70% { opacity: 0.5; transform: translateY(-12px) scale(0.9); }
 }
-.storypanel.fete > *:not(.confetti) { position: relative; z-index: 1; }
+.storypanel.fete > *:not(.starburst) { position: relative; z-index: 1; }
 .gn-final.title b { font-size: 26px; letter-spacing: 4px; text-shadow: 0 0 10px #fff; animation: sglow 1.6s ease-in-out infinite; }
 .tbar.cascbig { animation: cascpop-big 0.7s; }
 .tbar.cascbig .tbv { color: #fff; }

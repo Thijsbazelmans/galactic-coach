@@ -74,9 +74,9 @@ async function main(): Promise<void> {
   drain();
   if (state().phase !== 'scouting') throw new Error(`expected scouting, got ${state().phase}`);
 
-  // the thumb-first bottom stack: nav → lens tabs → the two-row bag, in order
+  // the bottom stack (Aug 29 order): lens tabs → the big button → the bag
   const stack = [...app.querySelectorAll('.navbar, .lensbar, .bagbar')].map((el) => (el as unknown as { className: string }).className.split(' ')[0]);
-  if (stack.join(',') !== 'navbar,lensbar,bagbar') throw new Error(`bottom stack out of order: ${stack.join(',')}`);
+  if (stack.join(',') !== 'lensbar,navbar,bagbar') throw new Error(`bottom stack out of order: ${stack.join(',')}`);
   if (!app.innerHTML.includes('bagbar tworow')) throw new Error('two-row bag missing');
   if (!app.innerHTML.includes('bslot filled notebook tall')) throw new Error('tall notebook slot missing');
   if (app.querySelectorAll('.bslot').length !== 9) throw new Error('expected notebook + 8 item slots');
@@ -213,11 +213,14 @@ async function main(): Promise<void> {
   drain();
   if (!/VICTORY|DEFEAT/.test(app.innerHTML)) throw new Error('recap screen missing');
   if (!app.innerHTML.includes('recapfaces') || !app.innerHTML.includes('GAME MVP')) throw new Error('MVP face missing on the recap');
-  // → the box score grid, the league's results under it, the notebook blinking
+  // → the box score grid in THREE passes (lines → XP → tanks), no dragging
   anyWin.gcAction('gn-verdict', '');
   if (!app.innerHTML.includes('BOX SCORE')) throw new Error('box score screen missing');
   if (!app.innerHTML.includes('GAME MVP')) throw new Error('MVP tag missing on the box-score grid');
-  if (!app.innerHTML.includes('notebook tall pulse')) throw new Error('the notebook should blink on the box score');
+  if (app.querySelector('.grid .pcard.grabbable')) throw new Error('the box score should not allow rearranging');
+  if (app.innerHTML.includes('notebook tall pulse')) throw new Error('the notebook must not blink for note-taking (only for answers)');
+  anyWin.gcAction('gn-pass', ''); // → BANKED XP
+  anyWin.gcAction('gn-pass', ''); // → ⚡ & MOOD
   // → the standings → NEXT WEEK
   anyWin.gcAction('gn-table', '');
   if (!app.innerHTML.includes('THE STANDINGS')) throw new Error('standings screen missing');

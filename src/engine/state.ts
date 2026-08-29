@@ -49,13 +49,16 @@ import {
   genWalkOn,
   newGameState,
   observe,
+  posFor,
   prospectToPlayer,
   stipendFor,
   xpNeed,
 } from './gen';
 import {
+  POS_LETTERS,
   autoLineup,
   benchPlayers,
+  checkPosChange,
   floorAvg,
   matchAttrs,
   normalizeLineup,
@@ -164,6 +167,12 @@ export function load(): GameState | null {
     }
     s.knownInstr = s.knownInstr ?? ['counter'];
     if (!s.knownInstr.includes('counter')) s.knownInstr.push('counter');
+    // positions arrived mid-version: older saves get them assigned from the body
+    for (const t of s.teams) for (const p of t.players) if (p.pos === undefined) p.pos = posFor(p);
+    for (const pr of s.prospects) if (pr.pos === undefined) pr.pos = posFor(pr);
+    for (const pr of s.pendingRecruits) if (pr.pos === undefined) pr.pos = posFor(pr);
+    for (const p of s.selectPool) if (p.pos === undefined) p.pos = posFor(p);
+    for (const p of s.commits) if (p.pos === undefined) p.pos = posFor(p);
     return s;
   } catch {
     return null;
@@ -645,6 +654,10 @@ function startWeek(s: GameState): void {
   const later: StoryReq[] = [];
   const defer: StoryDefer = (defId, beat, playerId, data = {}) => later.push({ defId, beat, playerId, data });
 
+  // THE WEEKLY BUDGET opens every home week: the dean, the envelope, the
+  // reminder of whose school this is (tournament weeks are on the road)
+  if (!isUtWeek(s)) defer('dean_budget', 'start', null, { amt: stipendFor(s.season) });
+
   s.weekRecap = [];
   for (const team of s.teams) {
     const mine = team.id === s.myTeamId;
@@ -664,16 +677,27 @@ function startWeek(s: GameState): void {
       // THE WEEKEND BUMP: everyone recovers hard toward the 75 baseline —
       // but the bump SHRINKS with every consecutive start (streak 1 → +40,
       // 2 → +28, 3 → +16 …). Stack your starters and the tank stops filling.
+      // A body that DIDN'T play blows past the baseline — a week in street
+      // clothes can fill the tank to 100: sitting someone out is a real
+      // COACHING move, so it's yours alone (the AI's perfect-rotation
+      // autopilot would milk it harder than any human could).
       const preE = p.energy;
       const preM = p.mood;
       const streak = p.startStreak ?? 0;
       const rec = Math.max(8, 40 - 12 * Math.max(0, streak - 1));
-      p.energy = p.energy < METER_BASELINE
-        ? Math.min(METER_BASELINE, p.energy + rec)
-        : Math.max(METER_BASELINE, p.energy - 2);
+      if (mine && p.dnp > 0 && p.outWeeks === 0) {
+        p.energy = Math.min(100, p.energy + 45 + rand(16));
+      } else {
+        p.energy = p.energy < METER_BASELINE
+          ? Math.min(METER_BASELINE, p.energy + rec)
+          : Math.max(METER_BASELINE, p.energy - 2);
+      }
+      // college kids are MOODY: the drift home is stingy on the way up,
+      // quicker on the way down — and any given Monday can just be a bad one
       p.mood = p.mood < METER_BASELINE
-        ? Math.min(METER_BASELINE, p.mood + 5)
-        : Math.max(METER_BASELINE, p.mood - 3);
+        ? Math.min(METER_BASELINE, p.mood + 4)
+        : Math.max(METER_BASELINE, p.mood - 5);
+      if (roll(25)) p.mood = clamp(p.mood - (2 + rand(6)), 0, 100);
       if (team.id === s.myTeamId) {
         s.weekRecap.push({
           playerId: p.id,
@@ -700,9 +724,10 @@ function startWeek(s: GameState): void {
   }
 
   // kids notice silence — and the LAST RESORTS row can tell it's the last
-  // resorts row: commitment decays twice as fast down there
+  // resorts row: commitment decays twice as fast down there. Ink doesn't
+  // wane: a SIGNED name stays signed.
   s.prospects.forEach((pr, ix) => {
-    pr.commitPct = Math.max(0, pr.commitPct - (ix >= 6 ? COMMIT_DECAY * 2 : COMMIT_DECAY));
+    if (!pr.signed) pr.commitPct = Math.max(0, pr.commitPct - (ix >= 6 ? COMMIT_DECAY * 2 : COMMIT_DECAY));
     if (pr.bannedWeeks > 0) pr.bannedWeeks--;
   });
 
@@ -725,7 +750,7 @@ function startWeek(s: GameState): void {
     const champ = utOpponent(s);
     if (champ) {
       defer('bigbang_round', 'start', null, {
-        round: s.ut.round, opp: champ.name.toUpperCase(), gimmick: champ.gimmick, plan: planById(champ.plan).name,
+        round: s.ut.round, opp: champ.name.toUpperCase(), gimmick: champ.gimmick, planId: champ.plan,
       });
     }
   } else {
@@ -796,6 +821,17 @@ export function beginWeek(s: GameState): void {
         text: `${p.name} is back from ${p.outReason || 'the long absence'} and cleared to play. The first dunk back is always the loudest.`,
       });
       p.outReason = '';
+    }
+  }
+  // THE RETRAINING: numbers that outgrow the label rewrite it — a forward
+  // with guard brains becomes a G who can also play F, penalty-free both ways
+  for (const p of t.players) {
+    const c = checkPosChange(p);
+    if (c !== null) {
+      queueStory(s, 'notice', 'start', p.id, {
+        tag: 'POSITION CHANGE',
+        text: `The staff makes it official: ${p.name} plays ${POS_LETTERS[c]} now — his numbers have been saying it for weeks. The ${POS_LETTERS[p.pos2 ?? c]} spot stays in his pocket: he plays both without a step lost.`,
+      });
     }
   }
   normalizeLineup(t);
@@ -954,18 +990,23 @@ export interface GalaxyResult {
   text: string;
   /** per-prospect stickers for the board (+the commit ring's change delta) */
   perProspect: Map<number, { text: string; up?: boolean; commitFrom?: number }[]>;
-  /** search trips show the saucer: it flies out, then lands the verdict */
-  art?: 'saucer-hoop' | 'saucer-stranded' | 'saucer-move';
+  /** search trips show the ride: the saucer for deep space, the bus for
+      local trips (the rec center is a drive, not a launch) */
+  art?: 'saucer-hoop' | 'saucer-stranded' | 'saucer-move' | 'bus-hoop';
 }
 
 /** Reveal one unrevealed facet of a prospect. Returns the sticker, or null when
     everything is already known. */
 function revealFacet(pr: Prospect): { text: string; up?: boolean } | null {
-  // three looks and you know him: a digit, the other digit, then the whole
-  // shape — abilities AND ceiling, exact. No clouds in between.
+  // four looks and you know him: a digit, the other digit, his POSITION,
+  // then the whole shape — abilities AND ceiling, exact. No clouds between.
   if (pr.digits < 2) {
     pr.digits = (pr.digits + 1) as 0 | 1 | 2;
     return { text: pr.digits >= 2 ? 'THE NUMBER' : 'A DIGIT', up: true };
+  }
+  if (!pr.seenPos) {
+    pr.seenPos = true;
+    return { text: 'HIS SPOT', up: true };
   }
   if (!pr.seenSkill || !pr.seenPot) {
     pr.seenSkill = true;
@@ -978,10 +1019,13 @@ function revealFacet(pr: Prospect): { text: string; up?: boolean } | null {
 }
 
 /** A NEW NAME never arrives a total stranger: one thing is known on
-    discovery — a digit of the rating (two in three) or the ceiling stars. */
+    discovery — a digit of the rating (two in three), the ceiling stars,
+    or his position (the sprite half gives it away anyhow). */
 function discoveryReveal(pr: Prospect): void {
   if (roll(67) || pr.digits >= 2) {
     pr.digits = Math.min(2, pr.digits + 1) as 0 | 1 | 2;
+  } else if (roll(50)) {
+    pr.seenPos = true;
   } else {
     pr.seenPot = true;
   }
@@ -993,15 +1037,18 @@ function discoveryReveal(pr: Prospect): void {
 function revealAll(pr: Prospect): void {
   pr.seenSkill = true;
   pr.seenPot = true;
+  pr.seenPos = true;
   pr.digits = 2;
   pr.scoutLevel = Math.max(pr.scoutLevel, 4);
   observe(pr);
 }
 
-/** ONE move per section, always the whole board: SCOUTING (search for new
-    names / sharpen the known ones) and RECRUITING (your own charm / the
-    booster's radioactive help) are separate weekly stops now. */
-export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
+/** ONE move per section: SCOUTING (search for new names / sharpen the known
+    ones) and RECRUITING (your own charm / the booster's radioactive help)
+    are separate weekly stops. A scoped action (3/6) works the names YOU
+    highlighted; with no picks it falls back to the rows top-down (the
+    harness still plays by priority). */
+export function actionGalaxy(s: GameState, actId: string, targetIds?: number[]): GalaxyResult | null {
   const act = galaxyActById(actId);
   if (s.pendingRecruits.length) return null;
   if (act.kind === 'recruit') {
@@ -1020,10 +1067,15 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
   let text: string;
   let art: GalaxyResult['art'];
   const r = Math.random() * 100;
-  // THE PRIORITY BOARD: the action reads the rows top-down — all 9, the top
-  // 6, or the TARGETS row alone
-  const scoped = s.prospects.slice(0, act.scope ?? 9);
-  const scopeWord = act.scope === 3 ? 'THE TARGETS' : act.scope === 6 ? 'the top six' : 'all nine';
+  // the working set: your highlighted names, or the rows top-down
+  const picked = targetIds?.length
+    ? s.prospects.filter((pr) => targetIds.includes(pr.id))
+    : s.prospects.slice(0, act.scope ?? 9);
+  // ink is ink: a SIGNED name needs no charming (scouting him still works)
+  const scoped = act.kind === 'recruit' ? picked.filter((pr) => !pr.signed) : picked;
+  const scopeWord = targetIds?.length
+    ? scoped.length === 1 ? 'the one you picked' : `the ${scoped.length} you picked`
+    : act.scope === 3 ? 'THE TARGETS' : act.scope === 6 ? 'the top six' : 'all nine';
 
   if (act.kind === 'scout') {
     let revealed = 0;
@@ -1065,6 +1117,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
   } else if (act.kind === 'recruit') {
     let ups = 0;
     let downs = 0;
+    const soured: Prospect[] = [];
     for (const pr of scoped) {
       if (pr.bannedWeeks > 0) {
         per.set(pr.id, [{ text: 'NO CONTACT', up: false }]);
@@ -1076,6 +1129,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
         pr.commitPct = clamp(pr.commitPct - d, 0, 95);
         per.set(pr.id, [{ text: `COMMITMENT −${d}`, up: false, commitFrom }]);
         downs++;
+        soured.push(pr);
       } else {
         const g = act.gain![0] + rand(act.gain![1] - act.gain![0] + 1);
         pr.commitPct = clamp(pr.commitPct + g, 0, 95);
@@ -1083,7 +1137,11 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
         ups++;
       }
     }
-    text = `${act.name}: ${scopeWord === 'all nine' ? 'the whole board hears' : `${scopeWord} hear`} from you. ${ups} name${ups === 1 ? '' : 's'} lean${ups === 1 ? 's' : ''} in${downs ? `, ${downs} lean${downs === 1 ? 's' : ''} away` : ''}.`;
+    text = `${act.name}: ${scopeWord === 'all nine' ? 'the whole board hears' : `${scopeWord} hear${scoped.length === 1 ? 's' : ''}`} from you. ${ups} name${ups === 1 ? '' : 's'} lean${ups === 1 ? 's' : ''} in${downs ? `, ${downs} lean${downs === 1 ? 's' : ''} away` : ''}.`;
+    // a lean AWAY is a story, not a sticker: each soured name knocks
+    for (const pr of soured) {
+      queueStory(s, 'lean_away', 'start', null, { prospectId: pr.id, name: pr.name, prForm: pr.form });
+    }
     if (r < act.down.pct) {
       if (act.down.cls === 'SCANDAL') {
         // the booster's PLAUSIBLE DENIABILITY: half the time his name is on
@@ -1117,7 +1175,9 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
     const found: Prospect[] = [genProspect(counter, s.season, act.id, names)];
     if (act.twoChance && roll(act.twoChance)) found.push(genProspect(counter, s.season, act.id, names));
     s.nextId = counter.nextId;
-    art = 'saucer-hoop'; // the saucer parks by a court and watches
+    // the ride matches the trip: local searches take the bus (the rec
+    // center is a drive, not a launch); deep space takes the saucer
+    art = act.local ? 'bus-hoop' : 'saucer-hoop';
     for (const pr of found) discoveryReveal(pr);
     text = `${act.name}: ${found.map((p) => `${p.name}, a ${speciesById(p.speciesId).name}`).join(' — and ')} steps into the light.`;
     for (const pr of found) {
@@ -1129,7 +1189,15 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
       }
     }
     if (s.pendingRecruits.length) {
-      text += ' The board is FULL — take the new name on and somebody gets forgotten forever, or let the new one walk.';
+      // the full-board rules read ONCE (tutorial voice); after that the
+      // trail talks about the kid instead
+      if (!s.tipsSeen.includes('boardfull')) {
+        s.tipsSeen.push('boardfull');
+        text += ' The board is FULL — take the new name on and somebody gets forgotten forever, or let the new one walk.';
+      } else {
+        const fresh = s.pendingRecruits[s.pendingRecruits.length - 1];
+        text += ` Word from the bleachers: "${fresh.blurb}"`;
+      }
     }
     if (act.id === 'reccenter' && r < act.down.pct) {
       // kids notice where you went looking
@@ -1178,6 +1246,8 @@ export function swapBoardSlot(s: GameState, from: number, to: number): void {
   const a = get(from);
   const b = get(to);
   if (!a && !b) return;
+  // ink is ink: a SIGNED name cannot be moved off the board
+  if ((a?.signed || b?.signed) && (from >= 9 || to >= 9)) return;
   const set = (i: number, pr: Prospect | null): void => {
     if (i < 9) {
       if (pr) s.prospects[i] = pr;
@@ -1474,13 +1544,16 @@ function aiPostGame(t: Team, won: boolean): void {
       p.energy = clamp(p.energy - (30 + rand(29)), 0, 100);
       p.mood = clamp(p.mood + (won ? 8 : -3), 0, 100);
       p.startStreak = (p.startStreak ?? 0) + 1;
+      p.dnp = 0;
     } else if (bn.has(p.id)) {
       p.energy = clamp(p.energy - (16 + rand(15)), 0, 100);
       p.mood = clamp(p.mood + (won ? 5 : -5), 0, 100);
       p.startStreak = 0;
+      p.dnp = 0;
     } else {
       p.mood = clamp(p.mood + (won ? 2 : -8), 0, 100);
       p.startStreak = 0;
+      p.dnp++; // their benches breathe on the same Mondays mine do
     }
     // the other gyms have hot nights too: the STANDOUT drip lands league-wide
     if (floor && roll(10)) bumpAny(p, 1);
@@ -1796,10 +1869,15 @@ function endSeason(s: GameState, utNote: string | null): void {
   // THE RUBBER BAND eases: a season without a tournament WIN (missed it, or
   // out in the first round) lets the field relax a notch
   if (!utNote && (!s.ut || s.ut.round === 0)) s.fieldShift = Math.max(FIELD_MIN, (s.fieldShift ?? 0) - FIELD_EASE);
+  // the standings line knows whether you actually RODE the shuttle: a
+  // runner-up who played the tournament doesn't get scolded about missing it
+  const rode = !!utNote || !!s.ut;
   s.seasonNotes.push(
     place === 1
       ? `You finished FIRST (${t.wins}–${t.losses}).`
-      : `You finished ${place}${['','st','nd','rd'][place] ?? 'th'} (${t.wins}–${t.losses}). Only the top two board the shuttle to ${TOURNEY.name}. The boosters know that too.`
+      : rode
+        ? `Regular season: ${place}${['','st','nd','rd'][place] ?? 'th'} (${t.wins}–${t.losses}) — the second shuttle carried you to ${TOURNEY.name}.`
+        : `You finished ${place}${['','st','nd','rd'][place] ?? 'th'} (${t.wins}–${t.losses}). Only the top two board the shuttle to ${TOURNEY.name}. The boosters know that too.`
   );
   if (!s.ut && place > 1) s.careerLog.push(`Season ${s.season}: finished ${place}.`);
   s.ut = null;
@@ -1937,20 +2015,29 @@ export function toSigning(s: GameState): void {
 
 export function toggleProspect(s: GameState, id: number): void {
   const pr = s.prospects.find((x) => x.id === id);
-  if (pr) pr.selected = !pr.selected;
+  if (pr && !pr.signed) pr.selected = !pr.selected;
   save(s);
 }
 
+/** The letter ladder — SIGNED names are outside it: their ink is dry. */
 export function effectiveChances(s: GameState): { prospect: Prospect; pct: number }[] {
   return s.prospects
-    .filter((p) => p.selected)
+    .filter((p) => p.selected && !p.signed)
     .sort((a, b) => b.commitPct - a.commitPct)
     .map((prospect, i) => ({ prospect, pct: Math.max(0, prospect.commitPct - (SIGNING_PENALTIES[i] ?? 95)) }));
 }
 
 export function resolveSigning(s: GameState): void {
-  // one holo-call per name: the wheel decides, the card shows the whole
-  // truth for the first time — signed or not
+  // the blank-check names first: no wheel, no ladder — the ink was dry weeks ago
+  for (const prospect of s.prospects.filter((p) => p.signed)) {
+    s.commits.push(prospectToPlayer(prospect));
+    s.signingResults.push(`✓ ${prospect.name} signed weeks ago`);
+    queueStory(s, 'signing_verdict', 'start', null, {
+      prospectId: prospect.id, name: prospect.name, commit: true, pct: 100, alumForm: prospect.form,
+    });
+  }
+  // then one holo-call per letter: the wheel decides, the card shows the
+  // whole truth for the first time — signed or not
   for (const { prospect, pct } of effectiveChances(s)) {
     const commit = Math.random() * 100 < pct;
     if (commit) {
@@ -1989,6 +2076,7 @@ export function resolveSigning(s: GameState): void {
     p.energy = METER_BASELINE - 3 + rand(9);
     p.mood = clamp(p.mood + 15, 60, 85);
     p.outWeeks = 0; p.outReason = ''; p.dnp = 0; p.startStreak = 0;
+    checkPosChange(p); // a summer's growth can rewrite the label quietly
     s.summerRecap.push({ playerId: p.id, ovrFrom, note: leaned ? 'LEANED IN' : undefined });
   }
 

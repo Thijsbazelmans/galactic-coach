@@ -158,6 +158,15 @@ function currentFromPots(pots: AttrRec, level: number): AttrRec {
   return attrs;
 }
 
+/** POSITION is assigned at generation, from the body with some drift:
+    short kids grow up guards, tall ones centers — mostly. The drift is
+    where the 190cm center and the 200cm point guard come from. */
+export function posFor(b: { heightCm: number }): number {
+  const base = b.heightCm < 183 ? 0 : b.heightCm < 197 ? 1 : 2;
+  if (Math.random() < 0.22) return clamp(base + (Math.random() < 0.5 ? -1 : 1), 0, 2);
+  return base;
+}
+
 /** Nimbus, gelid and robota are genderless — they/them. */
 const X_SPECIES = new Set(['nimbus', 'gelid', 'robota']);
 
@@ -205,6 +214,7 @@ export function genPlayer(counter: { nextId: number }, bandShift: number, classY
   const level = Math.round(levelForClass(cy) * levelScale);
   const pots = distribute(spId, rollPotOvr(spId, bandShift, luck));
   const attrs = currentFromPots(pots, level);
+  const body = rollBody(spId);
   return {
     id: counter.nextId++,
     name: genName(taken),
@@ -212,7 +222,8 @@ export function genPlayer(counter: { nextId: number }, bandShift: number, classY
     classYear: cy,
     form: formFor(spId),
     jersey: rand(56),
-    ...rollBody(spId),
+    ...body,
+    pos: posFor(body),
     attrs,
     pots,
     startAttrs: copyAttrs(attrs),
@@ -255,6 +266,7 @@ export function genPlayerAt(counter: { nextId: number }, target: number, classYe
   }
   const frac = ovr(attrs) / Math.max(1, ovr(pots));
   const level = clamp(Math.round((frac - 0.32) / 0.065), 0, LEVEL_CAP);
+  const body = rollBody(spId);
   return {
     id: counter.nextId++,
     name: genName(taken),
@@ -262,7 +274,8 @@ export function genPlayerAt(counter: { nextId: number }, target: number, classYe
     classYear: cy,
     form: formFor(spId),
     jersey: rand(56),
-    ...rollBody(spId),
+    ...body,
+    pos: posFor(body),
     attrs,
     pots,
     startAttrs: copyAttrs(attrs),
@@ -366,12 +379,14 @@ export function genProspect(counter: { nextId: number }, _seasonNo: number, sear
   const level = 2 + rand(3);
   const attrs = currentFromPots(pots, level);
   const form = formFor(spId);
+  const body = rollBody(spId);
   const pr: Prospect = {
     id: counter.nextId++,
     name: genName(taken),
     speciesId: spId,
     form,
-    ...rollBody(spId),
+    ...body,
+    pos: posFor(body),
     attrs,
     pots,
     level,
@@ -402,6 +417,7 @@ export function prospectToPlayer(pr: Prospect): Player {
     jersey: rand(56),
     heightCm: pr.heightCm,
     weightKg: pr.weightKg,
+    pos: pr.pos ?? posFor(pr),
     attrs: copyAttrs(pr.attrs),
     pots: copyAttrs(pr.pots),
     startAttrs: copyAttrs(pr.attrs),

@@ -210,7 +210,7 @@ export const PLANS: PlanDef[] = [
   { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', kind: 'shift', attr: 'ath', off: 'skl', gain: [3, 4], loss: [3, 4], scene: 'They bench-press the cheerleaders while you talk. The cheerleaders seem fine with it.', fantasy: 'Outrun everything. Seven seconds or less. Nobody said anything about making shots.' },
   { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', kind: 'shift', attr: 'frc', off: 'brn', gain: [3, 4], loss: [3, 4], scene: 'Somebody headbutts a locker, lovingly. Then somebody else does. The locker will need replacing.', fantasy: 'Full-court terror. Make them hate the ball. Thinking is for the bus ride home.' },
   { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', kind: 'shift', attr: 'brn', off: 'frc', gain: [3, 4], loss: [3, 4], scene: 'A quiet confidence settles over the room. Is someone humming "ohm"? Are they ALL?', fantasy: 'The system. Every cut scripted. Nobody gets angry, nobody gets a steal.' },
-  { id: 'rally', name: 'THE RALLY', speech: 'THIS IS OUR HOUSE', kind: 'rally', attr: 'skl', off: 'skl', gain: [0, 0], loss: [0, 0], scene: 'You get them riled up. It either takes or it doesn\'t.', fantasy: 'No X\'s, no O\'s — just the roof, and whether it stays on. A coin flip on morale; a sliver of chance it goes very right, or very wrong.' },
+  { id: 'rally', name: 'THE RALLY', speech: 'THIS IS OUR HOUSE', kind: 'rally', attr: 'skl', off: 'skl', gain: [0, 0], loss: [0, 0], scene: 'Chairs scrape back. Somebody starts pounding a locker in rhythm, and the rhythm spreads.', fantasy: 'No X\'s, no O\'s — just the roof, and whether it stays on. A coin flip on morale; a sliver of chance it goes very right, or very wrong.' },
   { id: 'easy', name: 'TAKE IT EASY', speech: 'SAVE SOMETHING FOR NEXT WEEK', kind: 'easy', attr: 'ath', off: 'ath', gain: [0, 0], loss: [0, 0], scene: 'Nods. Somebody yawns, on purpose. The starters stretch like it\'s a Tuesday.', fantasy: 'Coast tonight: the floor players burn far less energy, and you play a little softer for it. Lose, and a coasting room takes it badly.' },
   // premium speeches — found in stories: a better trade, 3-week recharge
   { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', kind: 'shift', attr: 'frc', off: 'brn', gain: [5, 6], loss: [2, 3], scene: 'The chant goes up in old Quadran. The paint on the far wall peels a little.', fantasy: 'An old Quadran battle chant. The paint peels.', premium: true, cooldown: 3 },
@@ -289,9 +289,14 @@ export const ATTR_LABEL: Record<Attr, string> = {
 export const ATTR_SHORT: Record<Attr, string> = {
   skl: 'SKL', ath: 'ATH', frc: 'FRC', brn: 'BRN',
 };
-/** The box-score stat each attribute drives (one system everywhere). */
+/** The box-score stat each attribute drives (one system everywhere):
+    skilled players score, fierce ones rebound, athletes steal, brains assist. */
 export const ATTR_STAT: Record<Attr, 'pts' | 'reb' | 'stl' | 'ast'> = {
-  skl: 'pts', ath: 'reb', frc: 'stl', brn: 'ast',
+  skl: 'pts', ath: 'stl', frc: 'reb', brn: 'ast',
+};
+/** Stats spelled out — display language, never column shorthand. */
+export const STAT_WORD: Record<'pts' | 'reb' | 'stl' | 'ast', string> = {
+  pts: 'points', reb: 'rebounds', stl: 'steals', ast: 'assists',
 };
 
 // ---- the drill board -----------------------------------------------------------
@@ -887,6 +892,10 @@ export const ITEMS: ItemDef[] = [
     effectText: 'one recruit falls in love with campus: commitment +25%',
     context: ['recruiting'],
     target: 'prospect',
+    check: (ctx) => {
+      const pr = ctx.s.prospects.find((x) => x.id === ctx.data.prospectId);
+      return pr?.signed ? 'he already signed — he lives here now' : null;
+    },
     up: { pct: 5, cls: 'INTEL' },
     down: { pct: 25, cls: 'DRAMA' },
     use: (ctx) => {
@@ -903,6 +912,7 @@ export const ITEMS: ItemDef[] = [
       if (t === 'up') {
         pr.seenSkill = true;
         pr.seenPot = true;
+        pr.seenPos = true;
         pr.digits = 2;
         pr.scoutLevel = 4;
         pr.seenAttrs = { ...pr.attrs };
@@ -1138,6 +1148,7 @@ export const ITEMS: ItemDef[] = [
       if (!pr) return { text: 'You raise the lens to the board. You already know everything it could tell you.' };
       pr.seenSkill = true;
       pr.seenPot = true;
+      pr.seenPos = true;
       pr.digits = 2;
       pr.scoutLevel = 4;
       pr.seenAttrs = { ...pr.attrs };
@@ -1151,26 +1162,94 @@ export const ITEMS: ItemDef[] = [
     name: "BOOSTER'S BLANK CHECK",
     rarity: 'rare',
     flavor: 'The amount is blank. The strings are not.',
-    effectText: 'one recruit signs. Today.',
+    effectText: 'one recruit SIGNS. Today. Ink, done, no letter needed.',
     context: ['recruiting'],
     target: 'prospect',
+    check: (ctx) => {
+      const pr = ctx.s.prospects.find((x) => x.id === ctx.data.prospectId);
+      return pr?.signed ? 'that ink is already dry' : null;
+    },
     up: { pct: 2, cls: 'LOOT' },
     down: { pct: 25, cls: 'SCANDAL' },
     use: (ctx) => {
       const pr = ctx.data.prospectId !== undefined
         ? ctx.s.prospects.find((x) => x.id === ctx.data.prospectId)
-        : [...ctx.s.prospects].sort((a, b) => ovr(b.pots) - ovr(a.pots))[0];
+        : [...ctx.s.prospects].filter((x) => !x.signed).sort((a, b) => ovr(b.pots) - ovr(a.pots))[0];
       if (!pr) return { text: 'Nobody to buy. The check flutters, unspent.' };
+      // he signs THEN AND THERE: locked on the board until signing day
       pr.commitPct = 100;
       pr.selected = true;
+      pr.signed = true;
       const t = tails(2, 25);
       if (t === 'down') {
         return {
-          text: `${pr.name} signs on the spot. So does the check — into a league evidence folder, eventually. You can feel the investigation coming like weather.`,
+          text: `${pr.name} signs on the spot — pen still warm, letter of intent framed by dinnertime. So does the check: into a league evidence folder, eventually. You can feel the investigation coming like weather.`,
           follow: [{ weeks: 4, beat: 'start', defId: 'check_probe', playerId: null }],
         };
       }
-      return { text: `${pr.name} signs on the spot. The booster winks at you across the parking lot for an uncomfortably long time.` };
+      return { text: `${pr.name} signs on the spot. Done. Sealed. Nothing wanes, nothing waits for signing day. The booster winks at you across the parking lot for an uncomfortably long time.` };
+    },
+  },
+  // the commitment boosters: a CHUNK now, and chunks can wane — two weights
+  {
+    id: 'pledge',
+    short: 'PLEDG',
+    name: "BOOSTER'S PLEDGE",
+    rarity: 'common',
+    flavor: 'A handshake, a promise, a hat with your logo already on it.',
+    effectText: 'one recruit: commitment +20% (it can still wane)',
+    context: ['recruiting'],
+    target: 'prospect',
+    check: (ctx) => {
+      const pr = ctx.s.prospects.find((x) => x.id === ctx.data.prospectId);
+      return pr?.signed ? 'he already signed — nothing left to pledge' : null;
+    },
+    up: { pct: 5, cls: 'SPIRIT' },
+    down: { pct: 5, cls: 'DRAMA' },
+    use: (ctx) => {
+      const pr = ctx.data.prospectId !== undefined
+        ? ctx.s.prospects.find((x) => x.id === ctx.data.prospectId)
+        : ctx.s.prospects.filter((x) => !x.signed)[0];
+      if (!pr) return { text: 'Nobody to pledge to. The hat stays in the box.' };
+      const t = tails(5, 5);
+      if (t === 'down') {
+        pr.commitPct = clamp(pr.commitPct + 8, 0, 95);
+        return { text: `${pr.name} takes the pledge politely — and posts the hat on a resale stream an hour later. Commitment +8%, dignity −some.` };
+      }
+      pr.commitPct = clamp(pr.commitPct + (t === 'up' ? 28 : 20), 0, 95);
+      return { text: t === 'up'
+        ? `${pr.name} wears the hat to school the next day. THE HAT IS WORKING. Commitment +28%.`
+        : `${pr.name} shakes on it and keeps the hat. Commitment +20% — for now. Commitments wane; hats fade.` };
+    },
+  },
+  {
+    id: 'warchest',
+    short: 'CHEST',
+    name: 'THE WAR CHEST',
+    rarity: 'rare',
+    flavor: 'A crate of "recruiting materials". It clinks.',
+    effectText: 'one recruit: commitment +40% (it can still wane)',
+    context: ['recruiting'],
+    target: 'prospect',
+    check: (ctx) => {
+      const pr = ctx.s.prospects.find((x) => x.id === ctx.data.prospectId);
+      return pr?.signed ? 'he already signed — save the chest' : null;
+    },
+    up: { pct: 5, cls: 'SPIRIT' },
+    down: { pct: 10, cls: 'SCANDAL' },
+    use: (ctx) => {
+      const pr = ctx.data.prospectId !== undefined
+        ? ctx.s.prospects.find((x) => x.id === ctx.data.prospectId)
+        : ctx.s.prospects.filter((x) => !x.signed)[0];
+      if (!pr) return { text: 'Nobody to impress. The chest clinks, unopened.' };
+      const t = tails(5, 10);
+      pr.commitPct = clamp(pr.commitPct + (t === 'up' ? 50 : 40), 0, 95);
+      if (t === 'down') {
+        return { text: `${pr.name} leans WAY in — and so does a league auditor who counted the crates on the loading dock. Commitment +40%.`, fx: [{ heatS: 8 }] };
+      }
+      return { text: t === 'up'
+        ? `The chest opens. ${pr.name}'s whole holo-feed is your program for a week. Commitment +50%.`
+        : `The chest opens. ${pr.name} leans in hard. Commitment +40% — a chunk, not a signature. Chunks can wane.` };
     },
   },
 ];
@@ -1325,6 +1404,21 @@ export const CHAMP_NAMES = [
   ['Thrace-7', 'Plasma Prophets'], ['Ummber', 'Dust Devils'], ['Neon Roa', 'Lightbenders'],
 ];
 
+/** The scout's read on a champion, by the speech they live in — written the
+    way a scout talks after three redeyes and too much station coffee. */
+export const CHAMP_STYLE: Record<PlanId, string[]> = {
+  showtime: ['they shoot from the parking lot, and the parking lot is in orbit', 'every possession ends in a shot that should be illegal and isn\'t'],
+  rungun: ['they run you back to last Tuesday', 'their warmup lap lapped our shuttle'],
+  lockdown: ['they steal your dribble, your lunch, and one of my pens', 'my clipboard came back with a bruise'],
+  clockwork: ['they\'ve read your playbook, your diary, and your mind, in that order', 'they run one play 94 ways and apologize for none of them'],
+  warcry: ['the chant alone is worth six points', 'they warm up by headbutting the stanchion'],
+  zenmind: ['they play so calm the shot clock relaxes', 'I fell asleep scouting them. I woke up down 12'],
+  stardust: ['their handles have handles', 'the ball never touched the floor. I timed it'],
+  engine: ['their legs don\'t know what a fourth quarter is', 'they pressed me on the way to my seat'],
+  rally: ['their locker room can be heard from the next system', 'their morale has its own gravity well'],
+  easy: ['they coast until they don\'t, and then it\'s over', 'they save everything for the exact minute you relax'],
+};
+
 export const CHAMP_GIMMICKS = [
   'undefeated in three galaxies',
   'all-Lithoid front line, all of it angry',
@@ -1414,7 +1508,7 @@ export interface StoryDef {
       kind can be overridden per event via data.art. */
   art?: 'bus' | 'saucer';
   artEvent?: 'stranded' | 'hoop';
-  figure?: 'dean' | 'booster' | 'scoop' | 'side';
+  figure?: 'dean' | 'booster' | 'scoop' | 'janitor' | 'assistant' | 'side';
   /** the card backdrop behind the acting sprite: the ABILITIES compass for
       growth stories, the energy/mood gauges (ROSTER) for everything else */
   card?: 'abilities' | 'meters';
@@ -1463,11 +1557,13 @@ export const STORIES: StoryDef[] = [
       const p = ctx.player!;
       const pts = (ctx.data.points as number) ?? 2;
       const open = ATTRS.filter((a) => p.attrs[a] < 25);
+      // choices run the compass clockwise: SKL, FRC, ATH, BRN
+      const COMPASS: Attr[] = ['skl', 'frc', 'ath', 'brn'];
       return {
         tag: '★ LEVEL UP ★',
         text: `${p.name} hits LEVEL ${p.level}. The work has banked +${pts} points — and where they land is a coach's call.`,
         choices: open.length
-          ? ATTRS.map((a) => {
+          ? COMPASS.map((a) => {
               if (p.attrs[a] >= 25) return C(a, `${ATTR_LABEL[a]}  25 — THE SCALE ENDS`, { disabled: 'the scale ends here' });
               const room = p.pots[a] - p.attrs[a];
               const take = room <= 0 ? 1 : Math.min(room, pts);
@@ -2228,11 +2324,12 @@ export const STORIES: StoryDef[] = [
   {
     id: 'supply',
     kind: 'coach',
+    figure: 'janitor',
     beat: (_b, ctx) => {
       const item = itemById((ctx.data.itemId as string) ?? 'protein');
       return {
         tag: 'THE SUPPLY CLOSET',
-        text: `The equipment manager leaves ${item.name} on your desk with a sticky note: "found this. don't ask."`,
+        text: `The janitor wheels his cart past your door, stops, and sets ${item.name} on your desk without a word. The mop keeps dripping. He waits.`,
         choices: [
           C('take', `TAKE IT — ${item.effectText.toUpperCase()}`),
           C('leave', 'LEAVE IT ON THE DESK'),
@@ -2243,7 +2340,7 @@ export const STORIES: StoryDef[] = [
       const itemId = (ctx.data.itemId as string) ?? 'protein';
       const item = itemById(itemId);
       if (key === 'leave') {
-        return { text: `You slide ${item.name} back across the desk. The equipment manager shrugs and re-donates it to the mystery it came from.` };
+        return { text: `You slide ${item.name} back across the desk. The janitor shrugs, pockets it, and re-donates it to the mystery it came from.` };
       }
       if (ctx.s.bag.length >= 8) {
         return { text: `You reach for ${item.name} — and THE BAG has no room. A kid outside the arena walks off with it, delighted.` };
@@ -2404,7 +2501,8 @@ export const STORIES: StoryDef[] = [
     id: 'oracle',
     kind: 'coach',
     weight: 2,
-    when: (s) => (s.unlockedDrills.length < DRILLS.length || s.knownPlans.length < PLANS.length) && s.week > 2,
+    // a story that opens mid-flight can only fire when the ship actually flies
+    when: (s) => (s.unlockedDrills.length < DRILLS.length || s.knownPlans.length < PLANS.length) && s.week > 2 && s.groundedWeeks === 0,
     beat: () => ({
       tag: "COACH'S DESK",
       text: 'On the way back from a scouting run, your ship drops out of warp above an uncharted moon. On its surface: a single hut, a single light, and — your instruments insist — a single very old basketball hoop.',
@@ -2983,6 +3081,7 @@ export const STORIES: StoryDef[] = [
         if (!pr) return { text: 'She squints at your board through the veil and finds nothing you don\'t already know. "Thorough," she allows.', fx: [] };
         pr.seenSkill = true;
         pr.seenPot = true;
+        pr.seenPos = true;
         pr.digits = 2;
         pr.scoutLevel = 4;
         pr.seenAttrs = { ...pr.attrs };
@@ -3184,11 +3283,12 @@ STORIES.push({
     const round = (ctx.data.round as number) ?? 0;
     const opp = (ctx.data.opp as string) ?? 'a champion';
     const gimmick = (ctx.data.gimmick as string) ?? '';
-    const plan = (ctx.data.plan as string) ?? '';
+    const styleLines = CHAMP_STYLE[(ctx.data.planId as PlanId)] ?? ['the tape is upsetting'];
+    const style = pick(styleLines);
     const heads = [
-      `Eight champions arrived. The bracket is posted on a wall the size of a moon, and your name is on it.\n\nFIRST ROUND: ${opp}. "${gimmick}" — that's the word from three systems over. The scout's read: they live in ${plan}. Win or go home.`,
-      `You're THROUGH. Four teams left in the whole universe, and one of them is yours.\n\nTHE SEMIFINAL: ${opp}. "${gimmick}" — the scout couldn't stop talking about them. They live in ${plan}. Win or go home.`,
-      `Two teams left. TWO. Every screen in the galaxy is tuned to one court, and you're walking out onto it.\n\n${TOURNEY.rounds[2]}: ${opp}. "${gimmick}." They live in ${plan}. Forty minutes from forever.`,
+      `Eight champions arrived. The bracket is posted on a wall the size of a moon, and your name is on it.\n\nFIRST ROUND: ${opp}. "${gimmick}" — that's the word from three systems over. The scout's read, verbatim: "${style}." Win or go home.`,
+      `You're THROUGH. Four teams left in the whole universe, and one of them is yours.\n\nTHE SEMIFINAL: ${opp}. "${gimmick}" — the scout couldn't stop talking about them. His exact words: "${style}." Win or go home.`,
+      `Two teams left. TWO. Every screen in the galaxy is tuned to one court, and you're walking out onto it.\n\n${TOURNEY.rounds[2]}: ${opp}. "${gimmick}." The scout's last report before he retired on the spot: "${style}." Forty minutes from forever.`,
     ];
     return { tag: TOURNEY.rounds[round] ?? TOURNEY.name, text: heads[round] ?? heads[0] };
   },
@@ -3280,7 +3380,7 @@ STORIES.push({
       p.onFire = true;
       const inj = rollInjury(0, fragility(p.speciesId));
       return {
-        text: `You leave him in. The whole building leans forward and the whole TEAM plays up to him. +${bump} on the night — and a body you'll want to check on Monday.`,
+        text: `You leave him in. The whole building leans forward and the whole TEAM plays up to him. +${bump} on the night.`,
         fx: [{ playerId: p.id, mood: 10 }, { teamMood: 4 }],
         follow: roll(30) ? [{ weeks: 1, beat: 'after', data: { label: inj.label, weeks: Math.max(1, Math.min(2, inj.weeks)) } }] : [],
       };
@@ -3374,6 +3474,155 @@ STORIES.push({
   resolve: (key) => key === 'go'
     ? { text: 'You walk out of the gym while the nets are still warm, and the galaxy applauds you home.', fx: [{ gameover: 'retired' }] }
     : { text: '"Good," she says, and means it. The recruiting trail is already warm.' },
+});
+
+// ---- THE WEEKLY BUDGET: every week opens with the dean and the envelope ------
+// A reminder of what this is: your job, for the school. Also her spot for a
+// snarky comment about how that job is going.
+STORIES.push({
+  id: 'dean_budget',
+  kind: 'coach',
+  figure: 'dean',
+  beat: (_b, ctx) => {
+    const amt = (ctx.data.amt as number) ?? 5;
+    const s = ctx.s;
+    const heat = s.heatS + s.heatB;
+    const snark = amt === 0
+      ? 'She hands you an envelope with nothing in it. "The board feels you\'ve been... compensated in experience." You have been coaching a very long time.'
+      : heat >= 60
+        ? `"${amt} credits," she says, holding the envelope a beat too long. "The board asked me to remind you that severance comes in a thinner envelope."`
+        : heat >= 30
+          ? `"${amt} credits. Spend them better than last week's." She smiles the way auditors smile.`
+          : s.trophies > 0
+            ? `"${amt} credits, coach." She almost hands it over warmly. "The trophy case is doing your negotiating for you."`
+            : `"${amt} credits. The school's investment in you, week by week. No pressure." There is pressure.`;
+    return {
+      tag: 'THE WEEKLY BUDGET',
+      text: `Monday morning. The dean is at your door with the week's envelope.\n\n${snark}`,
+    };
+  },
+  resolve: () => ({ text: '' }),
+});
+
+// ---- the recruit who LEANS AWAY: that's a story, not a sticker ---------------
+// Fired after a recruiting action for each name that soured; it can escalate.
+STORIES.push({
+  id: 'lean_away',
+  kind: 'coach',
+  context: 'recruiting',
+  beat: (_b, ctx) => {
+    const name = (ctx.data.name as string) ?? 'A recruit';
+    return {
+      tag: 'THE COLD SHOULDER',
+      text: genderize(`Word comes back from the trail: ${name} has gone cold on you. His holo-agent uses the phrase "exploring the galaxy's options." Something you did — or something somebody said you did — is doing laps around his homeroom.`, ctx.data.prForm as 'masc' | 'femme' | 'x' | undefined),
+      choices: [
+        C('call', 'CALL HIM PERSONALLY (1¢)', { cost: 1, up: { pct: 50, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA', note: 'it can get worse' } }),
+        C('space', 'GIVE HIM SPACE', { up: { pct: 10, cls: 'SPIRIT' }, down: { pct: 25, cls: 'DRAMA', note: 'cold can freeze' } }),
+      ],
+    };
+  },
+  resolve: (key, ctx) => {
+    const form = ctx.data.prForm as 'masc' | 'femme' | 'x' | undefined;
+    const pr = ctx.s.prospects.find((x) => x.id === (ctx.data.prospectId as number));
+    const g = (t: string): string => genderize(t, form);
+    if (key === 'call') {
+      const t = tails(50, 10);
+      if (t === 'up') {
+        if (pr) pr.commitPct = clamp(pr.commitPct + 12, 0, 95);
+        return { text: g(`You call. No staff, no script — twenty minutes about his jumper and his grandmother's cooking. By the end he's laughing. COMMITMENT +12: the lean comes back your way.`) };
+      }
+      if (t === 'down') {
+        if (pr) { pr.commitPct = Math.max(0, pr.commitPct - 10); pr.bannedWeeks = Math.max(pr.bannedWeeks, 2); }
+        return { text: g(`You call — mid-dinner, at the rival program's recruiting dinner. His holo-agent declares a two-week NO CONTACT window, loudly, in front of everyone. COMMITMENT −10.`) };
+      }
+      if (pr) pr.commitPct = clamp(pr.commitPct + 5, 0, 95);
+      return { text: g(`You call. It's polite. It's fine. It's a +5 kind of call — the freeze stops spreading, at least.`) };
+    }
+    const t = tails(10, 25);
+    if (t === 'down') {
+      if (pr) pr.commitPct = Math.max(0, pr.commitPct - 8);
+      return { text: g(`You give him space. The rival program gives him a highlight reel with his name in gold letters. COMMITMENT −8 — cold froze.`) };
+    }
+    if (t === 'up') {
+      if (pr) pr.commitPct = clamp(pr.commitPct + 8, 0, 95);
+      return { text: g(`You give him space — and the silence reads as confidence. His coach tells him "programs that beg, need." COMMITMENT +8.`) };
+    }
+    return { text: g(`You give him space. He keeps it. The board holds its breath on that name.`) };
+  },
+});
+
+// ---- the commitment weather: recruits change their minds on their own --------
+STORIES.push({
+  id: 'commit_swing',
+  kind: 'coach',
+  weight: 2,
+  when: (s) => s.prospects.some((pr) => !pr.signed && (pr.commitPct > 5 || pr.digits > 0)),
+  beat: (_b, ctx) => {
+    const pool = ctx.s.prospects.filter((pr) => !pr.signed);
+    const pr = pool.length ? pick(pool) : null;
+    ctx.data.prospectId = pr?.id ?? null;
+    const up = Math.random() < 0.5;
+    ctx.data.up = up;
+    const name = pr?.name ?? 'A name on your board';
+    const upLines = [
+      `${name}'s cousin got into your school's astro-engineering program, and suddenly your campus is "family". The lean is coming YOUR way.`,
+      `${name} caught your last game on a bar stream three systems over and reposted the final dunk with four exclamation points.`,
+      `${name}'s coach played against your program once and lost, and has apparently never stopped talking about the gym.`,
+    ];
+    const downLines = [
+      `${name} visited a rival campus "just to see it." There are photos. In one of them he's wearing their scarf.`,
+      `${name}'s holo-agent has started saying "market value" in every sentence. A bigger program has entered the group chat.`,
+      `${name} read a stream thread about your bench minutes and has QUESTIONS his coach can't answer.`,
+    ];
+    return {
+      tag: 'THE RECRUITING TRAIL',
+      text: pr ? pick(up ? upLines : downLines) : 'The trail is quiet this week. Suspiciously quiet.',
+    };
+  },
+  resolve: (_k, ctx) => {
+    const pr = ctx.s.prospects.find((x) => x.id === (ctx.data.prospectId as number | null));
+    if (!pr) return { text: '' };
+    const up = ctx.data.up === true;
+    const d = 6 + rand(9);
+    pr.commitPct = up ? clamp(pr.commitPct + d, 0, 95) : Math.max(0, pr.commitPct - d);
+    return { text: up ? `${pr.name}: COMMITMENT +${d}.` : `${pr.name}: COMMITMENT −${d}.` };
+  },
+});
+
+// ---- THE GROWTH SPURT: a body rewrites itself overnight ----------------------
+STORIES.push({
+  id: 'growth_spurt',
+  kind: 'player',
+  weight: 1,
+  card: 'abilities',
+  beat: (_b, ctx) => {
+    const p = ctx.player!;
+    const small = p.heightCm < 190;
+    ctx.data.grow = small || (p.heightCm < 205 && Math.random() < 0.5);
+    return {
+      tag: 'THE GROWTH SPURT',
+      text: ctx.data.grow
+        ? `${p.name} reports to practice unable to fit through the door he fit through Friday. The team doctor measures him twice, then measures the chart. He has grown out of this world — jersey, shoes, position, all of it suddenly negotiable.`
+        : `${p.name} reports to practice... shorter. Notably shorter. The team doctor blames "a gravity rebound thing" and refuses to elaborate. His whole game just moved closer to the floor.`,
+    };
+  },
+  resolve: (_k, ctx) => {
+    const p = ctx.player!;
+    const grow = ctx.data.grow === true;
+    if (grow) {
+      p.heightCm += 24 + rand(14);
+      p.weightKg += 25 + rand(20);
+    } else {
+      p.heightCm = Math.max(150, p.heightCm - (24 + rand(14)));
+      p.weightKg = Math.max(40, p.weightKg - (20 + rand(15)));
+    }
+    return {
+      text: grow
+        ? `The new frame comes with new leverage. The equipment budget weeps; the frontcourt beckons. Check where he stands now — the columns read him differently.`
+        : `Lower center of gravity, faster first step, a whole new angle on the game. Check where he stands now — the columns read him differently.`,
+      fx: [{ playerId: p.id, ...(grow ? { attr: { frc: 1 } } : { attr: { ath: 1 } }), mood: grow ? 8 : -4 }],
+    };
+  },
 });
 
 export function storyById(id: string): StoryDef {
