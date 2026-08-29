@@ -2263,10 +2263,10 @@ function stageTeamSelect(s: GameState): string {
         lens,
         tag,
         col: c,
-        // the pick compares who they ARE: no gauges, grades at full tanks;
-        // the reserve row keeps its plain number
+        // the pick compares who they ARE: no gauges, and EVERY row (the
+        // CUT row too) grades at full tanks for the column he stands in —
+        // there is no reserve row on a selection grid, only choices
         pure: true,
-        reserve: r === 2,
         draggable: true,
         kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT,
         delta: grew && sumBatch?.render ? { ovrFrom: sum.ovrFrom } : undefined,
