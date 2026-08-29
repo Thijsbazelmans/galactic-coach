@@ -1447,6 +1447,11 @@ senior (his card, his career line), and the RETIRE button asks through the
 dean in the empty gym (`retire_ask`; `Fx.gameover: 'retired'`). Item
 texts are they/them unless a specific athlete is named.
 
+**Discovery reveals one thing.** Every name that reaches the board — a
+search find or the opening nine — arrives with one facet known: a rating
+digit (two in three) or the ceiling stars (`discoveryReveal`). Nobody is
+a total stranger anymore; nobody is known either.
+
 **Also:** fixtures list aligned (W · vs/@ · name · result columns); the
 captain's order no longer overflows its card; the saucer only lands at the
 hoop on THE TRAIL (trouble stays airborne — the story does the reveal).

@@ -977,6 +977,18 @@ function revealFacet(pr: Prospect): { text: string; up?: boolean } | null {
   return null;
 }
 
+/** A NEW NAME never arrives a total stranger: one thing is known on
+    discovery — a digit of the rating (two in three) or the ceiling stars. */
+function discoveryReveal(pr: Prospect): void {
+  if (roll(67) || pr.digits >= 2) {
+    pr.digits = Math.min(2, pr.digits + 1) as 0 | 1 | 2;
+  } else {
+    pr.seenPot = true;
+  }
+  pr.scoutLevel = Math.max(pr.scoutLevel, 1);
+  observe(pr);
+}
+
 /** Fully reveal a prospect (the combine locks somebody cold). */
 function revealAll(pr: Prospect): void {
   pr.seenSkill = true;
@@ -1106,6 +1118,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
     if (act.twoChance && roll(act.twoChance)) found.push(genProspect(counter, s.season, act.id, names));
     s.nextId = counter.nextId;
     art = 'saucer-hoop'; // the saucer parks by a court and watches
+    for (const pr of found) discoveryReveal(pr);
     text = `${act.name}: ${found.map((p) => `${p.name}, a ${speciesById(p.speciesId).name}`).join(' — and ')} steps into the light.`;
     for (const pr of found) {
       if (s.prospects.length < MAX_PROSPECTS) {
@@ -2049,13 +2062,8 @@ export function startNewSeason(s: GameState): void {
   const names = takenNames(s);
   for (let i = 0; i < MAX_PROSPECTS; i++) {
     const pr = genProspect(counter, s.season, 'opening', names);
-    // word travels over the summer: a few things are already known here
-    // and there before the season opens
-    if (roll(40)) {
-      revealFacet(pr);
-      pr.scoutLevel = 1;
-      observe(pr);
-    }
+    // word travels over the summer: one thing is known about every name
+    discoveryReveal(pr);
     s.prospects.push(pr);
   }
   s.nextId = counter.nextId;
