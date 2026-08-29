@@ -81,6 +81,14 @@ const VERSION = 'v4.7';
 // on every return to the app, ask the server which build it has; if it's
 // newer than this one, reload through a fresh URL (the save lives in
 // localStorage and survives). Dev builds skip it.
+// THE RETRY LAW: GitHub Pages caches the HTML for 10 minutes, so a reload
+// straight after a deploy can land on the OLD page again. The old guard
+// ("already reloaded for this build id") then refused to ever try again —
+// which is how a phone got stuck on v4.7 through three deploys. Now every
+// attempt uses a fresh cache-busting URL, and attempts for the same build
+// are simply spaced out (one per two minutes) instead of forbidden.
+const UPDATE_RETRY_MS = 2 * 60 * 1000;
+
 async function checkForUpdate(): Promise<void> {
   const env = (import.meta as { env?: { PROD?: boolean } }).env;
   if (!env?.PROD || typeof __BUILD_ID__ === 'undefined' || typeof fetch !== 'function') return;
@@ -89,9 +97,13 @@ async function checkForUpdate(): Promise<void> {
     if (!res.ok) return;
     const { id } = (await res.json()) as { id?: string };
     if (!id || id === __BUILD_ID__) return;
+    let last: { id?: string; at?: number } = {};
+    try { last = JSON.parse(localStorage.getItem('gc-update') ?? '{}') as { id?: string; at?: number }; } catch { /* fresh */ }
+    if (last.id === id && Date.now() - (last.at ?? 0) < UPDATE_RETRY_MS) return; // just tried — the cache needs a minute
+    try { localStorage.setItem('gc-update', JSON.stringify({ id, at: Date.now() })); } catch { /* storage unavailable */ }
     const url = new URL(location.href);
-    if (url.searchParams.get('b') === id) return; // already reloaded for this build
     url.searchParams.set('b', id);
+    url.searchParams.set('t', String(Date.now()));
     location.replace(url.toString());
   } catch {
     /* offline or blocked: play on */
