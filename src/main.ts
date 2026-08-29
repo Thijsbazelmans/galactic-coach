@@ -603,6 +603,14 @@ function riskTag(level: RiskLevel | 'trade'): string {
   return `<span class="risk ${level}">${word}</span>`;
 }
 
+/** A fact on line 2 carries its VALUE as a color: grey → light green →
+    green → bright green (0–3). ALL 9 beats PICK 3, FREE beats 3¢, a bigger
+    effect glows brighter. Never red in these categories. */
+interface Fact { text: string; tier: 0 | 1 | 2 | 3 }
+const fact = (text: string, tier: 0 | 1 | 2 | 3): Fact => ({ text, tier });
+const costFact = (cost: number): Fact => fact(cost ? `${cost}¢` : 'FREE', cost <= 0 ? 3 : cost === 1 ? 2 : cost === 2 ? 1 : 0);
+const scopeFact = (word: string): Fact => fact(word, word === 'ALL 9' || word === 'SQUAD' ? 3 : word === 'PICK 6' || word === 'THE BOARD' ? 2 : 1);
+
 function pickerRow(o: {
   tag: 'button' | 'div';
   cls?: string;
@@ -610,13 +618,19 @@ function pickerRow(o: {
   name: string;
   up?: { pct: number; cls: string; note?: string };
   down?: { pct: number; cls: string; note?: string };
-  facts: string[];
+  facts: Fact[];
   risk: RiskLevel | 'trade' | null;
   desc?: string;
 }): string {
-  const facts = o.facts.filter(Boolean).map((f) => `<span class="xpg">${f}</span>`).join('<span class="dim"> · </span>');
+  // the tails' printed clauses (the deniability lines, "they read you")
+  // get their own line under the title — the tails stay next to the name
+  const notes = [o.up?.note, o.down?.note].filter((n): n is string => !!n);
+  const up = o.up ? { pct: o.up.pct, cls: o.up.cls } : undefined;
+  const down = o.down ? { pct: o.down.pct, cls: o.down.cls } : undefined;
+  const facts = o.facts.map((f) => `<span class="pf f${f.tier}">${f.text}</span>`).join('<span class="dim"> · </span>');
   return `<${o.tag} class="drill ${o.cls ?? ''}" ${o.attrs ?? ''}>
-      <div class="prow1"><b>${o.name}</b> ${oddsLine(o.up, o.down)}</div>
+      <div class="prow1"><b>${o.name}</b> ${oddsLine(up, down)}</div>
+      ${notes.length ? `<div class="pnote">${notes.map((n) => `<i>(${esc(n)})</i>`).join(' ')}</div>` : ''}
       <div class="prow2">${facts}${o.risk ? ` ${riskTag(o.risk)}` : ''}</div>
       ${o.desc ? `<span class="ddesc">${esc(o.desc)}</span>` : ''}
     </${o.tag}>`;
@@ -1909,12 +1923,12 @@ function speechSub(pl: (typeof PLANS)[number]): string {
 /** A speech row: a TRADE, never a gamble — the facts line says what it gives
     and takes; THE RALLY is the one coin flip, TAKE IT EASY the one sure thing. */
 function speechRow(pl: (typeof PLANS)[number], tag: 'button' | 'div', cls: string, attrs: string): string {
-  const facts = pl.kind === 'rally'
-    ? ['<span class="gaintag up">MORALE, a coin flip</span>', '<span class="gaintag down">the roof — on or off</span>']
+  const facts: Fact[] = pl.kind === 'rally'
+    ? [fact('MORALE, a coin flip', 1), fact('the roof — on or off', 0)]
     : pl.kind === 'easy'
-      ? ['<span class="gaintag up">−40% ⚡ burned</span>', '<span class="gaintag down">softer tonight · a loss stings</span>']
-      : [`<span class="gaintag up">+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}</span>`, `<span class="gaintag down">−${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}</span>`];
-  if (pl.cooldown) facts.push(`${pl.cooldown}w recharge`);
+      ? [fact('−40% ⚡ burned', 2), fact('softer tonight · a loss stings', 0)]
+      : [fact(`+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}`, pl.gain[1] >= 6 ? 3 : 1), fact(`−${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}`, pl.loss[1] <= 3 ? 2 : 0)];
+  if (pl.cooldown) facts.push(fact(`${pl.cooldown}w recharge`, 0));
   return pickerRow({ tag, cls, attrs, name: pl.speech, facts, risk: pl.kind === 'rally' ? 'risky' : pl.kind === 'easy' ? 'safe' : 'trade', desc: pl.fantasy });
 }
 
@@ -1923,37 +1937,37 @@ function instrRow(it: (typeof INSTRUCTIONS)[number], tag: 'button' | 'div', cls:
   const down = it.id === 'takeout'
     ? { pct: it.backfire, cls: 'SCANDAL', note: 'CAUGHT — the league reviews the tape' }
     : { pct: it.backfire, cls: 'DRAMA', note: `they read you: squad −${it.selfAmt}` };
-  const facts = [`<span class="gaintag">they play −${it.oppAmt}</span>`, it.cost ? `${it.cost}¢` : 'FREE'];
-  if (it.cooldown) facts.push(`${it.cooldown}w recharge`);
+  const facts: Fact[] = [fact(`they play −${it.oppAmt}`, it.oppAmt >= 5 ? 3 : it.oppAmt >= 4 ? 2 : 1), costFact(it.cost)];
+  if (it.cooldown) facts.push(fact(`${it.cooldown}w recharge`, 0));
   return pickerRow({ tag, cls, attrs, name: it.name, up: { pct: it.hit, cls: 'INTEL', note: 'you called it' }, down, facts, risk: riskLevel(it.backfire), desc: it.desc });
 }
 
 /** A drill row: what it hammers, whom it touches, what it costs, how risky. */
 function drillRow(d: (typeof DRILLS)[number], tag: 'button' | 'div', cls: string, attrs: string): string {
-  const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
-  const what = gains
-    ? `<span class="gaintag">${gains}</span>`
+  const gainAttrs = d.gain ? ATTRS.filter((a) => d.gain![a]) : [];
+  const what: Fact = gainAttrs.length
+    ? fact(gainAttrs.map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' '), gainAttrs.length >= 2 ? 3 : 2)
     : d.potChance
-      ? `<span class="gaintag">+1 CEILING, a coin flip each</span>`
+      ? fact('+1 CEILING, a coin flip each', 3)
       : d.xp[1] > 0
-        ? `+${d.xp[0]}–${d.xp[1]} XP`
-        : (d.recover?.mood ?? 0) > (d.recover?.energy ?? 0) ? `squad MOOD +${d.recover?.mood ?? 0}` : `squad ⚡ +${d.recover?.energy ?? 0}`;
-  const who = d.target === 'one' ? 'ONE' : 'SQUAD';
-  return pickerRow({ tag, cls, attrs, name: d.name, up: d.up, down: d.down, facts: [what, who, d.cost ? `${d.cost}¢` : 'FREE'], risk: riskLevel(d.down.pct), desc: d.desc });
+        ? fact(`+${d.xp[0]}–${d.xp[1]} XP`, d.xp[1] >= 8 ? 2 : d.xp[1] >= 5 ? 1 : 0)
+        : (d.recover?.mood ?? 0) > (d.recover?.energy ?? 0) ? fact(`squad MOOD +${d.recover?.mood ?? 0}`, 2) : fact(`squad ⚡ +${d.recover?.energy ?? 0}`, 2);
+  const who = scopeFact(d.target === 'one' ? 'ONE' : 'SQUAD');
+  return pickerRow({ tag, cls, attrs, name: d.name, up: d.up, down: d.down, facts: [what, who, costFact(d.cost)], risk: riskLevel(d.down.pct), desc: d.desc });
 }
 
 /** A board-action row: the effect, the scope, the cost, the risk (a recruit
     act's per-name sour chance counts toward it). */
 function galaxyRow(a: (typeof GALAXY_ACTS)[number], tag: 'button' | 'div', cls: string, attrs: string, grounded: boolean): string {
-  const what = a.reveals
-    ? `${a.reveals[0]}–${a.reveals[1]} facets`
+  const what: Fact = a.reveals
+    ? fact(`${a.reveals[0]}–${a.reveals[1]} facets`, a.reveals[1] >= 3 ? 3 : a.reveals[1] >= 2 ? 2 : 0)
     : a.gain
-      ? `+${a.gain[0]}–${a.gain[1]}%`
-      : `1${a.twoChance ? '–2' : ''} new name${a.twoChance ? 's' : ''}`;
-  const who = a.kind === 'search' ? 'THE BOARD' : gxScopeWord(a);
+      ? fact(`+${a.gain[0]}–${a.gain[1]}%`, a.gain[1] >= 20 ? 3 : a.gain[1] >= 13 ? 2 : a.gain[1] >= 8 ? 1 : 0)
+      : fact(`1${a.twoChance ? '–2' : ''} new name${a.twoChance ? 's' : ''}`, a.twoChance ? 3 : a.cost >= 2 ? 2 : a.cost === 1 ? 1 : 0);
+  const who = scopeFact(a.kind === 'search' ? 'THE BOARD' : gxScopeWord(a));
   const risk = riskLevel(Math.max(a.down.pct, (a.risk ?? 0) >= 6 ? 10 : 0));
   const name = `${a.name}${grounded ? ' <span class="blink">GROUNDED</span>' : ''}`;
-  return pickerRow({ tag, cls, attrs, name, up: a.up, down: a.down, facts: [what, who, a.cost ? `${a.cost}¢` : 'FREE'], risk, desc: a.desc });
+  return pickerRow({ tag, cls, attrs, name, up: a.up, down: a.down, facts: [what, who, costFact(a.cost)], risk, desc: a.desc });
 }
 
 /** WEEK START: the Monday report — the weekend's recovery and banked XP per
