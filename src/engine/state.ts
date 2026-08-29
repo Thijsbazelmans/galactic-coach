@@ -55,7 +55,6 @@ import {
   xpNeed,
 } from './gen';
 import {
-  POS_LETTERS,
   autoLineup,
   benchPlayers,
   checkPosChange,
@@ -823,17 +822,11 @@ export function beginWeek(s: GameState): void {
       p.outReason = '';
     }
   }
-  // THE RETRAINING: numbers that outgrow the label rewrite it — a forward
-  // with guard brains becomes a G who can also play F, penalty-free both ways
-  for (const p of t.players) {
-    const c = checkPosChange(p);
-    if (c !== null) {
-      queueStory(s, 'notice', 'start', p.id, {
-        tag: 'POSITION CHANGE',
-        text: `The staff makes it official: ${p.name} plays ${POS_LETTERS[c]} now — his numbers have been saying it for weeks. The ${POS_LETTERS[p.pos2 ?? c]} spot stays in his pocket: he plays both without a step lost.`,
-      });
-    }
-  }
+  // THE RETRAINING, silent: positions live under the hood now — when a
+  // player's numbers outgrow his listed spot, the label follows quietly
+  // (the old home stays penalty-free) and the only thing the coach ever
+  // SEES is the mismatch arrows going out
+  for (const p of t.players) checkPosChange(p);
   normalizeLineup(t);
   for (const row of s.weekRecap ?? []) {
     if (row.xpGain <= 0) continue;
@@ -998,15 +991,11 @@ export interface GalaxyResult {
 /** Reveal one unrevealed facet of a prospect. Returns the sticker, or null when
     everything is already known. */
 function revealFacet(pr: Prospect): { text: string; up?: boolean } | null {
-  // four looks and you know him: a digit, the other digit, his POSITION,
-  // then the whole shape — abilities AND ceiling, exact. No clouds between.
+  // three looks and you know him: a digit, the other digit, then the whole
+  // shape — abilities AND ceiling, exact. No clouds in between.
   if (pr.digits < 2) {
     pr.digits = (pr.digits + 1) as 0 | 1 | 2;
     return { text: pr.digits >= 2 ? 'THE NUMBER' : 'A DIGIT', up: true };
-  }
-  if (!pr.seenPos) {
-    pr.seenPos = true;
-    return { text: 'HIS SPOT', up: true };
   }
   if (!pr.seenSkill || !pr.seenPot) {
     pr.seenSkill = true;
@@ -1019,13 +1008,10 @@ function revealFacet(pr: Prospect): { text: string; up?: boolean } | null {
 }
 
 /** A NEW NAME never arrives a total stranger: one thing is known on
-    discovery — a digit of the rating (two in three), the ceiling stars,
-    or his position (the sprite half gives it away anyhow). */
+    discovery — a digit of the rating (two in three) or the ceiling stars. */
 function discoveryReveal(pr: Prospect): void {
   if (roll(67) || pr.digits >= 2) {
     pr.digits = Math.min(2, pr.digits + 1) as 0 | 1 | 2;
-  } else if (roll(50)) {
-    pr.seenPos = true;
   } else {
     pr.seenPot = true;
   }
@@ -1037,7 +1023,6 @@ function discoveryReveal(pr: Prospect): void {
 function revealAll(pr: Prospect): void {
   pr.seenSkill = true;
   pr.seenPot = true;
-  pr.seenPos = true;
   pr.digits = 2;
   pr.scoutLevel = Math.max(pr.scoutLevel, 4);
   observe(pr);

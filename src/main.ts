@@ -21,7 +21,7 @@ import {
   storyById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, REGULAR_WEEKS, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, POS_LETTERS, bestCol, bookieLine, grade, matchAttrs, posArrows, slotPlayer, slotRating, winShare, type Grade } from './engine/sim';
+import { COL_LABELS, bestCol, bookieLine, grade, matchAttrs, posArrows, slotPlayer, slotRating, winShare, type Grade } from './engine/sim';
 import {
   actionGalaxy,
   addNote,
@@ -838,12 +838,14 @@ function gradeBlock(p: Player, col: number, opts: { fromOvr?: number } = {}): st
   } else {
     letter = `<b class="kovr kgrade ${g === 'S' ? 'sgrade' : ''}" style="color:${color}">${g}</b>`;
   }
-  const posL = POS_LETTERS[p.pos ?? bestCol(p)];
+  // the position itself stays INVISIBLE (the math runs underneath): only a
+  // mismatch speaks — arrows left of the grade, hanging from its top edge.
+  // One yellow arrow = a column off; two red, stacked = badly miscast.
   const arrows = posArrows(p, col);
   const arrowHtml = arrows > 0
-    ? `<span class="posarr ${arrows >= 2 ? 'far' : 'near'}">${'▼'.repeat(Math.min(2, arrows))}</span>`
+    ? `<span class="posarr ${arrows >= 2 ? 'far' : 'near'}">${arrows >= 2 ? '<i>▼</i><i>▼</i>' : '<i>▼</i>'}</span>`
     : '';
-  return `<span class="ovrwrap"><i class="klab poslab">${posL}${arrowHtml}</i>${letter}</span>`;
+  return `<span class="gradewrap">${arrowHtml}${letter}</span>`;
 }
 
 // The card, phone-first, one lens at a time. ROSTER: sprite centered, curved
@@ -972,9 +974,7 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
     PRACTICE_KIT, 1.75, 'ksprite');
   const sp = speciesById(pr.speciesId);
   const spCls = sp.rarity >= 3 ? 'sprare blink' : sp.rarity === 2 ? 'sprare' : '';
-  // his POSITION is a scoutable facet — the sprite's size is the giveaway
-  const posBit = `<span class="kyear">${pr.seenPos ? POS_LETTERS[pr.pos ?? 1] : '?'}</span>`;
-  const nameHtml = `<span class="kname">${esc(pr.name)}</span>${posBit}`;
+  const nameHtml = `<span class="kname">${esc(pr.name)}</span>`;
   // the COM ring speaks the change language: the swing blinks on the arc
   const commitFrom = gxStickers?.get(pr.id)?.find((st) => st.commitFrom !== undefined)?.commitFrom;
   const ring = pr.signed
@@ -1899,12 +1899,15 @@ function nextYearLine(s: GameState): string {
   const returning = t.players.filter((p) => p.classYear < 3);
   const leaving = t.players.length - returning.length;
   if (!returning.length) return `NEXT YEAR: everybody walks. Scout like it.`;
-  const byPos = [0, 1, 2].map((c) => returning.filter((p) => (p.pos ?? 1) === c).length);
-  const holes = [0, 1, 2].filter((c) => byPos[c] === 0).map((c) => POS_LETTERS[c]);
+  // spoken in COLUMN terms (where each returner rates best) — positions
+  // themselves stay under the hood
+  const COL_SHORT = ['BACK', 'WING', 'FRONT'];
+  const byCol = [0, 1, 2].map((c) => returning.filter((p) => bestCol(p) === c).length);
+  const holes = [0, 1, 2].filter((c) => byCol[c] === 0).map((c) => COL_SHORT[c]);
   const sums = { skl: 0, ath: 0, frc: 0, brn: 0 };
   for (const p of returning) for (const a of ATTRS) sums[a] += p.attrs[a];
   const low = ATTRS.reduce((worst, a) => (sums[a] < sums[worst] ? a : worst), 'skl' as Attr);
-  const bits = [`${returning.length} return${leaving ? `, ${leaving} walk` : ''}`, `${byPos.map((n, c) => `${POS_LETTERS[c]}×${n}`).join(' ')}`];
+  const bits = [`${returning.length} return${leaving ? `, ${leaving} walk` : ''}`, `${byCol.map((n, c) => `${COL_SHORT[c]}×${n}`).join(' ')}`];
   if (holes.length) bits.push(`no ${holes.join('/')} coming back`);
   else bits.push(`thin on ${ATTR_SHORT[low]}`);
   return `NEXT YEAR: ${bits.join(' · ')}`;

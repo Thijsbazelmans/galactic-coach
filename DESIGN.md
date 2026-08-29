@@ -1710,6 +1710,28 @@ system with retraining. The heart of it:
   compatibility) — in the UI the run button refuses until the count is
   met.
 
+## v4.7.1 — THE ARROWS ALONE (Aug 29, 2026 — Thijs's live correction)
+
+Thijs, mid-playtest: a listed C graded B on the wing and C at home —
+technically the system working (his numbers read better there, penalty
+waived), but the LETTER was the problem, not the math. His call: **"the
+little arrows work really well; the position adds an unnecessary
+complication and another data point in an already complex (visually)
+system."** So:
+
+- **Positions are INVISIBLE now.** The letter left the card, the '?'/letter
+  left the prospect board, HIS SPOT left the scouting facet chain
+  (three looks know a kid again: digit, digit, the whole picture), and
+  the POSITION CHANGE dialogue is gone — retraining still runs, silently.
+- **The math all stays**: assigned positions at generation, the mismatch
+  penalty (×0.95/×0.89, waived when raw numbers carry the slot), the
+  quiet weekly retraining with the pos2 second home, save migration.
+- **Only the arrows speak**, and they moved: LEFT of the grade letter,
+  hanging from its top edge — ONE yellow arrow for a column off, TWO red
+  stacked (second below the first) for badly miscast.
+- The NEXT YEAR scouting hint now counts columns (BACK/WING/FRONT by
+  where each returner rates best) instead of position letters.
+
 ### Backlog (in rough priority)
 
 **Scratched (Thijs, Aug 29) — do not resurface:** instruction-night squad

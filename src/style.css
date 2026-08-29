@@ -1119,13 +1119,24 @@ button.actmain.scopehl { border-color: var(--r95); }
   text-shadow: 0 0 3px #000, 1px 1px 0 #000;
 }
 .numswap.kgrade { font-size: 24px; font-family: Impact, "Arial Black", "Helvetica Neue", sans-serif; }
-/* the position label is his assigned letter (G/F/C) — white is NEUTRAL
-   information; the down-arrows behind it are the mismatch penalty in THIS
-   slot (one per column off, none when his stats carry him there) */
-.ovrwrap .klab.poslab { font-size: 9px; letter-spacing: 1px; color: #fff; }
-.poslab .posarr { font-size: 7px; letter-spacing: 0; margin-left: 1px; }
-.poslab .posarr.near { color: #ffd83d; }
-.poslab .posarr.far { color: #ff4a3d; }
+/* THE MISMATCH ARROWS: positions run under the hood — only a mismatch
+   speaks. Arrows hang LEFT of the grade letter, aligned with its top:
+   one yellow = a column off, two red stacked = badly miscast. */
+.gradewrap { display: inline-flex; align-items: flex-start; }
+.posarr {
+  display: flex;
+  flex-direction: column;
+  margin-right: 1px;
+  margin-top: 1px;
+}
+.posarr i {
+  font-style: normal;
+  font-size: 8px;
+  line-height: 0.9;
+  text-shadow: 0 0 3px #000, 1px 1px 0 #000;
+}
+.posarr.near i { color: #ffd83d; }
+.posarr.far i { color: #ff4a3d; }
 /* a player OUT: both gauges dark */
 .gauge.goff { opacity: 0.35; }
 /* THE ANCHORED STICKERS: a bare ± number, no box, blinking BESIDE the thing

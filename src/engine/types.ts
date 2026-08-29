@@ -178,7 +178,6 @@ export interface Prospect {
   /** revealed facets */
   seenSkill: boolean; // the ability cloud shows
   seenPot: boolean; // the potential cloud shows
-  seenPos?: boolean; // his position (G/F/C) is known
   /** the BLANK CHECK landed: he signed then and there — greyed on the
       board, unremovable, committed */
   signed?: boolean;

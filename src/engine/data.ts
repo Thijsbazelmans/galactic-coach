@@ -912,7 +912,6 @@ export const ITEMS: ItemDef[] = [
       if (t === 'up') {
         pr.seenSkill = true;
         pr.seenPot = true;
-        pr.seenPos = true;
         pr.digits = 2;
         pr.scoutLevel = 4;
         pr.seenAttrs = { ...pr.attrs };
@@ -1148,7 +1147,6 @@ export const ITEMS: ItemDef[] = [
       if (!pr) return { text: 'You raise the lens to the board. You already know everything it could tell you.' };
       pr.seenSkill = true;
       pr.seenPot = true;
-      pr.seenPos = true;
       pr.digits = 2;
       pr.scoutLevel = 4;
       pr.seenAttrs = { ...pr.attrs };
@@ -3081,7 +3079,6 @@ export const STORIES: StoryDef[] = [
         if (!pr) return { text: 'She squints at your board through the veil and finds nothing you don\'t already know. "Thorough," she allows.', fx: [] };
         pr.seenSkill = true;
         pr.seenPot = true;
-        pr.seenPos = true;
         pr.digits = 2;
         pr.scoutLevel = 4;
         pr.seenAttrs = { ...pr.attrs };
