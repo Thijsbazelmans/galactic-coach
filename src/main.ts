@@ -11,8 +11,6 @@ import {
   GALAXY_ACTS,
   INSTRUCTIONS,
   PLANS,
-  SPEECH_FLOP,
-  SPEECH_FLOP_PREMIUM,
   TOURNEY,
   drillKind,
   galaxyActById,
@@ -1989,10 +1987,10 @@ function speechRow(pl: (typeof PLANS)[number], tag: 'button' | 'div', cls: strin
       ? [fact('−40% ⚡ burned', 2), fact('softer tonight · a loss stings', 0)]
       : [fact(`+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}`, pl.gain[1] >= 6 ? 3 : 1), fact(`−${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}`, pl.loss[1] <= 3 ? 2 : 0)];
   if (pl.cooldown) facts.push(fact(`${pl.cooldown}w recharge`, 0));
-  const flop = pl.kind === 'shift' ? (pl.premium ? SPEECH_FLOP_PREMIUM : SPEECH_FLOP) : pl.kind === 'rally' ? 50 : 0;
-  const down = flop ? { pct: flop, cls: 'DRAIN', note: pl.kind === 'rally' ? 'a coin flip, the roof on or off' : "it doesn't take" } : undefined;
-  // nothing is RISKED by a speech — only a chance nothing is gained — so the
-  // sticker stays TRADE (the DRAIN tail already says it can fall flat)
+  // no tail on a speech: nothing is risked, and the sheet head already says
+  // some nights it doesn't take — THE RALLY alone prints its coin flip;
+  // the sticker stays TRADE
+  const down = pl.kind === 'rally' ? { pct: 50, cls: 'DRAMA', note: 'a coin flip, the roof on or off' } : undefined;
   return pickerRow({ tag, cls, attrs, name: pl.speech, down, facts, risk: pl.kind === 'easy' ? 'safe' : pl.kind === 'rally' ? 'risky' : 'trade', desc: pl.fantasy });
 }
 
