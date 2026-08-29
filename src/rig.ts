@@ -445,7 +445,7 @@ const RIG_SIZES = [
 ];
 
 export type RigMood = 'angry' | 'upset' | 'neutral' | 'happy' | 'elated';
-export type RigEnergy = 'exhausted' | 'tired' | 'normal' | 'fit' | 'pumped';
+export type RigEnergy = 'exhausted' | 'tired' | 'normal' | 'fit' | 'pumped' | 'pod';
 
 interface MoodDef { open: boolean; cloud?: boolean; star?: boolean; edits: [number, number, string][]; }
 const MOODS: Record<RigMood, MoodDef> = {
@@ -456,9 +456,12 @@ const MOODS: Record<RigMood, MoodDef> = {
   elated: { open: false, star: true, edits: [[9, 4, 's'], [10, 4, 's'], [12, 4, 's'], [13, 4, 's'], [9, 3, 'b'], [10, 3, 'b'], [12, 3, 'b'], [13, 3, 'b'], [9, 5, 'y'], [10, 5, 'y'], [12, 5, 'y'], [13, 5, 'y'], [9, 7, 'k'], [12, 7, 'k'], [10, 7, 'e'], [11, 7, 'e'], [10, 8, 'k'], [11, 8, 'k']] },
 };
 
-interface EnergyDef { bed?: boolean; tuck?: boolean; sweat: number; drop: number; }
+/** pod = the cryo chamber (exhausted sleeps in it with zzz; a player OUT —
+    injured or away — stands in it, no zzz) */
+interface EnergyDef { bed?: boolean; zzz?: boolean; tuck?: boolean; sweat: number; drop: number; }
 const ENERGIES: Record<RigEnergy, EnergyDef> = {
-  exhausted: { bed: true, sweat: 0, drop: 0 },
+  exhausted: { bed: true, zzz: true, sweat: 0, drop: 0 },
+  pod: { bed: true, sweat: 0, drop: 0 },
   tired: { tuck: true, sweat: 1, drop: 1 },
   normal: { sweat: 0, drop: 0 },
   fit: { sweat: 0, drop: 0 },
@@ -749,16 +752,23 @@ function buildMap(
   }
 
   if (E.bed) {
-    for (let y = PADT + 10; y < H; y++) map[y] = new Array(W).fill('.') as string[];
-    const bl = cx - 8, br = cx + 8;
-    for (let y = PADT + 1; y < H; y++) { map[y][bl] = 'Q'; map[y][br] = 'Q'; }
-    for (let x = bl; x <= br; x++) map[H - 1][x] = 'Q';
-    for (let y = PADT + 1; y <= PADT + 9; y++) for (let x = bl + 1; x < br; x++) if (map[y][x] === '.') map[y][x] = 'e';
-    for (let y = PADT + 10; y <= H - 2; y++) for (let x = bl + 1; x < br; x++) map[y][x] = y <= PADT + 11 ? 'w' : 'j';
-    if (map[PADT + 15]) for (let x = bl + 1; x < br; x++) if (map[PADT + 15][x] === 'j') map[PADT + 15][x] = 'J';
-    [9, 10, 12, 13].forEach((x) => { map[PADT + 5][x + PADL] = 'k'; });
-    const big = Math.floor(f / 3) % 2, Z = big ? Z5 : Z3, zx = br + 2, zy = big ? 0 : 2;
-    Z.forEach((row, ry) => row.split('').forEach((v, rx) => { if (v === '1' && map[zy + ry] && zx + rx < W) map[zy + ry][zx + rx] = 'c'; }));
+    // THE CRYO POD: a capsule around the whole body — rounded lid, straight
+    // glass sides, a base plate — cold tint inside, frost drifting up. The
+    // exhausted sleep in it (zzz); the injured and the away just stand in it.
+    const bl = Math.max(0, cx - 9), br = Math.min(W - 1, cx + 9);
+    for (let y = 3; y < H; y++) { map[y][bl] = 'g'; map[y][br] = 'g'; }
+    for (let x = bl + 2; x <= br - 2; x++) map[2][x] = 'g';
+    map[3][bl + 1] = 'g'; map[3][br - 1] = 'g';
+    for (let x = bl; x <= br; x++) map[H - 1][x] = 'g';
+    for (let x = bl + 1; x < br; x++) if (map[H - 2][x] === '.') map[H - 2][x] = 'k';
+    for (let y = 3; y < H - 2; y++) for (let x = bl + 1; x < br; x++) {
+      if (map[y][x] !== '.') continue;
+      map[y][x] = (x * 7 + y * 3 + Math.floor(f / 4)) % 11 === 0 ? 'c' : 'U';
+    }
+    if (E.zzz) {
+      const big = Math.floor(f / 3) % 2, Z = big ? Z5 : Z3, zx = br - 5, zy = 0;
+      Z.forEach((row, ry) => row.split('').forEach((v, rx) => { if (v === '1' && map[zy + ry] && zx + rx < W && map[zy + ry][zx + rx] === '.') map[zy + ry][zx + rx] = 'c'; }));
+    }
     ball = null;
   }
 

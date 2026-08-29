@@ -21,7 +21,7 @@ import {
   storyById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, REGULAR_WEEKS, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, bestCol, grade, matchAttrs, slotPlayer, slotRating, winShare, type Grade } from './engine/sim';
+import { COL_LABELS, bestCol, bookieLine, grade, matchAttrs, slotPlayer, slotRating, winShare, type Grade } from './engine/sim';
 import {
   actionGalaxy,
   addNote,
@@ -46,6 +46,7 @@ import {
   playGame,
   queueStory,
   releaseHeldStories,
+  releaseMidStories,
   resolveSigning,
   resolveStory,
   retire,
@@ -72,7 +73,7 @@ import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, perGame, potStars, rand } from './engine/util';
 import { PRACTICE_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
 
-const VERSION = 'v4.5';
+const VERSION = 'v4.6';
 
 // ---- THE UPDATE CHECK -----------------------------------------------------------
 // The home-screen app on iOS keeps stale HTML for a long time. On launch and
@@ -259,7 +260,7 @@ let selSlots: number[] | null = null;
 let cutConfirm = false;
 let boardConfirm = false;
 // game night: the live game → YOU WON / YOU LOST → the box score → the league
-let gnStage: 'beat' | 'final' | 'verdict' | 'table' = 'beat';
+let gnStage: 'beat' | 'final' | 'recap' | 'verdict' | 'table' = 'beat';
 let progressTimer: number | null = null;
 let floatTimers: number[] = [];
 
@@ -299,10 +300,11 @@ function floatEnergyBig(n: number): void {
   }
 }
 
-/** Drill results blink IN PLACE on the cards (the change language): a
-    pre-run snapshot diffs into per-card deltas — energy/mood gauge bands,
-    the XP arc, LVL and OVR number swaps. Once seen, seen. */
-let drillDeltas: Map<number, CardDelta> | null = null;
+/** Results land ON the cards: a pre-action snapshot diffs into per-card
+    deltas — gauge bands, the XP arc, number swaps, and the anchored
+    STICKERS (+XP on the ring, ±⚡ on the energy icon, ±MOOD on the face,
+    +1 ATH on the grade corner). One batch per action; once seen, seen. */
+let cardDeltas: { key: string; map: Map<number, CardDelta> } | null = null;
 /** Board results (facet reveals, commit swings) cycle in the main spot; a
     commit swing also carries its old value for the ring's change language. */
 let gxStickers: Map<number, { text: string; up?: boolean; commitFrom?: number }[]> | null = null;
@@ -683,12 +685,25 @@ function spotHtml(spot: 'main' | 'hi', labels: SpotLabel[] | undefined, pop: boo
 
 /** What an action changed on one card — rendered as in-place blinks. */
 interface CardDelta {
-  e?: number; // energy delta (gauge band)
-  m?: number; // mood delta (gauge band)
+  e?: number; // energy delta (gauge band + sticker on the bolt)
+  m?: number; // mood delta (gauge band + sticker on the face)
+  xp?: number; // XP gained (sticker on the ring)
+  gain?: string; // direct ability points ("+1 ATH", sticker on the grade corner)
   xpFromPct?: number; // XP ring: the added/removed arc blinks
   xpProjPct?: number; // WEEK START: the ring shows the incoming payout
   lvlFrom?: number; // LVL number swap
   ovrFrom?: number; // OVERALL number swap
+}
+
+/** The anchored stickers: each change blinks ON the thing it changed. */
+function anchoredStickers(d: CardDelta | undefined): string {
+  if (!d) return '';
+  const bits: string[] = [];
+  if (d.xp) bits.push(`<div class="astick a-ring up">+${d.xp} XP</div>`);
+  if (d.e) bits.push(`<div class="astick a-gl ${d.e > 0 ? 'up' : 'down'}">${d.e > 0 ? '+' : ''}${d.e} ⚡</div>`);
+  if (d.m) bits.push(`<div class="astick a-gr ${d.m > 0 ? 'up' : 'down'}">${d.m > 0 ? '+' : ''}${d.m} MOOD</div>`);
+  if (d.gain) bits.push(`<div class="astick a-ovr up">${esc(d.gain)}</div>`);
+  return bits.join('');
 }
 
 // ---- the edge gauges: rectangular LEDs hugging the ROSTER card ------------------
@@ -699,9 +714,10 @@ interface CardDelta {
 
 const GAUGE_LEDS = 7;
 
-function edgeGauge(side: 'l' | 'r', value: number, kind: 'boltx' | 'facex', _pid: number, delta = 0): string {
-  const v = clamp(Math.round(value), 0, 100);
-  const old = clamp(Math.round(value - delta), 0, 100);
+function edgeGauge(side: 'l' | 'r', value: number, kind: 'boltx' | 'facex', _pid: number, delta = 0, off = false): string {
+  // a player OUT has both gauges dark: nothing to read until he's back
+  const v = off ? 0 : clamp(Math.round(value), 0, 100);
+  const old = off ? 0 : clamp(Math.round(value - delta), 0, 100);
   const lit = Math.round((v / 100) * GAUGE_LEDS);
   const litOld = Math.round((old / 100) * GAUGE_LEDS);
   const rects: string[] = [];
@@ -720,9 +736,9 @@ function edgeGauge(side: 'l' | 'r', value: number, kind: 'boltx' | 'facex', _pid
       rects.push(`<rect class="gband ${on ? 'up' : 'down'}" x="${x}" y="${y}" width="${w}" height="${h}" style="animation-delay:-${wallPhase(SWAP_MS)}ms"/>`);
     }
   }
-  return `<span class="gauge g${side}">
+  return `<span class="gauge g${side} ${off ? 'goff' : ''}">
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${rects.join('')}</svg>
-    <img class="gicon ${v < 25 ? 'blink' : ''}" src="${iconOutlinedUrl(kind, heatColor(v))}" alt=""/>
+    <img class="gicon ${v < 25 && !off ? 'blink' : ''}" src="${iconOutlinedUrl(kind, off ? '#556' : heatColor(v))}" alt=""/>
   </span>`;
 }
 
@@ -746,7 +762,7 @@ function rigView(p: Player, story?: 'good' | 'bad' | 'worried' | 'neutral'): Rig
     jersey: p.jersey,
     form: p.form,
     mood: moodBucket(p.mood),
-    energy: p.outWeeks > 0 ? 'exhausted' : energyBucket(p.energy),
+    energy: p.outWeeks > 0 ? 'pod' : energyBucket(p.energy),
     fire: !!p.onFire && p.outWeeks === 0,
   };
 }
@@ -818,8 +834,13 @@ function gradeBlock(p: Player, col: number, opts: { fromOvr?: number } = {}): st
   } else {
     letter = `<b class="kovr kgrade ${g === 'S' ? 'sgrade' : ''}" style="color:${color}">${g}</b>`;
   }
-  const off = bestCol(p) !== col && slotRating(p, bestCol(p)) >= r * 1.12;
-  return `<span class="ovrwrap"><i class="klab">${off ? '↔ ' : ''}${POS_SHORT[col]}</i>${letter}</span>`;
+  // the label always names where he BELONGS; its color says how far this
+  // slot is from that: white = right (or as good), yellow = one column off,
+  // red = two columns off
+  const best = bestCol(p);
+  const bestR = slotRating(p, best);
+  const fit = r >= bestR * 0.96 ? 'fit-ok' : Math.abs(best - col) <= 1 ? 'fit-near' : 'fit-far';
+  return `<span class="ovrwrap"><i class="klab poslab ${fit}">${POS_SHORT[best]}</i>${letter}</span>`;
 }
 
 // The card, phone-first, one lens at a time. ROSTER: sprite centered, curved
@@ -887,16 +908,17 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       ${opts.diamond ? `<svg class="ksvg bare" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon class="k-cur" points="${kitePoints(p.attrs)}"/></svg>` : ''}
       ${sprite(1.75, 'ksprite')}
       <div class="ktop">${nameHtml}</div>
-      ${edgeGauge('l', p.energy, 'boltx', p.id, d?.e ?? 0)}
-      ${edgeGauge('r', p.mood, 'facex', p.id, d?.m ?? 0)}
+      ${edgeGauge('l', p.energy, 'boltx', p.id, d?.e ?? 0, out)}
+      ${edgeGauge('r', p.mood, 'facex', p.id, d?.m ?? 0, out)}
       <span class="kbl">${opts.col !== undefined ? gradeBlock(p, opts.col, { fromOvr: d?.ovrFrom }) : ovrBlock(p, { from: d?.ovrFrom })}</span>
       <span class="kbr">${ring}</span>
+      ${anchoredStickers(d)}
     </div>`;
   }
   const mains: SpotLabel[] = [...(opts.mainLabels ?? [])];
   const his: SpotLabel[] = [...(opts.hiLabels ?? [])];
   if (opts.sitout && l === 0 && !opts.story) his.push({ text: 'SITS OUT', up: false });
-  return `<div class="pcard lens${l} sq ${out ? 'pout' : ''} ${opts.locked ? 'hlock' : ''} ${opts.draggable && !out && !opts.locked && l === 0 ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''} ${opts.scope === 'in' ? 'scopehl' : opts.scope === 'out' ? 'scopedim' : ''}"
+  return `<div class="pcard lens${l} sq ${out ? 'pout' : ''} ${opts.locked ? 'hlock' : ''} ${opts.draggable && !out && !opts.locked ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''} ${opts.scope === 'in' ? 'scopehl' : opts.scope === 'out' ? 'scopedim' : ''}"
       ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
     ${body}
     ${spotHtml('main', mains, opts.labelPop !== false, opts.popDelay ?? 0)}
@@ -943,7 +965,6 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
   const img = rigSpriteHtml(
     { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, form: pr.form, mood: 'neutral', energy: 'normal', fire: false },
     PRACTICE_KIT, 1.75, 'ksprite');
-  const fuzz: 0 | 1 | 2 = pr.scoutLevel >= 4 ? 0 : pr.scoutLevel >= 2 ? 1 : 2;
   const sp = speciesById(pr.speciesId);
   const spCls = sp.rarity >= 3 ? 'sprare blink' : sp.rarity === 2 ? 'sprare' : '';
   const nameHtml = `<span class="kname">${esc(pr.name)}</span>`;
@@ -978,7 +999,7 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
       : `<span class="prstars"><span>${'★'.repeat(Math.min(2, n))}${'☆'.repeat(Math.max(0, 2 - n))}</span><span>${'★'.repeat(Math.max(0, Math.min(3, n - 2)))}${'☆'.repeat(3 - Math.max(0, Math.min(3, n - 2)))}</span></span>`;
     body = squareKite(pr.seenAttrs, {
       hide: !pr.seenSkill,
-      fuzz: Math.max(1, fuzz) as 1 | 2,
+      fuzz: 0,
       nameHtml,
       blHtml: maskHtml,
       brHtml: ring,
@@ -1097,12 +1118,13 @@ function schedModalHtml(s: GameState): string {
     const res = liveGameOn(s) && w === s.week ? undefined : s.myResults?.find((r) => r.week === w);
     const now = w === s.week && !isUtWeek(s);
     rows.push(`<tr class="${now ? 'me' : ''}">
-      <td>W${w}</td>
-      <td>${home ? 'vs' : '@'} ${chip(opp.name, opp.bg, opp.fg, true)}</td>
+      <td class="wk">W${w}</td>
+      <td class="va">${home ? 'vs' : '@'}</td>
+      <td>${chip(opp.name, opp.bg, opp.fg, true)}</td>
       <td class="num">${res ? esc(res.text.split(' ').slice(0, 2).join(' ')) : now ? '◂ NOW' : ''}</td>
     </tr>`);
   }
-  const utRows = (s.ut?.log ?? []).map((l) => `<tr><td colspan="3" class="dim">${esc(l)}</td></tr>`).join('');
+  const utRows = (s.ut?.log ?? []).map((l) => `<tr><td colspan="4" class="dim">${esc(l)}</td></tr>`).join('');
   return `<div class="modalback" data-action="sched-close"><div class="modal">
     <span class="tag">THE SEASON — ${esc(t.name).toUpperCase()}</span>
     <table class="schedtable">${rows.join('')}${utRows}</table>
@@ -1137,7 +1159,8 @@ function bagBar(s: GameState): string {
     && s.notebook.some((n) => n.key === ev.data?.noteKey);
   // TWO ROWS now: the notebook stands tall on the left (both rows), eight
   // item slots fill the 4×2 grid beside it
-  const noteSlot = `<button class="bslot filled notebook tall ${canAnswer ? 'pulse' : ''}" data-action="notebook">▤<span class="bshort">NOTES</span></button>`;
+  const noteworthy = !ev && s.phase === 'gamenight' && gnStage === 'verdict' && !!s.lastResult && !s.notebook.some((n) => n.key === `res:${s.season}:${s.week}`);
+  const noteSlot = `<button class="bslot filled notebook tall ${canAnswer || noteworthy ? 'pulse' : ''}" data-action="notebook">▤<span class="bshort">NOTES</span></button>`;
   const slots = Array.from({ length: BAG_SIZE }, (_, i) => {
     const id = s.bag[i];
     if (!id) return '<div class="bslot empty">·</div>';
@@ -1161,16 +1184,16 @@ function takeNote(): boolean {
     const snippet = src.replace(/\s+/g, ' ').trim().slice(0, 110);
     return addNote(s, 'story', `story:${ev.uid}`, `«${snippet}${src.length > 110 ? '…' : ''}» — ${ev.tag}`);
   }
-  if (s.phase === 'gamenight' && s.lastResult && gnStage === 'table') {
-    const lines = [`my game: ${s.lastResult.win ? 'W' : 'L'} ${s.lastResult.myScore}–${s.lastResult.oppScore} vs ${s.lastResult.oppName}`, ...s.resultsLog];
-    return addNote(s, 'results', `res:${s.season}:${s.week}`, lines.join(' · '));
-  }
-  if (s.phase === 'gamenight' && s.lastResult) {
+  if (s.phase === 'gamenight' && s.lastResult && (gnStage === 'verdict' || gnStage === 'table' || gnStage === 'recap')) {
+    // the box score screen: the whole night goes in at once
     const r = s.lastResult;
     const mvp = r.box.find((x) => x.playerId === r.mvpId)?.name ?? '—';
     const top = r.box[0];
-    return addNote(s, 'mvp', `mvp:${s.season}:${s.week}`,
+    const a = addNote(s, 'mvp', `mvp:${s.season}:${s.week}`,
       `${r.win ? 'W' : 'L'} ${r.myScore}–${r.oppScore} vs ${r.oppName} · MVP ${mvp} · top scorer ${top ? `${top.name} (${top.pts})` : '—'}`);
+    const lines = [`my game: ${r.win ? 'W' : 'L'} ${r.myScore}–${r.oppScore} vs ${r.oppName}`, ...s.resultsLog];
+    const b = addNote(s, 'results', `res:${s.season}:${s.week}`, lines.join(' · '));
+    return a || b;
   }
   if (s.phase === 'matchup' || s.phase === 'gamenight') {
     return addNote(s, 'opp', `opp:${s.season}:${s.week}`, `week ${s.week}: ${nextOppLabel(s)}`);
@@ -1180,9 +1203,14 @@ function takeNote(): boolean {
 
 function notebookModalHtml(s: GameState): string {
   if (!notebookOpen) return '';
-  const rows = s.notebook.length
-    ? s.notebook.map((n) => `<div class="notebookrow"><span class="dim">S${n.season} W${n.week}</span> ${esc(n.text)}</div>`).join('')
-    : '<div class="dim">Blank pages. Tap the notebook on a screen worth remembering.</div>';
+  // the pages: scores, stats and results are a scrawl only you can read
+  // (Scoop's questions still find them); the notes that are STORIES stay
+  // legible — the oracle's numbers will matter weeks later
+  const legible = s.notebook.filter((n) => n.kind === 'story');
+  const scrawl = s.notebook.length - legible.length;
+  const rows = (scrawl > 0 ? `<div class="notebookrow scrawl">${esc('a seemingly endless list of scores, stats and other incomprehensible notes that only you can make sense of')}${'▒'.repeat(Math.min(24, scrawl * 3))}</div>` : '')
+    + legible.map((n) => `<div class="notebookrow"><span class="dim">S${n.season} W${n.week}</span> ${esc(n.text)}</div>`).join('')
+    + (!s.notebook.length ? '<div class="dim">Blank pages. Tap the notebook on a screen worth remembering.</div>' : '');
   return `<div class="modalback" data-action="notebook-close"><div class="modal scrolly">
     <span class="tag">▤ THE NOTEBOOK</span>
     ${rows}
@@ -1211,8 +1239,10 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
   const t = myTeam(s);
   const isPractice = s.phase === 'practice';
   const showGame = s.phase === 'gamenight' && !!s.lastResult && gnStage === 'verdict';
-  const showDrill = isPractice && s.trainedThisWeek && drillDeltas !== null;
-  const diamond = s.phase === 'matchup';
+  const showDeltas = cardDeltas !== null && !showGame && s.phase !== 'weekstart';
+  // the faint ability shape sits behind every player — a read on the whole
+  // player under the letter (the matchup had it first)
+  const diamond = true;
   const colHead = `<div class="colhead"><span class="rowlabel"></span>${COL_LABELS.map((c) => `<span>${c}</span>`).join('')}</div>`;
   const statLine = (row: { pts: number; reb: number; ast: number; stl: number }): string =>
     `${row.pts}P·${row.reb}R·${row.ast}A·${row.stl}S`;
@@ -1277,17 +1307,17 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
                 delta.xpFromPct = Math.min(100, Math.round((p.xp / need) * 100));
                 delta.xpProjPct = Math.min(100, Math.round(((p.xp + wk.xpGain) / need) * 100));
               }
-              mains = [{ text: `+${wk.xpGain} XP`, up: true }];
+              delta.xp = wk.xpGain;
             }
             labelPop = b.animate;
             popDelay = 280 + sweep * 220;
             sweep++;
           }
         }
-      } else if (p && showDrill) {
-        const rec = drillDeltas!.get(p.id);
+      } else if (p && showDeltas) {
+        const rec = cardDeltas!.map.get(p.id);
         if (rec) {
-          const b = batchFor(`drill:${wkKey}`, false);
+          const b = batchFor(`cd:${cardDeltas!.key}`, false);
           if (b.render) {
             delta = rec;
             labelPop = b.animate;
@@ -1456,6 +1486,10 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
   }
   if (ev.defId === 'item_offer' || ev.defId === 'supply' || ev.defId === 'bagfull') {
     return `<div class="revealbox">${revealPreview('item', (ev.data?.itemId as string) ?? '')}</div>`;
+  }
+  if (ev.defId === 'graduation' && ev.data?.player) {
+    const gp = ev.data.player as Player;
+    return `<div class="modalcard truth">${playerCard(gp, { inert: true, story: 'good', storyView: 'abilities', kit, labelPop: false })}</div>`;
   }
   if (ev.defId === 'signing_verdict') {
     // SIGNING DAY: the whole truth, for the first time — the ABILITIES card
@@ -1722,7 +1756,16 @@ function drillRecap(d: (typeof DRILLS)[number]): string {
 
 /** A speech's trade, printed: what it gives, what it takes. */
 function speechTrade(pl: (typeof PLANS)[number]): string {
-  return `<span class="xpg gaintag up">+${pl.gain[0]}–${pl.gain[1]} ${ATTR_LABEL[pl.attr]}</span> <span class="xpg gaintag down">−${pl.loss[0]}–${pl.loss[1]} ${ATTR_LABEL[pl.off]}</span>`;
+  if (pl.kind === 'rally') return `<span class="xpg gaintag up">MORALE, a coin flip</span> <span class="xpg gaintag down">the roof — on or off</span>`;
+  if (pl.kind === 'easy') return `<span class="xpg gaintag up">−40% ⚡ burned</span> <span class="xpg gaintag down">softer tonight · a loss stings</span>`;
+  return `<span class="xpg gaintag up">+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}</span> <span class="xpg gaintag down">−${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}</span>`;
+}
+
+/** The speech's second nav row: the trade in abbreviations, one line. */
+function speechSub(pl: (typeof PLANS)[number]): string {
+  if (pl.kind === 'rally') return 'squad MORALE · a coin flip, a sliver either way';
+  if (pl.kind === 'easy') return '−40% ⚡ burned · softer tonight';
+  return `+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}  −${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}`;
 }
 
 /** An instruction's two tails, in words. */
@@ -1834,7 +1877,8 @@ function stageMatchup(s: GameState): string {
     const fxs = s.speechFx ?? [];
     const gain = fxs.find((f) => f.amt > 0);
     const loss = fxs.find((f) => f.amt < 0);
-    if (s.oppFx) landedLine = `✓ THE CALL LANDS — they play ${s.oppFx.amt} ${ATTR_SHORT[s.oppFx.attr]} tonight`;
+    if (s.instrPending) landedLine = 'the call is made — you\'ll know at tip-off';
+    else if (s.oppFx) landedLine = `✓ THE CALL LANDS — they play ${s.oppFx.amt} ${ATTR_SHORT[s.oppFx.attr]} tonight`;
     else if (!gain && loss) landedLine = `▼ THEY READ YOU — your squad plays ${loss.amt} ${ATTR_SHORT[loss.attr]} tonight`;
     else if (gain) landedLine = `✓ the words LAND — squad +${gain.amt} ${ATTR_SHORT[gain.attr]}${loss ? ` · ${loss.amt} ${ATTR_SHORT[loss.attr]}` : ''} tonight`;
     else landedLine = 'the move is made. the rest is on them';
@@ -1865,7 +1909,8 @@ function speechSheetHtml(s: GameState): string {
       return `<div class="drill locked"><b>${pl.speech}</b> <span class="dim">— recharging, ${cd} week${cd === 1 ? '' : 's'}</span></div>`;
     }
     return `<button class="drill ${sel.kind === 'speech' && sel.id === pl.id ? 'sel' : ''}" data-action="speech-pick" data-id="${pl.id}">
-      <b>${pl.speech}</b> ${speechTrade(pl)}${pl.cooldown ? ` <span class="xpg">${pl.cooldown}w recharge</span>` : ''}<br/>
+      <b>${pl.speech}</b><br/>
+      ${speechTrade(pl)}${pl.cooldown ? ` <span class="xpg">${pl.cooldown}w recharge</span>` : ''}<br/>
       <span class="ddesc">${esc(pl.fantasy)}</span>
     </button>`;
   }).join('');
@@ -1896,6 +1941,9 @@ function speechSheetHtml(s: GameState): string {
     nothing. The score ticks up in 1–3 point bursts while each team's color
     FILLS from the rating separator toward its own edge — filling past your
     edge means you're beating the rating, and the separator gets PUSHED. */
+/** where the live game paused for the night's interruptions (per week) */
+let liveProg: { key: string; l: number; r: number } | null = null;
+
 function needleStage(s: GameState, title: string, share: number, home: boolean, oppName: string, final?: { my: number; opp: number; win: boolean }): string {
   const t = myTeam(s);
   const m = myMatchup(s);
@@ -1909,16 +1957,27 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
   const away = home ? opp : mineChip;
   const homeT = home ? mineChip : opp;
   const clash = Math.min(Math.abs(hue(away.bg) - hue(homeT.bg)), 360 - Math.abs(hue(away.bg) - hue(homeT.bg))) < 40;
-  const sep0 = (home ? 1 - share : share) * 100;
+  void share;
   // a finished game renders its final frame statically (the same math the
   // ticker runs) under the big verdict
   let l = 0, rr = 0;
+  const wkKey = `${s.season}:${s.week}`;
   if (final) {
     l = home ? final.opp : final.my;
     rr = home ? final.my : final.opp;
+  } else if (liveProg && liveProg.key === wkKey) {
+    // resuming after the night's interruptions: pick up where it paused
+    l = liveProg.l;
+    rr = liveProg.r;
   }
-  const f = liveFrame(l, rr, final ? 1 : 0);
+  const r0 = s.lastResult;
+  const total = r0 ? Math.max(1, r0.myScore + r0.oppScore) : 1;
+  const f = liveFrame(l, rr, final ? 1 : (l + rr) / total);
   const titleGame = isUtWeek(s) && (s.ut?.round ?? 0) >= 2;
+  // THE BOOKIE: the night's odds, printed once, before the ball goes up
+  const m0 = myMatchup(s);
+  const pct = final ? 0 : bookieLine(s, t, champ ? null : m0?.opponent ?? null, champ, home);
+  const bookie = final ? '' : `<div class="bookie">THE BOOKIE HAS YOU AT <b>${pct}%</b></div>`;
   // centered, the whole screen used: AWAY on top, @, HOME — then open air
   // where the score tag lives, hovering above the bar. The bar LIGHTS from
   // the center outward as the clock runs; the line inside the lit part is
@@ -1930,9 +1989,9 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
       <span class="lg-at">@</span>
       <span class="lg-team">${chip(homeT.name, homeT.bg, homeT.fg)}</span>
     </div>
+    ${bookie}
     <div class="lg-air"></div>
     <div class="bigrope live" id="bigrope">
-      <span class="lg-rating" style="left:${sep0}%"></span>
       <span class="lg-fill" id="lgl" style="left:${f.lo}%;width:${f.sep - f.lo}%;background:${away.bg}"></span>
       <span class="lg-fill" id="lgr" style="left:${f.sep}%;width:${f.hi - f.sep}%;background:${homeT.bg}"></span>
       <span class="brsplit ${final ? 'landed' : ''}" id="lgsep" style="left:${f.sep}%"></span>
@@ -1967,17 +2026,43 @@ function stageGamenight(s: GameState): string {
     // the final score big, the rope frozen where the night ended
     return needleStage(s, 'FINAL', r.share, r.home, r.oppName, { my: r.myScore, opp: r.oppScore, win: r.win });
   }
-  if (gnStage === 'verdict') {
-    // the box score: the grid in its usual pixels, the recap below it
+  if (gnStage === 'recap') {
+    // THE RECAP: the night's faces — the MVP, then the off days (named in
+    // the text), then any standout that wasn't the MVP — over the story
+    const t = myTeam(s);
+    const faces: { p: Player; tag: string; cls: string }[] = [];
+    const mvp = r.mvpId !== undefined ? t.players.find((p) => p.id === r.mvpId) : undefined;
+    if (mvp) faces.push({ p: mvp, tag: '★ GAME MVP', cls: 'up' });
+    const offs = t.players.filter((p) => r.forms?.[p.id] === -1);
+    for (const p of offs) if (faces.length < 3) faces.push({ p, tag: 'OFF DAY', cls: 'down' });
+    for (const p of t.players.filter((q) => r.forms?.[q.id] === 1 && q.id !== r.mvpId)) if (faces.length < 3) faces.push({ p, tag: 'STANDOUT!', cls: 'up' });
+    const offLine = offs.length
+      ? `${offs.map((p) => p.name).join(' and ')} never got going — ${offs.length === 1 ? 'an off night' : 'off nights'} in a game that needed everybody.`
+      : '';
     return `<h2 class="gridhead ${r.win ? 'won' : 'lost'}">${r.win ? 'VICTORY' : 'DEFEAT'} ${r.myScore}–${r.oppScore}</h2>
-      ${gridHtml(s, true, lens)}
-      <div class="botstack"><div class="verdict">
+      <div class="recapfaces">${faces.map((f) => `<div class="recapface">
+        ${rigSpriteHtml(rigView(f.p, f.cls === 'up' ? 'good' : 'bad'), { bg: t.bg, fg: t.fg }, 2)}
+        <div class="recaptag ${f.cls}">${esc(f.tag)}</div>
+        <div class="recapname">${esc(f.p.name)}</div>
+      </div>`).join('')}</div>
+      <div class="verdict">
         <div class="vline">${esc(r.wheelLine)}</div>
         <div class="vline">${esc(r.heroLine)}</div>
+        ${offLine ? `<div class="vline">${esc(offLine)}</div>` : ''}
         <div class="vline dim">${esc(r.boxLine)}</div>
-      </div></div>`;
+      </div>`;
   }
-  // AROUND THE LEAGUE: the other results first, the standings underneath
+  if (gnStage === 'verdict') {
+    // the box score: the grid in its usual pixels, the league's other
+    // results below it — the screen worth a note
+    const others = s.resultsLog.length
+      ? `<div class="report dim others"><div class="othershead">AROUND THE LEAGUE</div>${s.resultsLog.map((l) => `<div>${esc(l)}</div>`).join('')}</div>`
+      : '';
+    return `<h2 class="gridhead ${r.win ? 'won' : 'lost'}">BOX SCORE ${r.myScore}–${r.oppScore}</h2>
+      ${gridHtml(s, true, lens)}
+      <div class="botstack">${others}</div>`;
+  }
+  // THE STANDINGS
   const table = !isUtWeek(s)
     ? `<table class="standings">${sortedStandings(s)
         .map((t, i) => `<tr class="${t.id === s.myTeamId ? 'me' : ''}">
@@ -1985,10 +2070,7 @@ function stageGamenight(s: GameState): string {
           ${i === 1 ? `<tr class="utline"><td colspan="2">▲ ${TOURNEY.name} ▲</td></tr>` : ''}`)
         .join('')}</table>`
     : `<div class="report">${(s.ut?.log ?? []).map((l) => `<div>${esc(l)}</div>`).join('')}</div>`;
-  const others = s.resultsLog.length
-    ? `<div class="report dim">${s.resultsLog.map((l) => `<div>${esc(l)}</div>`).join('')}</div>`
-    : '';
-  return `<h2>AROUND THE LEAGUE</h2>${others}${table}`;
+  return `<h2>THE STANDINGS</h2>${table}`;
 }
 
 // ---- full views in the same frame ----------------------------------------------------------------------
@@ -2028,7 +2110,7 @@ function stageTeamSelect(s: GameState): string {
         lens,
         tag,
         col: c,
-        draggable: lens === 0,
+        draggable: true,
         kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT,
         delta: grew && sumBatch?.render ? { ovrFrom: sum.ovrFrom } : undefined,
         mainLabels: sumBatch?.render
@@ -2105,8 +2187,13 @@ function stagePickTeam(s: GameState): string {
 // While a mandatory action waits, the button runs it («▶ RUN — SHOOTAROUND»)
 // with a ▾ picker arrow on BOTH sides of the screen; once it lands, the same
 // button names what's next (TO RECRUITING, PLAY, NEXT WEEK).
-function navMain(label: string, action: string, disabled = false): string {
-  return `<button class="primary hold navmain" data-action="${action}" ${disabled ? 'disabled' : ''}>${label}</button>`;
+function navMain(label: string, action: string, disabled = false, hold = true): string {
+  return `<button class="primary ${hold ? 'hold' : 'tap'} navmain" data-action="${action}" ${disabled ? 'disabled' : ''}>${label}</button>`;
+}
+
+/** The way forward when nothing is left to do: a plain tap, arrows both sides. */
+function navGo(dest: string, action: string): string {
+  return navMain(`▸ CONTINUE TO ${dest} ◂`, action, false, false);
 }
 
 function navAction(label: string, sub: string, runAction: string, sheetAction: string, opts: { disabled?: boolean; scoped?: boolean } = {}): string {
@@ -2122,25 +2209,25 @@ function nav(s: GameState): string {
     case 'pickTeam':
       return navMain('CHOOSE YOUR PROGRAM', 'noop', true);
     case 'teamSelect':
-      return navMain('CONFIRM SQUAD', 'cut-confirm-open');
+      return navMain('CONFIRM SQUAD', 'cut-confirm-open', false, false);
     case 'weekstart':
-      return navMain(isUtWeek(s) ? 'TO MATCHUP' : 'TO SCOUTING', 'begin-week');
+      return navGo(isUtWeek(s) ? 'THE MATCHUP' : 'SCOUTING', 'begin-week');
     case 'scouting': {
-      if (s.pendingRecruits.length) return navMain('CONFIRM THE BOARD', 'board-confirm-open');
-      if (s.scoutActWk) return navMain('TO PRACTICE', 'to-practice');
+      if (s.pendingRecruits.length) return navMain('CONFIRM THE BOARD', 'board-confirm-open', false, false);
+      if (s.scoutActWk) return navGo('PRACTICE', 'to-practice');
       const act = galaxyActById(selScout);
       const grounded = s.groundedWeeks > 0 && act.kind === 'search' && !act.local;
       const disabled = grounded ? 'GROUNDED' : s.energy < act.cost ? `NEED ${act.cost}¢` : null;
       return navAction(`▶ ${GX_VERB[act.kind]} — ${act.name}`, disabled ?? gxActSub(act), 'gx-run', 'gx-sheet', { disabled: !!disabled, scoped: galaxyScope(s) !== null });
     }
     case 'practice': {
-      if (s.trainedThisWeek) return navMain('TO RECRUITING', 'to-recruiting');
+      if (s.trainedThisWeek) return navGo('RECRUITING', 'to-recruiting');
       const d = DRILLS.find((x) => x.id === selectedDrill)!;
       const cant = s.energy < d.cost;
       return navAction(`▶ RUN — ${d.name}`, cant ? `NEED ${d.cost}¢` : drillRecap(d), 'drill-run', 'drill-sheet', { disabled: cant, scoped: lens === 0 && practiceScope(s) !== null });
     }
     case 'recruiting': {
-      if (s.recruitActWk) return navMain('TO MATCHUP', 'to-matchup');
+      if (s.recruitActWk) return navGo('THE MATCHUP', 'to-matchup');
       const act = galaxyActById(selRecruit);
       const disabled = s.energy < act.cost ? `NEED ${act.cost}¢` : null;
       const verb = act.via === 'booster' ? 'THE BOOSTER' : 'RECRUIT';
@@ -2155,22 +2242,23 @@ function nav(s: GameState): string {
         return navAction(`▶ INSTRUCT — ${it.name}`, cant ? `NEED ${it.cost}¢` : `lands: they play −${it.oppAmt} · read: ${it.id === 'takeout' ? 'CAUGHT' : `you play −${it.selfAmt}`}${it.cost ? ` · ${it.cost}¢` : ''}`, 'speech-run', 'speech-sheet', { disabled: cant });
       }
       const pl = planById(sel.id);
-      return navAction(`▶ SPEECH — ${pl.speech}`, `squad +${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]} · −${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]} tonight`, 'speech-run', 'speech-sheet');
+      return navAction(`▶ SPEECH — ${pl.speech}`, speechSub(pl), 'speech-run', 'speech-sheet');
     }
     case 'gamenight': {
       if (!s.lastResult || gnStage === 'beat') return navMain('…', 'noop', true);
-      if (gnStage === 'final') return navMain('BOX SCORE', 'gn-verdict');
-      if (gnStage === 'verdict') return navMain('AROUND THE LEAGUE', 'gn-table');
-      return navMain('NEXT WEEK', 'continue-result');
+      if (gnStage === 'final') return navGo('THE RECAP', 'gn-recap');
+      if (gnStage === 'recap') return navGo('THE BOX SCORE', 'gn-verdict');
+      if (gnStage === 'verdict') return navGo('THE STANDINGS', 'gn-table');
+      return navGo('NEXT WEEK', 'continue-result');
     }
     case 'departures': {
       const unresolved = s.proDeparts.some((d) => !d.resolved);
-      return navMain(unresolved ? 'YOUR STARS FIRST' : 'SIGNING DAY', 'to-signing', unresolved);
+      return unresolved ? navMain('YOUR STARS FIRST', 'to-signing', true) : navGo('SIGNING DAY', 'to-signing');
     }
     case 'signing':
       return navMain('SEND LETTERS', 'do-signing');
     case 'gameover':
-      return navMain('NEW GAME', 'new-game-direct');
+      return navMain('NEW GAME', 'new-game-direct', false, false);
     default:
       return '';
   }
@@ -2662,8 +2750,9 @@ function postRender(): void {
     floatTimers.push(window.setTimeout(() => {
       if (gxResult === r) typewrite(box0 as HTMLElement | null, r.text, () => {
         revealActions();
-        // the saucer lands its verdict scene as the report finishes
-        if (r.art && r.art !== 'saucer-move') {
+        // the saucer lands only at the HOOP (a find); trouble stays airborne —
+        // the story that follows does the reveal
+        if (r.art === 'saucer-hoop') {
           const el = document.getElementById('gxscene');
           const t = myTeam(state);
           if (el) el.innerHTML = sceneHtml(r.art as SceneId, { bg: t.bg, fg: t.fg }, 3);
@@ -2763,9 +2852,20 @@ function animateLiveGame(myPts: number, oppPts: number, _share: number, home: bo
   const total = Math.max(1, leftFinal + rightFinal);
   // the clock is the points: the light grows from the center as they fall,
   // and the line inside it is who leads and by how much
-  let l = 0;
-  let r = 0;
+  const wkKey = `${state.season}:${state.week}`;
+  let l = liveProg && liveProg.key === wkKey ? liveProg.l : 0;
+  let r = liveProg && liveProg.key === wkKey ? liveProg.r : 0;
   let done = false;
+  // THE INTERRUPTIONS: at the half the night's stories get the floor; the
+  // game resumes from this exact frame once the coach has answered
+  const pause = (): void => {
+    if (done) return;
+    done = true;
+    if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
+    liveProg = { key: wkKey, l, r };
+    releaseMidStories(state);
+    render();
+  };
   const apply = (): void => {
     const f = liveFrame(l, r, (l + r) / total);
     lgl.style.left = `${f.lo}%`;
@@ -2780,8 +2880,17 @@ function animateLiveGame(myPts: number, oppPts: number, _share: number, home: bo
   apply();
   const finish = (skip = false): void => {
     if (done) return;
+    if (state.midStories?.length) {
+      // skipping into the interruptions: jump to the half and let them speak
+      const half = Math.round(total * 0.55);
+      while (l + r < half) { if (Math.random() * (leftFinal + rightFinal - l - r) < leftFinal - l && l < leftFinal) l++; else if (r < rightFinal) r++; else l++; }
+      apply();
+      pause();
+      return;
+    }
     done = true;
     if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
+    liveProg = null;
     l = leftFinal;
     r = rightFinal;
     apply();
@@ -2792,6 +2901,7 @@ function animateLiveGame(myPts: number, oppPts: number, _share: number, home: bo
   progressTimer = window.setInterval(() => {
     const remL = leftFinal - l;
     const remR = rightFinal - r;
+    if (state.midStories?.length && l + r >= total * 0.55) { pause(); return; }
     if (remL <= 0 && remR <= 0) { finish(); return; }
     // whoever has more scoring left is likelier to score next
     const left = Math.random() * (remL + remR) < remL;
@@ -2921,10 +3031,24 @@ function dropItemOnStory(itemId: string): void {
   doResolve(key);
 }
 
-/** A player item dragged onto a card: the individual action lands there. */
+/** A player item dragged onto a card: the individual action lands there —
+    and shows there (the anchored stickers). */
 function dropItemOnPlayer(itemId: string, playerId: number): void {
+  const p = myTeam(state).players.find((x) => x.id === playerId);
+  const pre = p ? { e: p.energy, m: p.mood, xp: p.xp, lvl: p.level, ovr: ovr(p.attrs), attrs: copyAttrs(p.attrs), need: p.level >= LEVEL_CAP ? 0 : xpNeed(p.level) } : null;
   const text = useItem(state, itemId, { playerId });
   if (text) toast = text;
+  if (p && pre) {
+    const rec: CardDelta = {};
+    if (p.energy !== pre.e) rec.e = p.energy - pre.e;
+    if (p.mood !== pre.m) rec.m = p.mood - pre.m;
+    if (p.level !== pre.lvl) { rec.lvlFrom = pre.lvl; rec.xp = pre.need; }
+    else if (p.xp !== pre.xp && pre.need > 0) { rec.xpFromPct = Math.min(100, Math.round((pre.xp / pre.need) * 100)); rec.xp = p.xp - pre.xp; }
+    const gains = ATTRS.filter((a) => p.attrs[a] !== pre.attrs[a]).map((a) => `${p.attrs[a] > pre.attrs[a] ? '+' : ''}${p.attrs[a] - pre.attrs[a]} ${ATTR_SHORT[a]}`);
+    if (gains.length) rec.gain = gains.join(' ');
+    if (ovr(p.attrs) !== pre.ovr) rec.ovrFrom = pre.ovr;
+    if (Object.keys(rec).length) cardDeltas = { key: `item:${itemId}:${Date.now()}`, map: new Map([[playerId, rec]]) };
+  }
 }
 
 /** A recruit item dragged onto a big-board card. */
@@ -3093,7 +3217,7 @@ function executeAction(action: string, id: string): void {
       const out = runDrill(state, selectedDrill);
       if (out) {
         floatEnergyBig(d.cost);
-        drillDeltas = new Map();
+        const map = new Map<number, CardDelta>();
         for (const p of myTeam(state).players) {
           const b = pre.get(p.id);
           if (!b) continue;
@@ -3103,24 +3227,30 @@ function executeAction(action: string, id: string): void {
           if (p.level !== b.lvl) rec.lvlFrom = b.lvl;
           else if (p.xp !== b.xp && b.need > 0) rec.xpFromPct = Math.min(100, Math.round((b.xp / b.need) * 100));
           if (ovr(p.attrs) !== b.ovr) rec.ovrFrom = b.ovr;
-          if (Object.keys(rec).length) drillDeltas.set(p.id, rec);
+          const xp = out.xpByPlayer.get(p.id);
+          if (xp) rec.xp = xp;
+          const gain = out.gainByPlayer.get(p.id);
+          if (gain) rec.gain = gain;
+          if (Object.keys(rec).length) map.set(p.id, rec);
         }
+        cardDeltas = { key: `drill:${state.season}:${state.week}:${Date.now()}`, map };
         cascArmed = 'bars';
       }
       break;
     }
 
     case 'begin-week': beginWeek(state); break;
-    case 'to-practice': galaxySheet = false; gxStickers = null; toPractice(state); break;
-    case 'to-recruiting': drillSheet = false; drillDeltas = null; toRecruiting(state); break;
-    case 'to-matchup': galaxySheet = false; gxStickers = null; toMatchup(state); break;
+    case 'to-practice': galaxySheet = false; gxStickers = null; cardDeltas = null; toPractice(state); break;
+    case 'to-recruiting': drillSheet = false; cardDeltas = null; toRecruiting(state); break;
+    case 'to-matchup': galaxySheet = false; gxStickers = null; cardDeltas = null; toMatchup(state); break;
     case 'to-signing': toSigning(state); break;
-    case 'gn-verdict':
+    case 'gn-recap':
       // the score has been seen: everything the horn caused may speak now
-      // (injuries, ON FIRE, the frozen one) — then the box score
-      gnStage = 'verdict'; clearFloatTimers(); releaseHeldStories(state); break;
+      // (the frozen one, the fire going out) — then the recap
+      gnStage = 'recap'; clearFloatTimers(); releaseHeldStories(state); break;
+    case 'gn-verdict': gnStage = 'verdict'; clearFloatTimers(); break;
     case 'gn-table': gnStage = 'table'; clearFloatTimers(); break;
-    case 'continue-result': gnStage = 'beat'; clearFloatTimers(); drillDeltas = null; gxStickers = null; continueFromResult(state); break;
+    case 'continue-result': gnStage = 'beat'; clearFloatTimers(); cardDeltas = null; gxStickers = null; liveProg = null; continueFromResult(state); break;
 
     case 'gx-run': {
       const { actId } = boardSel(state);

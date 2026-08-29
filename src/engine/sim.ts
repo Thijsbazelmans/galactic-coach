@@ -157,6 +157,12 @@ export function normalizeLineup(t: Team): void {
 
 const PLAN_FOR_ATTR: Record<Attr, PlanId> = { skl: 'showtime', ath: 'rungun', frc: 'lockdown', brn: 'clockwork' };
 
+/** The night's split as a percentage — what the bookie prints. */
+export function bookieLine(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null, home: boolean): number {
+  const { mine, theirs } = gameRope(s, me, opp, champ, home, s.speechFx ?? null);
+  return Math.round(winShare(mine, theirs) * 100);
+}
+
 /** AI teams: best six on the floor — CONDITION counts, tired stars sit —
     each row stood in its best-rating arrangement. (The other coaches rotate
     too, and speak to their strength.) */
@@ -356,7 +362,7 @@ function boxLineFrom(rows: BoxRow[]): string {
   return `${top.name} led the way with ${top.pts} points.${extras.length ? ` ${extras[0]}.` : ''}`;
 }
 
-function verdictLines(
+export function verdictLines(
   me: Team,
   myPlan: PlanId,
   won: boolean,
@@ -409,6 +415,7 @@ function gameRope(
 ): { mine: number; theirs: number } {
   const [vm, vt] = champ ? [1, 1] : home ? [1.03, 1] : [1, 1.03];
   let mine = teamPower(me, fx, forms) * vm;
+  if (s.easyNight) mine *= 0.93; // coasting: less burn, less punch
   // their locker room hears a speech too — the same shift we get, aimed at
   // their strength (fairness law) — and a LANDED instruction drags their side
   // down (s.oppFx, amt negative)

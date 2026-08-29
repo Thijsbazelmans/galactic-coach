@@ -13,7 +13,7 @@ import {
   TEAM_TEMPLATES,
   speciesById,
 } from './data';
-import type { AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
+import type { Attr, AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
 export const SAVE_VERSION = 20;
@@ -112,14 +112,21 @@ export function rollPotOvr(speciesId: string, shift = 0, luck = 0): number {
   return lo + rand(hi - lo + 1);
 }
 
+const OPP: Record<Attr, Attr> = { skl: 'ath', ath: 'skl', frc: 'brn', brn: 'frc' };
+
 /** Distribute a target OVERALL across the four attributes along the species
-    shape profile (biased attrs pull ~2×) plus personal variation. */
+    shape profile (biased attrs pull ~2×) plus personal variation — and, half
+    the time, a personal SPIKE: one attribute doubled, its opposite halved.
+    That's where the fierce guard and the thinking center come from. */
 function distribute(speciesId: string, target: number): AttrRec {
   const sp = speciesById(speciesId);
   const w = zeroAttrs();
   let tw = 0;
+  const spike: Attr | null = Math.random() < 0.5 ? pick(ATTRS) : null;
   for (const a of ATTRS) {
     w[a] = (sp.bias.includes(a) ? 2.1 : 1) * (0.6 + Math.random() * 0.8);
+    if (spike === a) w[a] *= 2;
+    if (spike && OPP[spike] === a) w[a] *= 0.55;
     tw += w[a];
   }
   const out = zeroAttrs();
@@ -335,12 +342,25 @@ export function observe(pr: Prospect): void {
   }
 }
 
-/** A prospect from a region's rarity dial. The region shifts WHO you find,
-    never how good they are — the band roll is the species'. */
+/** Where the stars are: the opening board and the local searches roll a
+    band DOWN (a 4★ kid is a find, not a Tuesday); the nebula and the outer
+    rim roll straight; the deep core takes the best of two. */
+const REGION_ROLL: Record<string, { shift: number; luck: number }> = {
+  opening: { shift: -1, luck: 0 },
+  reccenter: { shift: -1, luck: -1 },
+  home: { shift: -1, luck: 0 },
+  nebula: { shift: 0, luck: 0 },
+  outerrim: { shift: 0, luck: 0 },
+  deepcore: { shift: 0, luck: 1 },
+};
+
+/** A prospect from a region's rarity dial. The region shifts WHO you find —
+    and how far you had to fly says something about how good. */
 export function genProspect(counter: { nextId: number }, _seasonNo: number, searchId: string, taken?: Set<string>): Prospect {
   const odds = SPECIES_ODDS[searchId] ?? SPECIES_ODDS.home;
   const spId = rollSpecies(odds);
-  const pots = distribute(spId, rollPotOvr(spId));
+  const rr = REGION_ROLL[searchId] ?? REGION_ROLL.home;
+  const pots = distribute(spId, rollPotOvr(spId, rr.shift, rr.luck));
   // college-ready: a recruit arrives at level 2–4 — a third to a half of his
   // ceiling already — so a good class can turn a program in two seasons
   const level = 2 + rand(3);

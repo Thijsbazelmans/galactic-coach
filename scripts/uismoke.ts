@@ -193,23 +193,35 @@ async function main(): Promise<void> {
   if (!Array.isArray(st.lastResult.box) || !st.lastResult.box.length) throw new Error('box score missing from result');
   if (st.lastResult.myScore === st.lastResult.oppScore) throw new Error('the game ended tied');
 
-  // skip the live game (tap) → YOU WON / YOU LOST on the same screen
-  const ns1 = app.querySelector('#needle-stage') as unknown as { click?: () => void } | null;
-  if (!ns1?.click) throw new Error('live game stage missing');
-  ns1.click();
+  // the bookie prints the odds before the ball goes up
+  if (!app.innerHTML.includes('THE BOOKIE')) throw new Error('the bookie line is missing');
+  // skip the live game (tap) → the night's interruptions may speak at the
+  // half (answer them, the game resumes) → YOU WON / YOU LOST on the same screen
+  for (let i = 0; i < 3 && app.querySelector('#needle-stage') && !/YOU WON|YOU LOST/.test(app.innerHTML); i++) {
+    const ns1 = app.querySelector('#needle-stage') as unknown as { click?: () => void } | null;
+    if (!ns1?.click) throw new Error('live game stage missing');
+    ns1.click();
+    drain();
+  }
   if (!/YOU WON|YOU LOST/.test(app.innerHTML)) throw new Error('YOU WON / YOU LOST missing after the horn');
-  if (!app.querySelector('.navbar [data-action="gn-verdict"]')) throw new Error('BOX SCORE continue missing');
+  if ((gc.state() as any).gamePending) throw new Error('the game never finalized');
+  if (!app.querySelector('.navbar [data-action="gn-recap"]')) throw new Error('RECAP continue missing');
+  if (app.querySelector('.navbar .navmain.hold')) throw new Error('continue should be a plain tap, not a hold');
 
-  // → the horn's consequences speak now (held during the game), then the box score grid
-  anyWin.gcAction('gn-verdict', '');
+  // → the horn's consequences speak now (held during the game), then THE RECAP
+  anyWin.gcAction('gn-recap', '');
   drain();
-  if (!/VICTORY|DEFEAT/.test(app.innerHTML)) throw new Error('box score screen missing');
+  if (!/VICTORY|DEFEAT/.test(app.innerHTML)) throw new Error('recap screen missing');
+  if (!app.innerHTML.includes('recapfaces') || !app.innerHTML.includes('GAME MVP')) throw new Error('MVP face missing on the recap');
+  // → the box score grid, the league's results under it, the notebook blinking
+  anyWin.gcAction('gn-verdict', '');
+  if (!app.innerHTML.includes('BOX SCORE')) throw new Error('box score screen missing');
   if (!app.innerHTML.includes('GAME MVP')) throw new Error('MVP tag missing on the box-score grid');
-
-  // → the league results with the standings underneath → NEXT WEEK
+  if (!app.innerHTML.includes('notebook tall pulse')) throw new Error('the notebook should blink on the box score');
+  // → the standings → NEXT WEEK
   anyWin.gcAction('gn-table', '');
-  if (!app.innerHTML.includes('AROUND THE LEAGUE')) throw new Error('league screen missing');
-  if (!app.innerHTML.includes('standings')) throw new Error('standings table missing under the results');
+  if (!app.innerHTML.includes('THE STANDINGS')) throw new Error('standings screen missing');
+  if (app.innerHTML.includes('AROUND THE LEAGUE')) throw new Error('other results should have left the standings screen');
   anyWin.gcAction('continue-result', '');
   drain(); // travel-home story, if the game was away
   if (state().phase !== 'weekstart') throw new Error(`expected weekstart, got ${state().phase}`);

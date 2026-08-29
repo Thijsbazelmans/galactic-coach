@@ -188,6 +188,8 @@ export interface PlanDef {
   name: string;
   /** the coach's words */
   speech: string;
+  /** 'shift' trades attributes · 'rally' gambles on morale · 'easy' coasts */
+  kind: 'shift' | 'rally' | 'easy';
   attr: Attr;
   /** the attribute the speech TAKES from */
   off: Attr;
@@ -195,6 +197,8 @@ export interface PlanDef {
   gain: [number, number];
   /** squad −min..max in the opposite tonight */
   loss: [number, number];
+  /** what the room does when the words land — one scene per speech */
+  scene: string;
   fantasy: string;
   premium?: boolean;
   /** premium finds recharge: weeks before this speech can be given again */
@@ -202,15 +206,17 @@ export interface PlanDef {
 }
 
 export const PLANS: PlanDef[] = [
-  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', attr: 'skl', off: 'ath', gain: [3, 4], loss: [3, 4], fantasy: 'Shooters shoot. Rise over anything they pack in — and forget about running.' },
-  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', attr: 'ath', off: 'skl', gain: [3, 4], loss: [3, 4], fantasy: 'Outrun everything. Seven seconds or less. Nobody said anything about making shots.' },
-  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', attr: 'frc', off: 'brn', gain: [3, 4], loss: [3, 4], fantasy: 'Full-court terror. Make them hate the ball. Thinking is for the bus ride home.' },
-  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', attr: 'brn', off: 'frc', gain: [3, 4], loss: [3, 4], fantasy: 'The system. Every cut scripted. Nobody gets angry, nobody gets a steal.' },
+  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', kind: 'shift', attr: 'skl', off: 'ath', gain: [3, 4], loss: [3, 4], scene: "Before you finish the sentence they're doing trick shots for the 'gram. Somebody banks one in off the ceiling.", fantasy: 'Shooters shoot. Rise over anything they pack in — and forget about running.' },
+  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', kind: 'shift', attr: 'ath', off: 'skl', gain: [3, 4], loss: [3, 4], scene: 'They bench-press the cheerleaders while you talk. The cheerleaders seem fine with it.', fantasy: 'Outrun everything. Seven seconds or less. Nobody said anything about making shots.' },
+  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', kind: 'shift', attr: 'frc', off: 'brn', gain: [3, 4], loss: [3, 4], scene: 'Somebody headbutts a locker, lovingly. Then somebody else does. The locker will need replacing.', fantasy: 'Full-court terror. Make them hate the ball. Thinking is for the bus ride home.' },
+  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', kind: 'shift', attr: 'brn', off: 'frc', gain: [3, 4], loss: [3, 4], scene: 'A quiet confidence settles over the room. Is someone humming "ohm"? Are they ALL?', fantasy: 'The system. Every cut scripted. Nobody gets angry, nobody gets a steal.' },
+  { id: 'rally', name: 'THE RALLY', speech: 'THIS IS OUR HOUSE', kind: 'rally', attr: 'skl', off: 'skl', gain: [0, 0], loss: [0, 0], scene: 'You get them riled up. It either takes or it doesn\'t.', fantasy: 'No X\'s, no O\'s — just the roof, and whether it stays on. A coin flip on morale; a sliver of chance it goes very right, or very wrong.' },
+  { id: 'easy', name: 'TAKE IT EASY', speech: 'SAVE SOMETHING FOR NEXT WEEK', kind: 'easy', attr: 'ath', off: 'ath', gain: [0, 0], loss: [0, 0], scene: 'Nods. Somebody yawns, on purpose. The starters stretch like it\'s a Tuesday.', fantasy: 'Coast tonight: the floor players burn far less energy, and you play a little softer for it. Lose, and a coasting room takes it badly.' },
   // premium speeches — found in stories: a better trade, 3-week recharge
-  { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', attr: 'frc', off: 'brn', gain: [5, 6], loss: [2, 3], fantasy: 'An old Quadran battle chant. The paint peels.', premium: true, cooldown: 3 },
-  { id: 'zenmind', name: 'THE STILL POND', speech: 'BE THE STILL POND', attr: 'brn', off: 'frc', gain: [5, 6], loss: [2, 3], fantasy: 'The oracle taught you this one. The gym goes quiet inside.', premium: true, cooldown: 3 },
-  { id: 'stardust', name: 'STARDUST', speech: 'BE UNGUARDABLE', attr: 'skl', off: 'ath', gain: [5, 6], loss: [2, 3], fantasy: 'A retired Nimbus legend whispered it once. Nets have feared it since.', premium: true, cooldown: 3 },
-  { id: 'engine', name: 'THE ENGINE', speech: 'LEGS ARE A LIE', attr: 'ath', off: 'skl', gain: [5, 6], loss: [2, 3], fantasy: 'A Robota conditioning mantra. The floor gets smaller for everyone else.', premium: true, cooldown: 3 },
+  { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', kind: 'shift', attr: 'frc', off: 'brn', gain: [5, 6], loss: [2, 3], scene: 'The chant goes up in old Quadran. The paint on the far wall peels a little.', fantasy: 'An old Quadran battle chant. The paint peels.', premium: true, cooldown: 3 },
+  { id: 'zenmind', name: 'THE STILL POND', speech: 'BE THE STILL POND', kind: 'shift', attr: 'brn', off: 'frc', gain: [5, 6], loss: [2, 3], scene: 'The room goes so quiet you can hear the arena breathing through the wall.', fantasy: 'The oracle taught you this one. The gym goes quiet inside.', premium: true, cooldown: 3 },
+  { id: 'stardust', name: 'STARDUST', speech: 'BE UNGUARDABLE', kind: 'shift', attr: 'skl', off: 'ath', gain: [5, 6], loss: [2, 3], scene: 'Somebody spins the ball on a finger for the entire speech and never once looks at it.', fantasy: 'A retired Nimbus legend whispered it once. Nets have feared it since.', premium: true, cooldown: 3 },
+  { id: 'engine', name: 'THE ENGINE', speech: 'LEGS ARE A LIE', kind: 'shift', attr: 'ath', off: 'skl', gain: [5, 6], loss: [2, 3], scene: 'The whole room is bouncing before you finish. The floor has opinions about it.', fantasy: 'A Robota conditioning mantra. The floor gets smaller for everyone else.', premium: true, cooldown: 3 },
 ];
 
 export function planById(id: PlanId): PlanDef {
@@ -218,7 +224,7 @@ export function planById(id: PlanId): PlanDef {
 }
 
 /** The four standard speeches every coach knows. Premium ones are KNOWLEDGE. */
-export const STARTING_PLANS: PlanId[] = ['showtime', 'rungun', 'lockdown', 'clockwork'];
+export const STARTING_PLANS: PlanId[] = ['showtime', 'rungun', 'lockdown', 'clockwork', 'rally', 'easy'];
 
 // ---- LAST-MINUTE INSTRUCTIONS ------------------------------------------------
 // The other pregame move: instead of rousing the room, you play the tape.
@@ -690,7 +696,7 @@ export const ITEMS: ItemDef[] = [
     name: "BEELZEBUB'S VIAL",
     rarity: 'rare',
     flavor: '"One sip. Ask nothing." — the doctor on stAroid-5',
-    effectText: 'an injured player: back on his feet tonight, full energy',
+    effectText: 'an injured player: back on their feet tonight, full energy',
     context: ['injury', 'pregame'],
     target: 'player',
     check: (ctx) => medicalCheck(ctx.player, 'the vial waits'),
@@ -849,7 +855,7 @@ export const ITEMS: ItemDef[] = [
     name: 'STUDY-BUDDY HOLOGRAM',
     rarity: 'common',
     flavor: 'A tutor of light. Extremely thorough. Slightly too thorough.',
-    effectText: 'one player: he passes the exam (or a study week: +1 BRAINS, −10 energy)',
+    effectText: 'one player: they pass the exam (or a study week: +1 BRAINS, −10 energy)',
     context: ['academic'],
     target: 'player',
     up: { pct: 2, cls: 'BREAKTHROUGH' },
@@ -1014,7 +1020,7 @@ export const ITEMS: ItemDef[] = [
     short: 'TAPE',
     name: 'HYPE MIXTAPE',
     rarity: 'common',
-    flavor: "Forty minutes of his own highlights set to Quadran war drums.",
+    flavor: "Forty minutes of their own highlights set to Quadran war drums.",
     effectText: 'one player: mood +25',
     context: ['mood'],
     target: 'player',
@@ -1226,7 +1232,7 @@ ITEMS.push(
     short: 'WEEK',
     name: 'A POCKET WEEK',
     rarity: 'common',
-    flavor: 'A localized time machine the size of a lunchbox. He lives the week; you don\'t.',
+    flavor: 'A localized time machine the size of a lunchbox. They live the week; you don\'t.',
     effectText: 'TIME · an absence (not an injury): one week less of it',
     context: ['away'],
     target: 'player',
@@ -1946,7 +1952,9 @@ export const STORIES: StoryDef[] = [
     id: 'exchange',
     kind: 'player',
     weight: 2,
-    beat: (_b, ctx) => ({
+    beat: (b, ctx) => b === 'return'
+      ? { tag: 'THE RETURN', text: `The shuttle from Alexandria-One lands and ${pname(ctx)} steps off with a bag full of books and a look you can't read yet…` }
+      : ({
       tag: 'CAMPUS STORY',
       text: `${pname(ctx)} has been selected for a prestigious 3-week academic exchange on the Scholar-Ring of Alexandria-One. Huge for his future. Also huge for your rotation, in the bad way.`,
       choices: [
@@ -1954,14 +1962,21 @@ export const STORIES: StoryDef[] = [
         C('deny', "DENY IT. HE'S HERE TO PLAY.", { up: { pct: 2, cls: 'WINDFALL' }, down: { pct: 25, cls: 'DRAMA' }, want: 'hate' }),
       ],
     }),
-    resolve: (key, ctx) => {
+    resolve: (key, ctx, ev) => {
       const p = ctx.player!;
-      if (key === 'go') {
+      if (ev.beat === 'return') {
         const t = tails(25, 2);
-        const base: Fx[] = [{ playerId: p.id, outWeeks: 3, outReason: 'academic exchange', mood: 10 }, { heatS: -6 }];
-        if (t === 'up') return { text: `${p.name} sends weekly holo-postcards and returns measurably smarter and insufferable about it. The Scholar-Ring rewired how he sees the floor — and he brought you something from their observatory.`, fx: [...base, { playerId: p.id, attr: { brn: 2 } }, { giveItem: 'telescope' }] };
-        if (t === 'down') return { text: `${p.name} loves it there SO much. His postcards start mentioning "options". You sleep worse.`, fx: [...base, { playerId: p.id, mood: 5 }] };
-        return { text: `${p.name} goes, learns, returns with a Scholar-Ring hoodie he never takes off.`, fx: [...base, { playerId: p.id, attr: { brn: 1 } }] };
+        if (t === 'up') return { text: `Measurably smarter and insufferable about it. The Scholar-Ring rewired how ${p.name} sees the floor — and he brought you something from their observatory.`, fx: [{ playerId: p.id, attr: { brn: 2 }, potAttr: { brn: 1 }, mood: 6 }, { giveItem: 'telescope' }] };
+        if (t === 'down') return { text: `${p.name} loved it there SO much. The first thing he says is the word "options". You sleep worse.`, fx: [{ playerId: p.id, attr: { brn: 1 }, mood: -4 }] };
+        return { text: `${p.name} is back, a little smarter, wearing a Scholar-Ring hoodie he will never take off.`, fx: [{ playerId: p.id, attr: { brn: 1 }, mood: 4 }] };
+      }
+      if (key === 'go') {
+        // the result waits for the bus home: three weeks of not knowing
+        return {
+          text: `${p.name} waves at you, sadly, as the shuttle to Alexandria-One lifts off. Three weeks. The rotation feels the hole by Tuesday.`,
+          fx: [{ playerId: p.id, outWeeks: 3, outReason: 'academic exchange', mood: 10, tense: true }, { heatS: -6 }],
+          follow: [{ weeks: 3, beat: 'return' }],
+        };
       }
       const t = tails(2, 25);
       if (t === 'down') return { text: `He says he understands. He does not understand. His advisor files a complaint with the school.`, fx: [{ playerId: p.id, mood: -12 }, { heatS: 8 }] };
@@ -3221,6 +3236,140 @@ STORIES.push({
     };
   },
   resolve: () => ({ text: '' }),
+});
+
+// ---- THE NIGHT'S INTERRUPTIONS: the live game pauses, the coach decides ----
+// One per player per game, two per night at most. ON FIRE lifts the whole
+// team if you let them cook (and taxes the body Monday); an injury knocks
+// the team if you pull them, or waits until Monday to show its real size if
+// you tape it up. Medical items in THE BAG show up as choices here too.
+STORIES.push({
+  id: 'fire_live',
+  kind: 'player',
+  beat: (b, ctx) => {
+    const p = pname(ctx);
+    if (b === 'after') {
+      const label = (ctx.data.label as string) ?? 'a strain';
+      const weeks = (ctx.data.weeks as number) ?? 1;
+      return { tag: 'THE MORNING AFTER', text: `${p} pulls up lame in Monday's shootaround — the fire took its toll. The trainer says ${label}: ${weeks} week${weeks === 1 ? '' : 's'}.` };
+    }
+    const pts = (ctx.data.pts as number) ?? 25;
+    return {
+      tag: '🔥 ON FIRE',
+      text: `${p} is playing LIGHTS OUT tonight — ${pts} already and counting. He is setting the rim on fire. Literally: the net is smoking.\n\nThe bench is on its feet. So is the other coach.`,
+      choices: [
+        C('cook', 'LET HIM COOK', { up: { pct: 50, cls: 'SPIRIT', note: 'the whole team lifts' }, down: { pct: 25, cls: 'INJURY', note: 'the body pays Monday' }, want: 'love' }),
+        C('rotate', 'ROTATE AS NORMAL', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' }, want: 'hate' }),
+      ],
+    };
+  },
+  resolve: (key, ctx, ev) => {
+    const p = ctx.player!;
+    const s = ctx.s;
+    if (ev.beat === 'after') {
+      const weeks = (ctx.data.weeks as number) ?? 1;
+      return { text: 'Fire is a loan. This is the interest.', fx: [{ playerId: p.id, outWeeks: weeks, outReason: (ctx.data.label as string) ?? 'a strain', outKind: 'injury', mood: -4 }] };
+    }
+    if (key === 'cook') {
+      const bump = 4 + rand(3);
+      s.gameShift = (s.gameShift ?? 0) + bump;
+      p.onFire = true;
+      const inj = rollInjury(0, fragility(p.speciesId));
+      return {
+        text: `You leave him in. The whole building leans forward and the whole TEAM plays up to him. +${bump} on the night — and a body you'll want to check on Monday.`,
+        fx: [{ playerId: p.id, mood: 10 }, { teamMood: 4 }],
+        follow: roll(30) ? [{ weeks: 1, beat: 'after', data: { label: inj.label, weeks: Math.max(1, Math.min(2, inj.weeks)) } }] : [],
+      };
+    }
+    return { text: `You go to the bench like it's any other night. ${p.name} sits, still smoking, and the moment cools politely. Everyone's fresh for next week.`, fx: [{ playerId: p.id, mood: -6 }] };
+  },
+});
+
+STORIES.push({
+  id: 'injury_live',
+  kind: 'player',
+  context: 'injury',
+  beat: (b, ctx) => {
+    const p = pname(ctx);
+    const weeks = (ctx.data.weeks as number) ?? 1;
+    const label = (ctx.data.label as string) ?? 'a knock';
+    if (b === 'worse') {
+      const extra = (ctx.data.extra as number) ?? weeks;
+      return { tag: 'THE MORNING AFTER', text: `${p} can't put weight on it Monday. It was worse than the tape let on — ${extra} more week${extra === 1 ? '' : 's'} on top.` };
+    }
+    return {
+      tag: 'INJURY',
+      text: `${(ctx.data.cause as string) ?? `${p} goes down.`}\n\nThe trainer's face says ${label}: ${weeks} week${weeks === 1 ? '' : 's'}, if he stops now.`,
+      choices: [
+        C('swap', 'SWAP HIM OUT', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 50, cls: 'DRAIN', note: 'the team takes the knock tonight' }, want: 'hate' }),
+        C('tape', 'TAPE IT UP — HE STAYS IN', { up: { pct: 25, cls: 'SPIRIT', note: 'no knock tonight' }, down: { pct: 50, cls: 'INJURY', note: 'Monday may be worse' }, want: 'love' }),
+      ],
+    };
+  },
+  resolve: (key, ctx, ev) => {
+    const p = ctx.player!;
+    const s = ctx.s;
+    const weeks = (ctx.data.weeks as number) ?? 1;
+    const label = (ctx.data.label as string) ?? 'a knock';
+    const levelLoss = ctx.data.levelLoss === true;
+    if (ev.beat === 'worse') {
+      const extra = (ctx.data.extra as number) ?? weeks;
+      return { text: 'The tape was optimistic. The scan is not.', fx: [{ playerId: p.id, outWeeks: p.outWeeks + extra, outReason: p.outReason || label, outKind: 'injury', mood: -6 }] };
+    }
+    s.gameInjuries = [...(s.gameInjuries ?? []), { playerId: p.id, weeks, label, levelLoss, tape: key === 'tape' }];
+    if (key === 'tape') {
+      return {
+        text: `Tape, spray, a lie about how bad it looked. ${p.name} finishes the game on one good leg and no knock lands on the team tonight. Monday will tell you what it cost.`,
+        fx: [{ playerId: p.id, mood: 4 }],
+        follow: roll(50) ? [{ weeks: 1, beat: 'worse', data: { weeks, label, extra: Math.max(1, weeks) } }] : [],
+      };
+    }
+    const knock = 3 + rand(3);
+    s.gameShift = (s.gameShift ?? 0) - knock;
+    return { text: `${p.name} goes to the tunnel with a towel over his head. The bench closes ranks, and the night gets ${knock} points harder.`, fx: [{ playerId: p.id, mood: -5 }, { teamMood: -3 }] };
+  },
+});
+
+// ---- the season closes: its own dialogues -------------------------------------
+STORIES.push({
+  id: 'season_result',
+  kind: 'coach',
+  beat: (_b, ctx) => ({ tag: `SEASON ${ctx.data.season ?? ''} — THE BOOKS CLOSE`, text: (ctx.data.text as string) ?? '' }),
+  resolve: () => ({ text: '' }),
+});
+
+STORIES.push({
+  id: 'graduation',
+  kind: 'coach',
+  beat: (_b, ctx) => {
+    const name = (ctx.data.name as string) ?? 'A senior';
+    const pts = (ctx.data.pts as number) ?? 0;
+    const gp = (ctx.data.gp as number) ?? 0;
+    const lines = [
+      `${name} walks across the stage in a gown two sizes too small, ${gp} games and ${pts} points in the rear-view mirror. The banner says THANK YOU in four languages.`,
+      `${name} graduates. Cap, gown, a diploma in a language he can't read yet. ${pts} career points. He hugs you longer than either of you expected.`,
+      `${name} is done. ${gp} games, ${pts} points, and a locker that's suddenly just a locker. He leaves his practice jersey folded on your desk.`,
+    ];
+    return { tag: '🎓 GRADUATION', text: pick(lines) };
+  },
+  resolve: () => ({ text: '', fx: [{ legacy: 1 }] }),
+});
+
+STORIES.push({
+  id: 'retire_ask',
+  kind: 'coach',
+  figure: 'dean',
+  beat: (_b, ctx) => ({
+    tag: 'THE QUESTION',
+    text: `The dean finds you in the empty gym after the last game. "${ctx.data.seasons ?? 'A few'} seasons," she says. "Some coaches know when to walk out while the nets are still warm."\n\nShe doesn't say which kind you are.`,
+    choices: [
+      C('stay', 'ONE MORE SEASON', { up: { pct: 50, cls: 'SPIRIT' }, down: { pct: 10, cls: 'DRAMA' } }),
+      C('go', 'RETIRE — LOCK IN THE LEGACY', { up: { pct: 50, cls: 'WINDFALL' }, down: { pct: 50, cls: 'DRAMA', note: 'there is no coming back' } }),
+    ],
+  }),
+  resolve: (key) => key === 'go'
+    ? { text: 'You walk out of the gym while the nets are still warm, and the galaxy applauds you home.', fx: [{ gameover: 'retired' }] }
+    : { text: '"Good," she says, and means it. The recruiting trail is already warm.' },
 });
 
 export function storyById(id: string): StoryDef {

@@ -63,12 +63,14 @@ import {
   simAiGame,
   simMyGame,
   starters,
+  verdictLines,
 } from './sim';
 import type {
   Alumnus,
   ChampTeam,
   Fx,
   GameState,
+  MyGameResult,
   PlanId,
   Player,
   Prospect,
@@ -296,7 +298,7 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
       ensureUniqueJerseys(t.players);
       normalizeLineup(t);
     }
-    if (fx.gameover) endCareer(s, fx.gameover === 'void' ? 'LOST TO THE VOID' : 'FIRED');
+    if (fx.gameover) endCareer(s, fx.gameover === 'void' ? 'LOST TO THE VOID' : fx.gameover === 'retired' ? 'RETIRED' : 'FIRED');
     if (!p) continue;
     if (fx.takePlayer) {
       s.alumni.push(toAlum(p, 'void', s.season));
@@ -504,6 +506,8 @@ export function dismissStory(s: GameState): void {
     maybeTip(s, isUtWeek(s) ? 'matchup' : 'scouting');
   }
   if (!s.queue.length && s.phase === 'gamenight' && !s.lastResult && !s.end) simWeek(s);
+  // the night's interruptions are answered: the horn can sound
+  if (!s.queue.length && s.phase === 'gamenight' && s.gamePending && !s.midStories?.length && !s.end) finalizeGame(s);
   // the frozen one was told to earn it: the door closes and the ball goes up
   if (!s.queue.length && s.phase === 'matchup' && s.resumePlay) {
     s.resumePlay = false;
@@ -512,8 +516,17 @@ export function dismissStory(s: GameState): void {
   save(s);
 }
 
-/** The horn's consequences (injuries, ON FIRE, the frozen one's verdict)
-    were held while the game played — release them once the score is seen. */
+/** The live game is half done: the night's interruptions get the floor. */
+export function releaseMidStories(s: GameState): void {
+  if (!s.midStories?.length) return;
+  s.queue.push(...s.midStories);
+  s.midStories = [];
+  save(s);
+}
+
+/** The horn's consequences (the frozen one's verdict, the morning-after
+    beats) were held while the game played — release them once the score is
+    seen. */
 export function releaseHeldStories(s: GameState): void {
   if (!s.heldStories?.length) return;
   s.queue.push(...s.heldStories);
@@ -614,6 +627,10 @@ function startWeek(s: GameState): void {
   s.pregameWk = false;
   s.speechFx = null;
   s.oppFx = null;
+  s.instrPending = null;
+  s.easyNight = false;
+  s.midStories = [];
+  s.gamePending = false;
   s.sitouts = [];
   s.drillReport = null;
   s.voyageRolled = false;
@@ -944,22 +961,20 @@ export interface GalaxyResult {
 /** Reveal one unrevealed facet of a prospect. Returns the sticker, or null when
     everything is already known. */
 function revealFacet(pr: Prospect): { text: string; up?: boolean } | null {
-  const facets: ('skill' | 'pot' | 'digit')[] = [];
-  if (!pr.seenSkill) facets.push('skill');
-  if (!pr.seenPot) facets.push('pot');
-  if (pr.digits < 2) facets.push('digit');
-  if (!facets.length) return null;
-  const f = pick(facets);
-  if (f === 'skill') {
+  // three looks and you know him: a digit, the other digit, then the whole
+  // shape — abilities AND ceiling, exact. No clouds in between.
+  if (pr.digits < 2) {
+    pr.digits = (pr.digits + 1) as 0 | 1 | 2;
+    return { text: pr.digits >= 2 ? 'THE NUMBER' : 'A DIGIT', up: true };
+  }
+  if (!pr.seenSkill || !pr.seenPot) {
     pr.seenSkill = true;
-    return { text: 'THE SHAPE', up: true };
-  }
-  if (f === 'pot') {
     pr.seenPot = true;
-    return { text: 'THE CEILING', up: true };
+    pr.scoutLevel = Math.max(pr.scoutLevel, 4);
+    observe(pr);
+    return { text: 'THE WHOLE PICTURE', up: true };
   }
-  pr.digits = (pr.digits + 1) as 0 | 1 | 2;
-  return { text: pr.digits >= 2 ? 'THE NUMBER' : 'A DIGIT', up: true };
+  return null;
 }
 
 /** Fully reveal a prospect (the combine locks somebody cold). */
@@ -1047,12 +1062,12 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
       if (roll(act.risk ?? 0)) {
         const d = act.gain![1];
         pr.commitPct = clamp(pr.commitPct - d, 0, 95);
-        per.set(pr.id, [{ text: `−${d}% COMMIT`, up: false, commitFrom }]);
+        per.set(pr.id, [{ text: `COMMITMENT −${d}`, up: false, commitFrom }]);
         downs++;
       } else {
         const g = act.gain![0] + rand(act.gain![1] - act.gain![0] + 1);
         pr.commitPct = clamp(pr.commitPct + g, 0, 95);
-        per.set(pr.id, [{ text: `+${g}% COMMIT`, up: true, commitFrom }]);
+        per.set(pr.id, [{ text: `COMMITMENT +${g}`, up: true, commitFrom }]);
         ups++;
       }
     }
@@ -1081,7 +1096,7 @@ export function actionGalaxy(s: GameState, actId: string): GalaxyResult | null {
         if (pr.bannedWeeks > 0) continue;
         pr.commitPct = clamp(pr.commitPct + 5, 0, 95);
       }
-      text += ` And the night goes LEGENDARY — ${scopeWord === 'all nine' ? 'the whole board talks' : `${scopeWord} talk`} about it for a week. +5% across it.`;
+      text += ` And the night goes LEGENDARY — ${scopeWord === 'all nine' ? 'the whole board talks' : `${scopeWord} talk`} about it for a week. COMMITMENT +5 across it.`;
     }
   } else {
     // search: new talent — a full board means somebody must go
@@ -1192,21 +1207,28 @@ export function confirmBoard(s: GameState): string[] {
 /** THE SPEECH: mandatory, once, before tip-off — and it is a TRADE, never a
     gamble. The whole squad plays +gain in the speech's attribute tonight and
     −loss in its opposite (SKILL ↔ ATHLETICISM · BRAINS ↔ FIERCENESS). */
-function rollSpeech(plan: PlanId): { fx: SpeechFx[]; text: string } {
+function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx[]; text: string } {
   const pl = planById(plan);
+  const t = myTeam(s);
+  if (pl.kind === 'rally') {
+    // no X's and O's: a coin flip on morale, a sliver of chance either way
+    const r = Math.random() * 100;
+    if (r < 2) { for (const p of t.players) p.mood = clamp(p.mood - 20, 0, 100); return { fx: [], text: `"${pl.speech}," you roar — and it lands WRONG. Somebody laughs. Then somebody else. The room deflates like a tire. Squad MOOD −20.` }; }
+    if (r < 4) { for (const p of t.players) p.mood = clamp(p.mood + 25, 0, 100); return { fx: [], text: `"${pl.speech}," you roar — and the roof comes OFF. Chairs go over. Somebody cries. The other team can hear it through the wall. Squad MOOD +25.` }; }
+    if (r < 52) { for (const p of t.players) p.mood = clamp(p.mood + 12, 0, 100); return { fx: [], text: `"${pl.speech}," you say. ${pl.scene} It takes: the room is on its feet. Squad MOOD +12.` }; }
+    return { fx: [], text: `"${pl.speech}," you say. ${pl.scene} Tonight it doesn't take. Polite nods. The rest is on them.` };
+  }
+  if (pl.kind === 'easy') {
+    s.easyNight = true;
+    return { fx: [], text: `"${pl.speech}," you say. ${pl.scene}\n\nThe floor players will burn far less tonight — and play a touch softer for it. Lose, and this room takes it badly.` };
+  }
   const gain = pl.gain[0] + rand(pl.gain[1] - pl.gain[0] + 1);
   const loss = pl.loss[0] + rand(pl.loss[1] - pl.loss[0] + 1);
   const A = pl.attr.toUpperCase();
   const O = pl.off.toUpperCase();
-  const scenes = [
-    'Nods. Slapped shoulders. Somebody kicks a chair over, affectionately.',
-    'The room goes still, then loud. Chairs go over.',
-    'Every head comes up at once. You can hear the arena through the wall.',
-    'For a second nobody breathes. Then everybody does.',
-  ];
   return {
     fx: [{ attr: pl.attr, amt: gain }, { attr: pl.off, amt: -loss }],
-    text: `"${pl.speech}," you say. ${pick(scenes)}\n\nTonight the squad plays +${gain} ${A} — and gives up ${loss} ${O} to do it.`,
+    text: `"${pl.speech}," you say. ${pl.scene}\n\nTonight the squad plays +${gain} ${A} — and gives up ${loss} ${O} to do it.`,
   };
 }
 
@@ -1219,7 +1241,7 @@ export function deliverSpeech(s: GameState, plan: PlanId): string | null {
   if (s.pregameWk || !s.knownPlans.includes(plan) || speechCooldown(s, plan) > 0) return null;
   s.plan = plan;
   s.pregameWk = true;
-  const out = rollSpeech(plan);
+  const out = rollSpeech(s, plan);
   s.speechFx = out.fx;
   const cd = planById(plan).cooldown;
   if (cd) s.speechCooldowns = { ...(s.speechCooldowns ?? {}), [plan]: cd };
@@ -1239,6 +1261,18 @@ export function deliverInstructions(s: GameState, instrId: string): string | nul
   s.energy -= it.cost;
   s.pregameWk = true;
   if (it.cooldown) s.speechCooldowns = { ...(s.speechCooldowns ?? {}), [instrId]: it.cooldown };
+  // the call is MADE now; whether it lands you learn at tip-off
+  s.instrPending = instrId;
+  save(s);
+  if (instrId === 'takeout') return `You take your captain aside. Two sentences. He nods without looking at you.\n\nYou'll know at tip-off.`;
+  if (instrId === 'medium') return `The medium sways in the corner of the locker room, eyes rolled back, and whispers their whole night to you.\n\nYou'll know at tip-off whether he saw it right.`;
+  return `"${it.call}," you tell the room, and draw their opener on the board twice.\n\nWhether that's what they run, you'll know at tip-off.`;
+}
+
+/** Tip-off: the instruction resolves — the story the coach reads before the
+    ball goes up. */
+function rollInstruction(s: GameState, instrId: string): string {
+  const it = instrById(instrId);
   const me = myTeam(s);
   const m = myMatchup(s);
   const champ = isUtWeek(s) ? utOpponent(s) : null;
@@ -1246,10 +1280,8 @@ export function deliverInstructions(s: GameState, instrId: string): string | nul
   const myBest = bestAttr(matchAttrs(me));
   const A = theirBest.toUpperCase();
   const r = Math.random() * 100;
-  save(s);
   if (r < it.hit) {
     s.oppFx = { attr: theirBest, amt: -it.oppAmt };
-    save(s);
     if (instrId === 'takeout') {
       return `The first screen of warmups is early, hard, and extremely memorable. Their star spends the night looking over ${it.oppAmt > 0 ? 'both shoulders' : 'a shoulder'} — they play −${it.oppAmt} ${A} tonight. Nobody saw anything.`;
     }
@@ -1262,19 +1294,16 @@ export function deliverInstructions(s: GameState, instrId: string): string | nul
       s.heatS = clamp(s.heatS + 6, 0, 100 - s.heatB);
       if (capt) {
         s.futureBeats.push({ weeksLeft: 1, defId: 'tape_review', beat: 'start', playerId: capt.id, data: {} });
-        save(s);
         return `${capt.name} sets the screen — and a courtside stream catches every choreographed inch of it. No edge tonight, the refs watching your bench all game, and the league "will be reviewing the tape."`;
       }
-      save(s);
       return 'The plan leaks before warmups end. No edge tonight, and the league office sends a one-line holo: "we saw that."';
     }
     s.speechFx = [{ attr: myBest, amt: -it.selfAmt }];
-    save(s);
-    return `"${it.call}," you say. They knew. They KNEW — they baited the counter and your whole game plan folds around it. Your squad plays −${it.selfAmt} ${myBest.toUpperCase()} tonight.`;
+    return `"${it.call}," you said. They knew. They KNEW — they baited the counter and your whole game plan folds around it. Your squad plays −${it.selfAmt} ${myBest.toUpperCase()} tonight.`;
   }
-  return instrId === 'medium'
-    ? 'The medium hums, sways, and predicts a sport that has not been invented yet. The locker room applauds politely. Nothing happens.'
-    : `"${it.call}," you say. Tip-off comes — and they open in something else entirely. The tape was a week old. Nothing gained, nothing lost.`;
+  if (instrId === 'medium') return 'The medium hums, sways, and predicts a sport that has not been invented yet. The locker room applauds politely. Nothing happens.';
+  if (instrId === 'takeout') return 'Warmups end and the look never comes — their star stretches on the far baseline, surrounded by teammates, and your captain never gets within a screen of him. Nobody saw anything, because nothing happened.';
+  return `"${it.call}," you said. Tip-off comes — and they open in something else entirely. Nothing gained, nothing lost.`;
 }
 
 /** Which item contexts the current phase accepts ('mood' is always welcome).
@@ -1408,6 +1437,12 @@ export function playGame(s: GameState): boolean {
   s.preGame = { wins: me.wins, losses: me.losses, rank: 1 + sortedStandings(s).findIndex((t) => t.id === s.myTeamId) };
   s.phase = 'gamenight';
   s.lastResult = null;
+  // the last-minute instruction resolves NOW, as the ball is about to go up
+  if (s.instrPending) {
+    const text = rollInstruction(s, s.instrPending);
+    s.instrPending = null;
+    queueStory(s, 'notice', 'start', null, { tag: 'LAST-MINUTE INSTRUCTIONS', text });
+  }
   if (!s.queue.length && !s.end) simWeek(s);
   save(s);
   return true;
@@ -1442,68 +1477,143 @@ function aiPostGame(t: Team, won: boolean): void {
 
 /** The week's games: mine runs whole — lineup, one speech, the horn — and the
     rest of the league plays out around it. */
+/** Tip-off: MY game sims, and the night's interruptions are rolled (ON FIRE
+    / an injury — one per player, two per night at most) and held for the
+    live game's halfway point. Nothing is FINAL until they're answered. */
 function simWeek(s: GameState): void {
   const me = myTeam(s);
   normalizeLineup(me);
   lastLevelUps = [];
-  const held = s.queue.length; // whatever the horn spawns waits for the score
-  simWeekInner(s, me);
-  // NEVER mid-game: injuries, ON FIRE, the frozen one — all of it holds
-  // until YOU WON / YOU LOST has been seen
-  if (s.queue.length > held) s.heldStories = [...(s.heldStories ?? []), ...s.queue.splice(held)];
+  for (const t of s.teams) if (t.id !== s.myTeamId) autoLineup(t);
+  const champ = isUtWeek(s) && s.ut ? utOpponent(s) : null;
+  const m = champ ? null : myMatchup(s);
+  if (!champ && !m) return;
+  const out = simMyGame(s, me, m ? m.opponent : null, champ, m ? m.home : true);
+  s.lastResult = out.result;
+  s.gamePending = true;
+  s.gameShift = 0;
+  s.gameInjuries = [];
+  const held = s.queue.length;
+  rollMidEvents(s, me, out.result);
+  s.midStories = s.queue.splice(held);
+  if (!s.midStories.length) finalizeGame(s);
   save(s);
 }
 
-function simWeekInner(s: GameState, me: Team): void {
-  if (isUtWeek(s) && s.ut) {
-    const champ = utOpponent(s);
-    if (!champ) return;
-    const out = simMyGame(s, me, null, champ, true);
-    s.lastResult = out.result;
-    applyGameEffects(s, out.won);
-    s.myResults = [...(s.myResults ?? []), { week: s.week, win: out.won, text: `${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}` }];
-    s.ut.log.push(`${weekShort(s)}: ${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} vs ${champ.name}`);
-    if (out.won) s.heatB = clamp(s.heatB - 6, 0, 100);
-    else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
-    return;
-  }
+const FIRE_ON = 25;
 
-  const m = myMatchup(s);
-  for (const t of s.teams) if (t.id !== s.myTeamId) autoLineup(t);
-  const games = s.schedule[s.week - 1] ?? [];
-  for (const [h, a] of games) {
-    if (h === s.myTeamId || a === s.myTeamId) {
-      if (!m) continue;
-      const out = simMyGame(s, me, m.opponent, null, m.home);
-      s.lastResult = out.result;
-      const winner = out.won ? me : m.opponent;
-      const loser = out.won ? m.opponent : me;
-      winner.wins++; loser.losses++;
-      winner.pointsFor += Math.max(out.result.myScore, out.result.oppScore);
-      winner.pointsAgainst += Math.min(out.result.myScore, out.result.oppScore);
-      loser.pointsFor += Math.min(out.result.myScore, out.result.oppScore);
-      loser.pointsAgainst += Math.max(out.result.myScore, out.result.oppScore);
-      if (out.won) { s.totalWins++; s.heatB = clamp(s.heatB - 4, 0, 100); }
-      else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
-      s.myResults = [...(s.myResults ?? []), { week: s.week, win: out.won, text: `${out.won ? 'W' : 'L'} ${out.result.myScore}–${out.result.oppScore} ${out.result.home ? 'vs' : '@'} ${m.opponent.name}` }];
-      applyGameEffects(s, out.won);
-      // the other locker room lives the same night we do
-      aiPostGame(m.opponent, !out.won);
-      // clean weeks cool the school — a notch faster now that the dean, the
-      // booster and the press drip heat into every season
-      s.heatS = clamp(s.heatS - 2, 0, 100);
-    } else {
-      const g = simAiGame(s.teams[h], s.teams[a]);
-      g.winner.wins++; g.loser.losses++;
-      g.winner.pointsFor += g.scoreW; g.winner.pointsAgainst += g.scoreL;
-      g.loser.pointsFor += g.scoreL; g.loser.pointsAgainst += g.scoreW;
-      s.resultsLog.push(`${g.winner.name} ${g.scoreW} — ${g.scoreL} ${g.loser.name}`);
-      // AI squads drift forward — and feel their results like we do:
-      // floor players spend, reserves recover, moods swing
-      aiPostGame(g.winner, true);
-      aiPostGame(g.loser, false);
+/** The interruptions: a floor player with 25+ points can catch FIRE; a
+    starter can go down (an empty tank makes it likely). One per player,
+    two per night. */
+function rollMidEvents(s: GameState, me: Team, r: MyGameResult): void {
+  type Ev = { p: Player; kind: 'fire' | 'injury'; data: Record<string, unknown> };
+  const evs: Ev[] = [];
+  const st = new Set(starters(me).map((p) => p.id));
+  for (const p of me.players) {
+    if (p.outWeeks > 0) continue;
+    const row = r.box.find((x) => x.playerId === p.id);
+    if (!row) continue;
+    const mine: Ev[] = [];
+    if (row.pts >= FIRE_ON && !p.onFire) mine.push({ p, kind: 'fire', data: { pts: row.pts } });
+    if (st.has(p.id)) {
+      const midGame = p.energy - (15 + rand(15));
+      const lowEnergy = midGame <= 30;
+      if (roll(lowEnergy ? 25 : 4)) {
+        const inj = rollInjury(lowEnergy ? 1 : 0, fragility(p.speciesId));
+        mine.push({ p, kind: 'injury', data: {
+          weeks: inj.weeks, label: inj.label, levelLoss: inj.levelLoss,
+          cause: lowEnergy
+            ? `${p.name} goes down mid-game, untouched. He had nothing left — you played him on an empty tank and everyone in the building knows it.`
+            : `${p.name} lands wrong on a routine drive. The arena goes quiet.`,
+        } });
+      }
+    }
+    if (mine.length) evs.push(mine.length > 1 ? mine[rand(mine.length)] : mine[0]);
+  }
+  for (const ev of evs.sort(() => Math.random() - 0.5).slice(0, 2)) {
+    queueStory(s, ev.kind === 'fire' ? 'fire_live' : 'injury_live', 'start', ev.p.id, ev.data);
+  }
+}
+
+/** THE HORN: the mid-game choices land (the score shifts, the injuries
+    apply), then the league plays out around it and the night's effects
+    hit the roster. Everything this spawns waits for YOU WON / YOU LOST. */
+export function finalizeGame(s: GameState): void {
+  const me = myTeam(s);
+  const r = s.lastResult;
+  if (!r || !s.gamePending) return;
+  s.gamePending = false;
+  const held = s.queue.length;
+  // the night's shift: what letting them cook (or pulling the hurt one) did
+  const shift = s.gameShift ?? 0;
+  if (shift) {
+    r.myScore = Math.max(0, r.myScore + shift);
+    if (r.myScore === r.oppScore) r.myScore += shift > 0 ? 1 : -1;
+    const top = r.box[0];
+    if (top) top.pts = Math.max(0, top.pts + shift);
+    const wonNow = r.myScore > r.oppScore;
+    if (wonNow !== r.win) {
+      r.win = wonNow;
+      const lines = verdictLines(me, r.planMine, wonNow, r.share, Math.abs(r.myScore - r.oppScore));
+      r.wheelLine = lines.wheelLine;
+      r.heroLine = lines.heroLine;
     }
   }
+  s.gameShift = 0;
+  // injuries decided at courtside land now
+  for (const inj of s.gameInjuries ?? []) {
+    applyFx(s, [{ playerId: inj.playerId, outWeeks: inj.weeks, outReason: inj.label, outKind: 'injury', ...(inj.levelLoss ? { levelDelta: -1 } : {}) }], inj.playerId);
+  }
+  s.gameInjuries = [];
+  const won = r.win;
+
+  if (isUtWeek(s) && s.ut) {
+    const champ = utOpponent(s);
+    applyGameEffects(s, won);
+    s.myResults = [...(s.myResults ?? []), { week: s.week, win: won, text: `${won ? 'W' : 'L'} ${r.myScore}–${r.oppScore} vs ${champ?.name ?? r.oppName}` }];
+    s.ut.log.push(`${weekShort(s)}: ${won ? 'W' : 'L'} ${r.myScore}–${r.oppScore} vs ${champ?.name ?? r.oppName}`);
+    if (won) s.heatB = clamp(s.heatB - 6, 0, 100);
+    else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
+  } else {
+    const m = myMatchup(s);
+    const games = s.schedule[s.week - 1] ?? [];
+    for (const [h, a] of games) {
+      if (h === s.myTeamId || a === s.myTeamId) {
+        if (!m) continue;
+        const winner = won ? me : m.opponent;
+        const loser = won ? m.opponent : me;
+        winner.wins++; loser.losses++;
+        winner.pointsFor += Math.max(r.myScore, r.oppScore);
+        winner.pointsAgainst += Math.min(r.myScore, r.oppScore);
+        loser.pointsFor += Math.min(r.myScore, r.oppScore);
+        loser.pointsAgainst += Math.max(r.myScore, r.oppScore);
+        if (won) { s.totalWins++; s.heatB = clamp(s.heatB - 4, 0, 100); }
+        else s.heatB = clamp(s.heatB + 4, 0, 100 - s.heatS);
+        s.myResults = [...(s.myResults ?? []), { week: s.week, win: won, text: `${won ? 'W' : 'L'} ${r.myScore}–${r.oppScore} ${r.home ? 'vs' : '@'} ${m.opponent.name}` }];
+        applyGameEffects(s, won);
+        // the other locker room lives the same night we do
+        aiPostGame(m.opponent, !won);
+        // clean weeks cool the school — a notch faster now that the dean, the
+        // booster and the press drip heat into every season
+        s.heatS = clamp(s.heatS - 2, 0, 100);
+      } else {
+        const g = simAiGame(s.teams[h], s.teams[a]);
+        g.winner.wins++; g.loser.losses++;
+        g.winner.pointsFor += g.scoreW; g.winner.pointsAgainst += g.scoreL;
+        g.loser.pointsFor += g.scoreL; g.loser.pointsAgainst += g.scoreW;
+        s.resultsLog.push(`${g.winner.name} ${g.scoreW} — ${g.scoreL} ${g.loser.name}`);
+        // AI squads drift forward — and feel their results like we do:
+        // floor players spend, reserves recover, moods swing
+        aiPostGame(g.winner, true);
+        aiPostGame(g.loser, false);
+      }
+    }
+  }
+  s.easyNight = false;
+  // NEVER mid-game: the frozen one's verdict, the fire going out — all of it
+  // holds until YOU WON / YOU LOST has been seen
+  if (s.queue.length > held) s.heldStories = [...(s.heldStories ?? []), ...s.queue.splice(held)];
+  save(s);
 }
 
 /** The whole night lands here ONCE, after the horn — the full-game energy
@@ -1517,34 +1627,23 @@ function applyGameEffects(s: GameState, won: boolean): void {
   const st = new Set(starters(me).map((p) => p.id));
   const bn = new Set(benchPlayers(me).map((p) => p.id));
   const played = new Set((s.lastResult?.box ?? []).map((r) => r.playerId));
+  const injuredTonight = new Set((s.lastResult?.box ?? []).filter((r) => me.players.find((p) => p.id === r.playerId && p.outWeeks > 0)).map((r) => r.playerId));
+  const burn = s.easyNight ? 0.6 : 1; // TAKE IT EASY: the floor coasts
   s.postGame = [];
   for (const p of me.players) {
-    if (p.outWeeks > 0) continue;
+    if (p.outWeeks > 0 && !injuredTonight.has(p.id)) continue;
     const pre = { e: p.energy, m: p.mood };
     let xpGain = 0;
     if (st.has(p.id)) {
-      // a full game burns 30–58⚡; the injury check reads the tank as it
-      // stood midway through the night — running a low tank onto the floor
-      // is how bodies break
-      const midGame = p.energy - (15 + rand(15));
-      const lowEnergy = midGame <= 30;
-      p.energy = clamp(p.energy - (30 + rand(29)), 0, 100);
-      p.mood = clamp(p.mood + (won ? 8 : -3), 0, 100);
+      // a full game burns 30–58⚡ (the injury roll happened courtside)
+      p.energy = clamp(p.energy - Math.round((30 + rand(29)) * burn), 0, 100);
+      p.mood = clamp(p.mood + (won ? 8 : -3) - (s.easyNight && !won ? 6 : 0), 0, 100);
       xpGain = 14 + rand(7);
       p.dnp = 0;
       p.startStreak = (p.startStreak ?? 0) + 1;
-      if (roll(lowEnergy ? 25 : 4)) {
-        const inj = rollInjury(lowEnergy ? 1 : 0, fragility(p.speciesId));
-        queueStory(s, 'injury', 'start', p.id, {
-          weeks: inj.weeks, label: inj.label, levelLoss: inj.levelLoss,
-          cause: lowEnergy
-            ? `${p.name} went down mid-game, untouched. He had nothing left — you played him on an empty tank and everyone in the building knew it.`
-            : `${p.name} landed wrong on a routine drive. The arena goes quiet.`,
-        });
-      }
     } else if (bn.has(p.id) || played.has(p.id)) {
-      p.energy = clamp(p.energy - (16 + rand(15)), 0, 100);
-      p.mood = clamp(p.mood + (won ? 5 : -5), 0, 100);
+      p.energy = clamp(p.energy - Math.round((16 + rand(15)) * burn), 0, 100);
+      p.mood = clamp(p.mood + (won ? 5 : -5) - (s.easyNight && !won ? 4 : 0), 0, 100);
       xpGain = 8 + rand(5);
       p.dnp = 0;
       p.gripe = 0;
@@ -1581,26 +1680,16 @@ function applyGameEffects(s: GameState, won: boolean): void {
     }
   }
 
-  // ON FIRE (printed rule): 25+ points lights a man up — everything he has
-  // plays +20% until he cools off (under 12 points, or a night without minutes).
-  const FIRE_ON = 25;
+  // ON FIRE lights at COURTSIDE now (the coach lets him cook, or doesn't);
+  // here it only cools: under 12 points, a night without minutes, or hurt.
   const FIRE_KEEP = 12;
   const box = s.lastResult?.box ?? [];
   for (const p of me.players) {
     const row = box.find((r) => r.playerId === p.id);
     const d = s.postGame.find((x) => x.playerId === p.id);
-    if (p.onFire) {
-      if (!row || row.pts < FIRE_KEEP || p.outWeeks > 0) {
-        p.onFire = false;
-        if (d) d.fire = 'out';
-      }
-    } else if (row && row.pts >= FIRE_ON && p.outWeeks === 0) {
-      p.onFire = true;
-      if (d) d.fire = 'lit';
-      queueStory(s, 'notice', 'start', p.id, {
-        tag: '🔥 ON FIRE',
-        text: `${p.name} drops ${row.pts} and the rim starts SMOKING.\n\nHe is ON FIRE — everything he has plays +20% until he cools off (under ${FIRE_KEEP} points, or a night without minutes).`,
-      });
+    if (p.onFire && (!row || row.pts < FIRE_KEEP || p.outWeeks > 0)) {
+      p.onFire = false;
+      if (d) d.fire = 'out';
     }
   }
 }
@@ -1707,13 +1796,21 @@ function endSeason(s: GameState, utNote: string | null): void {
     .filter((p) => ovr(p.attrs) >= PRO_OVR)
     .map((p) => ({ playerId: p.id, name: p.name, resolved: false, staying: false, note: '' }));
 
-  // seniors graduate now (into the alumni pool)
+  // THE BOOKS CLOSE: the season's result is its own dialogue
+  queueStory(s, 'season_result', 'start', null, {
+    season: s.season,
+    text: `${s.seasonNotes.join('\n\n')}${s.proDeparts.length ? `\n\nPro scouts are in the dorm lobby for ${s.proDeparts.map((d) => d.name).join(' and ')}.` : ''}`,
+  });
+  // seniors graduate now (into the alumni pool) — each one gets the stage
   const seniors = t.players.filter((p) => p.classYear >= 3 && !s.proDeparts.some((d) => d.playerId === p.id));
   for (const p of seniors) {
     const alum = toAlum(p, 'grad', s.season);
     s.alumni.push(alum);
-    s.legacy += 1;
-    s.seasonNotes.push(`${p.name} graduates with ${alum.career.pts} career points. The banner says THANK YOU in four languages.`);
+    s.seasonNotes.push(`${p.name} graduates with ${alum.career.pts} career points.`);
+    queueStory(s, 'graduation', 'start', null, {
+      name: p.name, pts: alum.career.pts, gp: alum.career.gp, alumForm: p.form,
+      player: { ...p, stats: { ...p.stats }, career: { ...p.career }, attrs: { ...p.attrs }, pots: { ...p.pots }, startAttrs: { ...p.startAttrs } },
+    });
   }
   t.players = t.players.filter((p) => p.classYear < 3 || s.proDeparts.some((d) => d.playerId === p.id));
 
@@ -1799,8 +1896,11 @@ function departPro(s: GameState, p: Player): void {
   myTeam(s).players = myTeam(s).players.filter((x) => x.id !== p.id);
 }
 
+/** The RETIRE button asks first — the dean, in the empty gym. */
 export function retire(s: GameState): void {
-  endCareer(s, 'RETIRED');
+  if (s.queue.some((e) => e.defId === 'retire_ask')) return;
+  queueStory(s, 'retire_ask', 'start', null, { seasons: s.season });
+  save(s);
 }
 
 function endCareer(s: GameState, cause: 'RETIRED' | 'FIRED' | 'LOST TO THE VOID'): void {

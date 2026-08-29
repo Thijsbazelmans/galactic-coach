@@ -38,7 +38,8 @@ const WEEK_FLOW = [
     dice: [
       'Injury: a player can go down mid-game (landing wrong; an EMPTY TANK biases the roll against you)',
       'THE FROZEN ONE knocks at PLAY, not on a Monday: every player has a PATIENCE (2–6 games in street clothes); past it, a reserve meets you at the locker room door with tip-off minutes away',
-      'The horn\'s consequences (injury, ON FIRE, the frozen one\'s verdict) are HELD until YOU WON / YOU LOST has been seen — never mid-game',
+      'THE NIGHT\'S INTERRUPTIONS: at the half the live game PAUSES for ON FIRE (25+ pts: LET HIM COOK = whole team +4–6 on the night, 30% a strain Monday · ROTATE = nothing) and an injury (SWAP HIM OUT = team −3–5 tonight · TAPE IT UP = no knock, 50% it doubles Monday). One per player, two per night; medical items appear as choices',
+      'The frozen one\'s verdict and the morning-after beats are HELD until YOU WON / YOU LOST has been seen',
     ],
   },
   {
@@ -95,7 +96,7 @@ const WEEK_FLOW = [
   },
   {
     stop: '4 · MATCHUP (pregame)',
-    what: 'Mandatory, once: a SPEECH (a guaranteed TRADE — squad +3–4 in one attribute, −3–4 in its opposite: SKILL ↔ ATHLETICISM, BRAINS ↔ FIERCENESS) or LAST-MINUTE INSTRUCTIONS (play the tape, call their set). Then tune the lineup until the bars lean your way; every card\'s letter is what he\'s worth in the slot he stands in.',
+    what: 'Mandatory, once: a SPEECH (a guaranteed TRADE — squad +3–4 in one attribute, −3–4 in its opposite — or THE RALLY: a coin flip on morale, or TAKE IT EASY: −40% burn, softer play) or LAST-MINUTE INSTRUCTIONS (given now, resolved at tip-off). Then tune the lineup until the bars lean your way; every card\'s letter is what he\'s worth in the slot he stands in, and the label names where he belongs.',
     dice: [
       'Speech: work% → squad +1..3 in the attr · ignite% → +3/+4 · down% → one believer stops believing (−25 mood)',
       'Instructions: hit% → their best attr −3..5 tonight · backfire% → YOUR best attr plays down — and THE CAPTAIN\'S ORDER caught = the league reviews the tape next Monday',
@@ -882,6 +883,8 @@ const ACTIONS = {
           { id: 'rungun', name: 'RUN & GUN — "RUN THEM RAGGED"', effect: 'squad +3–4 ATH · −3–4 SKL', desc: 'Outrun everything. Seven seconds or less. Nobody said anything about making shots.' },
           { id: 'lockdown', name: 'LOCKDOWN — "MAKE THEM HATE THE BALL"', effect: 'squad +3–4 FRC · −3–4 BRN', desc: 'Full-court terror. Thinking is for the bus ride home.' },
           { id: 'clockwork', name: 'CLOCKWORK — "USE YOUR BRAINS"', effect: 'squad +3–4 BRN · −3–4 FRC', desc: 'The system. Every cut scripted. Nobody gets angry, nobody gets a steal.' },
+          { id: 'rally', name: 'THE RALLY — "THIS IS OUR HOUSE"', effect: 'no attributes: 48% squad MOOD +12 · 48% nothing · 2% the roof comes off (+25) · 2% it lands wrong (−20)', desc: 'Get them riled up.' },
+          { id: 'easy', name: 'TAKE IT EASY — "SAVE SOMETHING FOR NEXT WEEK"', effect: 'floor players burn 40% less ⚡ · you play ×0.93 · a loss costs extra mood (−6 starters / −4 bench)', desc: 'Coast tonight.' },
         ],
       },
       {
@@ -1066,6 +1069,9 @@ const CONSTANTS = [
   ['THE SLIDE', 'conference AI floors 62/55/49/44/38 (reshuffled every summer, settled to tier) · you start ~47 (4th–5th) · THE BIG BANG: first round 62–72 · semi 68–78 · final 72–82 — never sized to you'],
   ['THE RUBBER BAND', 'fieldShift: +3 per BIG BANG title (cap +9) · −2 per season without a tournament win (floor −6) · full on the champions, half on the conference tiers'],
   ['Absence kinds', 'INJURY (medicine: patch −1, snake oil, cryo −2, ice ½, the vial) vs AWAY (time machines: pocket week −1, time loop −2) — each refuses the other; every early return carries a small +1-week risk'],
+  ['Recruit reveal', 'three looks: a digit · the other digit · THE WHOLE PICTURE (abilities + ceiling, exact). No clouds. Opening board / rec center / home roll a band DOWN; nebula and outer rim straight; deep core best-of-two'],
+  ['Spikes', 'half of all players carry a personal spike: one attribute ×2, its opposite ×0.55 — fierce guards, thinking centers'],
+  ['Season close', 'THE BOOKS CLOSE (season result dialogue) → one GRADUATION dialogue per senior (his card) → the dean\'s RETIRE question when you press the button'],
   ['The grade', 'ROSTER shows F–S for the SLOT: backcourt reads BRN ×1.5 / ATH ×0.5, frontcourt the mirror, wing even; size fit XS→XL backcourt 1/1/.92/.84/.76 (frontcourt mirrored, wing .92 at the extremes) · S ≥80 · A 65 · B 50 · C 35 · D 20 · F'],
   ['No percentages', 'choices/actions print WORDS only: ▲/▼ tails weighted dim (≤5) · plain (≤12) · bright (≤35) · blinking (>35); the wheel shows an arc, not a number'],
   ['Injury table', '<45 → 1w tweak · <75 → 2–3w · else 4–6w + level loss · tier-3 ×1.4 · bias +12/pt'],

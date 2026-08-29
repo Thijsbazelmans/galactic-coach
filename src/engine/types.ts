@@ -24,7 +24,7 @@ export type Attr = 'skl' | 'ath' | 'frc' | 'brn';
 export type AttrRec = Record<Attr, number>;
 
 /** Speech ids (the old tactics are speeches now; premium ones come from stories). */
-export type PlanId = 'showtime' | 'rungun' | 'lockdown' | 'clockwork' | 'warcry' | 'zenmind' | 'stardust' | 'engine';
+export type PlanId = 'showtime' | 'rungun' | 'lockdown' | 'clockwork' | 'warcry' | 'zenmind' | 'stardust' | 'engine' | 'rally' | 'easy';
 
 /** A landed speech: the room ignited — every player plays +amt in that attribute. */
 export interface SpeechFx {
@@ -251,7 +251,7 @@ export interface Fx {
   takePlayer?: boolean; // remove target from roster → alumnus of the void
   addPlayer?: 'walkon' | 'gem' | 'daughter' | 'droid';
   weightKg?: number;
-  gameover?: 'void' | 'fired';
+  gameover?: 'void' | 'fired' | 'retired';
 }
 
 // ---- THE NOTEBOOK -------------------------------------------------------------
@@ -479,6 +479,20 @@ export interface GameState {
   /** the frozen one was told to earn it — tip-off resumes the moment the
       story closes */
   resumePlay?: boolean;
+  /** THE NIGHT'S INTERRUPTIONS: ON FIRE / an injury, rolled at tip-off and
+      held until the live game is half done — then the coach decides */
+  midStories?: StoryEvent[];
+  /** the game is simmed but not FINAL: the mid-game choices still shift it */
+  gamePending?: boolean;
+  /** what the mid-game choices did to the night (+ cook · − a swapped-out injury) */
+  gameShift?: number;
+  /** injuries decided mid-game, applied when the horn sounds */
+  gameInjuries?: { playerId: number; weeks: number; label: string; levelLoss: boolean; tape: boolean }[];
+  /** the last-minute instruction is GIVEN on the matchup screen and only
+      resolves at tip-off */
+  instrPending?: string | null;
+  /** TAKE IT EASY: the squad coasts tonight (less burn, less power) */
+  easyNight?: boolean;
   /** WEEK START: the Monday report — banked XP + the weekend's recovery per player */
   weekRecap?: PlayerDeltas[];
   /** the week's stories, held until the coach walks into the building */

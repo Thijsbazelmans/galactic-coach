@@ -22,6 +22,7 @@ import {
   myTeam,
   playGame,
   releaseHeldStories,
+  releaseMidStories,
   resolveSigning,
   resolveStory,
   retire,
@@ -209,9 +210,12 @@ function playCareer(idx: number): CareerStats {
         break;
       }
       case 'gamenight': {
-        drainQueue(s);
+        drainQueue(s); // the instruction's verdict, if any
         if ((s.phase as string) === 'gameover') break;
         if (!s.lastResult) break; // sim fires when the queue clears
+        // the half: the night's interruptions get the floor, then the horn
+        if (s.midStories?.length) { releaseMidStories(s); drainQueue(s); }
+        if (s.gamePending) throw new Error('the game never finalized');
         if (s.lastResult.myScore === s.lastResult.oppScore) throw new Error('the game ended tied');
         if (!s.lastResult.box.length) throw new Error('box score missing');
         if (s.queue.length) throw new Error('a story butted into the live game');

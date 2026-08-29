@@ -1087,8 +1087,58 @@ button.actmain.scopehl { border-color: var(--r95); }
 .tbar.cascflash { animation: cascpop 0.5s; }
 .tbar.cascflash .tbv { color: #fff; }
 /* THE GRADE: a letter in the OVR corner — F red … A white, S glows */
-.kovr.kgrade { font-size: 20px; letter-spacing: 1px; padding: 0 6px; }
-.numswap.kgrade { font-size: 20px; }
+.kovr.kgrade {
+  font-family: Impact, "Arial Black", "Helvetica Neue", sans-serif;
+  font-size: 24px; letter-spacing: 1px; padding: 0 6px; line-height: 1;
+  -webkit-text-stroke: 0.8px rgba(0, 0, 0, 0.95);
+  text-shadow: 0 0 3px #000, 1px 1px 0 #000;
+}
+.numswap.kgrade { font-size: 24px; font-family: Impact, "Arial Black", "Helvetica Neue", sans-serif; }
+/* the position label names where he BELONGS: white = fits, yellow = one
+   column off, red = two off */
+.ovrwrap .klab.poslab { font-size: 8px; letter-spacing: 1.5px; }
+.poslab.fit-ok { color: #fff; }
+.poslab.fit-near { color: #ffd83d; }
+.poslab.fit-far { color: #ff4a3d; animation: blink 1.2s steps(2, start) infinite; }
+/* a player OUT: both gauges dark */
+.gauge.goff { opacity: 0.35; }
+/* THE ANCHORED STICKERS: each change blinks on the thing it changed */
+.astick {
+  position: absolute;
+  z-index: 6;
+  background: #000;
+  border: 1px solid var(--r55);
+  font-size: 9px;
+  font-weight: bold;
+  padding: 1px 4px;
+  white-space: nowrap;
+  animation: stickin 0.3s forwards, blink 1.1s 0.3s steps(2, start) infinite;
+  pointer-events: none;
+}
+.astick.up { color: #5fe07a; border-color: #1f5a2c; }
+.astick.down { color: #ff4a3d; border-color: #5a1d18; }
+.astick.a-ring { right: 2px; bottom: 30px; }
+.astick.a-gl { left: 2px; top: 17px; }
+.astick.a-gr { right: 2px; top: 17px; }
+.astick.a-ovr { left: 2px; bottom: 30px; }
+/* THE RECAP: the night's faces over the story */
+.recapfaces { display: flex; justify-content: center; gap: 14px; margin: 6px 0 8px; flex: none; }
+.recapface { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.recaptag { font-size: 9px; letter-spacing: 1px; font-weight: bold; background: #000; border: 1px solid var(--r55); padding: 1px 5px; }
+.recaptag.up { color: #5fe07a; border-color: #1f5a2c; }
+.recaptag.down { color: #ff4a3d; border-color: #5a1d18; }
+.recapname { font-size: 11px; color: var(--r95); font-weight: bold; }
+.report.others { margin-top: 4px; }
+.othershead { font-size: 9px; letter-spacing: 2px; color: var(--r55); margin-bottom: 3px; }
+/* the notebook's scrawl */
+.notebookrow.scrawl { color: var(--r35); font-style: italic; letter-spacing: 1px; }
+/* THE BOOKIE */
+.bookie { text-align: center; font-size: 11px; letter-spacing: 2px; color: var(--r55); margin-top: 8px; }
+.bookie b { color: var(--r95); font-size: 14px; }
+/* picker rows wrap their tails (the captain's order is a mouthful) */
+.drill .odds .tail { white-space: normal; }
+/* a plain-tap continue button */
+.navbar .navmain.tap { letter-spacing: 2px; }
 .kovr.sgrade { text-shadow: 0 0 6px #fff, 0 0 12px #fff; animation: sglow 1.6s ease-in-out infinite; }
 @keyframes sglow {
   50% { text-shadow: 0 0 2px #fff; }
@@ -1225,7 +1275,7 @@ button.actmain.scopehl { border-color: var(--r95); }
 
 /* the XP ring's changed arc blinks (added bright / removed dim) */
 .krdelta { fill: none; stroke-width: 3.5; animation: gblink 1.4s steps(1) infinite; }
-.krdelta.up { stroke: #5fe07a; }
+.krdelta.up { stroke: #ffffff; stroke-width: 4.5; filter: drop-shadow(0 0 2px #fff); }
 .krdelta.down { stroke: #ff4a3d; }
 
 /* the team bars keep their delta visible: added blinks bright, removed dark */
@@ -1351,6 +1401,8 @@ button.hchip { border: none; margin: 0; font-size: 13px; padding: 3px 8px; font-
 button.hrow { background: transparent; border: none; margin: 0; padding: 0; text-align: left; font-size: 12px; color: var(--r75); }
 button.hrow b { color: var(--r95); }
 .schedtable td { font-size: 14px; padding: 5px 8px 5px 0; }
+.schedtable td.wk { width: 34px; color: var(--r55); }
+.schedtable td.va { width: 26px; text-align: center; color: var(--r55); padding-right: 4px; }
 
 /* the players being discussed stand in the dialog */
 .confirmcards { display: flex; gap: 6px; margin: 8px 0; }

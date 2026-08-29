@@ -1369,6 +1369,88 @@ other kind with the reason printed. Snake oil and the pocket week joined
 the supply-closet drip. The old bug (a 1-week patch returning a pregnant
 player or a festival-goer) is gone by construction.
 
+## v4.6 — THE NIGHT'S INTERRUPTIONS (Aug 28/29, 2026 — the one-season playtest of v4.5)
+
+Thijs's first season on v4.5 ("largely great — feels like a climb") came
+with thirty notes. All shipped:
+
+**THE NIGHT'S INTERRUPTIONS.** ON FIRE and injuries happen MID-GAME, as
+choices, with team consequences. Tip-off sims the game and rolls the
+interruptions (one per player, two per night; a floor player at 25+ points
+can catch fire, a starter can go down — an empty tank makes it likely);
+the live bar fills to the half and PAUSES; the stories get the floor
+(`s.midStories` → `releaseMidStories`), then the bar resumes from the same
+frame toward the (shifted) final. `fire_live`: LET HIM COOK = the whole
+team lifts (+4–6 on the night, he ignites, 30% a strain Monday via a
+follow beat) · ROTATE = nothing, no fire. `injury_live`: SWAP HIM OUT =
+team knock (−3–5 tonight), out N weeks · TAPE IT UP = no knock, out N
+weeks, 50% it doubles Monday. Medical items in the bag appear as choices.
+Nothing is final until the choices are answered: `finalizeGame` applies
+the shift (flipping the result and re-writing the verdict if it crosses),
+lands the injuries, plays the rest of the league, runs `applyGameEffects`
+(no injury roll there anymore; fire only cools) and holds the aftermath.
+Skipping the animation jumps to the half if interruptions wait.
+
+**THE RECAP SCREEN.** After YOU WON/LOST: the night's faces — MVP first,
+then off days (named in the text), then standouts, three at most — over
+the verdict lines. Then the BOX SCORE grid with AROUND THE LEAGUE under it
+(the notebook blinks there; a note takes MVP + results at once), then a
+clean STANDINGS screen. Every continue is a plain tap now («▸ CONTINUE TO
+… ◂»); actions stay hold-to-commit.
+
+**THE NOTEBOOK** shows a scrawl — "a seemingly endless list of scores,
+stats and other incomprehensible notes that only you can make sense of" —
+for everything mechanical; only STORY notes read legibly (the oracle's
+numbers will matter weeks later). Scoop's questions still find the scrawl.
+
+**LAST-MINUTE INSTRUCTIONS resolve at tip-off.** Giving one prints "you'll
+know at tip-off"; PLAY rolls it and the verdict is a story before the ball
+goes up (`s.instrPending` → `rollInstruction`). The captain's-order miss
+text is fixed (their star never leaves the huddle). THE BOOKIE prints the
+night's odds under the tip-off chips ("THE BOOKIE HAS YOU AT 62%") — a
+character for the story web; the old rating tick is gone.
+
+**SPEECHES.** Each has its own scene (the humming "ohm", the locker
+headbutt, cheerleader bench presses, trick shots for the 'gram); the picker
+reads title / trade (abbreviations, one line) / small print; the nav's
+second row is the trade. Two new standard speeches: THE RALLY (no
+attributes — 48% squad mood +12, 2% the roof comes off +25, 2% it lands
+wrong −20) and TAKE IT EASY (floor burn ×0.6, power ×0.93, a loss costs
+extra mood). `PlanDef.kind`.
+
+**CARDS.** The faint ability shape sits behind every ROSTER card and on
+tryouts (the matchup had it first). Anchored STICKERS are back for every
+action: +XP blinks on the LVL ring, ±⚡ on the energy icon, ±MOOD on the
+face, +1 ATH on the grade corner — drills, week start, items dropped on a
+player (a night on the pro floor finally shows its +10 XP). The position
+label names where he BELONGS (BACK/WING/FRONT), white when this slot is as
+good, yellow one column off, red (blinking) two off; training a wing's
+brains moves him toward BACK; a player equally good in two columns reads
+white in both. Grades wear an Impact-style outlined letter. A player OUT
+has both gauges dark and stands in a CRYO POD (no zzz); the exhausted
+sleep in the pod with zzz (the bed is gone). Drag works on every lens. The
+XP ring's added arc blinks bright white.
+
+**RECRUITING.** Prospects show NO cloud: three looks reveal a digit, the
+other digit, then THE WHOLE PICTURE (abilities + ceiling, exact). The
+opening board, the rec center and the home planet roll a band DOWN (five
+4★ kids on week one was a Tuesday, now it's a find); nebula/outer rim
+straight, the deep core best-of-two. Half of all players (and recruits)
+carry a personal SPIKE — one attribute ×2, its opposite ×0.55 — so fierce
+guards and thinking centers exist. Recruit stickers read «COMMITMENT +8».
+
+**STORIES.** The exchange scholarship tells its result on the RETURN (she
+waves sadly as the shuttle lifts; three weeks later the beat lands); the
+monk diet and the like still resolve on the spot. The season closes in
+dialogues: THE BOOKS CLOSE (the season's result), one GRADUATION per
+senior (his card, his career line), and the RETIRE button asks through the
+dean in the empty gym (`retire_ask`; `Fx.gameover: 'retired'`). Item
+texts are they/them unless a specific athlete is named.
+
+**Also:** fixtures list aligned (W · vs/@ · name · result columns); the
+captain's order no longer overflows its card; the saucer only lands at the
+hoop on THE TRAIL (trouble stays airborne — the story does the reveal).
+
 ## v5.0 DESIGN — THE STORY WEB (Aug 24, 2026 — dictation #3; NOT BUILT in-game yet)
 
 Thijs's redesign of ALL storytelling, dictated while reviewing THE
