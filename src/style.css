@@ -756,38 +756,39 @@ button.hold.wiggle::after {
 
 /* ---- THE TACTICS BOARD: two schemes between the grid and the bars ----------- */
 
-.tacboard { flex: none; margin: 3px 0 2px 17px; display: flex; flex-direction: column; gap: 3px; }
+.tacboard { flex: none; margin: 2px 0 1px 17px; display: flex; flex-direction: column; gap: 2px; }
 .tacrow { display: flex; gap: 4px; }
 .tacbtn {
   flex: 1;
   min-width: 0;
   margin: 0;
-  padding: 3px 2px;
+  padding: 2px 2px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 0;
   border-color: var(--rline);
   line-height: 1.1;
 }
 .tacbtn b { font-size: 11px; letter-spacing: 0.5px; color: var(--r55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .tacbtn span { font-size: 8px; letter-spacing: 0.5px; }
 .tacbtn span.dim { color: var(--r35); }
-.tacbtn.sel { border: 2px solid var(--r95); padding: 2px 1px; }
+.tacbtn.sel { border: 2px solid var(--r95); padding: 1px 1px; }
 .tacbtn.sel b { color: var(--r95); }
 
 /* ---- the team bars: five totals, ranks, and the matchup tug-of-war ---------- */
 
-.tbars { flex: none; margin: 2px 0 2px 17px; display: flex; flex-direction: column; gap: 0; }
-.tbar { display: flex; align-items: center; gap: 6px; height: 13px; }
+.tbars { flex: none; margin: 1px 0 1px 17px; display: flex; flex-direction: column; gap: 0; }
+.tbar { display: flex; align-items: center; gap: 6px; height: 12px; }
 .tbl { flex: 0 0 76px; font-size: 9px; letter-spacing: 1px; color: var(--r55); font-weight: bold; }
 .tbtrack { flex: 1; min-width: 0; height: 8px; background: var(--r20); position: relative; overflow: hidden; display: flex; }
 .tbfill { height: 100%; transition: width 0.4s; }
 .tbtrack.tug .tbopp { height: 100%; margin-left: auto; transition: width 0.4s; opacity: 0.85; }
 .tbv { flex: 0 0 30px; text-align: right; font-size: 10px; color: var(--r95); }
 .tbr { flex: 0 0 34px; font-size: 9px; letter-spacing: 0.5px; color: var(--r75); text-align: right; }
-/* OVERALL out-shouts the four */
-.tbar.big { height: 18px; margin-top: 3px; }
+/* OVERALL out-shouts the four — with its FONT, not a gap (the tactics
+   board took the slack; the practice screen must still fit) */
+.tbar.big { height: 17px; margin-top: 0; }
 .tbar.big .tbl { color: var(--r95); font-size: 10px; }
 .tbar.big .tbtrack { height: 12px; }
 .tbar.big .tbv { font-size: 13px; }
