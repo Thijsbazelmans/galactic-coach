@@ -890,6 +890,15 @@ button.hold.wiggle::after {
   20% { opacity: 1; transform: translateX(-50%) scale(1.4); }
   100% { opacity: 0; transform: translateX(-50%) scale(3.2) translateY(14px); }
 }
+/* credits ARRIVING: the «+1¢» drops into the bar instead of blasting off it */
+.efloat.big.gain { color: #5fe07a; animation: epopgain 0.9s forwards; }
+@keyframes epopgain {
+  0% { opacity: 0; transform: translateX(-50%) scale(2.6) translateY(16px); }
+  30% { opacity: 1; transform: translateX(-50%) scale(1.4) translateY(4px); }
+  100% { opacity: 0; transform: translateX(-50%) scale(0.6) translateY(0); }
+}
+.ecell.fresh { animation: cellfresh 0.5s steps(2, start) 5; }
+@keyframes cellfresh { 50% { filter: brightness(2.2); } }
 @keyframes epop {
   0% { opacity: 1; transform: translateX(-50%) scale(1); }
   100% { opacity: 0; transform: translateX(-50%) scale(1.9) translateY(-6px); }

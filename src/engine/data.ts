@@ -3498,7 +3498,9 @@ STORIES.push({
       text: `Monday morning. The dean is at your door with the week's envelope.\n\n${snark}`,
     };
   },
-  resolve: () => ({ text: '' }),
+  // the envelope opens on resolve: the credits count up on screen and blast
+  // into the top bar
+  resolve: (_k, ctx) => ({ text: '', fx: [{ coachEnergy: (ctx.data.amt as number) ?? 0 }] }),
 });
 
 // ---- the recruit who LEANS AWAY: that's a story, not a sticker ---------------

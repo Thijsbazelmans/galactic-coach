@@ -319,6 +319,27 @@ function chip(label: string, bg: string, fg: string, small = false): string {
 
 // ---- floaters -------------------------------------------------------------------------
 
+/** Gained credits arrive the same way, in reverse: «+1¢» per cell drops
+    INTO the bar, and the freshly lit cells blink until the eye has caught up. */
+let energyFresh: { from: number; until: number } | null = null;
+
+function floatEnergyGain(n: number, from: number): void {
+  const bar = document.querySelector('.ebar');
+  if (!bar || n <= 0) return;
+  energyFresh = { from, until: Date.now() + 2600 };
+  for (let i = 0; i < n; i++) {
+    floatTimers.push(
+      window.setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = 'efloat big gain';
+        el.textContent = '+1¢';
+        bar.appendChild(el);
+        window.setTimeout(() => el.remove(), 900);
+      }, i * 300)
+    );
+  }
+}
+
 /** EVERY spent ⚡ blasts away over the energy bar — huge, one per cell. */
 function floatEnergyBig(n: number): void {
   const bar = document.querySelector('.ebar');
@@ -442,6 +463,7 @@ function doResolve(key: string): void {
   if (!res) return;
   chosenWant = choice?.want ?? null;
   if (cost > 0) floatEnergyBig(cost);
+  if (state.energy > snap.energy) floatEnergyGain(state.energy - snap.energy, snap.energy);
   heatShift = { dS: state.heatS - snap.heatS, dB: state.heatB - snap.heatB };
   jobAnimDone = false;
   impact = buildImpact(snap, res.fx, res.resolved.playerId ?? ev.playerId);
@@ -1137,8 +1159,9 @@ function nextOppRow(s: GameState): string {
 // standings; S# · W# · vs NEXT OPPONENT (in their colors) → the schedule.
 function headerHtml(s: GameState): string {
   const t = myTeam(s);
+  const fresh = energyFresh && Date.now() < energyFresh.until ? energyFresh.from : Infinity;
   const cells = Array.from({ length: CACHE_MAX }, (_, i) =>
-    `<span class="ecell ${i < s.energy ? 'on' : ''}" style="${i < s.energy ? `background:${ramp(0.35 + 0.55 * (i / CACHE_MAX))}` : ''}"></span>`
+    `<span class="ecell ${i < s.energy ? 'on' : ''} ${i < s.energy && i >= fresh ? 'fresh' : ''}" style="${i < s.energy ? `background:${ramp(0.35 + 0.55 * (i / CACHE_MAX))}` : ''}"></span>`
   ).join('');
   const jobFlash = storyMode === 'impact' && impactPage()?.kind === 'coach' && heatShift !== null && (heatShift.dS !== 0 || heatShift.dB !== 0) && currentStory(s);
   // while the game PLAYS the header still shows the record as it stood at

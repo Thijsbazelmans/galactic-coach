@@ -629,7 +629,10 @@ function startWeek(s: GameState): void {
   const pressRoster = lastBox.map((r) => r.name);
   const pressResults = [...s.resultsLog];
 
-  s.energy = clamp(s.energy + stipendFor(s.season), 0, CACHE_MAX);
+  // the stipend: on the road it just arrives; on a home week the dean HANDS
+  // it over — it lands when her budget dialog resolves, counter and all
+  const stipend = stipendFor(s.season);
+  if (isUtWeek(s)) s.energy = clamp(s.energy + stipend, 0, CACHE_MAX);
   // premium speeches recharge
   if (s.speechCooldowns) {
     for (const k of Object.keys(s.speechCooldowns)) {
@@ -663,7 +666,7 @@ function startWeek(s: GameState): void {
 
   // THE WEEKLY BUDGET opens every home week: the dean, the envelope, the
   // reminder of whose school this is (tournament weeks are on the road)
-  if (!isUtWeek(s)) defer('dean_budget', 'start', null, { amt: stipendFor(s.season) });
+  if (!isUtWeek(s)) defer('dean_budget', 'start', null, { amt: stipend });
 
   s.weekRecap = [];
   for (const team of s.teams) {
@@ -798,7 +801,7 @@ function startWeek(s: GameState): void {
     // meant to be SPENT (the bag only holds four)
     if (roll(50)) defer('supply', 'start', null, { itemId: pick(SMALL_ITEMS) });
     // flat broke: one of the characters offers a way to scrape up credits
-    if (s.energy <= 1) defer('bailout', 'start', null, { who: pick(['dean', 'booster', 'scoop']) });
+    if (s.energy + stipend <= 1) defer('bailout', 'start', null, { who: pick(['dean', 'booster', 'scoop']) });
   }
 
   normalizeLineup(t);
