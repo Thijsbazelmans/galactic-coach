@@ -1625,7 +1625,7 @@ function figureVerdict(figure: FigureId): FigureMood {
 
 /** THE REVEAL CARD's preview: the actual picker row / item card of what you
     just received — so «WAR CRY» is never a mystery word in the sand. */
-function revealPreview(kind: string, id: string): string {
+function revealPreview(kind: string, id: string, opts: { noFlavor?: boolean } = {}): string {
   if (kind === 'speech') {
     const pl = PLANS.find((x) => x.id === id);
     if (!pl) return '';
@@ -1647,9 +1647,10 @@ function revealPreview(kind: string, id: string): string {
     return instrRow(it, 'div', 'sel revealrow', '');
   }
   const item = itemById(id);
+  // the flavor line stays out when the dialogue already speaks it
   return `<div class="itemcard ${item.rarity} revealrow">
     <b>◆ ${esc(item.name)}</b> <span class="dim">${item.rarity}${item.rarity === 'legendary' ? ' · once/season' : ''}</span><br/>
-    <i class="dim">${esc(item.flavor)}</i><br/>
+    ${opts.noFlavor ? '' : `<i class="dim">${esc(item.flavor)}</i><br/>`}
     ${esc(item.effectText)}<br/>${oddsLine(item.up, item.down)}
   </div>`;
 }
@@ -1667,7 +1668,8 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
     return `<div class="revealbox">${revealPreview((ev.data?.kind as string) ?? 'item', (ev.data?.id as string) ?? '')}</div>`;
   }
   if (ev.defId === 'item_offer' || ev.defId === 'bagfull') {
-    return `<div class="revealbox">${revealPreview('item', (ev.data?.itemId as string) ?? '')}</div>`;
+    // the dialogue says the name and the flavor; the card says what it DOES
+    return `<div class="revealbox">${revealPreview('item', (ev.data?.itemId as string) ?? '', { noFlavor: true })}</div>`;
   }
   // the assistant coach fronts every tip — the future tutorial voice
   if (ev.tag === 'ASSISTANT COACH') {
