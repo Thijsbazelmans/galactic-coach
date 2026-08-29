@@ -523,7 +523,12 @@ export interface GameState {
   carryXp?: Record<number, number>;
   /** the week's stories, held until the coach walks into the building */
   storedStories?: StoryReq[];
-  resultsLog: string[]; // other games this week, one line each
+  resultsLog: string[]; // other games this week, one line each (the notebook's scrawl)
+  /** the week's other games, structured: home/away ids and the score */
+  resultsWeek?: { h: number; a: number; hs: number; as: number }[];
+  /** the standings as they stood at tip-off (team id → rank): the table
+      after the horn shows who climbed and who slid */
+  prevRanks?: Record<number, number>;
 
   ut: UtState | null;
   /** my season so far, one line per played game (the schedule dialog) */

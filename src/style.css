@@ -1270,7 +1270,20 @@ button.actmain.scopehl { border-color: var(--r95); }
 .recaptag.down { color: #ff4a3d; border-color: #5a1d18; }
 .recapname { font-size: 11px; color: var(--r95); font-weight: bold; }
 .report.others { margin-top: 4px; }
-.othershead { font-size: 9px; letter-spacing: 2px; color: var(--r55); margin-bottom: 3px; }
+.othershead { font-size: 9px; letter-spacing: 2px; color: var(--r55); margin-bottom: 5px; }
+/* AROUND THE LEAGUE: away | score | home — the winning number lit */
+.lgrow { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 3px 0; }
+.lgrow.mine { padding: 5px 0; border-bottom: 1px dashed var(--rline); margin-bottom: 3px; }
+.lgrow .lgl { display: flex; justify-content: flex-end; min-width: 0; }
+.lgrow .lgr { display: flex; justify-content: flex-start; min-width: 0; }
+.lgrow .lgs { display: flex; align-items: baseline; gap: 6px; font-size: 16px; white-space: nowrap; }
+.lgrow .lgs i { font-style: normal; color: var(--r35); font-size: 12px; }
+.lgrow .lgs b.won { color: var(--r95); }
+.lgrow .lgs b.lost { color: var(--r35); font-weight: normal; }
+.chip.big { font-size: 16px; padding: 3px 10px; letter-spacing: 1.5px; }
+/* the standings' movement arrows */
+.rankup { color: #5fe07a; font-size: 12px; margin-left: 4px; }
+.rankdown { color: #ff4a3d; font-size: 12px; margin-left: 4px; }
 /* the notebook's scrawl */
 .notebookrow.scrawl { color: var(--r35); font-style: italic; letter-spacing: 1px; }
 /* THE BOOKIE */

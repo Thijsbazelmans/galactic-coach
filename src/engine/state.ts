@@ -661,6 +661,7 @@ function startWeek(s: GameState): void {
   s.lastResult = null;
   s.postGame = [];
   s.resultsLog = [];
+  s.resultsWeek = [];
   if (s.groundedWeeks > 0) s.groundedWeeks--;
 
   // the week's stories are HELD until the coach walks into the building —
@@ -1527,6 +1528,7 @@ export function playGame(s: GameState): boolean {
   }
   const me = myTeam(s);
   s.preGame = { wins: me.wins, losses: me.losses, rank: 1 + sortedStandings(s).findIndex((t) => t.id === s.myTeamId) };
+  s.prevRanks = Object.fromEntries(sortedStandings(s).map((t, i) => [t.id, i + 1]));
   s.phase = 'gamenight';
   s.lastResult = null;
   // the last-minute instruction resolves NOW, as the ball is about to go up
@@ -1697,6 +1699,7 @@ export function finalizeGame(s: GameState): void {
         g.winner.pointsFor += g.scoreW; g.winner.pointsAgainst += g.scoreL;
         g.loser.pointsFor += g.scoreL; g.loser.pointsAgainst += g.scoreW;
         s.resultsLog.push(`${g.winner.name} ${g.scoreW} — ${g.scoreL} ${g.loser.name}`);
+        s.resultsWeek = [...(s.resultsWeek ?? []), { h, a, hs: g.winner.id === h ? g.scoreW : g.scoreL, as: g.winner.id === a ? g.scoreW : g.scoreL }];
         // AI squads drift forward — and feel their results like we do:
         // floor players spend, reserves recover, moods swing
         aiPostGame(g.winner, true);

@@ -325,6 +325,38 @@ function teamLabel(t: Team): string {
 function chip(label: string, bg: string, fg: string, small = false): string {
   return `<span class="chip ${small ? 'small' : ''}" style="background:${bg};color:${fg}">${esc(label)}</span>`;
 }
+function chipBig(label: string, bg: string, fg: string): string {
+  return `<span class="chip big" style="background:${bg};color:${fg}">${esc(label)}</span>`;
+}
+
+/** AROUND THE LEAGUE: all three games — yours on top — away chip on the
+    left, home chip on the right, the score in the middle with the winning
+    number lit. */
+function leagueResultsHtml(s: GameState): string {
+  const r = s.lastResult;
+  if (!r) return '';
+  const me = myTeam(s);
+  const rows: { away: Team | null; home: Team | null; awayName?: string; as: number; hs: number; mine: boolean }[] = [];
+  const m = myMatchup(s);
+  if (isUtWeek(s)) {
+    const champ = utOpponent(s);
+    rows.push({ away: null, home: me, awayName: champ?.name ?? r.oppName, as: r.oppScore, hs: r.myScore, mine: true });
+  } else if (m) {
+    rows.push(r.home
+      ? { away: m.opponent, home: me, as: r.oppScore, hs: r.myScore, mine: true }
+      : { away: me, home: m.opponent, as: r.myScore, hs: r.oppScore, mine: true });
+  }
+  for (const g of s.resultsWeek ?? []) rows.push({ away: s.teams[g.a], home: s.teams[g.h], as: g.as, hs: g.hs, mine: false });
+  const side = (tm: Team | null, name: string | undefined, big: boolean): string => tm
+    ? (big ? chipBig(tm.name, tm.bg, tm.fg) : chip(tm.name, tm.bg, tm.fg, true))
+    : chip(name ?? '?', '#555', '#ddd', true);
+  return `<div class="report others"><div class="othershead">AROUND THE LEAGUE</div>${rows.map((row) => `
+    <div class="lgrow ${row.mine ? 'mine' : ''}">
+      <span class="lgl">${side(row.away, row.awayName, row.mine && row.away?.id === me.id)}</span>
+      <span class="lgs"><b class="${row.as > row.hs ? 'won' : 'lost'}">${row.as}</b><i>—</i><b class="${row.hs > row.as ? 'won' : 'lost'}">${row.hs}</b></span>
+      <span class="lgr">${side(row.home, undefined, row.mine && row.home?.id === me.id)}</span>
+    </div>`).join('')}</div>`;
+}
 
 // ---- floaters -------------------------------------------------------------------------
 
@@ -1287,7 +1319,7 @@ function standModalHtml(s: GameState): string {
   if (!standOpen) return '';
   const table = sortedStandings(s)
     .map((tm, i) => `<tr class="${tm.id === s.myTeamId ? 'me' : ''}">
-      <td>${i + 1}. ${chip(tm.name, tm.bg, tm.fg, true)}</td><td class="num">${tm.wins}–${tm.losses}</td></tr>
+      <td>${i + 1}. ${chip(teamLabel(tm), tm.bg, tm.fg, true)}</td><td class="num">${tm.wins}–${tm.losses}</td></tr>
       ${i === 1 ? `<tr class="utline"><td colspan="2">▲ ${TOURNEY.name} ▲</td></tr>` : ''}`)
     .join('');
   return `<div class="modalback" data-action="stand-close"><div class="modal">
@@ -2319,19 +2351,23 @@ function stageGamenight(s: GameState): string {
     // the box score reads in three passes — one player at a time: the
     // lines, the XP, the tanks. No rearranging here: the night is over.
     const passName = ['THE LINES', '⚡ & MOOD'][boxPass] ?? '';
-    const others = s.resultsLog.length
-      ? `<div class="report dim others"><div class="othershead">AROUND THE LEAGUE</div>${s.resultsLog.map((l) => `<div>${esc(l)}</div>`).join('')}</div>`
-      : '';
+    const others = leagueResultsHtml(s);
     return `<h2 class="gridhead ${r.win ? 'won' : 'lost'}">BOX SCORE ${r.myScore}–${r.oppScore} <span class="venuetag" style="background:var(--r35);color:var(--rbg)">${passName}</span></h2>
       ${gridHtml(s, false, lens)}
       <div class="botstack">${others}</div>`;
   }
-  // THE STANDINGS
+  // THE STANDINGS — with the night's movement: who climbed, who slid
+  // (against the table as it stood at tip-off); your sticker stands taller
   const table = !isUtWeek(s)
     ? `<table class="standings">${sortedStandings(s)
-        .map((t, i) => `<tr class="${t.id === s.myTeamId ? 'me' : ''}">
-          <td>${i + 1}. ${chip(t.name, t.bg, t.fg, true)}</td><td class="num">${t.wins}–${t.losses}</td></tr>
-          ${i === 1 ? `<tr class="utline"><td colspan="2">▲ ${TOURNEY.name} ▲</td></tr>` : ''}`)
+        .map((t, i) => {
+          const was = s.prevRanks?.[t.id];
+          const move = was === undefined || was === i + 1 ? '' : was > i + 1 ? '<span class="rankup">▲</span>' : '<span class="rankdown">▼</span>';
+          const mine = t.id === s.myTeamId;
+          return `<tr class="${mine ? 'me' : ''}">
+          <td>${i + 1}. ${mine ? chipBig(teamLabel(t), t.bg, t.fg) : chip(teamLabel(t), t.bg, t.fg, true)} ${move}</td><td class="num">${t.wins}–${t.losses}</td></tr>
+          ${i === 1 ? `<tr class="utline"><td colspan="2">▲ ${TOURNEY.name} ▲</td></tr>` : ''}`;
+        })
         .join('')}</table>`
     : `<div class="report">${(s.ut?.log ?? []).map((l) => `<div>${esc(l)}</div>`).join('')}</div>`;
   return `<h2>THE STANDINGS</h2>${table}`;
