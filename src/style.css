@@ -1211,8 +1211,8 @@ button.actmain.scopehl { border-color: var(--r95); }
    just left of the blinking face (the icons sit 14px above the gauges) */
 .astick.a-ring { right: 38px; bottom: 2px; }
 .astick.a-ovr { left: 36px; bottom: 2px; }
-.astick.a-gl { left: 16px; top: calc(27% - 15px); }
-.astick.a-gr { right: 16px; top: calc(27% - 15px); }
+.astick.a-gl { left: 17px; top: calc(27% - 15px); }
+.astick.a-gr { right: 19px; top: calc(27% - 15px); }
 /* the icon beside a swinging number blinks the same verdict */
 .gauge .gicon.dup { animation: iblinku 1.1s steps(2, start) infinite; }
 .gauge .gicon.ddown { animation: iblinkd 1.1s steps(2, start) infinite; }
