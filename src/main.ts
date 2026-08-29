@@ -1974,7 +1974,7 @@ function nextYearLine(s: GameState): string {
   const bits = [`${returning.length} return${leaving ? `, ${leaving} walk` : ''}`, `${byCol.map((n, c) => `${COL_SHORT[c]}×${n}`).join(' ')}`];
   if (holes.length) bits.push(`no ${holes.join('/')} coming back`);
   else bits.push(`thin on ${ATTR_SHORT[low]}`);
-  return `NEXT YEAR: ${bits.join(' — ')}`;
+  return `NEXT YEAR: ${bits.join(' · ')}`;
 }
 
 /** SCOUTING and RECRUITING: the same board, two different weeks' moves. */
