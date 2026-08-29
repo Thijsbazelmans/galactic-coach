@@ -585,6 +585,43 @@ function oddsLine(up?: { pct: number; cls: string; note?: string }, down?: { pct
   return parts.length ? `<span class="odds">${parts.join(' ')}</span>` : '';
 }
 
+// ---- THE PICKER ROW: one shape for every sheet ---------------------------------
+// Line 1: the NAME and the two tails (what can go right, what can go wrong).
+// Line 2: the bright facts — what it does, whom it touches, what it costs —
+// and the RISK sticker: grey SAFE (≤5%), yellow RISKY (≤15%), red blinking
+// DANGER (25%+), read straight off the down tail.
+// Line 3: the flavor, dim.
+
+type RiskLevel = 'safe' | 'risky' | 'danger';
+
+function riskLevel(downPct: number): RiskLevel {
+  return downPct <= 5 ? 'safe' : downPct <= 15 ? 'risky' : 'danger';
+}
+
+function riskTag(level: RiskLevel | 'trade'): string {
+  const word = level === 'trade' ? 'TRADE' : level.toUpperCase();
+  return `<span class="risk ${level}">${word}</span>`;
+}
+
+function pickerRow(o: {
+  tag: 'button' | 'div';
+  cls?: string;
+  attrs?: string;
+  name: string;
+  up?: { pct: number; cls: string; note?: string };
+  down?: { pct: number; cls: string; note?: string };
+  facts: string[];
+  risk: RiskLevel | 'trade' | null;
+  desc?: string;
+}): string {
+  const facts = o.facts.filter(Boolean).map((f) => `<span class="xpg">${f}</span>`).join('<span class="dim"> · </span>');
+  return `<${o.tag} class="drill ${o.cls ?? ''}" ${o.attrs ?? ''}>
+      <div class="prow1"><b>${o.name}</b> ${oddsLine(o.up, o.down)}</div>
+      <div class="prow2">${facts}${o.risk ? ` ${riskTag(o.risk)}` : ''}</div>
+      ${o.desc ? `<span class="ddesc">${esc(o.desc)}</span>` : ''}
+    </${o.tag}>`;
+}
+
 // ---- the kite compass ----------------------------------------------------------
 // One shape says everything: SKL up, FRC right, ATH down, BRN left — the
 // opposites share an axis (SKILL ↔ ATHLETICISM, BRAINS ↔ FIERCENESS), the way
@@ -1521,42 +1558,22 @@ function revealPreview(kind: string, id: string): string {
   if (kind === 'speech') {
     const pl = PLANS.find((x) => x.id === id);
     if (!pl) return '';
-    return `<div class="drill sel revealrow">
-      <b>${pl.speech}</b> ${speechTrade(pl)}${pl.cooldown ? ` <span class="xpg">${pl.cooldown}w recharge</span>` : ''}<br/>
-      <span class="ddesc">${esc(pl.fantasy)}</span>
-    </div>`;
+    return speechRow(pl, 'div', 'sel revealrow', '');
   }
   if (kind === 'drill') {
     const d = DRILLS.find((x) => x.id === id);
     if (!d) return '';
-    const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
-    const what = gains
-      ? `<span class="xpg gaintag">${gains}</span>`
-      : d.potChance
-        ? `<span class="xpg gaintag">+1 CEILING, a coin flip each</span>`
-        : `<span class="xpg">+${d.xp[0]}–${d.xp[1]} XP</span>`;
-    return `<div class="drill sel revealrow">
-      <b>${d.name}</b> ${what}
-      ${oddsLine(d.up, d.down, d.cost)}<br/>
-      <span class="ddesc">${esc(d.desc)}</span>
-    </div>`;
+    return drillRow(d, 'div', 'sel revealrow', '');
   }
   if (kind === 'region') {
     const a = GALAXY_ACTS.find((x) => x.id === id);
     if (!a) return '';
-    return `<div class="drill sel revealrow">
-      <b>${a.name}</b> <span class="xpg">1${a.twoChance ? '–2' : ''} new name${a.twoChance ? 's' : ''}</span>
-      ${oddsLine(a.up, a.down, a.cost)}<br/>
-      <span class="ddesc">${esc(a.desc)}</span>
-    </div>`;
+    return galaxyRow(a, 'div', 'sel revealrow', '', false);
   }
   if (kind === 'instr') {
     const it = INSTRUCTIONS.find((x) => x.id === id);
     if (!it) return '';
-    return `<div class="drill sel revealrow">
-      <b>${it.name}</b> ${instrTrade(it)}${it.cooldown ? ` <span class="xpg">${it.cooldown}w recharge</span>` : ''}<br/>
-      <span class="ddesc">${esc(it.desc)}</span>
-    </div>`;
+    return instrRow(it, 'div', 'sel revealrow', '');
   }
   const item = itemById(id);
   return `<div class="itemcard ${item.rarity} revealrow">
@@ -1882,13 +1899,6 @@ function drillRecap(d: (typeof DRILLS)[number]): string {
   return `${[gains, pot].filter(Boolean).join(' · ') || `+${d.xp[0]}–${d.xp[1]} XP`} · SQUAD · ${d.cost}¢`;
 }
 
-/** A speech's trade, printed: what it gives, what it takes. */
-function speechTrade(pl: (typeof PLANS)[number]): string {
-  if (pl.kind === 'rally') return `<span class="xpg gaintag up">MORALE, a coin flip</span> <span class="xpg gaintag down">the roof — on or off</span>`;
-  if (pl.kind === 'easy') return `<span class="xpg gaintag up">−40% ⚡ burned</span> <span class="xpg gaintag down">softer tonight · a loss stings</span>`;
-  return `<span class="xpg gaintag up">+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}</span> <span class="xpg gaintag down">−${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}</span>`;
-}
-
 /** The speech's second nav row: the trade in abbreviations, one line. */
 function speechSub(pl: (typeof PLANS)[number]): string {
   if (pl.kind === 'rally') return 'squad MORALE · a coin flip, a sliver either way';
@@ -1896,13 +1906,54 @@ function speechSub(pl: (typeof PLANS)[number]): string {
   return `+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}  −${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}`;
 }
 
-/** An instruction's two tails, in words. Never "if it lands" — the risk
-    arrows already say so; conditionals are implied everywhere. */
-function instrTrade(it: (typeof INSTRUCTIONS)[number]): string {
+/** A speech row: a TRADE, never a gamble — the facts line says what it gives
+    and takes; THE RALLY is the one coin flip, TAKE IT EASY the one sure thing. */
+function speechRow(pl: (typeof PLANS)[number], tag: 'button' | 'div', cls: string, attrs: string): string {
+  const facts = pl.kind === 'rally'
+    ? ['<span class="gaintag up">MORALE, a coin flip</span>', '<span class="gaintag down">the roof — on or off</span>']
+    : pl.kind === 'easy'
+      ? ['<span class="gaintag up">−40% ⚡ burned</span>', '<span class="gaintag down">softer tonight · a loss stings</span>']
+      : [`<span class="gaintag up">+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}</span>`, `<span class="gaintag down">−${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}</span>`];
+  if (pl.cooldown) facts.push(`${pl.cooldown}w recharge`);
+  return pickerRow({ tag, cls, attrs, name: pl.speech, facts, risk: pl.kind === 'rally' ? 'risky' : pl.kind === 'easy' ? 'safe' : 'trade', desc: pl.fantasy });
+}
+
+/** An instruction row. Never "if it lands" — the tails say so. */
+function instrRow(it: (typeof INSTRUCTIONS)[number], tag: 'button' | 'div', cls: string, attrs: string): string {
   const down = it.id === 'takeout'
     ? { pct: it.backfire, cls: 'SCANDAL', note: 'CAUGHT — the league reviews the tape' }
     : { pct: it.backfire, cls: 'DRAMA', note: `they read you: squad −${it.selfAmt}` };
-  return `<span class="xpg gaintag">they play −${it.oppAmt}</span> ${oddsLine({ pct: it.hit, cls: 'INTEL', note: 'you called it' }, down, it.cost)}`;
+  const facts = [`<span class="gaintag">they play −${it.oppAmt}</span>`, it.cost ? `${it.cost}¢` : 'FREE'];
+  if (it.cooldown) facts.push(`${it.cooldown}w recharge`);
+  return pickerRow({ tag, cls, attrs, name: it.name, up: { pct: it.hit, cls: 'INTEL', note: 'you called it' }, down, facts, risk: riskLevel(it.backfire), desc: it.desc });
+}
+
+/** A drill row: what it hammers, whom it touches, what it costs, how risky. */
+function drillRow(d: (typeof DRILLS)[number], tag: 'button' | 'div', cls: string, attrs: string): string {
+  const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
+  const what = gains
+    ? `<span class="gaintag">${gains}</span>`
+    : d.potChance
+      ? `<span class="gaintag">+1 CEILING, a coin flip each</span>`
+      : d.xp[1] > 0
+        ? `+${d.xp[0]}–${d.xp[1]} XP`
+        : (d.recover?.mood ?? 0) > (d.recover?.energy ?? 0) ? `squad MOOD +${d.recover?.mood ?? 0}` : `squad ⚡ +${d.recover?.energy ?? 0}`;
+  const who = d.target === 'one' ? 'ONE' : 'SQUAD';
+  return pickerRow({ tag, cls, attrs, name: d.name, up: d.up, down: d.down, facts: [what, who, d.cost ? `${d.cost}¢` : 'FREE'], risk: riskLevel(d.down.pct), desc: d.desc });
+}
+
+/** A board-action row: the effect, the scope, the cost, the risk (a recruit
+    act's per-name sour chance counts toward it). */
+function galaxyRow(a: (typeof GALAXY_ACTS)[number], tag: 'button' | 'div', cls: string, attrs: string, grounded: boolean): string {
+  const what = a.reveals
+    ? `${a.reveals[0]}–${a.reveals[1]} facets`
+    : a.gain
+      ? `+${a.gain[0]}–${a.gain[1]}%`
+      : `1${a.twoChance ? '–2' : ''} new name${a.twoChance ? 's' : ''}`;
+  const who = a.kind === 'search' ? 'THE BOARD' : gxScopeWord(a);
+  const risk = riskLevel(Math.max(a.down.pct, (a.risk ?? 0) >= 6 ? 10 : 0));
+  const name = `${a.name}${grounded ? ' <span class="blink">GROUNDED</span>' : ''}`;
+  return pickerRow({ tag, cls, attrs, name, up: a.up, down: a.down, facts: [what, who, a.cost ? `${a.cost}¢` : 'FREE'], risk, desc: a.desc });
 }
 
 /** WEEK START: the Monday report — the weekend's recovery and banked XP per
@@ -2081,11 +2132,7 @@ function speechSheetHtml(s: GameState): string {
     if (cd > 0) {
       return `<div class="drill locked"><b>${pl.speech}</b> <span class="dim">— recharging, ${cd} week${cd === 1 ? '' : 's'}</span></div>`;
     }
-    return `<button class="drill ${sel.kind === 'speech' && sel.id === pl.id ? 'sel' : ''}" data-action="speech-pick" data-id="${pl.id}">
-      <b>${pl.speech}</b><br/>
-      ${speechTrade(pl)}${pl.cooldown ? ` <span class="xpg">${pl.cooldown}w recharge</span>` : ''}<br/>
-      <span class="ddesc">${esc(pl.fantasy)}</span>
-    </button>`;
+    return speechRow(pl, 'button', sel.kind === 'speech' && sel.id === pl.id ? 'sel' : '', `data-action="speech-pick" data-id="${pl.id}"`);
   }).join('');
   const instrs = INSTRUCTIONS.map((it) => {
     if (!(s.knownInstr ?? []).includes(it.id)) { hidden++; return ''; }
@@ -2093,10 +2140,7 @@ function speechSheetHtml(s: GameState): string {
     if (cd > 0) {
       return `<div class="drill locked"><b>${it.name}</b> <span class="dim">— recharging, ${cd} week${cd === 1 ? '' : 's'}</span></div>`;
     }
-    return `<button class="drill ${sel.kind === 'instr' && sel.id === it.id ? 'sel' : ''}" data-action="instr-pick" data-id="${it.id}">
-      <b>${it.name}</b> ${instrTrade(it)}${it.cooldown ? ` <span class="xpg">${it.cooldown}w recharge</span>` : ''}<br/>
-      <span class="ddesc">${esc(it.desc)}</span>
-    </button>`;
+    return instrRow(it, 'button', sel.kind === 'instr' && sel.id === it.id ? 'sel' : '', `data-action="instr-pick" data-id="${it.id}"`);
   }).join('');
   return `<div class="modalback sheet" data-action="speech-sheet-close"><div class="modal sheetup scrolly">
     <span class="tag">THE PREGAME MOVE</span>
@@ -2475,18 +2519,7 @@ function drillSheetHtml(s: GameState): string {
     const drills = DRILLS.filter((d) => drillKind(d) === kind).map((d) => {
       // undiscovered methods stay off the sheet — the galaxy will tell you
       if (!s.unlockedDrills.includes(d.id)) { hidden++; return ''; }
-      const gains = d.gain ? ATTRS.filter((a) => d.gain![a]).map((a) => `+${d.gain![a]} ${ATTR_SHORT[a]}`).join(' ') : '';
-      const what = gains
-        ? `<span class="xpg gaintag">${gains}</span>`
-        : d.potChance
-          ? `<span class="xpg gaintag">+1 CEILING, a coin flip each</span>`
-          : d.xp[1] > 0
-            ? `<span class="xpg">+${d.xp[0]}–${d.xp[1]} XP</span>`
-            : `<span class="xpg">${(d.recover?.mood ?? 0) > (d.recover?.energy ?? 0) ? 'squad MOOD up' : 'squad ⚡ up'}</span>`;
-      return `<button class="drill ${selectedDrill === d.id ? 'sel' : ''}" data-action="drill-pick" data-id="${d.id}">
-        <b>${d.name}</b> ${what}
-        ${oddsLine(d.up, d.down, d.cost)}
-      </button>`;
+      return drillRow(d, 'button', selectedDrill === d.id ? 'sel' : '', `data-action="drill-pick" data-id="${d.id}"`);
     }).join('');
     return drills ? `<div class="sheethead">${DRILL_KIND_LABEL[kind]}</div>${drills}` : '';
   }).join('');
@@ -2508,16 +2541,7 @@ function galaxySheetHtml(s: GameState): string {
   const actRow = (a: (typeof GALAXY_ACTS)[number]): string => {
     if (a.kind === 'search' && !s.unlockedRegions.includes(a.id)) { hidden++; return ''; }
     const grounded = s.groundedWeeks > 0 && a.kind === 'search' && !a.local;
-    const what = a.reveals
-      ? `<span class="xpg">${a.reveals[0]}–${a.reveals[1]} facets · ${gxScopeWord(a)}</span>`
-      : a.gain
-        ? `<span class="xpg">+${a.gain[0]}–${a.gain[1]}% · ${gxScopeWord(a)}${(a.risk ?? 0) >= 6 ? ' · some may sour' : a.risk ? ' · rarely sours' : ''}</span>`
-        : `<span class="xpg">1${a.twoChance ? '–2' : ''} new name${a.twoChance ? 's' : ''}</span>`;
-    return `<button class="drill ${selId === a.id ? 'sel' : ''}" data-action="gx-pick" data-id="${a.id}" ${grounded ? 'disabled' : ''}>
-      <b>${a.name}</b>${grounded ? ' <span class="blink">GROUNDED</span>' : ''} ${what}
-      ${oddsLine(a.up, a.down, a.cost)}<br/>
-      <span class="ddesc">${esc(a.desc)}</span>
-    </button>`;
+    return galaxyRow(a, 'button', selId === a.id ? 'sel' : '', `data-action="gx-pick" data-id="${a.id}" ${grounded ? 'disabled' : ''}`, grounded);
   };
   const group = (label: string, acts: (typeof GALAXY_ACTS)[number][]): string => {
     const rows = acts.map(actRow).join('');
