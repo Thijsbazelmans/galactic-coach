@@ -735,8 +735,9 @@ function anchoredStickers(d: CardDelta | undefined): string {
   if (!d) return '';
   const bits: string[] = [];
   if (d.xp) bits.push(`<div class="astick a-ring up">+${d.xp} XP</div>`);
-  if (d.e) bits.push(`<div class="astick a-gl ${d.e > 0 ? 'up' : 'down'}">${d.e > 0 ? '+' : ''}${d.e} ⚡</div>`);
-  if (d.m) bits.push(`<div class="astick a-gr ${d.m > 0 ? 'up' : 'down'}">${d.m > 0 ? '+' : ''}${d.m} MOOD</div>`);
+  // the bolt and the face already blink beside these — the number is enough
+  if (d.e) bits.push(`<div class="astick a-gl ${d.e > 0 ? 'up' : 'down'}">${d.e > 0 ? '+' : ''}${d.e}</div>`);
+  if (d.m) bits.push(`<div class="astick a-gr ${d.m > 0 ? 'up' : 'down'}">${d.m > 0 ? '+' : ''}${d.m}</div>`);
   if (d.gain) bits.push(`<div class="astick a-ovr up">${esc(d.gain)}</div>`);
   return bits.join('');
 }
