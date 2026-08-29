@@ -346,7 +346,22 @@ function leagueResultsHtml(s: GameState): string {
       ? { away: m.opponent, home: me, as: r.oppScore, hs: r.myScore, mine: true }
       : { away: me, home: m.opponent, as: r.myScore, hs: r.oppScore, mine: true });
   }
-  for (const g of s.resultsWeek ?? []) rows.push({ away: s.teams[g.a], home: s.teams[g.h], as: g.as, hs: g.hs, mine: false });
+  if (s.resultsWeek?.length) {
+    for (const g of s.resultsWeek) rows.push({ away: s.teams[g.a], home: s.teams[g.h], as: g.as, hs: g.hs, mine: false });
+  } else {
+    // a week finalized before the structured results existed: read the
+    // prose lines the notebook always kept («Winner 67 — 62 Loser»)
+    for (const line of s.resultsLog) {
+      const mm = line.match(/^(.*) (\d+) — (\d+) (.*)$/);
+      if (!mm) continue;
+      const w = s.teams.find((tm) => tm.name === mm[1]);
+      const l = s.teams.find((tm) => tm.name === mm[4]);
+      if (!w || !l) continue;
+      const g = (s.schedule[s.week - 1] ?? []).find(([h, a]) => (h === w.id && a === l.id) || (h === l.id && a === w.id));
+      const homeIsW = g ? g[0] === w.id : true;
+      rows.push({ away: homeIsW ? l : w, home: homeIsW ? w : l, as: homeIsW ? Number(mm[3]) : Number(mm[2]), hs: homeIsW ? Number(mm[2]) : Number(mm[3]), mine: false });
+    }
+  }
   const side = (tm: Team | null, name: string | undefined, big: boolean): string => tm
     ? (big ? chipBig(tm.name, tm.bg, tm.fg) : chip(tm.name, tm.bg, tm.fg, true))
     : chip(name ?? '?', '#555', '#ddd', true);
