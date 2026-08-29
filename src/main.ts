@@ -2706,9 +2706,9 @@ function itemModalHtml(s: GameState): string {
   const needsDrag = item.target !== 'team' && storyKey === null && phaseOk;
   const usable = !spent && !needsDrag && (storyKey !== null || phaseOk);
   const who = item.target === 'player'
-    ? '● ONE PLAYER — drag it onto his card'
+    ? '● ONE PLAYER — drag it onto their card'
     : item.target === 'prospect'
-      ? '● ONE RECRUIT — drag it onto his card on the big board'
+      ? '● ONE RECRUIT — drag it onto their card on the big board'
       : '●●● THE WHOLE SQUAD — drag it anywhere, or USE NOW';
   return `<div class="modalback" data-action="item-close"><div class="modal">
     <div class="itemcard ${item.rarity}">

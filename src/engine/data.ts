@@ -757,7 +757,7 @@ export const ITEMS: ItemDef[] = [
     effectText: 'one player: a level, instantly, and a body rebuilt for speed',
     context: ['practice'],
     target: 'player',
-    check: (ctx) => (ctx.player && ctx.player.outWeeks === 0 ? null : 'he can\'t travel to Xarter like that'),
+    check: (ctx) => (ctx.player && ctx.player.outWeeks === 0 ? null : 'not fit to travel to Xarter like that'),
     up: { pct: 5, cls: 'BREAKTHROUGH' },
     down: { pct: 10, cls: 'SCANDAL' },
     use: (ctx) => {
@@ -789,7 +789,7 @@ export const ITEMS: ItemDef[] = [
     effectText: 'one player: three levels of growth, instantly',
     context: ['practice'],
     target: 'player',
-    check: (ctx) => (ctx.player && ctx.player.level < 10 ? null : 'he is already who he will be'),
+    check: (ctx) => (ctx.player && ctx.player.level < 10 ? null : 'already who they will be'),
     up: { pct: 2, cls: 'BREAKTHROUGH' },
     down: { pct: 10, cls: 'DRAMA' },
     use: (ctx) => {
@@ -913,7 +913,7 @@ export const ITEMS: ItemDef[] = [
     target: 'prospect',
     check: (ctx) => {
       const pr = ctx.s.prospects.find((x) => x.id === ctx.data.prospectId);
-      return pr?.signed ? 'he already signed — he lives here now' : null;
+      return pr?.signed ? 'they already signed — they live here now' : null;
     },
     up: { pct: 5, cls: 'INTEL' },
     down: { pct: 25, cls: 'DRAMA' },
@@ -1154,7 +1154,7 @@ export const ITEMS: ItemDef[] = [
     target: 'prospect',
     check: (ctx) => {
       const pr = ctx.s.prospects.find((x) => x.id === ctx.data.prospectId);
-      return pr && pr.seenSkill && pr.seenPot && pr.digits >= 2 ? 'you already know everything about him' : null;
+      return pr && pr.seenSkill && pr.seenPot && pr.digits >= 2 ? 'you already know everything about them' : null;
     },
     up: { pct: 5, cls: 'INTEL' },
     down: { pct: 2, cls: 'DRAMA' },
@@ -1219,7 +1219,7 @@ export const ITEMS: ItemDef[] = [
     target: 'prospect',
     check: (ctx) => {
       const pr = ctx.s.prospects.find((x) => x.id === ctx.data.prospectId);
-      return pr?.signed ? 'he already signed — nothing left to pledge' : null;
+      return pr?.signed ? 'they already signed — nothing left to pledge' : null;
     },
     up: { pct: 5, cls: 'SPIRIT' },
     down: { pct: 5, cls: 'DRAMA' },
@@ -1250,7 +1250,7 @@ export const ITEMS: ItemDef[] = [
     target: 'prospect',
     check: (ctx) => {
       const pr = ctx.s.prospects.find((x) => x.id === ctx.data.prospectId);
-      return pr?.signed ? 'he already signed — save the chest' : null;
+      return pr?.signed ? 'they already signed — save the chest' : null;
     },
     up: { pct: 5, cls: 'SPIRIT' },
     down: { pct: 10, cls: 'SCANDAL' },
@@ -3113,7 +3113,7 @@ export const STORIES: StoryDef[] = [
 // one-time explainers from the assistant coach (shown once, then never again)
 export const TIPS: Record<string, string> = {
   tryouts:
-    "First practice, coach. Six players from last year's squad, a gym full of hopefuls, one clipboard: yours.\n\nThe top three rows are your squad — starters, bench, reserves. The bottom row is the door. Drag players between the rows; whoever is in the bottom row when you confirm is gone forever. The letter on every card is what he's worth IN THAT SLOT — move him and it changes.",
+    "First practice, coach. Six players from last year's squad, a gym full of hopefuls, one clipboard: yours.\n\nThe top three rows are your squad — starters, bench, reserves. The bottom row is the door. Drag players between the rows; whoever is in the bottom row when you confirm is gone forever. The letter on every card is what they're worth IN THAT SLOT — move them and it changes.",
   practice:
     "Practice is mandatory, coach — pick something and HOLD RUN. TEAM REST costs nothing (mostly harmless).\n\nThree families: TRAIN earns XP (levels bank +2 points YOU place), SHARPEN hammers direct points into attributes, RECOVER gets meters back. Anyone under 40 energy sits out automatically. Every option shows its two tails — how good it can go, how bad. Read the language. The odds are yours to learn.",
   lenses:
@@ -3123,13 +3123,13 @@ export const TIPS: Record<string, string> = {
   recruiting:
     "RECRUITING is its own stop now. Work the board YOURSELF — safe, modest, sincere — or take the BOOSTER'S HELP: care packages, skybox weekends, duffel bags. Huge swings, scandal in the tail, and when it blows up his name is on it. Mostly.\n\nThe bottom row can tell it's the bottom row. Kids notice silence twice as fast down there.",
   matchup:
-    "One pregame move, coach: a SPEECH or LAST-MINUTE INSTRUCTIONS. A speech is a trade, guaranteed — play with BRAINS and the whole squad gives up FIERCENESS tonight; SKILL costs ATHLETICISM; and back the other way. Instructions play the tape instead: call their set right and their game dies a little; get READ, and yours does.\n\nBetter speeches and stranger instructions exist. The galaxy hands them out in stories.\n\nTheir numbers sit right next to yours — tune the lineup until the bars lean your way. Every card's letter is what he's worth where he stands: BRAINS run the backcourt, ATHLETICISM holds the frontcourt, the wing takes anyone.",
+    "One pregame move, coach: a SPEECH or LAST-MINUTE INSTRUCTIONS. A speech is a trade (most nights) — play with BRAINS and the whole squad gives up FIERCENESS tonight; SKILL costs ATHLETICISM; and back the other way. Instructions play the tape instead: call their set right and their game dies a little; get READ, and yours does.\n\nBetter speeches and stranger instructions exist. The galaxy hands them out in stories.\n\nTheir numbers sit right next to yours — tune the lineup until the bars lean your way. Every card's letter is what they're worth where they stand: BRAINS run the backcourt, ATHLETICISM holds the frontcourt, the wing takes anyone.",
   signing:
     "Signing day math, coach: send ONE letter and you keep the full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.\n\nThen each kid answers, one by one — and you finally see exactly what you were chasing.",
   bag:
     "That's THE BAG — two rows at the bottom of your screen, always under your thumb, with THE NOTEBOOK standing tall on the left. Every item is a bargain with two tails. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. Player items drag straight onto a player's card.\n\nEight slots is the LAW — every find is offered first: take it or leave it. A full bag still watches things walk away.",
   grid:
-    "The grid is your lineup, always: top row starts, middle row comes off the bench, bottom row watches. Hold and drag to rearrange — any screen, any time.\n\nColumns matter: the BACKCOURT reads BRAINS and shrugs at muscle, the FRONTCOURT reads ATHLETICISM and shrugs at thinking, the WING reads everything evenly. Small bodies left, big bodies right. Every card's letter is what he's worth exactly where he stands. When someone goes down, he sinks to the bottom of his column and the column steps up.",
+    "The grid is your lineup, always: top row starts, middle row comes off the bench, bottom row watches. Hold and drag to rearrange — any screen, any time.\n\nColumns matter: the BACKCOURT reads BRAINS and shrugs at muscle, the FRONTCOURT reads ATHLETICISM and shrugs at thinking, the WING reads everything evenly. Small bodies left, big bodies right. Every card's letter is what they're worth exactly where they stand. When someone goes down, they sink to the bottom of their column and the column steps up.",
   stories:
     "The week opens with whatever the galaxy throws at you. Every choice shows its two tails — how wonderful it can go, how wrong. The words tell you which way it leans. The people sometimes lie; the tails never do.",
   gamenight:

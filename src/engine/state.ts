@@ -445,7 +445,12 @@ export function queueStory(
     : (data.alumForm as 'masc' | 'femme' | 'x' | undefined)) ?? undefined;
   if (gform === 'femme' || gform === 'x') {
     ev.text = genderize(ev.text, gform);
-    ev.choices?.forEach((c) => { c.label = genderize(c.label, gform); });
+    ev.choices?.forEach((c) => {
+      c.label = genderize(c.label, gform);
+      // the printed clauses on the tails ("he's FIERCE, careful") too
+      if (c.up?.note) c.up = { ...c.up, note: genderize(c.up.note, gform) };
+      if (c.down?.note) c.down = { ...c.down, note: genderize(c.down.note, gform) };
+    });
   }
   // THE BAG's killer integration: matching items appear as extra choice buttons
   if (def.context && ev.choices) {
@@ -1141,7 +1146,7 @@ export function actionGalaxy(s: GameState, actId: string, targetIds?: number[]):
     text = `${act.name}: ${scopeWord === 'all nine' ? 'the whole board hears' : `${scopeWord} hear${scoped.length === 1 ? 's' : ''}`} from you. ${ups} name${ups === 1 ? '' : 's'} lean${ups === 1 ? 's' : ''} in${downs ? `, ${downs} lean${downs === 1 ? 's' : ''} away` : ''}.`;
     // a lean AWAY is a story, not a sticker: each soured name knocks
     for (const pr of soured) {
-      queueStory(s, 'lean_away', 'start', null, { prospectId: pr.id, name: pr.name, prForm: pr.form });
+      queueStory(s, 'lean_away', 'start', null, { prospectId: pr.id, name: pr.name, prForm: pr.form, alumForm: pr.form });
     }
     if (r < act.down.pct) {
       if (act.down.cls === 'SCANDAL') {
@@ -1432,7 +1437,10 @@ export function useItem(s: GameState, itemId: string, ctxData: Record<string, un
   lastLevelUps = [];
   const res = item.use(storyCtx(s, (ctxData.playerId as number | null) ?? null, ctxData));
   const ipid = res.fx?.find((f) => f.playerId !== undefined)?.playerId ?? (ctxData.playerId as number | null) ?? null;
-  const iform = ipid !== null ? myTeam(s).players.find((p) => p.id === ipid)?.form : undefined;
+  // a recruit item speaks the RECRUIT's pronouns
+  const iform = ipid !== null
+    ? myTeam(s).players.find((p) => p.id === ipid)?.form
+    : ctxData.prospectId !== undefined ? s.prospects.find((pr) => pr.id === ctxData.prospectId)?.form : undefined;
   res.text = genderize(res.text, iform);
   applyFx(s, res.fx, (ctxData.playerId as number | null) ?? null);
   for (const f of res.follow ?? []) {
