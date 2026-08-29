@@ -1791,6 +1791,17 @@ phones (×3 is 384px). Open question for Thijs: the tab title / manifest
 still say GALACTIC COACH — rename to MARCH MANIACS, or is that the
 program and this the tournament?
 
+## v4.9.1 — XP IS MONDAY'S NEWS (Aug 29, 2026)
+
+Thijs: the game is about who did what; WEEK START shows the long-term
+result. So the box score reads in TWO passes now (THE LINES · ⚡ & MOOD)
+and the banked XP shows once, on the Monday report, where it pays out.
+The season's LAST game has no Monday: its XP now rides into the summer
+(`carryXp`) and pays out to the RETURNEES on the selection grid, on top of
+their summer growth — the card wears «+16 XP BANKED» beside the growth
+sticker, level-ups knock right after the signing verdicts. Seniors and
+pros leave it behind with their lockers.
+
 ### Backlog (in rough priority)
 
 **Scratched (Thijs, Aug 29) — do not resurface:** instruction-night squad

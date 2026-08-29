@@ -1844,11 +1844,10 @@ export function continueFromResult(s: GameState): void {
 
 function endSeason(s: GameState, utNote: string | null): void {
   const t = myTeam(s);
-  // the last game's XP still banks — there is no next Monday to pay it out
-  for (const row of s.postGame) {
-    const p = t.players.find((x) => x.id === row.playerId);
-    if (p && row.xpGain > 0) lastLevelUps.push(...addXp(s, p, row.xpGain));
-  }
+  // the last game's XP has no Monday to land on: it rides into the summer
+  // and pays out to the returnees on the selection grid, on top of growth
+  s.carryXp = {};
+  for (const row of s.postGame) if (row.xpGain > 0) s.carryXp[row.playerId] = row.xpGain;
   s.postGame = [];
   const table = sortedStandings(s);
   const place = table.findIndex((x) => x.id === s.myTeamId) + 1;
@@ -2070,8 +2069,13 @@ export function resolveSigning(s: GameState): void {
     p.mood = clamp(p.mood + 15, 60, 85);
     p.outWeeks = 0; p.outReason = ''; p.dnp = 0; p.startStreak = 0;
     checkPosChange(p); // a summer's growth can rewrite the label quietly
-    s.summerRecap.push({ playerId: p.id, ovrFrom, note: leaned ? 'LEANED IN' : undefined });
+    // the last game's XP lands now, with the summer — the extra boost
+    const carried = s.carryXp?.[p.id] ?? 0;
+    if (carried > 0) lastLevelUps.push(...addXp(s, p, carried));
+    const notes = [leaned ? 'LEANED IN' : '', carried > 0 ? `+${carried} XP BANKED` : ''].filter(Boolean);
+    s.summerRecap.push({ playerId: p.id, ovrFrom, note: notes.length ? notes.join(' · ') : undefined });
   }
+  s.carryXp = {};
 
   // the pool, in reading order: returners first, then the new recruits,
   // then walk-ons filling the empty seats

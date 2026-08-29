@@ -516,6 +516,9 @@ export interface GameState {
   easyNight?: boolean;
   /** WEEK START: the Monday report — banked XP + the weekend's recovery per player */
   weekRecap?: PlayerDeltas[];
+  /** the season's LAST game has no Monday: its XP rides into the summer and
+      pays out to the returnees on the selection grid, on top of their growth */
+  carryXp?: Record<number, number>;
   /** the week's stories, held until the coach walks into the building */
   storedStories?: StoryReq[];
   resultsLog: string[]; // other games this week, one line each

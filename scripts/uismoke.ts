@@ -242,7 +242,7 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('GAME MVP')) throw new Error('MVP tag missing on the box-score grid');
   if (app.querySelector('.grid .pcard.grabbable')) throw new Error('the box score should not allow rearranging');
   if (app.innerHTML.includes('notebook tall pulse')) throw new Error('the notebook must not blink for note-taking (only for answers)');
-  anyWin.gcAction('gn-pass', ''); // → BANKED XP
+  if (app.innerHTML.includes('BANKED XP')) throw new Error('XP belongs to WEEK START, not the box score');
   anyWin.gcAction('gn-pass', ''); // → ⚡ & MOOD
   // → the standings → NEXT WEEK
   anyWin.gcAction('gn-table', '');

@@ -293,8 +293,9 @@ let cutConfirm = false;
 let boardConfirm = false;
 // game night: the live game → YOU WON / YOU LOST → the box score → the league
 let gnStage: 'beat' | 'final' | 'recap' | 'verdict' | 'table' = 'beat';
-/** the box score reads in PASSES — one player at a time, three sweeps:
-    the lines, then the XP, then what the night cost (⚡/mood) */
+/** the box score reads in PASSES — one player at a time, two sweeps: the
+    lines, then what the night cost (⚡/mood). XP is Monday's news: the game
+    is about who did what; WEEK START shows the long-term result. */
 let boxPass = 0;
 let progressTimer: number | null = null;
 let floatTimers: number[] = [];
@@ -1330,9 +1331,8 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
       if (p && showGame) {
         // THE FINAL HORN reads in PASSES, one player at a time: PASS ONE the
         // box-score lines (with the MVP and the FORM ROLL smack across the
-        // player), PASS TWO the XP banked toward Monday, PASS THREE what the
-        // night cost — ⚡ and mood blinking on the gauges. (ON FIRE needs no
-        // label: he burns.)
+        // player), PASS TWO what the night cost — ⚡ and mood blinking on the
+        // gauges. XP waits for WEEK START. (ON FIRE needs no label: he burns.)
         const d = s.postGame.find((x) => x.playerId === p.id);
         const row = s.lastResult?.box.find((x) => x.playerId === p.id);
         const form = s.lastResult?.forms?.[p.id];
@@ -1349,15 +1349,6 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
                 if (gain) delta = { ovrFrom: ovr(p.attrs) - 1 };
               }
               if (form === -1) his.push({ text: 'OFF DAY', up: false });
-            } else if (boxPass === 1) {
-              if (d && d.xpGain > 0) {
-                const need = p.level >= LEVEL_CAP ? 0 : xpNeed(p.level);
-                delta = { xp: d.xpGain };
-                if (need > 0) {
-                  delta.xpFromPct = Math.min(100, Math.round((p.xp / need) * 100));
-                  delta.xpProjPct = Math.min(100, Math.round(((p.xp + d.xpGain) / need) * 100));
-                }
-              }
             } else {
               delta = { e: d?.energyP ?? 0, m: d?.mood ?? 0 };
             }
@@ -2226,7 +2217,7 @@ function stageGamenight(s: GameState): string {
   if (gnStage === 'verdict') {
     // the box score reads in three passes — one player at a time: the
     // lines, the XP, the tanks. No rearranging here: the night is over.
-    const passName = ['THE LINES', 'BANKED XP', '⚡ & MOOD'][boxPass] ?? '';
+    const passName = ['THE LINES', '⚡ & MOOD'][boxPass] ?? '';
     const others = s.resultsLog.length
       ? `<div class="report dim others"><div class="othershead">AROUND THE LEAGUE</div>${s.resultsLog.map((l) => `<div>${esc(l)}</div>`).join('')}</div>`
       : '';
@@ -2429,8 +2420,7 @@ function nav(s: GameState): string {
       if (gnStage === 'final') return navGo('THE RECAP', 'gn-recap');
       if (gnStage === 'recap') return navGo('THE BOX SCORE', 'gn-verdict');
       if (gnStage === 'verdict') {
-        if (boxPass === 0) return navGo('THE XP', 'gn-pass');
-        if (boxPass === 1) return navGo('⚡ & MOOD', 'gn-pass');
+        if (boxPass === 0) return navGo('⚡ & MOOD', 'gn-pass');
         return navGo('THE STANDINGS', 'gn-table');
       }
       return navGo('NEXT WEEK', 'continue-result');
@@ -3445,7 +3435,7 @@ function executeAction(action: string, id: string): void {
       // (the frozen one, the fire going out) — then the recap
       gnStage = 'recap'; clearFloatTimers(); releaseHeldStories(state); break;
     case 'gn-verdict': gnStage = 'verdict'; boxPass = 0; clearFloatTimers(); break;
-    case 'gn-pass': boxPass = Math.min(2, boxPass + 1); break;
+    case 'gn-pass': boxPass = Math.min(1, boxPass + 1); break;
     case 'gn-table': gnStage = 'table'; clearFloatTimers(); break;
     case 'continue-result': gnStage = 'beat'; clearFloatTimers(); cardDeltas = null; gxStickers = null; liveProg = null; continueFromResult(state); break;
 
