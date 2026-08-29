@@ -2685,11 +2685,14 @@ function gxResultHtml(s: GameState): string {
   const scene = gxResult.art
     ? `<div class="scenebox" id="gxscene">${sceneHtml(gxResult.art.startsWith('bus') ? 'bus-move' : 'saucer-move', { bg: t.bg, fg: t.fg }, 3)}</div>`
     : '';
+  // its OWN ids: a board action can spawn a story (a cold recruit, a
+  // scandal, a hull breach) that renders underneath at the same moment —
+  // shared ids sent the verdict into the wrong box and left this one blank
   return `<div class="modalback gxback" data-action="gx-result-tap"><div class="modal gxmodal">
     <span class="tag">THE TRAIL</span>
     ${scene}
-    <div class="typebox" id="typebox"></div>
-    <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap</div></div>
+    <div class="typebox" id="gxtypebox"></div>
+    <div class="modal-actions hide" id="gx-actions"><div class="taphint">▸ tap</div></div>
   </div></div>`;
 }
 
@@ -3064,10 +3067,10 @@ function postRender(): void {
     gxResult.played = true;
     const r = gxResult;
     floatEnergyBig(r.cost);
-    const box0 = document.getElementById('typebox');
+    const box0 = document.getElementById('gxtypebox');
     floatTimers.push(window.setTimeout(() => {
       if (gxResult === r) typewrite(box0 as HTMLElement | null, r.text, () => {
-        revealActions();
+        document.getElementById('gx-actions')?.classList.remove('hide');
         // the ride parks at the HOOP only on a find; trouble stays airborne —
         // the story that follows does the reveal
         if (r.art === 'saucer-hoop' || r.art === 'bus-hoop') {
