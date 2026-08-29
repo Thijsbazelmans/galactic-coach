@@ -973,6 +973,9 @@ interface CardOpts {
   /** tryouts / the selection grid: no gauges, the grade at full tanks —
       compare who they ARE, not how they slept */
   pure?: boolean;
+  /** the box score's first pass: just the face and the line — no gauges,
+      no ring, no grade, no compass; the meters come back on the next pass */
+  bare?: boolean;
   pick?: boolean; // selection screens
   /** THE SCOPE PREVIEW: this card is inside / outside a pending scoped action */
   scope?: 'in' | 'out';
@@ -1085,7 +1088,13 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
     // ROSTER — the default view, the compass gone: the sprite between two
     // curved edge gauges (⚡ left, mood right); on the matchup, the bare
     // current-ability diamond glows behind him
-    body = `<div class="ksq roster">
+    body = opts.bare
+      ? `<div class="ksq roster">
+      ${sprite(1.75, 'ksprite')}
+      <div class="ktop">${nameHtml}</div>
+      ${anchoredStickers(d)}
+    </div>`
+      : `<div class="ksq roster">
       ${opts.diamond ? `<svg class="ksvg bare" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon class="k-cur" points="${kitePoints(p.attrs)}"/></svg>` : ''}
       ${sprite(1.75, 'ksprite')}
       <div class="ktop">${nameHtml}</div>
@@ -1531,7 +1540,7 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
       const scope = scopeSet && p ? (scopeSet.has(p.id) ? 'in' as const : 'out' as const) : undefined;
       return `<div class="gcell dropzone" data-zone="${idx}">
         ${p
-          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, col: c, reserve: r === 2, delta, mainLabels: mains, hiLabels: his, labelPop, popDelay, diamond, scope })
+          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, col: c, reserve: r === 2, bare: showGame && boxPass === 0, delta, mainLabels: mains, hiLabels: his, labelPop, popDelay, diamond, scope })
           : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');
