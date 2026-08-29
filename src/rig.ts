@@ -1609,6 +1609,73 @@ export function sceneHtml(scene: SceneId, kit: Kit, scale = 3, flip = false, cls
   return illoHtml(url, W, H, scale, `${cls} ${flip ? 'rig-flip' : ''}`);
 }
 
+// ---- THE TITLE SCREEN: MARCH MANIACS (fromDesign/260829, option 5a) ----------
+// 128×72: deep space, MARCH bouncing on the beat over MANIACS, a basketball
+// orbiting the title, the hoop court-side, a ringed planet drifting low, the
+// subtitle flashing one word at a time, PRESS START blinking in the team color.
+
+const TITLE_FONT: Record<string, string[]> = {
+  M: ['10001', '11011', '10101', '10001', '10001'], A: ['01110', '10001', '11111', '10001', '10001'],
+  R: ['11110', '10001', '11110', '10100', '10011'], C: ['01111', '10000', '10000', '10000', '01111'],
+  H: ['10001', '10001', '11111', '10001', '10001'], N: ['10001', '11001', '10101', '10011', '10001'],
+  I: ['11111', '00100', '00100', '00100', '11111'], S: ['01111', '10000', '01110', '00001', '11110'],
+  T: ['11111', '00100', '00100', '00100', '00100'], E: ['11111', '10000', '11110', '10000', '11111'],
+  G: ['01111', '10000', '10011', '10001', '01111'], L: ['10000', '10000', '10000', '10000', '11111'],
+  O: ['01110', '10001', '10001', '10001', '01110'], B: ['11110', '10001', '11110', '10001', '11110'],
+  K: ['10001', '10010', '11100', '10010', '10001'], D: ['11110', '10001', '10001', '10001', '11110'],
+  U: ['10001', '10001', '10001', '10001', '01110'], P: ['11110', '10001', '11110', '10000', '10000'],
+};
+
+function drawTitle(R: RFn, acc: string, f: number): void {
+  R(0, 0, 128, 72, IL_SPACE);
+  for (let i = 0; i < 46; i++) {
+    const x = (i * 17 + 5) % 128, y = (i * 11 + 3) % 72;
+    if ((i + f) % 9 < 7) R(x, y, 1, 1, i % 3 ? IL_DIM : IL_WHITE);
+  }
+  // ringed planet drifting low-left
+  R(8, 52, 12, 8, '#4a3f7a'); R(10, 50, 8, 2, '#4a3f7a'); R(10, 60, 8, 2, '#4a3f7a');
+  R(11, 54, 3, 2, '#37305c'); R(16, 57, 2, 1, '#37305c');
+  R(4, 56, 20, 1, '#7fd8ec'); R(2, 57, 24, 1, '#5a9ab0');
+  const word = (str: string, x0: number, y0: number, sc: number, col: string, shad: string | null): void => {
+    let x = x0;
+    for (const ch of str) {
+      if (ch === ' ') { x += 4 * sc; continue; }
+      (TITLE_FONT[ch] ?? []).forEach((row, ry) => row.split('').forEach((v, rx) => {
+        if (v !== '1') return;
+        if (shad) R(x + rx * sc + 1, y0 + ry * sc + 1, sc, sc, shad);
+        R(x + rx * sc, y0 + ry * sc, sc, sc, col);
+      }));
+      x += 6 * sc;
+    }
+  };
+  // MARCH bounces on the beat, MANIACS holds
+  const bounce = [0, -1, -2, -1][Math.floor(f / 2) % 4];
+  word('MARCH', 34, 12 + bounce, 2, '#ffd76a', '#7d4315');
+  word('MANIACS', 23, 26, 2, IL_WHITE, IL_DARK);
+  // the ball orbits the title
+  const TBALL = ['.OOO.', 'OQPQO', 'QQQQQ', 'OQOQO', '.OOO.'];
+  const orb = f % 12;
+  const ox = 64 + Math.round(Math.cos((orb / 12) * 6.283) * 46);
+  const oy = 22 + Math.round(Math.sin((orb / 12) * 6.283) * 14);
+  TBALL.forEach((row, ry) => row.split('').forEach((ch, rx) => {
+    if (ch !== '.') R(ox + rx, oy + ry, 1, 1, ch === 'O' ? '#c9752e' : ch === 'Q' ? '#7d4315' : '#e08a3c');
+  }));
+  // the hoop, court-side right
+  R(104, 40, 1, 14, '#3c4150'); R(101, 36, 1, 5, '#5a6070'); R(102, 40, 2, 1, '#3c4150');
+  R(97, 41, 5, 1, '#8a6d47'); R(97, 42, 1, 3, '#5a6070'); R(101, 42, 1, 3, '#5a6070'); R(98, 45, 3, 1, '#5a6070');
+  // the subtitle, one word after the next, centered
+  const words = ['AN', 'INTERGALACTIC', 'COLLEGE', 'BASKETBALL', 'MADNESS', 'SIMULATOR'];
+  const w = words[Math.floor(f / 2) % words.length];
+  word(w, 64 - w.length * 3, 62, 1, '#818ab0', null);
+  if (f % 8 < 5) word('PRESS START', 31, 48, 1, acc, null);
+}
+
+/** The launch screen: MARCH MANIACS, press start. 128×72 at `scale`. */
+export function titleHtml(kit: Kit, scale = 3, cls = ''): string {
+  const url = illoSheet(`title|${kit.bg}`, 128, 72, (R, f) => drawTitle(R, kit.bg, f));
+  return illoHtml(url, 128, 72, scale, cls);
+}
+
 /** The dean or the booster, acting their read of you: worried → the verdict. */
 export function figureHtml(who: FigureId, mood: FigureMood, kit: Kit, scale = 3, cls = ''): string {
   const [W, H] = FIGURE_SIZE[who];

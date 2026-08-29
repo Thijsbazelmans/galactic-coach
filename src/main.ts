@@ -72,9 +72,9 @@ import {
 import type { Attr, AttrRec, GameState, PlanId, Player, Prospect, SpeechFx, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, perGame, potStars, rand } from './engine/util';
-import { PRACTICE_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
+import { PRACTICE_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, titleHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
 
-const VERSION = 'v4.8.2';
+const VERSION = 'v4.9';
 
 // ---- THE UPDATE CHECK -----------------------------------------------------------
 // The home-screen app on iOS keeps stale HTML for a long time. On launch and
@@ -113,6 +113,24 @@ void checkForUpdate();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void checkForUpdate(); });
 
 let state: GameState = load() ?? freshGame();
+
+// THE TITLE SCREEN: everyone lands on MARCH MANIACS — press start (anywhere)
+// and you either pick a program or pick up exactly where you left off
+let titleOpen = true;
+
+function titleScreenHtml(): string {
+  const t = state.myTeamId >= 0 ? myTeam(state) : null;
+  const kit: Kit = { bg: t ? t.bg : '#5fe07a', fg: t ? t.fg : '#0a0c14' };
+  // 128×72 at ×3 is 384px wide — zoomed down to fit narrower phones
+  const avail = Math.min(window.innerWidth || 480, 480) - 16;
+  const zoom = Math.min(1, avail / 384);
+  const resume = state.phase !== 'pickTeam' && t !== null;
+  return `<div class="titlescreen" data-action="press-start">
+    <div class="titlewrap" style="zoom:${zoom.toFixed(3)}">${titleHtml(kit, 3, 'title')}</div>
+    <div class="titlehint">▸ TAP ANYWHERE</div>
+    <div class="titlesave">${resume ? `${esc(t!.name).toUpperCase()} · SEASON ${Math.max(1, state.season)} · ${esc(weekLabel(state))}` : 'A NEW CAREER AWAITS'}</div>
+  </div>`;
+}
 
 // ---- THE RAMP: one hue per save ------------------------------------------------
 
@@ -2620,6 +2638,11 @@ function render(): void {
   if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
   stopType();
   setRamp();
+  if (titleOpen) {
+    app.className = '';
+    app.innerHTML = titleScreenHtml();
+    return;
+  }
 
   // a fresh week: pickers fall back to the FREE option (spending ⚡ takes a
   // deliberate trip into the menu) and old sticker batches are forgotten
@@ -3370,6 +3393,7 @@ const PHASE_TIP: Record<string, string> = {
 
 function executeAction(action: string, id: string): void {
   switch (action) {
+    case 'press-start': titleOpen = false; builtKey = ''; break;
     case 'pick-team': chooseTeam(state, Number(id)); break;
 
     case 'story-choice':

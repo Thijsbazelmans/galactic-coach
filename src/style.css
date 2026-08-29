@@ -930,6 +930,23 @@ button.hold.wiggle::after {
   100% { box-shadow: 0 0 6px rgba(255, 255, 255, 0.8); width: 3px; }
 }
 
+/* ---- THE TITLE SCREEN: MARCH MANIACS, press start (anywhere) ---------------- */
+
+.titlescreen {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: #0a0c14;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.titlewrap { display: flex; justify-content: center; }
+.titlehint { font-size: 11px; letter-spacing: 3px; color: var(--r55); animation: blink 1.6s steps(2, start) infinite; }
+.titlesave { font-size: 11px; letter-spacing: 1px; color: var(--r35); }
+
 .teampick { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .teampickbtn { text-align: left; padding: 16px 14px; border-left-width: 8px; margin: 0; font-size: 15px; }
 .teampickbtn b { font-size: 19px; letter-spacing: 1px; }

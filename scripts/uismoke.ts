@@ -56,6 +56,10 @@ async function main(): Promise<void> {
     }
   };
 
+  // everyone lands on MARCH MANIACS: press start (anywhere) → the program pick
+  if (!app.querySelector('.titlescreen')) throw new Error('title screen missing');
+  if (!app.innerHTML.includes('A NEW CAREER AWAITS')) throw new Error('fresh title should offer a new career');
+  must('[data-action="press-start"]', 'press start');
   if (!app.innerHTML.includes('GALACTIC COACH')) throw new Error('pick-team screen missing');
   must('[data-action="pick-team"]', 'pick team');
   if (state().phase !== 'teamSelect') throw new Error(`expected teamSelect, got ${state().phase}`);

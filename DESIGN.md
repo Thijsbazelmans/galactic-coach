@@ -1775,6 +1775,22 @@ on PRACTICE — offense over defense, one per row always lit:
   the column they stand in. Scouted recruits joining that grid get the
   same clean read.
 
+## v4.9 — MARCH MANIACS, PRESS START (Aug 29, 2026 — the game went on the portfolio)
+
+Thijs linked the game from his portfolio site. Everyone now lands on THE
+TITLE SCREEN — option 5a from the Aug 29 design drop, ported pixel for
+pixel into `rig.ts` (`titleHtml`, 128×72): deep space, MARCH bouncing on
+the beat over MANIACS, the ball orbiting the title, the hoop court-side, a
+ringed planet drifting low, the subtitle flashing a word at a time (AN ·
+INTERGALACTIC · COLLEGE · BASKETBALL · MADNESS · SIMULATOR), PRESS START
+blinking in the team color (house green before a program is picked).
+Tap ANYWHERE: a fresh visitor goes to the program pick; a returning coach
+picks up exactly where the save left off (the screen names the program,
+season and week under the art). The illustration zooms down to fit narrow
+phones (×3 is 384px). Open question for Thijs: the tab title / manifest
+still say GALACTIC COACH — rename to MARCH MANIACS, or is that the
+program and this the tournament?
+
 ### Backlog (in rough priority)
 
 **Scratched (Thijs, Aug 29) — do not resurface:** instruction-night squad
