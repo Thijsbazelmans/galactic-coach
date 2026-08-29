@@ -1974,7 +1974,7 @@ function nextYearLine(s: GameState): string {
   const bits = [`${returning.length} return${leaving ? `, ${leaving} walk` : ''}`, `${byCol.map((n, c) => `${COL_SHORT[c]}×${n}`).join(' ')}`];
   if (holes.length) bits.push(`no ${holes.join('/')} coming back`);
   else bits.push(`thin on ${ATTR_SHORT[low]}`);
-  return `NEXT YEAR: ${bits.join(' · ')}`;
+  return `NEXT YEAR: ${bits.join(' — ')}`;
 }
 
 /** SCOUTING and RECRUITING: the same board, two different weeks' moves. */
@@ -1990,7 +1990,7 @@ function stageBoard(s: GameState): string {
   const weeksLeft = Math.max(0, REGULAR_WEEKS - s.week) + (done ? 0 : 1);
   const infoRows = swapping ? '' : `
       ${need !== null ? `<div class="fourthrow slim"><div class="report">HIGHLIGHT ${need} NAME${need === 1 ? '' : 'S'} FOR THE ACTION — tap the cards (${gxSel.size}/${need})</div></div>` : ''}
-      <div class="fourthrow slim"><div class="report dim">${weeksLeft} ${title} WEEK${weeksLeft === 1 ? '' : 'S'} LEFT THIS SEASON · ${esc(nextYearLine(s))}</div></div>
+      <div class="fourthrow slim two"><div class="report dim"><span>${weeksLeft} ${title} WEEK${weeksLeft === 1 ? '' : 'S'} LEFT THIS SEASON</span><span>${esc(nextYearLine(s))}</span></div></div>
       ${scouting && s.groundedWeeks > 0 ? `<div class="fourthrow slim"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — local searches only</div></div>` : ''}`;
   return `<h2 class="gridhead">${title}</h2>
     ${prospectGridHtml(s, need)}
