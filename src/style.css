@@ -391,6 +391,7 @@ button.hold.wiggle::after {
 /* …except when the door row holds the NEW names: they get the stage while
    the standing board dims behind them */
 .gridrow.foundrow .pcard { opacity: 1; }
+.gridrow.foundrow .pcard.cutcard { opacity: 0.55; }
 /* a SIGNED recruit: ink is dry — greyed, locked, going nowhere */
 .pcard.signedpr { opacity: 0.6; filter: grayscale(0.55); }
 .kpot.signedink b { color: #5fe07a; font-size: 15px; }
@@ -1262,7 +1263,7 @@ button.actmain.scopehl { border-color: var(--r95); }
 @keyframes iblinku { 50% { filter: drop-shadow(0 0 3px #5fe07a) brightness(1.6); } }
 @keyframes iblinkd { 50% { filter: drop-shadow(0 0 3px #ff4a3d) brightness(1.6); } }
 /* THE RECAP: the night's faces over the story */
-.recapfaces { display: flex; justify-content: center; gap: 14px; margin: 6px 0 8px; flex: none; }
+.recapfaces { display: flex; justify-content: center; align-items: flex-end; gap: 14px; margin: 6px 0 8px; flex: none; }
 .recapface { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .recaptag { font-size: 9px; letter-spacing: 1px; font-weight: bold; background: #000; border: 1px solid var(--r55); padding: 1px 5px; }
 .recaptag.up { color: #5fe07a; border-color: #1f5a2c; }

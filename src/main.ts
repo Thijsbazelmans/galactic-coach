@@ -250,6 +250,13 @@ let impactTimers: number[] = [];
 let coachOpen = false;
 let itemUi: string | null = null;
 let toast: string | null = null;
+/** a toast reads in BEATS like a story: the words, then the verdict — split
+    on the paragraph break; tap advances */
+let toastShown: string | null = null;
+let toastBeat = 0;
+/** the names a search just FOUND: they keep the spotlight while the board
+    swap is open, wherever they get dragged */
+let gxFound = new Set<number>();
 let drillSheet = false;
 // pickers DEFAULT to the free option every week — spending ⚡ takes a
 // deliberate trip into the menu
@@ -1497,15 +1504,17 @@ function prospectGridHtml(s: GameState, pickCount: number | null = null, signing
     const cells = [0, 1, 2].map((c) => {
       const idx = r * 3 + c;
       const pr = s.prospects[idx];
-      // a scoped action wants targets: picked names blink in, the rest dim
-      const scope = pickCount !== null && pr ? (gxSel.has(pr.id) ? 'in' as const : 'out' as const) : undefined;
+      // a scoped action wants targets: picked names blink in, the rest dim;
+      // during a board swap the FOUND name keeps the spotlight wherever it
+      // was dragged, and the standing board steps back
+      const found = swapping && !!pr && gxFound.has(pr.id);
+      const scope = found ? 'in' as const : pickCount !== null && pr ? (gxSel.has(pr.id) ? 'in' as const : 'out' as const) : undefined;
       return `<div class="gcell ${signing ? '' : 'dropzone'}" data-zone="${idx}">${pr
         ? prospectCard(pr, lens, {
             draggable: !signing,
             scope,
             selectable: pickCount !== null,
-            // the new name has the stage: the standing board steps back
-            dim: swapping,
+            dim: swapping && !found,
             labelPop: gxBatch?.animate ?? true,
             signing: signing ? { selected: pr.selected, effPct: chances.find((x) => x.prospect.id === pr.id)?.pct } : undefined,
           })
@@ -1519,8 +1528,9 @@ function prospectGridHtml(s: GameState, pickCount: number | null = null, signing
   if (swapping && !signing) {
     const cells = [0, 1, 2].map((c) => {
       const pr = s.pendingRecruits[c];
+      const found = !!pr && gxFound.has(pr.id);
       return `<div class="gcell dropzone" data-zone="${9 + c}">${pr
-        ? prospectCard(pr, lens, { draggable: true, scope: 'in' })
+        ? prospectCard(pr, lens, { draggable: true, scope: found ? 'in' : undefined, dim: !found })
         : `<div class="pod empty">·</div>`}</div>`;
     }).join('');
     rows.push(`<div class="gridrow cutrow foundrow"><div class="rowlabel">OUT</div>${cells}</div>`);
@@ -2708,6 +2718,7 @@ function render(): void {
     selRecruit = 'groupchat';
     selPregame = null;
     gxSel.clear();
+    gxFound.clear();
     boxPass = 0;
     stickerBatches.clear();
   }
@@ -3011,9 +3022,10 @@ function postRender(): void {
   }
   const ev = currentStory(state);
   const box = document.getElementById('typebox');
-  const overlayText = toast;
-  if (box && overlayText !== undefined && overlayText !== null) {
-    typewrite(box, overlayText, revealActions);
+  if (box && toast !== null) {
+    if (toast !== toastShown) { toastShown = toast; toastBeat = 0; }
+    const beats = splitBeats(toast);
+    typewrite(box, beats[Math.min(toastBeat, beats.length - 1)] ?? toast, revealActions);
   } else if (ev) {
     const text = box ? currentBeatText(ev) : null;
     if (box && text !== null) {
@@ -3513,6 +3525,11 @@ function executeAction(action: string, id: string): void {
       if (out) {
         if (out.perProspect.size) gxStickers = out.perProspect;
         gxResult = { text: out.text, cost: act.cost, played: false, art: out.art };
+        // the found names: the ones stickered NEW plus the ones waiting in the 4th row
+        gxFound = new Set([
+          ...[...out.perProspect.entries()].filter(([, st]) => st.some((x) => x.text === 'NEW')).map(([id]) => id),
+          ...state.pendingRecruits.map((pr) => pr.id),
+        ]);
       }
       break;
     }
@@ -3551,6 +3568,7 @@ function executeAction(action: string, id: string): void {
     case 'board-confirm-do': {
       const gone = confirmBoard(state);
       boardConfirm = false;
+      gxFound.clear();
       if (gone.length) toast = `${gone.join(' and ')} walk${gone.length === 1 ? 's' : ''} out of the story. The galaxy is big; you will not find ${gone.length === 1 ? 'them' : 'them'} again.`;
       break;
     }
@@ -3710,10 +3728,16 @@ app.addEventListener('click', (e) => {
     case 'board-confirm-close': boardConfirm = false; break;
     case 'speech-sheet': speechSheet = true; break;
     case 'speech-sheet-close': if (e.target === el) speechSheet = false; break;
-    case 'toast-tap':
+    case 'toast-tap': {
       if (finishTypeNow()) return;
+      // the next beat, or the way out
+      const beats = toast ? splitBeats(toast) : [];
+      if (toastBeat < beats.length - 1) { toastBeat++; break; }
       toast = null;
+      toastShown = null;
+      toastBeat = 0;
       break;
+    }
 
     case 'lens-set': lens = (Number(id) % 3) as Lens; break;
 

@@ -451,7 +451,8 @@ export function verdictLines(
   myPlan: PlanId,
   won: boolean,
   share: number,
-  margin: number
+  margin: number,
+  box: BoxRow[] = []
 ): { wheelLine: string; heroLine: string } {
   const mine = planById(myPlan);
   // the night's story: what the numbers promised vs what the horn said
@@ -471,7 +472,13 @@ export function verdictLines(
   const misplaced = st.filter((x) => slotRating(x.p, x.c) < slotRating(x.p, bestCol(x.p)) * 0.86);
   const fit = (p: Player): number => attrEff(p, mine.attr);
   const hero = [...st].sort((a, b) => fit(b.p) - fit(a.p))[0].p;
-  const goatX = [...st].sort((a, b) => fit(a.p) - fit(b.p))[0];
+  // the goat is judged by what he actually PUT UP in the plan's column —
+  // and never the night's top scorer (the box line already crowns him)
+  const stat = ATTR_STAT[mine.attr];
+  const topId = box[0]?.playerId;
+  const pool = st.filter((x) => x.p.id !== topId);
+  const line = (p: Player): number => box.find((b) => b.playerId === p.id)?.[stat] ?? 0;
+  const goatX = [...(pool.length ? pool : st)].sort((a, b) => line(a.p) - line(b.p) || fit(a.p) - fit(b.p))[0];
   const goat = goatX.p;
   const goatMuted = (mine.attr === 'ath' || mine.attr === 'frc' ? goat.energy : goat.mood) <= 40;
   let heroLine: string;
@@ -548,7 +555,7 @@ export function simMyGame(s: GameState, me: Team, opp: Team | null, champ: Champ
   const sc = fullScores(share, u);
   const box = dealBox(me, sc.my, s.plan, forms);
   const mvpId = commitBox(me, box);
-  const { wheelLine, heroLine } = verdictLines(me, s.plan, sc.won, share, Math.abs(sc.my - sc.opp));
+  const { wheelLine, heroLine } = verdictLines(me, s.plan, sc.won, share, Math.abs(sc.my - sc.opp), box);
   return {
     won: sc.won,
     result: {

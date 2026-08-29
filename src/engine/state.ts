@@ -1636,7 +1636,7 @@ export function finalizeGame(s: GameState): void {
     const wonNow = r.myScore > r.oppScore;
     if (wonNow !== r.win) {
       r.win = wonNow;
-      const lines = verdictLines(me, r.planMine, wonNow, r.share, Math.abs(r.myScore - r.oppScore));
+      const lines = verdictLines(me, r.planMine, wonNow, r.share, Math.abs(r.myScore - r.oppScore), r.box);
       r.wheelLine = lines.wheelLine;
       r.heroLine = lines.heroLine;
     }
