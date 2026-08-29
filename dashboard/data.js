@@ -900,7 +900,7 @@ const ACTIONS = {
     groups: [
       {
         name: 'SPEECHES — standard (known from day one)', rows: [
-          { id: 'showtime', name: 'SHOWTIME — "SHOOTERS SHOOT"', effect: 'squad +3–4 SKL · −3–4 ATH, guaranteed', desc: 'Shooters shoot. Rise over anything they pack in — and forget about running.' },
+          { id: 'showtime', name: 'SHOWTIME — "SHOOTERS SHOOT"', effect: 'squad +3–4 SKL · −3–4 ATH (15% it doesn\'t take)', desc: 'Shooters shoot. Rise over anything they pack in — and forget about running.' },
           { id: 'rungun', name: 'RUN & GUN — "RUN THEM RAGGED"', effect: 'squad +3–4 ATH · −3–4 SKL', desc: 'Outrun everything. Seven seconds or less. Nobody said anything about making shots.' },
           { id: 'lockdown', name: 'LOCKDOWN — "MAKE THEM HATE THE BALL"', effect: 'squad +3–4 FRC · −3–4 BRN', desc: 'Full-court terror. Thinking is for the bus ride home.' },
           { id: 'clockwork', name: 'CLOCKWORK — "USE YOUR BRAINS"', effect: 'squad +3–4 BRN · −3–4 FRC', desc: 'The system. Every cut scripted. Nobody gets angry, nobody gets a steal.' },

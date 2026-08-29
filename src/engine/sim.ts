@@ -7,7 +7,7 @@
 // Every player has fixed ability numbers; the slot he stands in decides his
 // GRADE (F–S) — and the team numbers under the lineup.
 
-import { ATTR_STAT, PLANS, STAT_WORD, planById } from './data';
+import { ATTR_STAT, PLANS, SPEECH_FLOP, STAT_WORD, planById } from './data';
 import type { Attr, AttrRec, BoxRow, ChampTeam, GameState, MyGameResult, PlanId, Player, SpeechFx, Team } from './types';
 import { ATTRS, attrEff, bestAttr, clamp, ovr, pick, rand, roll, sizeIndex, zeroAttrs } from './util';
 
@@ -513,7 +513,7 @@ function gameRope(
   // down (s.oppFx, amt negative)
   const oppAmt = 3 + rand(2);
   const oppFxs: SpeechFx[] = [];
-  if (!champ) {
+  if (!champ && !roll(SPEECH_FLOP)) { // their speech can fall flat too
     const pa = planById(opp!.plan).attr;
     oppFxs.push({ attr: pa, amt: oppAmt }, { attr: OPPOSITE[pa], amt: -oppAmt });
   }

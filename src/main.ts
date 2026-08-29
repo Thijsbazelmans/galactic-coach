@@ -11,6 +11,8 @@ import {
   GALAXY_ACTS,
   INSTRUCTIONS,
   PLANS,
+  SPEECH_FLOP,
+  SPEECH_FLOP_PREMIUM,
   TOURNEY,
   drillKind,
   galaxyActById,
@@ -1930,8 +1932,9 @@ function speechSub(pl: (typeof PLANS)[number]): string {
   return `+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}  −${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}`;
 }
 
-/** A speech row: a TRADE, never a gamble — the facts line says what it gives
-    and takes; THE RALLY is the one coin flip, TAKE IT EASY the one sure thing. */
+/** A speech row: a TRADE when it takes — the facts line says what it gives
+    and takes; the down tail is the night it doesn't. THE RALLY is the coin
+    flip, TAKE IT EASY the one sure thing. */
 function speechRow(pl: (typeof PLANS)[number], tag: 'button' | 'div', cls: string, attrs: string): string {
   const facts: Fact[] = pl.kind === 'rally'
     ? [fact('MORALE, a coin flip', 1), fact('the roof — on or off', 0)]
@@ -1939,7 +1942,9 @@ function speechRow(pl: (typeof PLANS)[number], tag: 'button' | 'div', cls: strin
       ? [fact('−40% ⚡ burned', 2), fact('softer tonight · a loss stings', 0)]
       : [fact(`+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}`, pl.gain[1] >= 6 ? 3 : 1), fact(`−${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}`, pl.loss[1] <= 3 ? 2 : 0)];
   if (pl.cooldown) facts.push(fact(`${pl.cooldown}w recharge`, 0));
-  return pickerRow({ tag, cls, attrs, name: pl.speech, facts, risk: pl.kind === 'rally' ? 'risky' : pl.kind === 'easy' ? 'safe' : 'trade', desc: pl.fantasy });
+  const flop = pl.kind === 'shift' ? (pl.premium ? SPEECH_FLOP_PREMIUM : SPEECH_FLOP) : pl.kind === 'rally' ? 50 : 0;
+  const down = flop ? { pct: flop, cls: 'DRAIN', note: pl.kind === 'rally' ? 'a coin flip, the roof on or off' : "it doesn't take" } : undefined;
+  return pickerRow({ tag, cls, attrs, name: pl.speech, down, facts, risk: pl.kind === 'easy' ? 'safe' : riskLevel(flop), desc: pl.fantasy });
 }
 
 /** An instruction row. Never "if it lands" — the tails say so. */
@@ -2129,6 +2134,7 @@ function stageMatchup(s: GameState): string {
     else if (s.oppFx) landedLine = `✓ THE CALL LANDS — they play ${s.oppFx.amt} ${ATTR_SHORT[s.oppFx.attr]} tonight`;
     else if (!gain && loss) landedLine = `▼ THEY READ YOU — your squad plays ${loss.amt} ${ATTR_SHORT[loss.attr]} tonight`;
     else if (gain) landedLine = `✓ the words LAND — squad +${gain.amt} ${ATTR_SHORT[gain.attr]}${loss ? ` · ${loss.amt} ${ATTR_SHORT[loss.attr]}` : ''} tonight`;
+    else if (s.speechTook === false) landedLine = "▼ the words didn't take — the squad plays as it is tonight";
     else landedLine = 'the move is made. the rest is on them';
   }
   const landed = landedLine ? `<div class="fourthrow slim"><div class="report">${landedLine}</div></div>` : '';
@@ -2168,7 +2174,7 @@ function speechSheetHtml(s: GameState): string {
   }).join('');
   return `<div class="modalback sheet" data-action="speech-sheet-close"><div class="modal sheetup scrolly">
     <span class="tag">THE PREGAME MOVE</span>
-    <div class="sheethead">THE SPEECH — a trade: one thing up, its opposite down</div>
+    <div class="sheethead">THE SPEECH — a trade: one thing up, its opposite down. Some nights it doesn't take.</div>
     ${speeches}
     <div class="sheethead">LAST-MINUTE INSTRUCTIONS — play the tape</div>
     ${instrs}

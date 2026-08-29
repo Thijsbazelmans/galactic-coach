@@ -6,6 +6,9 @@ import {
   DEAN_POOL,
   ITEMS,
   SMALL_ITEMS,
+  SPEECH_FLOP,
+  SPEECH_FLOPS,
+  SPEECH_FLOP_PREMIUM,
   TIPS,
   TOURNEY,
   VOYAGE_POOL,
@@ -645,6 +648,7 @@ function startWeek(s: GameState): void {
   s.recruitActWk = false;
   s.pregameWk = false;
   s.speechFx = null;
+  s.speechTook = undefined;
   s.oppFx = null;
   s.instrPending = null;
   s.easyNight = false;
@@ -1283,31 +1287,39 @@ export function confirmBoard(s: GameState): string[] {
 
 // ---- matchup ---------------------------------------------------------------------------
 
-/** THE SPEECH: mandatory, once, before tip-off — and it is a TRADE, never a
-    gamble. The whole squad plays +gain in the speech's attribute tonight and
-    −loss in its opposite (SKILL ↔ ATHLETICISM · BRAINS ↔ FIERCENESS). */
-function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx[]; text: string } {
+/** THE SPEECH: mandatory, once, before tip-off. Two beats: you say the words
+    and leave the room for effect (tap); when you come back in, the scene says
+    whether it took. A shift speech that takes is a TRADE — the squad plays
+    +gain in its attribute and −loss in the opposite (SKILL ↔ ATHLETICISM ·
+    BRAINS ↔ FIERCENESS); some nights it simply doesn't take. */
+function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx[]; text: string; took: boolean } {
   const pl = planById(plan);
   const t = myTeam(s);
+  const exit = `"Tonight, ${pl.speech}," you say — and you leave the room for dramatic effect.`;
+  const back = 'When you come back in,';
   if (pl.kind === 'rally') {
     // no X's and O's: a coin flip on morale, a sliver of chance either way
     const r = Math.random() * 100;
-    if (r < 2) { for (const p of t.players) p.mood = clamp(p.mood - 20, 0, 100); return { fx: [], text: `"${pl.speech}," you roar — and it lands WRONG. Somebody laughs. Then somebody else. The room deflates like a tire. Squad MOOD −20.` }; }
-    if (r < 4) { for (const p of t.players) p.mood = clamp(p.mood + 25, 0, 100); return { fx: [], text: `"${pl.speech}," you roar — and the roof comes OFF. Chairs go over. Somebody cries. The other team can hear it through the wall. Squad MOOD +25.` }; }
-    if (r < 52) { for (const p of t.players) p.mood = clamp(p.mood + 12, 0, 100); return { fx: [], text: `"${pl.speech}," you say. ${pl.scene} It takes: the room is on its feet. Squad MOOD +12.` }; }
-    return { fx: [], text: `"${pl.speech}," you say. ${pl.scene} Tonight it doesn't take. Polite nods. The rest is on them.` };
+    if (r < 2) { for (const p of t.players) p.mood = clamp(p.mood - 20, 0, 100); return { took: false, fx: [], text: `${exit}\n\n${back} somebody is laughing. Then somebody else. The room deflates like a tire. Squad MOOD −20.` }; }
+    if (r < 4) { for (const p of t.players) p.mood = clamp(p.mood + 25, 0, 100); return { took: true, fx: [], text: `${exit}\n\n${back} the roof is OFF. Chairs are over. Somebody is crying. The other team can hear it through the wall. Squad MOOD +25.` }; }
+    if (r < 52) { for (const p of t.players) p.mood = clamp(p.mood + 12, 0, 100); return { took: true, fx: [], text: `${exit}\n\n${back} ${pl.scene} The room is on its feet. Squad MOOD +12.` }; }
+    return { took: false, fx: [], text: `${exit}\n\n${back} ${pick(SPEECH_FLOPS)} Tonight it doesn't take. The rest is on them.` };
   }
   if (pl.kind === 'easy') {
     s.easyNight = true;
-    return { fx: [], text: `"${pl.speech}," you say. ${pl.scene}\n\nThe floor players will burn far less tonight — and play a touch softer for it. Lose, and this room takes it badly.` };
+    return { took: true, fx: [], text: `${exit}\n\n${back} ${pl.scene} The floor players will burn far less tonight — and play a touch softer for it. Lose, and this room takes it badly.` };
+  }
+  if (roll(pl.premium ? SPEECH_FLOP_PREMIUM : SPEECH_FLOP)) {
+    return { took: false, fx: [], text: `${exit}\n\n${back} ${pick(SPEECH_FLOPS)} Tonight it doesn't take: the squad plays as it is.` };
   }
   const gain = pl.gain[0] + rand(pl.gain[1] - pl.gain[0] + 1);
   const loss = pl.loss[0] + rand(pl.loss[1] - pl.loss[0] + 1);
   const A = pl.attr.toUpperCase();
   const O = pl.off.toUpperCase();
   return {
+    took: true,
     fx: [{ attr: pl.attr, amt: gain }, { attr: pl.off, amt: -loss }],
-    text: `"${pl.speech}," you say. ${pl.scene}\n\nTonight the squad plays +${gain} ${A} — and gives up ${loss} ${O} to do it.`,
+    text: `${exit}\n\n${back} ${pl.scene} Tonight the squad plays +${gain} ${A} — and gives up ${loss} ${O} to do it.`,
   };
 }
 
@@ -1322,6 +1334,7 @@ export function deliverSpeech(s: GameState, plan: PlanId): string | null {
   s.pregameWk = true;
   const out = rollSpeech(s, plan);
   s.speechFx = out.fx;
+  s.speechTook = out.took;
   const cd = planById(plan).cooldown;
   if (cd) s.speechCooldowns = { ...(s.speechCooldowns ?? {}), [plan]: cd };
   save(s);

@@ -1802,6 +1802,22 @@ their summer growth — the card wears «+16 XP BANKED» beside the growth
 sticker, level-ups knock right after the signing verdicts. Seniors and
 pros leave it behind with their lockers.
 
+## v4.9.2 — YOU LEAVE THE ROOM (Aug 29, 2026)
+
+The pregame speech plays in two beats, Thijs's staging: «"Tonight, SHOOTERS
+SHOOT," you say — and you leave the room for dramatic effect.» (tap) «When
+you come back in, the whole team is doing trick shots for the 'gram.
+Somebody banks one in off the assistant coach's head. Tonight the squad
+plays +4 SKL — and gives up 3 ATH.» Every scene was rewritten to follow
+"When you come back in, …". And the speech CAN FAIL now — THE TRADE law
+(v4.5) is amended: a shift speech takes 85% of nights (premium 92%,
+`SPEECH_FLOP` / `SPEECH_FLOP_PREMIUM`); the rest, you come back in and
+nothing changed — eight funny ways to say so (`SPEECH_FLOPS`: the
+sandwiches, the bathroom vote, the captain's impression…). The matchup
+strip says "▼ the words didn't take", the sheet rows wear a DRAIN down
+tail and a RISKY sticker, and by the fairness law the OTHER locker room
+flops at the same rate.
+
 ### Backlog (in rough priority)
 
 **Scratched (Thijs, Aug 29) — do not resurface:** instruction-night squad

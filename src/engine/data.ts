@@ -178,10 +178,29 @@ export const DEITY_NAMES = [
 ];
 
 // ---- THE SPEECH --------------------------------------------------------------
-// A speech is a SHIFT, never a gamble: the whole squad plays +gain in the
-// speech's attribute tonight and −loss in its OPPOSITE (SKILL ↔ ATHLETICISM,
-// BRAINS ↔ FIERCENESS). Four standard speeches, one per attribute; premium
-// speeches (found in stories) trade better and recharge.
+// A speech is a SHIFT: the whole squad plays +gain in the speech's attribute
+// tonight and −loss in its OPPOSITE (SKILL ↔ ATHLETICISM, BRAINS ↔
+// FIERCENESS). Four standard speeches, one per attribute; premium speeches
+// (found in stories) trade better and recharge. It plays in two beats: you
+// say the words and LEAVE THE ROOM for effect; when you come back in, the
+// scene tells you whether it took — some nights (SPEECH_FLOP) it doesn't.
+// Scenes are written to follow "When you come back in, …".
+
+/** % of nights a shift speech simply doesn't take (premium ones are surer). */
+export const SPEECH_FLOP = 15;
+export const SPEECH_FLOP_PREMIUM = 8;
+
+/** When you come back in and nothing changed — the funny ways to say it. */
+export const SPEECH_FLOPS = [
+  'everybody is on their phones. One of them is watching a video of a different coach\'s speech.',
+  'the room is exactly as you left it, except the whiteboard now says GO SPORTS in your handwriting. You didn\'t write that.',
+  'your assistant is finishing your sentence for you. Badly. The room applauds him.',
+  'somebody asks if you\'re okay. You were gone four seconds.',
+  'the squad is debating whether you left for effect or for the bathroom. The bathroom wins the vote.',
+  'they\'re still waiting for the second half of the speech. There was no second half.',
+  'the room has resumed its previous conversation, which was about sandwiches.',
+  'the captain is re-enacting your speech for the freshmen. It is a very good impression. It is not a kind one.',
+];
 
 export interface PlanDef {
   id: PlanId;
@@ -206,17 +225,17 @@ export interface PlanDef {
 }
 
 export const PLANS: PlanDef[] = [
-  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', kind: 'shift', attr: 'skl', off: 'ath', gain: [3, 4], loss: [3, 4], scene: "Before you finish the sentence they're doing trick shots for the 'gram. Somebody banks one in off the ceiling.", fantasy: 'Shooters shoot. Rise over anything they pack in — and forget about running.' },
-  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', kind: 'shift', attr: 'ath', off: 'skl', gain: [3, 4], loss: [3, 4], scene: 'They bench-press the cheerleaders while you talk. The cheerleaders seem fine with it.', fantasy: 'Outrun everything. Seven seconds or less. Nobody said anything about making shots.' },
-  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', kind: 'shift', attr: 'frc', off: 'brn', gain: [3, 4], loss: [3, 4], scene: 'Somebody headbutts a locker, lovingly. Then somebody else does. The locker will need replacing.', fantasy: 'Full-court terror. Make them hate the ball. Thinking is for the bus ride home.' },
-  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', kind: 'shift', attr: 'brn', off: 'frc', gain: [3, 4], loss: [3, 4], scene: 'A quiet confidence settles over the room. Is someone humming "ohm"? Are they ALL?', fantasy: 'The system. Every cut scripted. Nobody gets angry, nobody gets a steal.' },
-  { id: 'rally', name: 'THE RALLY', speech: 'THIS IS OUR HOUSE', kind: 'rally', attr: 'skl', off: 'skl', gain: [0, 0], loss: [0, 0], scene: 'Chairs scrape back. Somebody starts pounding a locker in rhythm, and the rhythm spreads.', fantasy: 'No X\'s, no O\'s — just the roof, and whether it stays on. A coin flip on morale; a sliver of chance it goes very right, or very wrong.' },
-  { id: 'easy', name: 'TAKE IT EASY', speech: 'SAVE SOMETHING FOR NEXT WEEK', kind: 'easy', attr: 'ath', off: 'ath', gain: [0, 0], loss: [0, 0], scene: 'Nods. Somebody yawns, on purpose. The starters stretch like it\'s a Tuesday.', fantasy: 'Coast tonight: the floor players burn far less energy, and you play a little softer for it. Lose, and a coasting room takes it badly.' },
+  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', kind: 'shift', attr: 'skl', off: 'ath', gain: [3, 4], loss: [3, 4], scene: "the whole team is doing trick shots for the 'gram. Somebody banks one in off the assistant coach's head.", fantasy: 'Shooters shoot. Rise over anything they pack in — and forget about running.' },
+  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', kind: 'shift', attr: 'ath', off: 'skl', gain: [3, 4], loss: [3, 4], scene: 'they\'re bench-pressing the cheerleaders. The cheerleaders seem fine with it.', fantasy: 'Outrun everything. Seven seconds or less. Nobody said anything about making shots.' },
+  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', kind: 'shift', attr: 'frc', off: 'brn', gain: [3, 4], loss: [3, 4], scene: 'somebody is headbutting a locker, lovingly. Then somebody else does. The locker will need replacing.', fantasy: 'Full-court terror. Make them hate the ball. Thinking is for the bus ride home.' },
+  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', kind: 'shift', attr: 'brn', off: 'frc', gain: [3, 4], loss: [3, 4], scene: 'a quiet confidence has settled over the room. Is someone humming "ohm"? Are they ALL?', fantasy: 'The system. Every cut scripted. Nobody gets angry, nobody gets a steal.' },
+  { id: 'rally', name: 'THE RALLY', speech: 'THIS IS OUR HOUSE', kind: 'rally', attr: 'skl', off: 'skl', gain: [0, 0], loss: [0, 0], scene: 'chairs are scraping back. Somebody is pounding a locker in rhythm, and the rhythm is spreading.', fantasy: 'No X\'s, no O\'s — just the roof, and whether it stays on. A coin flip on morale; a sliver of chance it goes very right, or very wrong.' },
+  { id: 'easy', name: 'TAKE IT EASY', speech: 'SAVE SOMETHING FOR NEXT WEEK', kind: 'easy', attr: 'ath', off: 'ath', gain: [0, 0], loss: [0, 0], scene: 'somebody is yawning, on purpose. The starters are stretching like it\'s a Tuesday.', fantasy: 'Coast tonight: the floor players burn far less energy, and you play a little softer for it. Lose, and a coasting room takes it badly.' },
   // premium speeches — found in stories: a better trade, 3-week recharge
-  { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', kind: 'shift', attr: 'frc', off: 'brn', gain: [5, 6], loss: [2, 3], scene: 'The chant goes up in old Quadran. The paint on the far wall peels a little.', fantasy: 'An old Quadran battle chant. The paint peels.', premium: true, cooldown: 3 },
-  { id: 'zenmind', name: 'THE STILL POND', speech: 'BE THE STILL POND', kind: 'shift', attr: 'brn', off: 'frc', gain: [5, 6], loss: [2, 3], scene: 'The room goes so quiet you can hear the arena breathing through the wall.', fantasy: 'The oracle taught you this one. The gym goes quiet inside.', premium: true, cooldown: 3 },
-  { id: 'stardust', name: 'STARDUST', speech: 'BE UNGUARDABLE', kind: 'shift', attr: 'skl', off: 'ath', gain: [5, 6], loss: [2, 3], scene: 'Somebody spins the ball on a finger for the entire speech and never once looks at it.', fantasy: 'A retired Nimbus legend whispered it once. Nets have feared it since.', premium: true, cooldown: 3 },
-  { id: 'engine', name: 'THE ENGINE', speech: 'LEGS ARE A LIE', kind: 'shift', attr: 'ath', off: 'skl', gain: [5, 6], loss: [2, 3], scene: 'The whole room is bouncing before you finish. The floor has opinions about it.', fantasy: 'A Robota conditioning mantra. The floor gets smaller for everyone else.', premium: true, cooldown: 3 },
+  { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', kind: 'shift', attr: 'frc', off: 'brn', gain: [5, 6], loss: [2, 3], scene: 'the chant is going up in old Quadran. The paint on the far wall is peeling a little.', fantasy: 'An old Quadran battle chant. The paint peels.', premium: true, cooldown: 3 },
+  { id: 'zenmind', name: 'THE STILL POND', speech: 'BE THE STILL POND', kind: 'shift', attr: 'brn', off: 'frc', gain: [5, 6], loss: [2, 3], scene: 'the room is so quiet you can hear the arena breathing through the wall.', fantasy: 'The oracle taught you this one. The gym goes quiet inside.', premium: true, cooldown: 3 },
+  { id: 'stardust', name: 'STARDUST', speech: 'BE UNGUARDABLE', kind: 'shift', attr: 'skl', off: 'ath', gain: [5, 6], loss: [2, 3], scene: 'somebody is spinning a ball on one finger and hasn\'t looked at it once.', fantasy: 'A retired Nimbus legend whispered it once. Nets have feared it since.', premium: true, cooldown: 3 },
+  { id: 'engine', name: 'THE ENGINE', speech: 'LEGS ARE A LIE', kind: 'shift', attr: 'ath', off: 'skl', gain: [5, 6], loss: [2, 3], scene: 'the whole room is bouncing. The floor has opinions about it.', fantasy: 'A Robota conditioning mantra. The floor gets smaller for everyone else.', premium: true, cooldown: 3 },
 ];
 
 export function planById(id: PlanId): PlanDef {

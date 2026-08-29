@@ -469,6 +469,8 @@ export interface GameState {
   /** THE SPEECH is a SHIFT: +amt in one attribute, −amt in its opposite — two
       entries (or one negative entry: an instruction that got READ) */
   speechFx?: SpeechFx[] | null;
+  /** the speech's verdict: false = you came back in and nothing had changed */
+  speechTook?: boolean;
   /** a landed instruction: THEIR side plays this (amt is negative) */
   oppFx?: SpeechFx | null;
   /** premium speeches recharge: planId → weeks until it can be given again */
