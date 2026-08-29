@@ -1757,6 +1757,24 @@ on PRACTICE — offense over defense, one per row always lit:
   speeches. Knobs if it proves too strong: `TAC_SHIFT` 0.2, CONF_TIERS,
   FOUNDER_TIER.
 
+## v4.8.1 — THE HONEST LETTER (Aug 29, 2026 — flowing out of the tactics idea)
+
+- **The grade reads the tanks.** `gradeRating` = slot rating (position,
+  size, mismatch) × `condFactor` — energy and mood on the match curve,
+  CAPPED at 1: full tanks restore the letter, never inflate it. A 90 out of
+  position, tired and mad, really is an F right now. Baseline meters (75)
+  leave the letter untouched, so grades still compare across weeks.
+- **The reserve row keeps its number.** Slots 7–9 show the plain OVR, not
+  a letter (they're not in tonight's math), and the card sits at 78%
+  opacity always — a touch dimmed, never as far as the injured/away (55%).
+  Practice, matchup, week start, game night, and the selection grid alike.
+- **INJURED 3w / AWAY 2w** replace the old OUT tag — the kind was always
+  tracked (medical vs time items); now it's on the card.
+- **The pick compares who they ARE**: tryouts and the selection grid render
+  cards `pure` — no energy/mood gauges, the letter graded at full tanks for
+  the column they stand in. Scouted recruits joining that grid get the
+  same clean read.
+
 ### Backlog (in rough priority)
 
 **Scratched (Thijs, Aug 29) — do not resurface:** instruction-night squad

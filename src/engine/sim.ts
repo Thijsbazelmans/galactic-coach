@@ -91,6 +91,21 @@ export function slotRating(p: Player, col: number): number {
   return Math.round(rawSlotRating(p, col) * posPenalty(p, col) * 10) / 10;
 }
 
+/** THE GRADE'S CONDITION: tonight's letter reads the tanks too — energy and
+    mood drag the rating down on the same curve the match runs on, CAPPED at
+    1: full tanks restore the letter, they never inflate it. A 90 standing
+    in the wrong column, tired and mad, really is an F right now. */
+export function condFactor(p: { energy: number; mood: number }): number {
+  return Math.min(1, meterMult(p.energy)) * Math.min(1, meterMult(p.mood));
+}
+
+/** What the letter grades: the slot rating × tonight's condition. `pure`
+    skips the meters — tryouts, the selection grid and scouted kids grade
+    at full tanks, so the pick compares who they ARE, not how they slept. */
+export function gradeRating(p: Player, col: number, pure = false): number {
+  return Math.round(slotRating(p, col) * (pure ? 1 : condFactor(p)) * 10) / 10;
+}
+
 /** The column he'd rate highest in (penalty included — his real best home). */
 export function bestCol(p: Player): number {
   let best = 1;

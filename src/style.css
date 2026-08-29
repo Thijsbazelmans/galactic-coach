@@ -413,6 +413,9 @@ button.hold.wiggle::after {
 }
 .pcard.grabbable { cursor: grab; touch-action: none; }
 .pcard.pout { opacity: 0.55; }
+/* the RESERVE row: not in tonight's math — a touch dimmed, never as far as
+   the injured/away */
+.pcard.resv { opacity: 0.78; }
 /* halftime: the reserves stayed in the locker room */
 .pcard.hlock { opacity: 0.4; filter: grayscale(0.85); }
 .pcard.flash { outline: 1px solid var(--r95); }

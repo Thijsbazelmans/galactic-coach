@@ -21,7 +21,7 @@ import {
   storyById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, REGULAR_WEEKS, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, bestCol, bookieLine, grade, matchAttrs, posArrows, slotPlayer, slotRating, tacticsMult, winShare, type Grade } from './engine/sim';
+import { COL_LABELS, bestCol, bookieLine, grade, gradeRating, matchAttrs, posArrows, slotPlayer, tacticsMult, winShare, type Grade } from './engine/sim';
 import {
   actionGalaxy,
   addNote,
@@ -800,6 +800,12 @@ interface CardOpts {
   sitout?: boolean;
   /** the column he stands in: the ROSTER card grades him THERE (F–S) */
   col?: number;
+  /** the RESERVE row: no letter (his plain number instead), always a touch
+      dimmed — he's not in tonight's math */
+  reserve?: boolean;
+  /** tryouts / the selection grid: no gauges, the grade at full tanks —
+      compare who they ARE, not how they slept */
+  pure?: boolean;
   pick?: boolean; // selection screens
   /** THE SCOPE PREVIEW: this card is inside / outside a pending scoped action */
   scope?: 'in' | 'out';
@@ -823,8 +829,10 @@ function ovrBlock(p: Player, opts: { from?: number } = {}): string {
     numbers there are as good as at home. The label is his assigned letter
     (G/F/C); the down-arrows behind it are the mismatch penalty in THIS
     slot: one per column off, none when his stats carry him there. */
-function gradeBlock(p: Player, col: number, opts: { fromOvr?: number } = {}): string {
-  const r = slotRating(p, col);
+function gradeBlock(p: Player, col: number, opts: { fromOvr?: number; pure?: boolean } = {}): string {
+  // the letter reads position AND tonight's tanks (pure = full tanks: the
+  // tryout / selection read, who he IS rather than how he slept)
+  const r = gradeRating(p, col, opts.pure);
   const g = grade(r);
   const color = GRADE_COLOR[g];
   let letter: string;
@@ -914,9 +922,9 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
       ${opts.diamond ? `<svg class="ksvg bare" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon class="k-cur" points="${kitePoints(p.attrs)}"/></svg>` : ''}
       ${sprite(1.75, 'ksprite')}
       <div class="ktop">${nameHtml}</div>
-      ${edgeGauge('l', p.energy, 'boltx', p.id, d?.e ?? 0, out)}
-      ${edgeGauge('r', p.mood, 'facex', p.id, d?.m ?? 0, out)}
-      <span class="kbl">${opts.col !== undefined ? gradeBlock(p, opts.col, { fromOvr: d?.ovrFrom }) : ovrBlock(p, { from: d?.ovrFrom })}</span>
+      ${opts.pure ? '' : edgeGauge('l', p.energy, 'boltx', p.id, d?.e ?? 0, out)}
+      ${opts.pure ? '' : edgeGauge('r', p.mood, 'facex', p.id, d?.m ?? 0, out)}
+      <span class="kbl">${opts.col !== undefined && !opts.reserve ? gradeBlock(p, opts.col, { fromOvr: d?.ovrFrom, pure: opts.pure }) : ovrBlock(p, { from: d?.ovrFrom })}</span>
       <span class="kbr">${ring}</span>
       ${anchoredStickers(d)}
     </div>`;
@@ -924,12 +932,12 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   const mains: SpotLabel[] = [...(opts.mainLabels ?? [])];
   const his: SpotLabel[] = [...(opts.hiLabels ?? [])];
   if (opts.sitout && l === 0 && !opts.story) his.push({ text: 'SITS OUT', up: false });
-  return `<div class="pcard lens${l} sq ${out ? 'pout' : ''} ${opts.locked ? 'hlock' : ''} ${opts.draggable && !out && !opts.locked ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''} ${opts.scope === 'in' ? 'scopehl' : opts.scope === 'out' ? 'scopedim' : ''}"
+  return `<div class="pcard lens${l} sq ${out ? 'pout' : opts.reserve ? 'resv' : ''} ${opts.locked ? 'hlock' : ''} ${opts.draggable && !out && !opts.locked ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''} ${opts.scope === 'in' ? 'scopehl' : opts.scope === 'out' ? 'scopedim' : ''}"
       ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
     ${body}
     ${spotHtml('main', mains, opts.labelPop !== false, opts.popDelay ?? 0)}
     ${spotHtml('hi', his, opts.labelPop !== false, (opts.popDelay ?? 0) + 200)}
-    ${out ? `<div class="ptag">OUT ${p.outWeeks}w</div>` : ''}
+    ${out ? `<div class="ptag">${p.outKind === 'injury' ? 'INJURED' : 'AWAY'} ${p.outWeeks}w</div>` : ''}
     ${opts.tag ? `<div class="cardtag ${opts.tagCls ?? ''}">${opts.tag}</div>` : ''}
   </div>`;
 }
@@ -1365,7 +1373,7 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
       const scope = scopeSet && p ? (scopeSet.has(p.id) ? 'in' as const : 'out' as const) : undefined;
       return `<div class="gcell dropzone" data-zone="${idx}">
         ${p
-          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, col: c, delta, mainLabels: mains, hiLabels: his, labelPop, popDelay, diamond, scope })
+          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, col: c, reserve: r === 2, delta, mainLabels: mains, hiLabels: his, labelPop, popDelay, diamond, scope })
           : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');
@@ -2243,6 +2251,10 @@ function stageTeamSelect(s: GameState): string {
         lens,
         tag,
         col: c,
+        // the pick compares who they ARE: no gauges, grades at full tanks;
+        // the reserve row keeps its plain number
+        pure: true,
+        reserve: r === 2,
         draggable: true,
         kit: returning.has(p.id) || commits.has(p.id) ? undefined : PRACTICE_KIT,
         delta: grew && sumBatch?.render ? { ovrFrom: sum.ovrFrom } : undefined,
