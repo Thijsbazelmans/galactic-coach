@@ -74,7 +74,7 @@ import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, perGame, potStars, rand } from './engine/util';
 import { PRACTICE_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
 
-const VERSION = 'v4.7';
+const VERSION = 'v4.8.2';
 
 // ---- THE UPDATE CHECK -----------------------------------------------------------
 // The home-screen app on iOS keeps stale HTML for a long time. On launch and
@@ -2599,7 +2599,7 @@ function coachModalHtml(s: GameState): string {
       · ${s.trophies}🏆 · ${s.utTitles}× ${TOURNEY.short} · ${s.totalWins}W · season ${s.season}${s.season >= 20 ? ' <span class="blink">— you feel the years</span>' : ''}</div>
     <div class="report"><b>KNOWLEDGE</b>${tactics}${instrs}${drills}${regions}</div>
     <button class="wide" data-action="toggle-tips">ASSISTANT AUTO-TIPS: ${s.tipsAuto ? 'ON' : 'OFF'}</button>
-    <p class="dim">GALACTIC COACH ${VERSION}</p>
+    <p class="dim">GALACTIC COACH ${VERSION} · build ${typeof __BUILD_ID__ === 'undefined' ? 'dev' : __BUILD_ID__}</p>
     <button class="wide danger hold" data-action="new-game">NEW GAME (wipes this save)</button>
     <button class="wide" data-action="coach-close">CLOSE</button>
   </div></div>`;
