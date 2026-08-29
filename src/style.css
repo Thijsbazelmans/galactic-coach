@@ -977,16 +977,18 @@ button.hold.wiggle::after {
 
 .odds { display: inline-block; font-size: 12px; letter-spacing: 0.5px; }
 .odds .tail { margin-right: 8px; white-space: nowrap; }
-/* NO NUMBERS: the weight of a tail says how live it is — dim, plain,
-   bright, blinking. UP tails lean green, DOWN tails lean red. */
-.odds .tail.up { color: var(--r55); }
-.odds .tail.down { color: var(--r55); }
-.odds .tail.up.r10 { color: var(--r75); }
-.odds .tail.down.r10 { color: var(--r75); }
+/* NO NUMBERS: the WORD says what can happen; the COLOR says how likely.
+   UP tails climb one scale — grey → dim green → green → bright, blinking
+   green; DOWN tails climb the other — grey → dim red → red → bright,
+   blinking red. Never a hue that isn't the tail's own. */
+.odds .tail.up { color: #7a7f88; }
+.odds .tail.down { color: #7a7f88; }
+.odds .tail.up.r10 { color: #3f9a55; }
+.odds .tail.down.r10 { color: #b0433a; }
 .odds .tail.up.r25 { color: #5fe07a; }
-.odds .tail.down.r25 { color: #ff9a2e; }
-.odds .tail.up.r50 { color: #5fe07a; font-weight: bold; animation: blink 1.4s steps(2, start) infinite; }
-.odds .tail.down.r50 { color: #ff4a3d; font-weight: bold; animation: blink 1.4s steps(2, start) infinite; }
+.odds .tail.down.r25 { color: #ff4a3d; }
+.odds .tail.up.r50 { color: #a8ffc2; font-weight: bold; animation: blink 1.4s steps(2, start) infinite; }
+.odds .tail.down.r50 { color: #ff8a80; font-weight: bold; animation: blink 1.4s steps(2, start) infinite; }
 .gaintag.up { color: #5fe07a; }
 .gaintag.down { color: #ff4a3d; }
 .odds .tail i { color: var(--r35); font-style: italic; }
