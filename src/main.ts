@@ -539,7 +539,12 @@ function clearImpactTimers(): void {
   impactTimers = [];
 }
 
-/** One stat at a time: land, count, pop. Tap skips to the end. */
+/** One stat at a time: land on the OLD number, hold it a beat, THEN count,
+    pop. The linger is the point — a 1 that becomes a 0 must be seen as a 1
+    first. Tap skips to the end. */
+const IMPACT_LINGER = 650;
+const IMPACT_ROW_MS = 1400;
+
 function animateImpact(): void {
   clearImpactTimers();
   const rowEls = [...document.querySelectorAll('.imp-row')] as HTMLElement[];
@@ -551,20 +556,23 @@ function animateImpact(): void {
       if (val?.dataset.from !== undefined) {
         const from = Number(val.dataset.from);
         const to = Number(val.dataset.to);
-        const steps = 12;
-        let step = 0;
-        const iv = window.setInterval(() => {
-          step++;
-          val!.textContent = String(Math.round(from + (to - from) * (step / steps)));
-          if (step >= steps) { clearInterval(iv); land(); }
-        }, 45);
-        impactTimers.push(iv);
+        val.textContent = String(from);
+        impactTimers.push(window.setTimeout(() => {
+          const steps = 12;
+          let step = 0;
+          const iv = window.setInterval(() => {
+            step++;
+            val!.textContent = String(Math.round(from + (to - from) * (step / steps)));
+            if (step >= steps) { clearInterval(iv); land(); }
+          }, 45);
+          impactTimers.push(iv);
+        }, IMPACT_LINGER));
       } else {
         land();
       }
-    }, 400 + i * 850));
+    }, 400 + i * IMPACT_ROW_MS));
   });
-  impactTimers.push(window.setTimeout(() => { impactPlayed = true; }, 400 + rowEls.length * 850 + 600));
+  impactTimers.push(window.setTimeout(() => { impactPlayed = true; }, 400 + rowEls.length * IMPACT_ROW_MS + 400));
 }
 
 function finishImpactNow(): void {
