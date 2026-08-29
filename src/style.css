@@ -461,16 +461,16 @@ button.hold.wiggle::after {
 }
 .ktop {
   position: absolute;
-  top: 0; left: 0; right: 0;
-  display: flex; align-items: baseline; gap: 3px;
-  padding: 2px 4px;
-  background: rgba(0, 0, 0, 0.72);
+  top: 1px; left: 3px; right: 3px;
+  display: flex; align-items: baseline; justify-content: center; gap: 2px;
   z-index: 3;
 }
-.kname { flex: 1; min-width: 0; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kyear { font-size: 9px; color: var(--r75); flex: none; letter-spacing: 1px; font-weight: bold; }
+/* THE BACKING LAW: every dark box behind text hugs its letters — a pixel
+   or two, no strips, no feather — so it never eats the compass labels */
+.kname { flex: 0 1 auto; min-width: 0; max-width: 100%; text-align: center; color: var(--r95); font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: rgba(0, 0, 0, 0.72); padding: 0 2px; line-height: 1.2; }
+.kyear { font-size: 9px; color: var(--r75); flex: none; letter-spacing: 1px; font-weight: bold; background: rgba(0, 0, 0, 0.72); padding: 0 2px; line-height: 1.2; }
 .kbl { position: absolute; left: 3px; bottom: 3px; z-index: 3; }
-.kovr { font-size: 18px; font-weight: bold; line-height: 1.1; background: rgba(0, 0, 0, 0.72); padding: 1px 4px; }
+.kovr { font-size: 18px; font-weight: bold; line-height: 1.1; background: rgba(0, 0, 0, 0.72); padding: 0 2px; }
 .kbr { position: absolute; right: 3px; bottom: 3px; z-index: 3; }
 /* the ring counter: XP around LVL (players) · commitment (prospects) */
 .kring { position: relative; width: 32px; height: 32px; display: block; background: rgba(0, 0, 0, 0.72); border-radius: 50%; }
@@ -483,7 +483,7 @@ button.hold.wiggle::after {
 .krtxt i { font-style: normal; font-size: 6px; letter-spacing: 0.5px; color: var(--r75); }
 .krtxt b { font-size: 11px; color: var(--r95); }
 /* the POT chip (growth lens) mirrors the ring's spot */
-.kpot { display: flex; flex-direction: column; align-items: center; line-height: 1.1; background: rgba(0, 0, 0, 0.72); border: 1px solid var(--r35); padding: 2px 5px; gap: 1px; }
+.kpot { display: flex; flex-direction: column; align-items: center; line-height: 1.1; background: rgba(0, 0, 0, 0.72); border: 1px solid var(--r35); padding: 1px 3px; gap: 1px; }
 .kpot i { font-style: normal; font-size: 6px; letter-spacing: 1px; color: var(--r35); }
 .kpot b { font-size: 13px; }
 .ksq.fuzzy1 polygon { filter: blur(1.5px); }
@@ -528,7 +528,7 @@ button.hold.wiggle::after {
   font-size: 14px; font-weight: bold;
   text-align: center;
   background: rgba(0, 0, 0, 0.72);
-  padding: 1px 5px;
+  padding: 0 2px;
   line-height: 1.15;
 }
 .prq { color: var(--r55); letter-spacing: 2px; }
@@ -538,7 +538,7 @@ button.hold.wiggle::after {
 .rig-flip { transform: scaleX(-1); }
 .krange { color: var(--r75); font-size: 12px; }
 /* potential stars, olympic-ring stack: two up top, three below */
-.prstars { position: static; display: flex; flex-direction: column; align-items: center; line-height: 1; font-size: 12px; color: var(--r95); background: rgba(0, 0, 0, 0.72); padding: 2px 4px; letter-spacing: 2px; }
+.prstars { position: static; display: flex; flex-direction: column; align-items: center; line-height: 1; font-size: 12px; color: var(--r95); background: rgba(0, 0, 0, 0.72); padding: 1px 2px; letter-spacing: 2px; }
 /* the scout's one-line read (prospect STATS view) */
 .prblurb {
   position: absolute;
@@ -547,7 +547,7 @@ button.hold.wiggle::after {
   font-size: 10px; line-height: 1.35;
   color: var(--r75);
   background: rgba(0, 0, 0, 0.72);
-  padding: 3px 5px;
+  padding: 2px 3px;
 }
 /* the highlighted recruit */
 .pcard.selpr { outline: 2px solid var(--r95); outline-offset: -2px; }
@@ -655,7 +655,7 @@ button.hold.wiggle::after {
   letter-spacing: 1px;
   color: var(--r55);
   background: #000;
-  padding: 1px 4px;
+  padding: 0 2px;
   white-space: nowrap;
 }
 /* tonight's MVP wears it loud */
@@ -1157,7 +1157,7 @@ button.actmain.scopehl { border-color: var(--r95); }
 /* THE GRADE: a letter in the OVR corner — F red … A white, S glows */
 .kovr.kgrade {
   font-family: Impact, "Arial Black", "Helvetica Neue", sans-serif;
-  font-size: 24px; letter-spacing: 1px; padding: 0 6px; line-height: 1;
+  font-size: 24px; letter-spacing: 1px; padding: 0 3px; line-height: 1;
   -webkit-text-stroke: 0.8px rgba(0, 0, 0, 0.95);
   text-shadow: 0 0 3px #000, 1px 1px 0 #000;
 }
@@ -1347,7 +1347,7 @@ button.actmain.scopehl { border-color: var(--r95); }
   0%, 49% { opacity: 0; }
   50%, 100% { opacity: 1; }
 }
-.numswap.kovr { font-size: 18px; font-weight: bold; line-height: 1.1; background: rgba(0, 0, 0, 0.72); padding: 1px 4px; }
+.numswap.kovr { font-size: 18px; font-weight: bold; line-height: 1.1; background: rgba(0, 0, 0, 0.72); padding: 0 2px; }
 .numswap.kovr > * { text-align: center; }
 .krtxt .numswap { font-size: 11px; font-weight: bold; }
 .krtxt .numswap .ns-new { color: var(--r95); }
@@ -1361,7 +1361,7 @@ button.actmain.scopehl { border-color: var(--r95); }
   font-weight: bold;
   color: var(--r75);
   background: rgba(0, 0, 0, 0.72);
-  padding: 0 3px 1px;
+  padding: 0 2px 1px;
 }
 
 /* the XP ring's changed arc blinks (added bright / removed dim) */
