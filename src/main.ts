@@ -2055,7 +2055,9 @@ function stagePractice(s: GameState): string {
   // bars belongs to THE TACTICS BOARD — pick a scheme, watch the bars move
   // the slack between the grid (fixed, top) and the bars (fixed, bottom)
   // is split evenly around the tactics board — never a lump above it
-  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, lens === 0, lens, lens === 0 ? practiceScope(s) : null)}<div class="botstack fill">${tacticsBoard(s)}${teamBarsPractice(s)}</div>`;
+  // drag on EVERY lens — STATS and ABILITIES are exactly where you decide
+  // who moves (the scope preview stays a ROSTER-lens read)
+  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, true, lens, lens === 0 ? practiceScope(s) : null)}<div class="botstack fill">${tacticsBoard(s)}${teamBarsPractice(s)}</div>`;
 }
 
 /** «ALL 9» / «PICK 6» / «PICK 3» — the scope, printed everywhere: a scoped
