@@ -1924,7 +1924,9 @@ function practiceScope(s: GameState): Set<number> | null {
 function stagePractice(s: GameState): string {
   // the RUN button lives in the nav; the space between the grid and the
   // bars belongs to THE TACTICS BOARD — pick a scheme, watch the bars move
-  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, lens === 0, lens, lens === 0 ? practiceScope(s) : null)}<div class="botstack">${tacticsBoard(s)}${teamBarsPractice(s)}</div>`;
+  // the slack between the grid (fixed, top) and the bars (fixed, bottom)
+  // is split evenly around the tactics board — never a lump above it
+  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, lens === 0, lens, lens === 0 ? practiceScope(s) : null)}<div class="botstack fill">${tacticsBoard(s)}${teamBarsPractice(s)}</div>`;
 }
 
 /** «ALL 9» / «PICK 6» / «PICK 3» — the scope, printed everywhere: a scoped

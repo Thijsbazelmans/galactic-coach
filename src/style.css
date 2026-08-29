@@ -763,6 +763,11 @@ button.hold.wiggle::after {
 /* ---- THE TACTICS BOARD: two schemes between the grid and the bars ----------- */
 
 .tacboard { flex: none; margin: 2px 0 1px 17px; display: flex; flex-direction: column; gap: 2px; }
+/* PRACTICE: the bottom stack fills the room under the grid; the tactics
+   board floats in the middle of the slack (auto margins both sides), the
+   bars stay pinned to the bottom like every other screen */
+.botstack.fill { flex: 1 1 auto; min-height: 0; margin-top: 0; }
+.botstack.fill .tacboard { margin-top: auto; margin-bottom: auto; padding: 4px 0; }
 .tacrow { display: flex; gap: 4px; }
 .tacbtn {
   flex: 1;
