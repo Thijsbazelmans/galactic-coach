@@ -3294,21 +3294,13 @@ function dropItemOnStory(itemId: string): void {
 /** A player item dragged onto a card: the individual action lands there —
     and shows there (the anchored stickers). */
 function dropItemOnPlayer(itemId: string, playerId: number): void {
-  const p = myTeam(state).players.find((x) => x.id === playerId);
-  const pre = p ? { e: p.energy, m: p.mood, xp: p.xp, lvl: p.level, ovr: ovr(p.attrs), attrs: copyAttrs(p.attrs), need: p.level >= LEVEL_CAP ? 0 : xpNeed(p.level) } : null;
+  const pre = snapCards();
   const text = useItem(state, itemId, { playerId });
-  if (text) toast = text;
-  if (p && pre) {
-    const rec: CardDelta = {};
-    if (p.energy !== pre.e) rec.e = p.energy - pre.e;
-    if (p.mood !== pre.m) rec.m = p.mood - pre.m;
-    if (p.level !== pre.lvl) { rec.lvlFrom = pre.lvl; rec.xp = pre.need; }
-    else if (p.xp !== pre.xp && pre.need > 0) { rec.xpFromPct = Math.min(100, Math.round((pre.xp / pre.need) * 100)); rec.xp = p.xp - pre.xp; }
-    const gains = ATTRS.filter((a) => p.attrs[a] !== pre.attrs[a]).map((a) => `${p.attrs[a] > pre.attrs[a] ? '+' : ''}${p.attrs[a] - pre.attrs[a]} ${ATTR_SHORT[a]}`);
-    if (gains.length) rec.gain = gains.join(' ');
-    if (ovr(p.attrs) !== pre.ovr) rec.ovrFrom = pre.ovr;
-    if (Object.keys(rec).length) cardDeltas = { key: `item:${itemId}:${Date.now()}`, map: new Map([[playerId, rec]]) };
-  }
+  if (!text) return;
+  const map = diffCards(pre);
+  if (map.size) cardDeltas = { key: `item:${itemId}:${Date.now()}`, map };
+  const said = describeDeltas(map);
+  toast = said ? `${text}\n\n${said}` : text;
 }
 
 /** A recruit item dragged onto a big-board card. */
@@ -3318,10 +3310,68 @@ function dropItemOnProspect(itemId: string, prospectId: number): void {
   gxStickers = null;
 }
 
-/** A squad item dropped anywhere on the stage: it just happens. */
+/** A before-picture of every card, for the change language after an action. */
+type CardSnap = Map<number, { e: number; m: number; xp: number; lvl: number; ovr: number; attrs: AttrRec; need: number }>;
+function snapCards(): CardSnap {
+  return new Map(myTeam(state).players.map((p) => [p.id, {
+    e: p.energy, m: p.mood, xp: p.xp, lvl: p.level, ovr: ovr(p.attrs), attrs: copyAttrs(p.attrs),
+    need: p.level >= LEVEL_CAP ? 0 : xpNeed(p.level),
+  }]));
+}
+
+/** Diff the squad against a snapshot into per-card deltas (stickers). */
+function diffCards(pre: CardSnap): Map<number, CardDelta> {
+  const map = new Map<number, CardDelta>();
+  for (const p of myTeam(state).players) {
+    const b = pre.get(p.id);
+    if (!b) continue;
+    const rec: CardDelta = {};
+    if (p.energy !== b.e) rec.e = p.energy - b.e;
+    if (p.mood !== b.m) rec.m = p.mood - b.m;
+    if (p.level !== b.lvl) { rec.lvlFrom = b.lvl; rec.xp = b.need; }
+    else if (p.xp !== b.xp && b.need > 0) { rec.xpFromPct = Math.min(100, Math.round((b.xp / b.need) * 100)); rec.xp = p.xp - b.xp; }
+    const gains = ATTRS.filter((a) => p.attrs[a] !== b.attrs[a]).map((a) => `${p.attrs[a] > b.attrs[a] ? '+' : ''}${p.attrs[a] - b.attrs[a]} ${ATTR_SHORT[a]}`);
+    if (gains.length) rec.gain = gains.join(' ');
+    if (ovr(p.attrs) !== b.ovr) rec.ovrFrom = b.ovr;
+    if (Object.keys(rec).length) map.set(p.id, rec);
+  }
+  return map;
+}
+
+/** The deltas in words, for the dialogue's verdict beat: one line when the
+    whole squad moved the same way, names when it didn't. */
+function describeDeltas(map: Map<number, CardDelta>): string {
+  if (!map.size) return '';
+  const t = myTeam(state);
+  const recs = [...map.values()];
+  const same = (k: 'e' | 'm' | 'xp'): number | null => {
+    const vals = recs.map((r) => r[k] ?? 0);
+    return vals.length >= 3 && vals.every((v) => v === vals[0] && v !== 0) ? vals[0] : null;
+  };
+  const sign = (n: number): string => `${n > 0 ? '+' : ''}${n}`;
+  const e = same('e'), m = same('m'), x = same('xp');
+  if ((e !== null || m !== null || x !== null) && recs.every((r) => !r.gain && r.lvlFrom === undefined)) {
+    const bits = [e !== null ? `⚡ ${sign(e)}` : '', m !== null ? `MOOD ${sign(m)}` : '', x !== null ? `${sign(x)} XP` : ''].filter(Boolean);
+    return `THE SQUAD: ${bits.join(' · ')}.`;
+  }
+  const lines = [...map.entries()].slice(0, 5).map(([id, r]) => {
+    const name = t.players.find((p) => p.id === id)?.name ?? 'someone';
+    const bits = [r.e ? `⚡ ${sign(r.e)}` : '', r.m ? `MOOD ${sign(r.m)}` : '', r.xp ? `${sign(r.xp)} XP` : '', r.gain ?? '', r.lvlFrom !== undefined ? 'LEVEL UP' : ''].filter(Boolean);
+    return `${name}: ${bits.join(' · ')}`;
+  });
+  return `${lines.join(' · ')}${map.size > 5 ? ' · …' : ''}.`;
+}
+
+/** A squad item dropped anywhere on the stage: it happens to everyone — and
+    everyone's card SAYS so (stickers), as does the verdict beat (words). */
 function dropItemOnTeam(itemId: string): void {
+  const pre = snapCards();
   const text = useItem(state, itemId, {});
-  if (text) toast = text;
+  if (!text) return;
+  const map = diffCards(pre);
+  if (map.size) cardDeltas = { key: `item:${itemId}:${Date.now()}`, map };
+  const said = describeDeltas(map);
+  toast = said ? `${text}\n\n${said}` : text;
 }
 
 function activateDrag(): void {
@@ -3635,6 +3685,8 @@ function executeAction(action: string, id: string): void {
       itemUi = null;
       if (storyKey) {
         doResolve(storyKey);
+      } else if (itemById(itemId).target === 'team') {
+        dropItemOnTeam(itemId);
       } else {
         const text = useItem(state, itemId, {});
         if (text) toast = text;

@@ -193,9 +193,10 @@ async function main(): Promise<void> {
   anyWin.gcAction('speech-pick', 'showtime');
   anyWin.gcAction('speech-run', '');
   if (!(gc.state() as any).pregameWk) throw new Error('the pregame move did not commit');
-  // the speech verdict lands as a toast — dismiss it
-  click('[data-action="toast-tap"]');
-  click('[data-action="toast-tap"]');
+  // the speech verdict lands as a two-beat toast (the words, then the
+  // trade) — tap it through until it closes
+  for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* type → beat → close */ }
+  if (app.querySelector('[data-action="toast-tap"]')) throw new Error('the speech toast never closed');
   if (!app.innerHTML.includes('tbars mu')) throw new Error('matchup bars missing')
   // the opponent scout is DEAD: their bars are simply there, for free
   if (!app.innerHTML.includes('tbopp')) throw new Error('opponent bars not visible for free');
@@ -254,7 +255,10 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('WEEK START')) throw new Error('WEEK START screen missing');
   anyWin.gcAction('begin-week', '');
   drain();
-  if (state().phase !== 'scouting') throw new Error(`expected scouting after week start, got ${state().phase}`);
+  if (state().phase !== 'scouting') {
+    const q = (gc.state() as any).queue[0];
+    throw new Error(`expected scouting after week start, got ${state().phase} (stuck on ${q?.defId}/${q?.beat} "${q?.tag}" · choices ${JSON.stringify(q?.choices?.map((c: any) => [c.key, c.cost, c.disabled]))} · ¢${(gc.state() as any).energy})`);
+  }
 
   console.log('UI SMOKE OK — pick team → tryouts → scouting → lenses → drill → recruiting → pregame move → live game → YOU WON/LOST → box score → league → WEEK START → scouting');
 }
