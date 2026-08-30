@@ -1150,6 +1150,9 @@ function prospectMask(pr: Prospect): string {
 // free information — it prints at the BOTTOM of the STATS card, in their
 // actual skin color. Reading «NIMBUS» there should quicken the pulse.
 interface ProspectCardOpts {
+  /** story acting on the big-board card (a recruit story): the sprite's
+      state comes from the news */
+  story?: 'good' | 'bad' | 'worried' | 'neutral';
   draggable?: boolean;
   dim?: boolean;
   scope?: 'in' | 'out';
@@ -1162,7 +1165,7 @@ interface ProspectCardOpts {
 
 function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): string {
   const img = rigSpriteHtml(
-    { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, form: pr.form, mood: 'neutral', energy: 'normal', fire: false },
+    { id: pr.id, speciesId: pr.speciesId, heightCm: pr.heightCm, weightKg: pr.weightKg, jersey: null, form: pr.form, mood: 'neutral', energy: 'normal', fire: false, story: opts.story },
     PRACTICE_KIT, 1.75, 'ksprite');
   const sp = speciesById(pr.speciesId);
   const spCls = sp.rarity >= 3 ? 'sprare blink' : sp.rarity === 2 ? 'sprare' : '';
@@ -1717,6 +1720,19 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
   }
   const p = ev.playerId !== null ? t0.players.find((x) => x.id === ev.playerId) : undefined;
   const resolved = !!ev.resolvedText;
+  // a story about a RECRUIT (the cold shoulder, the trail's swings): the
+  // kid stands on his big-board card — what you know of him, no spoilers —
+  // and acts the news the same way a player would
+  const prId = ev.data?.prospectId as number | null | undefined;
+  const pr = prId !== undefined && prId !== null ? s.prospects.find((x) => x.id === prId) : undefined;
+  if (pr && !p) {
+    const verdict = ev.data?.verdict as 'good' | 'bad' | 'neutral' | undefined;
+    const acting: 'good' | 'bad' | 'worried' | 'neutral' = resolved
+      ? (verdict === 'bad' ? 'bad' : verdict === 'neutral' ? 'neutral' : 'good')
+      : storyMode === 'antic' ? 'neutral'
+      : ev.choices?.length ? 'worried' : (verdict === 'bad' ? 'bad' : 'good');
+    return `<div class="modalcard">${prospectCard(pr, 0, { story: acting, labelPop: false })}</div>`;
+  }
   if (p) {
     // THE ANTICIPATION LAW: the first beat is always NEUTRAL — the mood
     // lands as the story advances. The reaction lands at CHOICE time: what

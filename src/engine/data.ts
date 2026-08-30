@@ -3543,28 +3543,36 @@ STORIES.push({
     const form = ctx.data.prForm as 'masc' | 'femme' | 'x' | undefined;
     const pr = ctx.s.prospects.find((x) => x.id === (ctx.data.prospectId as number));
     const g = (t: string): string => genderize(t, form);
+    // the verdict drives the recruit's acting on the card
+    const verdict = (v: 'good' | 'bad' | 'neutral'): void => { ctx.data.verdict = v; };
     if (key === 'call') {
       const t = tails(50, 10);
       if (t === 'up') {
         if (pr) pr.commitPct = clamp(pr.commitPct + 12, 0, 95);
+        verdict('good');
         return { text: g(`You call. No staff, no script — twenty minutes about his jumper and his grandmother's cooking. By the end he's laughing. COMMITMENT +12: the lean comes back your way.`) };
       }
       if (t === 'down') {
         if (pr) { pr.commitPct = Math.max(0, pr.commitPct - 10); pr.bannedWeeks = Math.max(pr.bannedWeeks, 2); }
+        verdict('bad');
         return { text: g(`You call — mid-dinner, at the rival program's recruiting dinner. His holo-agent declares a two-week NO CONTACT window, loudly, in front of everyone. COMMITMENT −10.`) };
       }
       if (pr) pr.commitPct = clamp(pr.commitPct + 5, 0, 95);
+      verdict('good');
       return { text: g(`You call. It's polite. It's fine. It's a +5 kind of call — the freeze stops spreading, at least.`) };
     }
     const t = tails(10, 25);
     if (t === 'down') {
       if (pr) pr.commitPct = Math.max(0, pr.commitPct - 8);
+      verdict('bad');
       return { text: g(`You give him space. The rival program gives him a highlight reel with his name in gold letters. COMMITMENT −8 — cold froze.`) };
     }
     if (t === 'up') {
       if (pr) pr.commitPct = clamp(pr.commitPct + 8, 0, 95);
+      verdict('good');
       return { text: g(`You give him space — and the silence reads as confidence. His coach tells him "programs that beg, need." COMMITMENT +8.`) };
     }
+    verdict('neutral');
     return { text: g(`You give him space. He keeps it. The board holds its breath on that name.`) };
   },
 });
@@ -3581,6 +3589,8 @@ STORIES.push({
     ctx.data.prospectId = pr?.id ?? null;
     const up = Math.random() < 0.5;
     ctx.data.up = up;
+    ctx.data.verdict = up ? 'good' : 'bad';
+    ctx.data.alumForm = pr?.form;
     const name = pr?.name ?? 'A name on your board';
     const upLines = [
       `${name}'s cousin got into your school's astro-engineering program, and suddenly your campus is "family". The lean is coming YOUR way.`,
