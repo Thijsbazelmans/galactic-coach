@@ -1525,7 +1525,7 @@ export interface StoryDef {
       kind can be overridden per event via data.art. */
   art?: 'bus' | 'saucer';
   artEvent?: 'stranded' | 'hoop';
-  figure?: 'dean' | 'booster' | 'scoop' | 'janitor' | 'assistant' | 'side';
+  figure?: 'dean' | 'booster' | 'scoop' | 'janitor' | 'assistant' | 'attendant' | 'side';
   /** the card backdrop behind the acting sprite: the ABILITIES compass for
       growth stories, the energy/mood gauges (ROSTER) for everything else */
   card?: 'abilities' | 'meters';
@@ -3080,32 +3080,32 @@ export const STORIES: StoryDef[] = [
   {
     id: 'omen',
     kind: 'coach',
-    art: 'bus',
+    figure: 'attendant',
     beat: () => ({
-      tag: 'VOYAGE',
-      text: 'The bus sets down at the transfer station, and a figure by the fuel line watches it far too closely…\n\nA hermit who reads engine exhaust the way others read palms. "A name on your board," she says. "I have seen who they really are."',
+      tag: 'THE FUEL STOP',
+      text: 'The bus sets down for fuel, and the attendant — a gelid in a service cap, rings rippling under the coveralls — watches the exhaust far too closely…\n\nThey read engine exhaust the way others read palms. "A name on your board," they say. "I have seen who they really are."',
       choices: [
         C('listen', 'LISTEN', { up: { pct: 50, cls: 'INTEL' }, down: { pct: 5, cls: 'DRAMA' } }),
-        C('tip', 'TIP HER AND BOARD', { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } }),
+        C('tip', 'TIP THEM AND BOARD', { up: { pct: 2, cls: 'SPIRIT' }, down: { pct: 2, cls: 'DRAMA' } }),
       ],
     }),
     resolve: (key, ctx) => {
-      if (key === 'tip') return { text: 'You tip her. She palms the coin and tells the BUS its future instead. The bus seems reassured.', fx: [] };
+      if (key === 'tip') return { text: 'You tip them. They palm the coin, top off the tank, and tell the BUS its future instead. The bus seems reassured.', fx: [] };
       const t = tails(50, 5);
       if (t === 'up') {
         const pool = ctx.s.prospects.filter((pr) => !pr.seenSkill || !pr.seenPot || pr.digits < 2);
         const pr = pool.length ? pick(pool) : null;
-        if (!pr) return { text: 'She squints at your board through the veil and finds nothing you don\'t already know. "Thorough," she allows.', fx: [] };
+        if (!pr) return { text: 'They squint at your board through the fumes and find nothing you don\'t already know. "Thorough," they allow, and wipe the windshield.', fx: [] };
         pr.seenSkill = true;
         pr.seenPot = true;
         pr.digits = 2;
         pr.scoutLevel = 4;
         pr.seenAttrs = { ...pr.attrs };
         pr.seenPots = { ...pr.pots };
-        return { text: `She traces a kid's whole career in spilled coolant — it's ${pr.name}, resolved to the digit, ceiling and all. Free truth from beyond the veil.`, fx: [] };
+        return { text: `They trace a kid's whole career in spilled coolant on the forecourt — it's ${pr.name}, resolved to the digit, ceiling and all. Free truth, plus a full tank.`, fx: [] };
       }
-      if (t === 'down') return { text: 'She describes, in perfect detail, YOUR team\'s weaknesses, loudly, to the whole terminal. The team pretends not to hear. The team heard.', fx: [{ teamMood: -5 }] };
-      return { text: '"Tall," she says finally. "Some of them. Others, less so." You thank her for nothing in particular.', fx: [] };
+      if (t === 'down') return { text: 'They describe, in perfect detail, YOUR team\'s weaknesses, loudly, over the pump intercom. The team pretends not to hear. The team heard.', fx: [{ teamMood: -5 }] };
+      return { text: '"Tall," they say finally. "Some of them. Others, less so." You thank them for nothing in particular and pay for the fuel.', fx: [] };
     },
   },
 ];

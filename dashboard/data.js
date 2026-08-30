@@ -667,7 +667,7 @@ const STORIES = [
     trigger: 'Voyage roll.',
     beats: [
       {
-        key: 'start', setup: 'A hermit at the transfer station reads engine exhaust the way others read palms. "A name on your board," she says. "I have seen who they really are."',
+        key: 'start', setup: 'THE FUEL STOP: the gas station attendant — a gelid in a service cap, rings rippling under the coveralls (their own figure: pump, hose, buzzing sign) — reads engine exhaust the way others read palms. "A name on your board," they say. "I have seen who they really are."',
         choices: [
           { label: 'LISTEN', up: '50% INTEL', down: '5% DRAMA', out: { up: 'She traces a kid\'s whole career in spilled coolant — one unknown prospect fully revealed, ceiling and all. Free truth from beyond the veil.', mid: '"Tall," she says finally. "Some of them. Others, less so."', down: 'She describes YOUR team\'s weaknesses, loudly, to the whole terminal. The team pretends not to hear. The team heard. (−5 team mood)' } },
           { label: 'TIP HER AND BOARD', out: { mid: 'She palms the coin and tells the BUS its future instead. The bus seems reassured.' } },

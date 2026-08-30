@@ -1105,7 +1105,7 @@ export function iconOutlinedUrl(kind: IconKind, color = '#7dfc9a'): string {
 // as the player rigs. The team's color is the accent (stripe, fin, tie).
 
 export type SceneId = 'bus-move' | 'bus-stranded' | 'bus-hoop' | 'saucer-move' | 'saucer-stranded' | 'saucer-hoop';
-export type FigureId = 'dean' | 'booster' | 'scoop' | 'janitor' | 'assistant';
+export type FigureId = 'dean' | 'booster' | 'scoop' | 'janitor' | 'assistant' | 'attendant';
 export type FigureMood = 'neutral' | 'worried' | 'mad' | 'elated';
 
 const IL_BODY = '#2e3d74', IL_DARK = '#232c4e', IL_WIN = '#7fd8ec', IL_WHITE = '#e8ecf8',
@@ -1386,6 +1386,31 @@ const ASSISTANT_MAP = [
   '......ooo......ooo......',
   '......ooo......ooo......'];
 
+// THE GAS STATION ATTENDANT (fromDesign/260829, option 3g): a gelid in a
+// service cap and coveralls, the ring stack rippling below — reads engine
+// exhaust the way others read palms. Face on the reporter's coordinates.
+const ATTENDANT_MAP = [
+  '..........................',
+  '.........uuuuuu...........',
+  '.........uuuuuuuu.........',
+  '..........................',
+  '........ssssssss..........',
+  '........sekseksd..........',
+  '........ssssssss..........',
+  '........sskkssss..........',
+  '.........ssssss...........',
+  '...........ss.............',
+  '.......uuuuuuuuuu.........',
+  '.....ss.uuutttuuuu.ss.....',
+  '.....ss.uuutttuuuu.ss.....',
+  '.....ss.uuuuuuuuuu.ss.....',
+  '.......ssssssssss.........',
+  '........ssssssss..........',
+  '.......ssssssssss.........',
+  '........ssssssss..........',
+  '.......ssssssssss.........',
+  '......oooo....oooo........'];
+
 const DEAN_STATES: Record<FigureMood, PixEdit[]> = {
   neutral: [],
   worried: [[7, 9, 'k'], [7, 12, 'k']],
@@ -1416,6 +1441,13 @@ const REPORTER_STATES: Record<FigureMood, PixEdit[]> = {
   mad: [[4, 9, 'k'], [4, 10, 'k'], [4, 12, 'k'], [4, 13, 'k'], [6, 10, 'k'], [6, 11, 'k'], [7, 9, 'k'], [7, 12, 'k'], [7, 10, 'e'], [7, 11, 'e']],
   elated: [[5, 9, 'y'], [5, 10, 'y'], [5, 12, 'y'], [5, 13, 'y'], [6, 9, 'k'], [6, 12, 'k'], [7, 9, 'k'], [7, 12, 'k'], [7, 10, 'e'], [7, 11, 'e'], [8, 10, 'k'], [8, 11, 'k']],
 };
+const ATTENDANT_CHEER: PixEdit[] = (() => {
+  const out: PixEdit[] = [];
+  for (let y = 11; y <= 13; y++) [5, 6, 19, 20].forEach((x) => out.push([y, x, '.']));
+  for (let y = 8; y <= 10; y++) [5, 6, 19, 20].forEach((x) => out.push([y, x, 's']));
+  return out;
+})();
+
 const REPORTER_CHEER: PixEdit[] = (() => {
   const out: PixEdit[] = [];
   for (let y = 14; y <= 16; y++) [4, 5, 18, 19].forEach((x) => out.push([y, x, '.']));
@@ -1445,6 +1477,9 @@ function reporterPal(acc: string): Record<string, string> {
   return { f: '#6b4a2f', s: '#5bc8af', d: '#3fa389', k: '#1a1e2e', e: '#f4f6fa',
     w: '#e8ecf8', u: '#f3903f', U: '#c96f26', o: '#3a2a1c', t: acc, y: '#ffd76a' };
 }
+function attendantPal(acc: string): Record<string, string> {
+  return { s: '#78b955', d: '#5f9a40', k: '#1a1e2e', e: '#f4f6fa', u: '#4a5a7a', o: '#1a1e2e', t: acc, w: '#e8ecf8', y: '#ffd76a' };
+}
 function janitorPal(acc: string): Record<string, string> {
   return { c: '#3d5a63', s: '#c08a5e', d: '#a06f45', k: '#1a1e2e', e: '#f4f6fa',
     u: '#5a6472', U: '#3e4650', t: acc, o: '#26262e', w: '#e8ecf8', y: '#ffd76a' };
@@ -1469,7 +1504,7 @@ function ilDrawIcon(R: RFn, x: number, y: number, pat: string[]): void {
 // the dean before the sepia college pediment, the booster on the landing pad
 // with his pink cadillac-ship idling, Scoop in the empty press room under
 // the blinking ON AIR sign.
-const FIGURE_SIZE: Record<FigureId, [number, number]> = { dean: [64, 44], booster: [64, 44], scoop: [64, 44], janitor: [64, 44], assistant: [64, 44] };
+const FIGURE_SIZE: Record<FigureId, [number, number]> = { dean: [64, 44], booster: [64, 44], scoop: [64, 44], janitor: [64, 44], assistant: [64, 44], attendant: [64, 44] };
 
 interface FigState { rows: string[]; shrug: boolean; he: number }
 
@@ -1481,12 +1516,20 @@ function figState(who: FigureId, state: FigureMood, f: number): FigState {
     // the janitor and the assistant share the dean's face coordinates
     janitor: { base: JANITOR_MAP, st: DEAN_STATES, ch: WORKER_CHEER, he: 9, blink: [[5, 9], [5, 14]] as [number, number][] },
     assistant: { base: ASSISTANT_MAP, st: DEAN_STATES, ch: WORKER_CHEER, he: 9, blink: [[5, 9], [5, 14]] as [number, number][] },
-  }[who];
+    attendant: { base: ATTENDANT_MAP, st: REPORTER_STATES, ch: ATTENDANT_CHEER, he: 9, blink: [[5, 9], [5, 12]] as [number, number][], ripple: [14, 18] as [number, number] },
+  }[who] as { base: string[]; st: Record<FigureMood, PixEdit[]>; ch: PixEdit[]; he: number; blink: [number, number][] | null; ripple?: [number, number] };
   const cheer = state === 'elated' && f % 8 < 4;
   const shrug = state === 'mad' && f % 8 < 3;
   const m = ilEdited(cfg.base, (cfg.st[state] ?? []).concat(cheer ? cfg.ch : [])).map((r) => r.split(''));
   if (cfg.blink && (state === 'neutral' || state === 'worried') && f % 14 < 2) {
     cfg.blink.forEach(([y, x]) => { m[y][x] = 's'; });
+  }
+  if (cfg.ripple) {
+    // a liquid body: the ring stack sways like water
+    for (let y = cfg.ripple[0]; y <= cfg.ripple[1]; y++) {
+      const ph = (y + Math.floor(f / 2)) % 4;
+      if (ph === 0) { m[y].pop(); m[y].unshift('.'); } else if (ph === 2) { m[y].shift(); m[y].push('.'); }
+    }
   }
   return { rows: m.map((r) => r.join('')), shrug, he: cfg.he };
 }
@@ -1566,6 +1609,18 @@ function drawFigure(R: RFn, who: FigureId, state: FigureMood, acc: string, f: nu
     R(48, 34, 7, 6, '#4e5a66'); R(48, 34, 7, 1, '#7fd8ec');
     drawChar(R, figState('janitor', state, f), janitorPal(acc), 20, 15);
     stateFx(R, f, state, 34, 4, 32, 12);
+    return;
+  }
+  if (who === 'attendant') {
+    // THE FUEL STOP: the pump with its glowing screen, the hose, the sign
+    // that buzzes — and the attendant reading your exhaust
+    ilStars(R, W, H, f);
+    R(0, 38, W, 6, '#2a231b'); R(0, 38, W, 1, '#3a3128');
+    R(4, 16, 12, 22, '#3c4150'); R(5, 18, 10, 6, f % 8 < 4 ? acc : '#26301c'); R(6, 26, 8, 2, '#141828');
+    R(16, 20, 2, 2, '#5f6878'); R(18, 21, 1, 14, '#5f6878');
+    R(6, 5, 10, 6, '#8a3d33'); R(7, 6, 8, 4, f % 2 ? '#ffd76a' : '#e08a3c'); R(10, 11, 2, 5, '#5f6878');
+    drawChar(R, figState('attendant', state, f), attendantPal(acc), 19, 20);
+    stateFx(R, f, state, 37, 3, 35, 21);
     return;
   }
   if (who === 'assistant') {
