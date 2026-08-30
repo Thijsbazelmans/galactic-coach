@@ -650,7 +650,11 @@ function buildMap(
       map[2][9] = 'k'; map[3][10] = 'k'; map[3][12] = 'k'; map[2][13] = 'k';
     }
   }
-  for (let i = 0; i < SZ.l; i++) map.splice(cfg.legDup, 0, map[cfg.legDup].slice());
+  // ON THE BENCH everybody's legs are the same length (the shortest) — one
+  // bench height, the shorts always landing on the same plank; the torso
+  // keeps the player's real height above it
+  const legDupN = pose === 'bench' ? 0 : SZ.l;
+  for (let i = 0; i < legDupN; i++) map.splice(cfg.legDup, 0, map[cfg.legDup].slice());
   for (let i = 0; i < SZ.t; i++) map.splice(cfg.torsoDup, 0, map[cfg.torsoDup - 1].slice());
   const num = jersey === null ? '' : String(jersey).replace(/[^0-9]/g, '').slice(0, 2);
   if (num) {
