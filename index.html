@@ -15,6 +15,37 @@
   <body>
     <div id="app"></div>
     <div id="rotatelock">↻<span>TURN THE SHIP BACK, COACH<br/>this game plays upright</span></div>
+    <!-- THE BOOT GUARD: a black screen is never silent. If the bundle fails to
+         load (a deploy still propagating: the fresh HTML names a script the
+         CDN edge doesn't have yet) or throws before the first paint, say so —
+         retry once automatically through a cache-busting URL, then offer a
+         button. -->
+    <script>
+      (function () {
+        var app = document.getElementById('app');
+        var say = function (msg, err) {
+          if (!app || app.childNodes.length) return;
+          app.innerHTML = '<div style="height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;font-family:\'Courier New\',monospace;color:#e8ecf8;background:#0a0c14">'
+            + '<div style="letter-spacing:3px;font-size:13px">' + msg + '</div>'
+            + (err ? '<div style="font-size:11px;color:#8a8f99;max-width:36ch;word-break:break-word">' + String(err).replace(/</g, '&lt;').slice(0, 400) + '</div>' : '')
+            + '<button onclick="location.replace(location.pathname + \'?r=\' + Date.now())" style="font-family:inherit;font-size:14px;letter-spacing:2px;padding:10px 18px;background:transparent;color:#e8ecf8;border:1px solid #e8ecf8">TAP TO RETRY</button></div>';
+        };
+        window.addEventListener('error', function (e) { say('THE SHIP STALLED ON THE PAD', e && (e.message || e.error)); });
+        window.addEventListener('unhandledrejection', function (e) { say('THE SHIP STALLED ON THE PAD', e && e.reason); });
+        setTimeout(function () {
+          if (!app || app.childNodes.length) return;
+          var tried = false;
+          try { tried = sessionStorage.getItem('gc-boot-retry') === '1'; } catch (_) {}
+          if (!tried) {
+            try { sessionStorage.setItem('gc-boot-retry', '1'); } catch (_) {}
+            location.replace(location.pathname + '?r=' + Date.now());
+            return;
+          }
+          say('THE SHIP IS STILL WARMING UP — a fresh build is landing');
+        }, 4000);
+        setTimeout(function () { try { if (app && app.childNodes.length) sessionStorage.removeItem('gc-boot-retry'); } catch (_) {} }, 6000);
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
