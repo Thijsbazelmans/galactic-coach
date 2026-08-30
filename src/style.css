@@ -244,6 +244,11 @@ button.hold.wiggle::after {
   letter-spacing: 1px;
   font-weight: bold;
   color: var(--rbg);
+  /* a thin white outline: the words survive when the darkness eats the bar */
+  -webkit-text-stroke: 0.45px rgba(255, 255, 255, 0.85);
+  paint-order: stroke fill;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.5);
+  z-index: 1;
 }
 
 .weeklab { white-space: nowrap; font-size: 12px; overflow: hidden; text-overflow: ellipsis; min-width: 0; justify-self: start; max-width: 100%; }
