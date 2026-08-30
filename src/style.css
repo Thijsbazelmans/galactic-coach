@@ -1292,6 +1292,7 @@ button.actmain.scopehl { border-color: var(--r95); }
 /* THE BOOKIE */
 .bookie { text-align: center; font-size: 13px; letter-spacing: 2px; color: var(--r75); margin-top: 8px; line-height: 1.5; }
 .bookie b { color: var(--r95); font-size: 17px; }
+.bookie .bookieverdict { display: inline-block; margin-top: 2px; letter-spacing: 1px; }
 /* picker rows wrap their tails (the captain's order is a mouthful) */
 .drill .odds .tail { white-space: normal; }
 /* a plain-tap continue button */

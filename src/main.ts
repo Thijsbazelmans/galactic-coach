@@ -2307,7 +2307,7 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
   const pct = final ? Math.round(share * 100) : bookieLine(s, t, champ ? null : m0?.opponent ?? null, champ, home);
   const called = final ? (pct >= 50) === final.win : false;
   const bookie = final
-    ? `<div class="bookie" title="win chance ${pct}%">THE BOOKIE HAD YOU AT <b>${moneyline(pct)}</b>. ${called ? 'He knows what he\'s doing.' : 'Shows you what he knows!'}</div>`
+    ? `<div class="bookie" title="win chance ${pct}%">THE BOOKIE HAD YOU AT <b>${moneyline(pct)}</b>.<br/><span class="bookieverdict">${called ? 'He knows what he\'s doing.' : 'Shows you what he knows!'}</span></div>`
     : `<div class="bookie" title="win chance ${pct}%">THE BOOKIE HAS YOU AT <b>${moneyline(pct)}</b></div>`;
   // centered, the whole screen used: AWAY on top, @, HOME — then open air
   // where the score tag lives, hovering above the bar. The bar LIGHTS from
