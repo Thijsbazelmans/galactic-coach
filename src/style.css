@@ -702,6 +702,9 @@ button.hold.wiggle::after {
 .spot > .sticker { grid-area: 1 / 1; }
 .spot-main { left: 50%; top: 16px; transform: translateX(-50%); }
 .spot-hi { left: 50%; top: 62%; transform: translate(-50%, -50%); }
+/* on the bare box-score card the verdict badge (MVP / OFF DAY) sits at the
+   bottom edge, under the feet, instead of across the chest */
+.pcard.barecard .spot-hi { top: auto; bottom: 4px; transform: translateX(-50%); }
 /* two or three labels share the spot: each is visible for its slice */
 .spot .sticker.cyc { opacity: 0; }
 @keyframes cyc2 {

@@ -1108,7 +1108,7 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   const mains: SpotLabel[] = [...(opts.mainLabels ?? [])];
   const his: SpotLabel[] = [...(opts.hiLabels ?? [])];
   if (opts.sitout && l === 0 && !opts.story) his.push({ text: 'SITS OUT', up: false });
-  return `<div class="pcard lens${l} sq ${out ? 'pout' : opts.reserve ? 'resv' : ''} ${opts.locked ? 'hlock' : ''} ${opts.draggable && !out && !opts.locked ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''} ${opts.scope === 'in' ? 'scopehl' : opts.scope === 'out' ? 'scopedim' : ''}"
+  return `<div class="pcard lens${l} sq ${out ? 'pout' : opts.reserve ? 'resv' : ''} ${opts.bare ? 'barecard' : ''} ${opts.locked ? 'hlock' : ''} ${opts.draggable && !out && !opts.locked ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''} ${opts.scope === 'in' ? 'scopehl' : opts.scope === 'out' ? 'scopedim' : ''}"
       ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
     ${body}
     ${spotHtml('main', mains, opts.labelPop !== false, opts.popDelay ?? 0)}
@@ -1465,6 +1465,9 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
   const rows: string[] = [];
   let sweep = 0;
   for (let r = 0; r < 3; r++) {
+    // the box score's LINES pass is about who played: the reserves sit out
+    // of it entirely (they're back for the ⚡ & MOOD pass — the freeze costs)
+    if (showGame && boxPass === 0 && r === 2) continue;
     const cells = [0, 1, 2].map((c) => {
       const idx = r * 3 + c;
       const p = slotPlayer(t, idx);
