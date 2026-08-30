@@ -835,7 +835,7 @@ function buildMap(
     // its ends showing either side, its legs dropping behind his — his own
     // legs and shoes stick out under it. Drawn only into empty pixels, and
     // after the fire ring, so the flames stay on the player.
-    const py = legStart - 3;
+    const py = legStart - 1; // two pixels lower than the first cut — a lower bench
     const bl = Math.max(0, cx - 11), br = Math.min(W - 1, cx + 11);
     for (const y2 of [py, py + 1]) for (let x = bl; x <= br; x++) if (map[y2] && map[y2][x] === '.') map[y2][x] = y2 === py ? 'P' : 'Q';
     for (let y2 = py + 2; y2 < H; y2++) for (const x of [bl + 1, br - 1]) if (map[y2] && map[y2][x] === '.') map[y2][x] = 'Q';
