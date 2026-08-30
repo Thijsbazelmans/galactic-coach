@@ -1287,8 +1287,8 @@ button.actmain.scopehl { border-color: var(--r95); }
 /* the notebook's scrawl */
 .notebookrow.scrawl { color: var(--r35); font-style: italic; letter-spacing: 1px; }
 /* THE BOOKIE */
-.bookie { text-align: center; font-size: 11px; letter-spacing: 2px; color: var(--r55); margin-top: 8px; }
-.bookie b { color: var(--r95); font-size: 14px; }
+.bookie { text-align: center; font-size: 13px; letter-spacing: 2px; color: var(--r75); margin-top: 8px; line-height: 1.5; }
+.bookie b { color: var(--r95); font-size: 17px; }
 /* picker rows wrap their tails (the captain's order is a mouthful) */
 .drill .odds .tail { white-space: normal; }
 /* a plain-tap continue button */

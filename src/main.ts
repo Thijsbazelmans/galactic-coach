@@ -2273,7 +2273,6 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
   const away = home ? opp : mineChip;
   const homeT = home ? mineChip : opp;
   const clash = Math.min(Math.abs(hue(away.bg) - hue(homeT.bg)), 360 - Math.abs(hue(away.bg) - hue(homeT.bg))) < 40;
-  void share;
   // a finished game renders its final frame statically (the same math the
   // ticker runs) under the big verdict
   let l = 0, rr = 0;
@@ -2293,8 +2292,13 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
   // THE BOOKIE: the night's line, printed the way bookies print — a
   // moneyline (favorites minus, dogs plus), the raw % one tap away
   const m0 = myMatchup(s);
-  const pct = final ? 0 : bookieLine(s, t, champ ? null : m0?.opponent ?? null, champ, home);
-  const bookie = final ? '' : `<div class="bookie" title="win chance ${pct}%">THE BOOKIE HAS YOU AT <b>${moneyline(pct)}</b></div>`;
+  // before the ball goes up: the line. After the horn: the line as it stood
+  // at tip-off, and whether the bookie called it
+  const pct = final ? Math.round(share * 100) : bookieLine(s, t, champ ? null : m0?.opponent ?? null, champ, home);
+  const called = final ? (pct >= 50) === final.win : false;
+  const bookie = final
+    ? `<div class="bookie" title="win chance ${pct}%">THE BOOKIE HAD YOU AT <b>${moneyline(pct)}</b>. ${called ? 'He knows what he\'s doing.' : 'Shows you what he knows!'}</div>`
+    : `<div class="bookie" title="win chance ${pct}%">THE BOOKIE HAS YOU AT <b>${moneyline(pct)}</b></div>`;
   // centered, the whole screen used: AWAY on top, @, HOME — then open air
   // where the score tag lives, hovering above the bar. The bar LIGHTS from
   // the center outward as the clock runs; the line inside the lit part is
