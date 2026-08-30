@@ -72,7 +72,7 @@ import {
 import type { Attr, AttrRec, GameState, PlanId, Player, Prospect, SpeechFx, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, perGame, potStars, rand } from './engine/util';
-import { PRACTICE_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, titleHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
+import { PRACTICE_KIT, STREET_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, titleHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
 
 const VERSION = 'v4.9';
 
@@ -916,7 +916,7 @@ function edgeGauge(side: 'l' | 'r', value: number, kind: 'boltx' | 'facex', _pid
 
 /** The sprite tells the truth: mood, energy, size and fire, straight from the
     rig — and a delayed-outcome story holds him NERVOUS until the result. */
-function rigView(p: Player, story?: 'good' | 'bad' | 'worried' | 'neutral'): RigView {
+function rigView(p: Player, story?: 'good' | 'bad' | 'worried' | 'neutral', pose?: 'bench' | 'shrug'): RigView {
   const held = story ?? (p.tense ? 'worried' : undefined);
   if (held) {
     // in a story the STATE is the story's: neutral → the emotion, no ball
@@ -926,16 +926,19 @@ function rigView(p: Player, story?: 'good' | 'bad' | 'worried' | 'neutral'): Rig
       fire: !!p.onFire && p.outWeeks === 0, story: held,
     };
   }
+  // the calm poses only for the available: the injured/away keep their pod
+  const calm = pose && p.outWeeks === 0 ? pose : undefined;
   return {
     id: p.id,
     speciesId: p.speciesId,
     heightCm: p.heightCm,
     weightKg: p.weightKg,
-    jersey: p.jersey,
+    jersey: calm === 'shrug' ? null : p.jersey,
     form: p.form,
     mood: moodBucket(p.mood),
-    energy: p.outWeeks > 0 ? 'pod' : energyBucket(p.energy),
+    energy: p.outWeeks > 0 ? 'pod' : calm ? 'normal' : energyBucket(p.energy),
     fire: !!p.onFire && p.outWeeks === 0,
+    pose: calm,
   };
 }
 
@@ -976,6 +979,9 @@ interface CardOpts {
   /** the box score's first pass: just the face and the line — no gauges,
       no ring, no grade, no compass; the meters come back on the next pass */
   bare?: boolean;
+  /** the calm screens (lineup, box score): the bench SITS, the reserves
+      stand in street clothes and shrug */
+  pose?: 'bench' | 'shrug';
   pick?: boolean; // selection screens
   /** THE SCOPE PREVIEW: this card is inside / outside a pending scoped action */
   scope?: 'in' | 'out';
@@ -1036,7 +1042,8 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   const t = myTeam(state);
   const kit = opts.kit ?? { bg: t.bg, fg: t.fg };
   const out = p.outWeeks > 0;
-  const sprite = (scale: number, cls: string): string => rigSpriteHtml(rigView(p, opts.story), kit, scale, cls);
+  const streetwear = opts.pose === 'shrug' && !out;
+  const sprite = (scale: number, cls: string): string => rigSpriteHtml(rigView(p, opts.story, opts.pose), streetwear ? STREET_KIT : kit, scale, cls);
   const l = opts.lens ?? 0;
   const xpPct = p.level >= LEVEL_CAP ? 100 : Math.min(100, Math.round((p.xp / xpNeed(p.level)) * 100));
   const nameHtml = `<span class="kname">${p.onFire ? '🔥 ' : ''}${esc(p.name)}</span>
@@ -1465,9 +1472,9 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
   const rows: string[] = [];
   let sweep = 0;
   for (let r = 0; r < 3; r++) {
-    // the box score's LINES pass is about who played: the reserves sit out
-    // of it entirely (they're back for the ⚡ & MOOD pass — the freeze costs)
-    if (showGame && boxPass === 0 && r === 2) continue;
+    // the calm screens: the bench sits, the reserves shrug in street clothes
+    const calmScreen = s.phase === 'matchup' || showGame;
+    const pose = calmScreen ? (r === 1 ? 'bench' as const : r === 2 ? 'shrug' as const : undefined) : undefined;
     const cells = [0, 1, 2].map((c) => {
       const idx = r * 3 + c;
       const p = slotPlayer(t, idx);
@@ -1543,7 +1550,7 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
       const scope = scopeSet && p ? (scopeSet.has(p.id) ? 'in' as const : 'out' as const) : undefined;
       return `<div class="gcell dropzone" data-zone="${idx}">
         ${p
-          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, col: c, reserve: r === 2, bare: showGame && boxPass === 0, delta, mainLabels: mains, hiLabels: his, labelPop, popDelay, diamond, scope })
+          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, col: c, reserve: r === 2, bare: showGame && boxPass === 0, pose, delta, mainLabels: mains, hiLabels: his, labelPop, popDelay, diamond, scope })
           : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');

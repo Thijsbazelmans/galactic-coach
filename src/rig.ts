@@ -546,7 +546,14 @@ export interface RigView {
       good = elated). No ball in a story. 'neutral' is the anticipation beat:
       the player just stands there — the mood lands with the reveal. */
   story?: 'good' | 'bad' | 'worried' | 'neutral';
+  /** the calm poses of the lineup and box-score screens: BENCH sits on a
+      little bench (no ball), SHRUG stands still in street clothes and
+      shrugs now and then (the reserves' "we'll see") */
+  pose?: 'bench' | 'shrug';
 }
+
+/** Street clothes for the reserves: a grey hoodie, no number. */
+export const STREET_KIT: Kit = { bg: '#4a4f57', fg: '#b9bec9' };
 
 interface Look { tintIx: number; hairIx: number; styleIx: number; socks: 'none' | 'knee' | 'striped'; wrist: boolean; }
 
@@ -605,7 +612,8 @@ function buildMap(
   jersey: number | null,
   fire: boolean,
   f: number,
-  story?: 'good' | 'bad' | 'worried' | 'neutral'
+  story?: 'good' | 'bad' | 'worried' | 'neutral',
+  pose?: 'bench' | 'shrug'
 ): { map: string[][]; up: number } {
   const cfg = getCfg(species, form);
   const SZ = RIG_SIZES[Math.max(0, Math.min(4, sizeIx))];
@@ -653,6 +661,25 @@ function buildMap(
       gph.forEach((row, ry) => row.split('').forEach((v, rx) => { if (v === '1' && map[oy + ry]) map[oy + ry][ox + i * 4 + rx] = 'N'; }));
     });
   }
+  if (pose === 'bench' && cfg.hasLegs) {
+    // THE BENCH: keep the thighs, cut the rest, lay a plank, drop the shins
+    // and shoes under it — a seat, front-on
+    const legStartRaw = cfg.legTop + SZ.t;
+    const cut = Math.min(map.length, legStartRaw + 2);
+    const legCols = map[cut - 1].map((ch, x) => (ch !== '.' ? x : -1)).filter((x) => x >= 0);
+    map.length = cut;
+    const w0 = map[0].length;
+    const plank = new Array(w0).fill('.') as string[];
+    for (let x = 1; x < w0 - 1; x++) plank[x] = 'P';
+    const plank2 = plank.map((ch) => (ch === 'P' ? 'Q' : '.'));
+    map.push(plank, plank2);
+    for (let i = 0; i < 4; i++) {
+      const row = new Array(w0).fill('.') as string[];
+      legCols.forEach((x) => { row[x] = i === 3 ? 'k' : 's'; });
+      row[1] = 'Q'; row[w0 - 2] = 'Q'; // the bench's own legs
+      map.push(row);
+    }
+  }
   map.forEach((row) => { for (let i = 0; i < PADR; i++) row.push('.'); for (let i = 0; i < PADL; i++) row.unshift('.'); });
   const W = map[0].length;
   for (let i = 0; i < PADT; i++) map.unshift(new Array(W).fill('.') as string[]);
@@ -676,7 +703,7 @@ function buildMap(
     } else ball = [bx, H - patH];
   };
 
-  if (story) { /* stands and feels — no ball in a story */ }
+  if (story || pose) { /* stands and feels — no ball in a story, none on the bench, none in street clothes */ }
   else if (E.tuck) ball = [RA[0] - 1, armEnd - 4];
   else if (energy === 'normal') { const p = Math.floor(f / 3) % 8; dribble(p < 4 ? 'R' : 'L', p % 2); }
   else if (energy === 'fit') {
@@ -691,6 +718,15 @@ function buildMap(
     else { dribble('R', p % 2); up = p % 2 ? 0 : 1; }
   }
 
+  if (pose === 'shrug' && f % 16 >= 9 && f % 16 <= 13) {
+    // THE SHRUG: the arms ride up two rows and the palms turn out
+    [LA, RA].forEach((cols) => cols.forEach((c) => {
+      for (let y2 = armTop; y2 <= armEnd; y2++) if (map[y2 - 2] && map[y2]) map[y2 - 2][c] = map[y2][c];
+      if (map[armEnd]) map[armEnd][c] = '.';
+      if (map[armEnd - 1]) map[armEnd - 1][c] = '.';
+    }));
+    if (map[armEnd - 3]) { map[armEnd - 3][LA[0] - 1] = 's'; map[armEnd - 3][RA[1] + 1] = 's'; }
+  }
   if (E.drop && !E.bed) [LA, RA].forEach((cols) => cols.forEach((c) => {
     for (let i = 0; i < E.drop; i++) {
       if (map[armTop + i]) map[armTop + i][c] = '.';
@@ -820,6 +856,9 @@ function buildMap(
   return { map, up };
 }
 
+/** dev handle: the frame builder, for ASCII checks of new poses */
+export const __rigDebug = { buildMap, lookFor };
+
 // ---- the sprite sheet: 24 frames → one data URL → a CSS steps() loop ----------
 
 const FRAMES = 24;
@@ -832,7 +871,7 @@ function buildSheet(v: RigView, kit: Kit): { url: string; w: number; h: number }
   const look = lookFor(v.id, v.speciesId, form);
   const P = pal(v.speciesId, look, kit);
   const sizeIx = sizeIndex(v);
-  const first = buildMap(v.speciesId, form, sizeIx, v.mood, v.energy, look, v.jersey, v.fire, 0, v.story);
+  const first = buildMap(v.speciesId, form, sizeIx, v.mood, v.energy, look, v.jersey, v.fire, 0, v.story, v.pose);
   const W = first.map[0].length;
   const H = first.map.length + 2;
   const canvas = document.createElement('canvas');
@@ -840,7 +879,7 @@ function buildSheet(v: RigView, kit: Kit): { url: string; w: number; h: number }
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
   for (let f = 0; f < FRAMES; f++) {
-    const { map, up } = f === 0 ? first : buildMap(v.speciesId, form, sizeIx, v.mood, v.energy, look, v.jersey, v.fire, f, v.story);
+    const { map, up } = f === 0 ? first : buildMap(v.speciesId, form, sizeIx, v.mood, v.energy, look, v.jersey, v.fire, f, v.story, v.pose);
     const ox = f * W;
     for (let y = 0; y < map.length; y++) for (let x = 0; x < W; x++) {
       const ch = map[y][x];
@@ -854,7 +893,7 @@ function buildSheet(v: RigView, kit: Kit): { url: string; w: number; h: number }
 
 /** The animated sprite as an HTML element (background sprite sheet + CSS loop). */
 export function rigSpriteHtml(v: RigView, kit: Kit, scale: number, cls = ''): string {
-  const key = `${v.id}|${v.speciesId}|${v.form ?? 'masc'}|${sizeIndex(v)}|${v.mood}|${v.energy}|${v.fire ? 1 : 0}|${v.story ?? '-'}|${kit.bg}|${kit.fg}|${v.jersey ?? 'x'}`;
+  const key = `${v.id}|${v.speciesId}|${v.form ?? 'masc'}|${sizeIndex(v)}|${v.mood}|${v.energy}|${v.fire ? 1 : 0}|${v.story ?? '-'}|${v.pose ?? '-'}|${kit.bg}|${kit.fg}|${v.jersey ?? 'x'}`;
   let sheet = sheetCache.get(key);
   if (!sheet) {
     sheet = buildSheet(v, kit);
