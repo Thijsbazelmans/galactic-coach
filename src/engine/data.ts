@@ -626,6 +626,46 @@ export const GALAXY_ACTS: GalaxyActDef[] = [
   },
 ];
 
+/** THE TRAIL talks: how each recruiting night actually went, before the
+    tally — three ways each, the booster's the most radioactive. */
+export const RECRUIT_FLAVOR: Record<string, string[]> = {
+  groupchat: [
+    'You type "hey team 🏀" into a thread with nine teenagers and receive four thumbs-ups, one "who dis", and a reaction you\'re fairly sure is a vegetable.',
+    'The group chat is alive at 2am with a debate about the best pregame snack. You contribute "hydration". Silence. Then, slowly, hearts.',
+    'Somebody adds their grandmother to the thread by mistake. She stays. She is, by the end of the week, the most committed name on the board.',
+  ],
+  letters: [
+    'Nine holograms, hand-written, each one a little shakier than the last. The ninth kid frames his. The first kid\'s mother asks if you\'re okay.',
+    'The holo-letters arrive mid-homeroom and stand up on nine desks at once, saying nine names in your voice. Three teachers file complaints. Six kids file the letters.',
+    'You misspell one name and the hologram apologizes for you, unprompted, for eleven seconds. Somehow this lands.',
+  ],
+  openhouse: [
+    'Six recruits, one campus tour, one cafeteria. The gravy-fries do exactly what the gravy-fries have always done. Two kids ask if the dorm has a hoop. It does now.',
+    'The open house runs long because the mascot won\'t stop doing the worm in the quad. Nobody wants to leave while the worm is happening.',
+    'Your assistant gives the tour, gets lost inside the science wing, and improvises a speech about "finding your way" that the recruits are still quoting on the bus home.',
+  ],
+  dinner: [
+    'The chef with too many arms plates nine courses simultaneously. The TARGETS are impressed. The TARGETS are also, briefly, unable to see over the food.',
+    'Course seven is a soup that changes flavor when you compliment it. You compliment it forty times. The recruits watch you do this and decide you are, at least, sincere.',
+    'Dinner ends with the chef juggling the dessert. A recruit catches a flan. That recruit talks about nothing else for a week.',
+  ],
+  carepack: [
+    'Nine crates leave the loading dock "from a fan". By lunch three unboxing streams are live and one kid is wearing every item at once, including the crate.',
+    'The care packages arrive with no return address and a smell of cigar. One recruit\'s dad opens his in the driveway and says "well now" very slowly.',
+    'The sneakers fit suspiciously well. The hoodie fits suspiciously well. The booster, watching the streams from a hot tub, fits suspiciously well too.',
+  ],
+  skybox: [
+    'Six recruits, one skybox, one pro game, a shrimp tower the height of a freshman. The booster narrates the fourth quarter like he owns the team. He might.',
+    'The skybox has a button that lowers a hoop from the ceiling. The recruits find it at halftime. The pro game is, for eleven minutes, not the main event.',
+    'You were "not there". A photo exists of you not being there, holding a shrimp. The booster assures you it\'s a very forgettable shrimp.',
+  ],
+  bagdrop: [
+    'Three lockers, three duffel bags, three zippers that sound like a starting gun. Nobody counts it out loud. Everybody counts it.',
+    'The duffel bags are monogrammed, which the booster calls "a classy touch" and the league would call "exhibit A". The TARGETS call them heavy.',
+    'One recruit brings his bag back, says it was "too much", and leaves it on your desk. It is somehow heavier than before. He is, mysteriously, more committed.',
+  ],
+};
+
 export function galaxyActById(id: string): GalaxyActDef {
   return GALAXY_ACTS.find((a) => a.id === id) ?? GALAXY_ACTS[0];
 }

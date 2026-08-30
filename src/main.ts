@@ -3128,7 +3128,7 @@ function postRender(): void {
           if (el) el.innerHTML = sceneHtml(r.art as SceneId, { bg: t.bg, fg: t.fg }, 3);
         }
       });
-    }, r.cost * 300 + 350));
+    }, 220)); // the −1¢ blasts fly alongside — the card never sits empty
     return;
   }
   const ev = currentStory(state);

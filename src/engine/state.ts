@@ -5,6 +5,7 @@ import {
   BOOSTER_POOL,
   DEAN_POOL,
   ITEMS,
+  RECRUIT_FLAVOR,
   SMALL_ITEMS,
   SPEECH_FLOP,
   SPEECH_FLOPS,
@@ -1143,7 +1144,11 @@ export function actionGalaxy(s: GameState, actId: string, targetIds?: number[]):
         ups++;
       }
     }
-    text = `${act.name}: ${scopeWord === 'all nine' ? 'the whole board hears' : `${scopeWord} hear${scoped.length === 1 ? 's' : ''}`} from you. ${ups} name${ups === 1 ? '' : 's'} lean${ups === 1 ? 's' : ''} in${downs ? `, ${downs} lean${downs === 1 ? 's' : ''} away` : ''}.`;
+    const tally = ups === 0 && downs === 0
+      ? `Nobody moves. ${scopeWord === 'all nine' ? 'The whole board' : `${scopeWord[0].toUpperCase()}${scopeWord.slice(1)}`} heard you, and stayed exactly where it was.`
+      : `${ups ? `${ups} name${ups === 1 ? '' : 's'} lean${ups === 1 ? 's' : ''} in` : ''}${ups && downs ? ' — ' : ''}${downs ? `${downs} lean${downs === 1 ? 's' : ''} away` : ''}.`;
+    const flavor = RECRUIT_FLAVOR[act.id];
+    text = `${flavor ? pick(flavor) : `${act.name}: the trail hears from you.`}\n\n${tally}`;
     // a lean AWAY is a story, not a sticker: each soured name knocks
     for (const pr of soured) {
       queueStory(s, 'lean_away', 'start', null, { prospectId: pr.id, name: pr.name, prForm: pr.form, alumForm: pr.form });
