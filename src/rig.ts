@@ -661,25 +661,6 @@ function buildMap(
       gph.forEach((row, ry) => row.split('').forEach((v, rx) => { if (v === '1' && map[oy + ry]) map[oy + ry][ox + i * 4 + rx] = 'N'; }));
     });
   }
-  if (pose === 'bench' && cfg.hasLegs) {
-    // THE BENCH: keep the thighs, cut the rest, lay a plank, drop the shins
-    // and shoes under it — a seat, front-on
-    const legStartRaw = cfg.legTop + SZ.t;
-    const cut = Math.min(map.length, legStartRaw + 2);
-    const legCols = map[cut - 1].map((ch, x) => (ch !== '.' ? x : -1)).filter((x) => x >= 0);
-    map.length = cut;
-    const w0 = map[0].length;
-    const plank = new Array(w0).fill('.') as string[];
-    for (let x = 1; x < w0 - 1; x++) plank[x] = 'P';
-    const plank2 = plank.map((ch) => (ch === 'P' ? 'Q' : '.'));
-    map.push(plank, plank2);
-    for (let i = 0; i < 4; i++) {
-      const row = new Array(w0).fill('.') as string[];
-      legCols.forEach((x) => { row[x] = i === 3 ? 'k' : 's'; });
-      row[1] = 'Q'; row[w0 - 2] = 'Q'; // the bench's own legs
-      map.push(row);
-    }
-  }
   map.forEach((row) => { for (let i = 0; i < PADR; i++) row.push('.'); for (let i = 0; i < PADL; i++) row.unshift('.'); });
   const W = map[0].length;
   for (let i = 0; i < PADT; i++) map.unshift(new Array(W).fill('.') as string[]);
@@ -842,6 +823,18 @@ function buildMap(
   if (E.sweat || story === 'worried' || (story === 'bad' && f >= 8)) {
     const ph = Math.floor(f / 2) % 6;
     if (ph < 4) { const x = cfg.sweatR + PADL, y2 = PADT + 3 + ph * 2; if (map[y2] && map[y2][x] === '.') map[y2][x] = 'c'; }
+  }
+
+  if (pose === 'bench' && cfg.hasLegs) {
+    // THE BENCH sits BEHIND him, his seat ON it: the plank runs through the
+    // shorts (the belt a couple of pixels above it, shorts above and below),
+    // its ends showing either side, its legs dropping behind his — his own
+    // legs and shoes stick out under it. Drawn only into empty pixels, and
+    // after the fire ring, so the flames stay on the player.
+    const py = legStart - 3;
+    const bl = Math.max(0, cx - 11), br = Math.min(W - 1, cx + 11);
+    for (const y2 of [py, py + 1]) for (let x = bl; x <= br; x++) if (map[y2] && map[y2][x] === '.') map[y2][x] = y2 === py ? 'P' : 'Q';
+    for (let y2 = py + 2; y2 < H; y2++) for (const x of [bl + 1, br - 1]) if (map[y2] && map[y2][x] === '.') map[y2][x] = 'Q';
   }
 
   if (ball) {
