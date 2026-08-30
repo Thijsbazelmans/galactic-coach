@@ -829,7 +829,7 @@ function buildMap(
     if (ph < 4) { const x = cfg.sweatR + PADL, y2 = PADT + 3 + ph * 2; if (map[y2] && map[y2][x] === '.') map[y2][x] = 'c'; }
   }
 
-  if (pose === 'bench' && cfg.hasLegs) {
+  if (pose === 'bench' && cfg.hasLegs && !E.bed) {
     // THE BENCH sits BEHIND him, his seat ON it: the plank runs through the
     // shorts (the belt a couple of pixels above it, shorts above and below),
     // its ends showing either side, its legs dropping behind his — his own

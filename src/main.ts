@@ -926,8 +926,9 @@ function rigView(p: Player, story?: 'good' | 'bad' | 'worried' | 'neutral', pose
       fire: !!p.onFire && p.outWeeks === 0, story: held,
     };
   }
-  // the calm poses only for the available: the injured/away keep their pod
-  const calm = pose && p.outWeeks === 0 ? pose : undefined;
+  // THE CHAMBER WINS: the injured/away stand in their pod and the exhausted
+  // sleep in it — no bench, no shrug, for anyone in cryo
+  const calm = pose && p.outWeeks === 0 && energyBucket(p.energy) !== 'exhausted' ? pose : undefined;
   return {
     id: p.id,
     speciesId: p.speciesId,
