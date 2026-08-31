@@ -4,6 +4,7 @@
 
 import type {
   Attr,
+  FacId,
   Fx,
   GameState,
   OddsTail,
@@ -13,7 +14,7 @@ import type {
   StoryChoiceView,
   StoryEvent,
 } from './types';
-import { ATTRS, clamp, genderize, ovr, pick, rand, roll } from './util';
+import { ATTRS, clamp, genderize, ovr, pick, rand, roll, security } from './util';
 
 export const CLASS_ABBR = ['Fr', 'So', 'Jr', 'Sr'];
 
@@ -225,11 +226,13 @@ export interface PlanDef {
 }
 
 export const PLANS: PlanDef[] = [
-  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', kind: 'shift', attr: 'skl', off: 'ath', gain: [3, 4], loss: [3, 4], scene: "the whole team is doing trick shots for the 'gram. Somebody banks one in off the assistant coach's head.", fantasy: 'Shooters shoot. Rise over anything they pack in — and forget about running.' },
-  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', kind: 'shift', attr: 'ath', off: 'skl', gain: [3, 4], loss: [3, 4], scene: 'they\'re bench-pressing the cheerleaders. The cheerleaders seem fine with it.', fantasy: 'Outrun everything. Seven seconds or less. Nobody said anything about making shots.' },
-  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', kind: 'shift', attr: 'frc', off: 'brn', gain: [3, 4], loss: [3, 4], scene: 'somebody is headbutting a locker, lovingly. Then somebody else does. The locker will need replacing.', fantasy: 'Full-court terror. Make them hate the ball. Thinking is for the bus ride home.' },
-  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', kind: 'shift', attr: 'brn', off: 'frc', gain: [3, 4], loss: [3, 4], scene: 'a quiet confidence has settled over the room. Is someone humming "ohm"? Are they ALL?', fantasy: 'The system. Every cut scripted. Nobody gets angry, nobody gets a steal.' },
-  { id: 'rally', name: 'THE RALLY', speech: 'THIS IS OUR HOUSE', kind: 'rally', attr: 'skl', off: 'skl', gain: [0, 0], loss: [0, 0], scene: 'chairs are scraping back. Somebody is pounding a locker in rhythm, and the rhythm is spreading.', fantasy: 'No X\'s, no O\'s — just the roof, and whether it stays on. A coin flip on morale; a sliver of chance it goes very right, or very wrong.' },
+  // every real speech needs a week to breathe — the same words two Fridays
+  // in a row are just noise (TAKE IT EASY alone is always available)
+  { id: 'showtime', name: 'SHOWTIME', speech: 'SHOOTERS SHOOT', kind: 'shift', attr: 'skl', off: 'ath', gain: [3, 4], loss: [3, 4], cooldown: 1, scene: "the whole team is doing trick shots for the 'gram. Somebody banks one in off the assistant coach's head.", fantasy: 'Shooters shoot. Rise over anything they pack in — and forget about running.' },
+  { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', kind: 'shift', attr: 'ath', off: 'skl', gain: [3, 4], loss: [3, 4], cooldown: 1, scene: 'they\'re bench-pressing the cheerleaders. The cheerleaders seem fine with it.', fantasy: 'Outrun everything. Seven seconds or less. Nobody said anything about making shots.' },
+  { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', kind: 'shift', attr: 'frc', off: 'brn', gain: [3, 4], loss: [3, 4], cooldown: 1, scene: 'somebody is headbutting a locker, lovingly. Then somebody else does. The locker will need replacing.', fantasy: 'Full-court terror. Make them hate the ball. Thinking is for the bus ride home.' },
+  { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', kind: 'shift', attr: 'brn', off: 'frc', gain: [3, 4], loss: [3, 4], cooldown: 1, scene: 'a quiet confidence has settled over the room. Is someone humming "ohm"? Are they ALL?', fantasy: 'The system. Every cut scripted. Nobody gets angry, nobody gets a steal.' },
+  { id: 'rally', name: 'THE RALLY', speech: 'THIS IS OUR HOUSE', kind: 'rally', attr: 'skl', off: 'skl', gain: [0, 0], loss: [0, 0], cooldown: 1, scene: 'chairs are scraping back. Somebody is pounding a locker in rhythm, and the rhythm is spreading.', fantasy: 'No X\'s, no O\'s — just the roof, and whether it stays on. A coin flip on morale; a sliver of chance it goes very right, or very wrong.' },
   { id: 'easy', name: 'TAKE IT EASY', speech: 'SAVE SOMETHING FOR NEXT WEEK', kind: 'easy', attr: 'ath', off: 'ath', gain: [0, 0], loss: [0, 0], scene: 'somebody is yawning, on purpose. The starters are stretching like it\'s a Tuesday.', fantasy: 'Coast tonight: the floor players burn far less energy, and you play a little softer for it. Lose, and a coasting room takes it badly.' },
   // premium speeches — found in stories: a better trade, 3-week recharge
   { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', kind: 'shift', attr: 'frc', off: 'brn', gain: [5, 6], loss: [2, 3], scene: 'the chant is going up in old Quadran. The paint on the far wall is peeling a little.', fantasy: 'An old Quadran battle chant. The paint peels.', premium: true, cooldown: 3 },
@@ -494,6 +497,73 @@ export function drillById(id: string): DrillDef {
   return DRILLS.find((d) => d.id === id) ?? DRILLS[0];
 }
 
+// ---- THE CAMPUS (v5): six facilities, levels 0–3 ------------------------------
+// One law: THE FACILITY OPENS THE TERRITORY; THE STORIES FILL IT. Built
+// levels unlock the standard options; story-found content carries a facility
+// requirement of its own — finding a deep-core chart at ship 1 isn't a dud,
+// it's the reason to upgrade. Level 0 exists only in the tutorial.
+
+export interface FacilityDef {
+  id: FacId;
+  name: string;
+  /** what the campus offers at each level, 0–3 */
+  blurbs: [string, string, string, string];
+  /** the one-week-later arrival beat's opening line */
+  arrive: string;
+}
+
+export const FACILITIES: FacilityDef[] = [
+  {
+    id: 'ship', name: 'SCOUTING SHIP',
+    blurbs: ['grounded — the rec center and grainy film', 'home-planet range', 'nebula range — and THE STORM LAYERS open', 'outer-rim range; found DEEP CORE charts are flyable'],
+    arrive: 'A new ship squats on the pad overnight, still warm from somebody else\'s registration. The janitor pretends not to know how it got there.',
+  },
+  {
+    id: 'gym', name: 'THE GYM',
+    blurbs: ['no hoop: rest and bonfires', 'a hoop: shootaround', 'a full court: scrimmage and two-a-days', 'the lab wing: the strange methods can be installed'],
+    arrive: 'Contractors in zero-g harnesses hammer all weekend. Monday morning the net still smells of fresh nylon.',
+  },
+  {
+    id: 'cryo', name: 'CRYO BAY',
+    blurbs: ['an ice-filled dumpster', 'one pod: the weekend bump firms up (⚡ tops at 77)', 'a bank of pods (⚡ tops at 79)', 'the pro clinic\'s freezer (⚡ tops at 81)'],
+    arrive: 'The pods hiss when they land, breathing white. Somebody has already taped a name to the best one.',
+  },
+  {
+    id: 'library', name: 'THE LIBRARY',
+    blurbs: ['suspensions hit hard, cheating gets caught', 'a tutoring corner: study weeks help', 'real stacks: fewer academic fires', 'the archive: film study feeds BRAINS harder'],
+    arrive: 'Crates of books arrive addressed to "the basketball school, apparently". The nerd has them shelved by tip-off.',
+  },
+  {
+    id: 'stadium', name: 'THE STADIUM',
+    blurbs: ['bleachers: home games pay nothing', 'a gate: +1¢ per home game', 'real stands: +2¢ per home game', 'the bowl: +3¢ — and a home loss stings the fans less'],
+    arrive: 'The steel goes up in a weekend. The echo of the first bounced ball takes a full second to come back.',
+  },
+  {
+    id: 'greekrow', name: 'GREEK ROW',
+    blurbs: ['the group chat and the letters', 'the open house', 'the dinner — and the booster takes your calls', 'skyboxes and duffel bags; the campus hums'],
+    arrive: 'Banners unroll down the row and a sound system of dubious wattage gets carried up somebody\'s stairs.',
+  },
+];
+
+export function facilityById(id: FacId): FacilityDef {
+  return FACILITIES.find((f) => f.id === id)!;
+}
+
+/** Upgrading TO level n costs 3n¢ (a season is 2–3 upgrades, by design). */
+export function facCost(target: number): number {
+  return target * 3;
+}
+
+export function facLevel(s: GameState, id: FacId): number {
+  return s.facilities?.[id] ?? 1;
+}
+
+/** What each built level reaches. Anything not listed defaults high — a
+    found thing without an entry wants a serious building. */
+export const SHIP_REQ: Record<string, number> = { reccenter: 0, home: 1, nebula: 2, stormlayers: 2, outerrim: 3, deepcore: 3 };
+export const GYM_REQ: Record<string, number> = { rest: 0, bonfire: 0, shootaround: 1, scrimmage: 2, twodays: 2, asteroid: 2, sparring: 2, filmroom: 2, dreamlab: 3, meteor: 3 };
+export const ROW_REQ: Record<string, number> = { groupchat: 0, letters: 0, openhouse: 1, dinner: 2, carepack: 2, skybox: 3, bagdrop: 3 };
+
 // ---- the galaxy: TWO weekly sections now, reading THE PRIORITY BOARD -----------
 // SCOUTING (search for talent OR read the board) and RECRUITING (work the
 // board yourself OR call the booster) are separate stops in the week. The
@@ -539,6 +609,8 @@ export const SPECIES_ODDS: Record<string, [string, number][]> = {
   reccenter: [['terran', 100]],
   home: [['terran', 85], ['quadran', 4], ['hexid', 4], ['petran', 4], ['oculid', 1], ['robota', 1], ['gelid', 1]],
   nebula: [['terran', 46], ['quadran', 14], ['hexid', 14], ['petran', 14], ['oculid', 4], ['robota', 4], ['gelid', 4]],
+  // inside the gas giant: the floaty species live in the cloud decks
+  stormlayers: [['terran', 18], ['hexid', 12], ['gelid', 38], ['oculid', 12], ['quadran', 6], ['petran', 6], ['robota', 4], ['nimbus', 4]],
   outerrim: [['terran', 13], ['quadran', 13], ['hexid', 13], ['petran', 13], ['oculid', 12], ['robota', 12], ['gelid', 12], ['nimbus', 12]],
   deepcore: [['terran', 10], ['quadran', 12], ['hexid', 12], ['petran', 12], ['oculid', 14], ['robota', 14], ['gelid', 14], ['nimbus', 12]],
   opening: [['terran', 84.9], ['quadran', 4], ['hexid', 4], ['petran', 4], ['oculid', 1], ['robota', 1], ['gelid', 1], ['nimbus', 0.1]],
@@ -613,6 +685,11 @@ export const GALAXY_ACTS: GalaxyActDef[] = [
     id: 'nebula', kind: 'search', name: 'LOCAL NEBULA', cost: 2,
     desc: 'Hexid blurs, Quadran storms, Petran walls. Real specialists, mild turbulence.',
     up: { pct: 5, cls: 'INTEL' }, down: { pct: 10, cls: 'SHIP' },
+  },
+  {
+    id: 'stormlayers', kind: 'search', name: 'THE STORM LAYERS', cost: 2, twoChance: 10,
+    desc: 'Inside the nearby gas giant: floaty talent in the cloud decks. The pressure has opinions.',
+    up: { pct: 5, cls: 'INTEL' }, down: { pct: 15, cls: 'DRAMA' },
   },
   {
     id: 'outerrim', kind: 'search', name: 'OUTER RIM', cost: 3, twoChance: 15,
@@ -1285,7 +1362,7 @@ export const ITEMS: ItemDef[] = [
     name: 'THE WAR CHEST',
     rarity: 'rare',
     flavor: 'A crate of "recruiting materials". It clinks.',
-    effectText: 'one recruit: commitment +40% (it can still wane)',
+    effectText: 'one recruit: commitment +40%',
     context: ['recruiting'],
     target: 'prospect',
     check: (ctx) => {
@@ -1565,7 +1642,7 @@ export interface StoryDef {
       kind can be overridden per event via data.art. */
   art?: 'bus' | 'saucer';
   artEvent?: 'stranded' | 'hoop';
-  figure?: 'dean' | 'booster' | 'scoop' | 'janitor' | 'assistant' | 'attendant' | 'side';
+  figure?: 'dean' | 'booster' | 'scoop' | 'janitor' | 'assistant' | 'attendant' | 'oracle' | 'cheerleader' | 'nerd' | 'ref' | 'bookie' | 'goblin' | 'side';
   /** the card backdrop behind the acting sprite: the ABILITIES compass for
       growth stories, the energy/mood gauges (ROSTER) for everything else */
   card?: 'abilities' | 'meters';
@@ -1681,9 +1758,11 @@ export const STORIES: StoryDef[] = [
       if (key === 'push') {
         const t = tails(10, 50);
         if (t === 'down') {
+          // a doubled injury still tops out at 8 weeks — a season has limits
+          const dbl = Math.min(8, weeks * 2);
           return {
-            text: `${p.name} plays through it and something GOES. What was ${weeks} weeks is now ${weeks * 2}. The med staff writes your name on a whiteboard with an unkind diagram.`,
-            fx: [{ playerId: p.id, outWeeks: weeks * 2, outReason: label, outKind: 'injury', mood: -8, ...(weeks * 2 >= 4 ? { levelDelta: -1, skill: -(2 + rand(3)) } : {}) }],
+            text: `${p.name} plays through it and something GOES. What was ${weeks} weeks is now ${dbl}. The med staff writes your name on a whiteboard with an unkind diagram.`,
+            fx: [{ playerId: p.id, outWeeks: dbl, outReason: label, outKind: 'injury', mood: -8, ...(dbl >= 4 ? { levelDelta: -1, skill: -(2 + rand(3)) } : {}) }],
           };
         }
         if (t === 'up') {
@@ -1806,15 +1885,17 @@ export const STORIES: StoryDef[] = [
       ],
     }),
     resolve: (key) => {
+      // a league affair plays out in PUBLIC — Scoop's track eats most of it,
+      // the school board the rest
       if (key === 'own') {
         const t = tails(10, 2);
-        if (t === 'up') return { text: 'You own it so completely the press conference becomes a redemption arc. The school hates the headline and respects the spine.', fx: [{ heatS: 5, teamMood: 5 }] };
-        return { text: 'You take the hit standing up. It costs, but it costs once.', fx: [{ heatS: 10 }] };
+        if (t === 'up') return { text: 'You own it so completely the press conference becomes a redemption arc. The school hates the headline and respects the spine.', fx: [{ opP: -4, heatS: 2, teamMood: 5 }] };
+        return { text: 'You take the hit standing up. It costs, but it costs once.', fx: [{ opP: -7, heatS: 3 }] };
       }
       const t = tails(25, 25);
       if (t === 'up') return { text: 'The denial HOLDS. The folder, it turns out, was mostly receipts from a noodle bar.', fx: [] };
-      if (t === 'down') return { text: 'The denial collapses in four days. Now it\'s the thing AND the cover-up of the thing.', fx: [{ heatS: 20 }] };
-      return { text: 'The league can\'t prove it. The school can\'t forget it.', fx: [{ heatS: 12 }] };
+      if (t === 'down') return { text: 'The denial collapses in four days. Now it\'s the thing AND the cover-up of the thing.', fx: [{ opP: -14, heatS: 6 }] };
+      return { text: 'The league can\'t prove it. The school can\'t forget it.', fx: [{ opP: -8, heatS: 4 }] };
     },
   },
 
@@ -2366,12 +2447,12 @@ export const STORIES: StoryDef[] = [
           text: key === 'notebook'
             ? `You read it straight off the page: "${right}." Scoop taps his fedora. "A coach who keeps notes. The Gazette respects that." The piece runs friendly — with a stipend.`
             : `"${right}," you say, no hesitation. Scoop's antennae perk. "A coach who WATCHES. Refreshing." The piece runs friendly — with a stipend.`,
-          fx: [{ coachEnergy: two ? 2 : 1 }],
+          fx: [{ coachEnergy: two ? 2 : 1 }, { opP: 3 }],
         };
       }
       return {
         text: `Scoop lets the silence run exactly one column-inch too long. "It was ${right}, coach." The piece prints your answer next to the correct one, in a larger font.`,
-        fx: [{ heatS: 2 }],
+        fx: [{ opP: -4 }],
       };
     },
   },
@@ -2558,6 +2639,7 @@ export const STORIES: StoryDef[] = [
     id: 'oracle',
     kind: 'coach',
     weight: 2,
+    figure: 'oracle',
     // a story that opens mid-flight can only fire when the ship actually flies
     when: (s) => (s.unlockedDrills.length < DRILLS.length || s.knownPlans.length < PLANS.length) && s.week > 2 && s.groundedWeeks === 0,
     beat: () => ({
@@ -2633,7 +2715,7 @@ export const STORIES: StoryDef[] = [
           ctx.s.groundedWeeks = 0;
           return { text: 'The goblins deliver. The ship gleams. Several parts are new, several are "new". You fly.' };
         }
-        return { text: 'Not this week. The goblins have installed a hot tub you did not order and cannot afford.', follow: [{ weeks: 1, beat: 'goblin_hold', defId: 'grounded', playerId: null, data: { hold: true } }] };
+        return { text: 'Not this week. The goblins have installed a hot tub you did not order and cannot afford.', follow: [{ weeks: 1, beat: 'goblin_hold', defId: 'grounded', playerId: null, data: { hold: true, figure: 'goblin' } }] };
       }
       if (key === 'limp') {
         ctx.s.groundedWeeks = 3;
@@ -2645,7 +2727,7 @@ export const STORIES: StoryDef[] = [
       ctx.s.groundedWeeks = 12;
       return {
         text: 'The goblins fail spectacularly. Your ship is now grounded at THEIR base, wearing half its engine. You take a space-bus home. Every week, a chance they finish.',
-        follow: [{ weeks: 1, beat: 'goblin_hold', defId: 'grounded', playerId: null, data: { hold: true } }],
+        follow: [{ weeks: 1, beat: 'goblin_hold', defId: 'grounded', playerId: null, data: { hold: true, figure: 'goblin' } }],
       };
     },
   },
@@ -2691,6 +2773,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'goblin_bill',
     kind: 'coach',
+    figure: 'goblin',
     beat: () => ({ tag: 'THE BILL', text: 'The mech-goblin invoice arrives, engraved on a small meteor: 3 CREDITS. They also left a mint.' }),
     resolve: () => ({ text: '', fx: [{ coachEnergy: -3 }] }),
   },
@@ -2705,10 +2788,10 @@ export const STORIES: StoryDef[] = [
     }),
     resolve: (_k, ctx) => {
       const p = ctx.player;
-      if (!p) return { text: 'The suspension letter arrives for a player who is no longer yours to suspend.', fx: [{ heatS: 5 }] };
+      if (!p) return { text: 'The suspension letter arrives for a player who is no longer yours to suspend.', fx: [{ opP: -5 }] };
       return {
         text: `${p.name} is suspended two weeks. The panel's report uses the word "choreographed". The Dean uses worse.`,
-        fx: [{ playerId: p.id, outWeeks: 2, outReason: 'suspension (the screen)', mood: -8 }, { heatS: 8 }],
+        fx: [{ playerId: p.id, outWeeks: 2, outReason: 'suspension (the screen)', mood: -8 }, { opP: -8, heatS: 3 }],
       };
     },
   },
@@ -2723,7 +2806,7 @@ export const STORIES: StoryDef[] = [
     kind: 'coach',
     figure: 'dean',
     beat: () => ({ tag: 'THE LEAGUE CALLS', text: "The blank check cleared. So did the league's subpoena. The investigation you felt coming has arrived, with weather of its own." }),
-    resolve: () => ({ text: '', fx: [{ heatS: 20 }] }),
+    resolve: () => ({ text: '', fx: [{ opP: -14, heatS: 7 }] }),
   },
   {
     id: 'chrono_age',
@@ -3158,6 +3241,8 @@ export const TIPS: Record<string, string> = {
     "Practice is mandatory, coach — pick something and HOLD RUN. TEAM REST costs nothing (mostly harmless).\n\nThree families: TRAIN earns XP (levels bank +2 points YOU place), SHARPEN hammers direct points into attributes, RECOVER gets meters back. Anyone under 40 energy sits out automatically. Every option shows its two tails — how good it can go, how bad. Read the language. The odds are yours to learn.",
   lenses:
     "One squad, three lenses: ROSTER is who they are right now (energy left, mood right, the grade for the slot they stand in), STATS is what they've done this season, ABILITIES is the compass — where they point and how far the ceiling goes.\n\nSame nine faces in the same nine places — only the question changes.",
+  facilities:
+    "The campus is yours to build, coach: the SHIP decides how far you scout, the GYM what you can run, GREEK ROW who you can charm — and the found things carry level requirements of their own. Upgrades cost credits and land NEXT WEEK.\n\nThe mop? The mop is free. The janitor remembers who grabs it.",
   scouting:
     "SCOUTING first, coach: either SEARCH the galaxy for new talent (regions shift WHO you find, never how good) or read THE BIG BOARD — one move a week, and it reads the rows: cheap touches all nine lightly, dear goes deep on the TARGETS alone. A full board means somebody gets discarded FOREVER.\n\nBroke? The local rec center is free. Terrans only. Kids notice where you go looking.",
   recruiting:
@@ -3434,11 +3519,12 @@ STORIES.push({
       const bump = 4 + rand(3);
       s.gameShift = (s.gameShift ?? 0) + bump;
       p.onFire = true;
+      p.fireWeeks = 0; // the streak starts tonight — the risk climbs weekly
       const inj = rollInjury(0, fragility(p.speciesId));
       return {
         text: `You leave him in. The whole building leans forward and the whole TEAM plays up to him. +${bump} on the night.`,
         fx: [{ playerId: p.id, mood: 10 }, { teamMood: 4 }],
-        follow: roll(30) ? [{ weeks: 1, beat: 'after', data: { label: inj.label, weeks: Math.max(1, Math.min(2, inj.weeks)) } }] : [],
+        follow: roll(15) ? [{ weeks: 1, beat: 'after', data: { label: inj.label, weeks: Math.max(1, Math.min(2, inj.weeks)) } }] : [],
       };
     }
     return { text: `You go to the bench like it's any other night. ${p.name} sits, still smoking, and the moment cools politely. Everyone's fresh for next week.`, fx: [{ playerId: p.id, mood: -6 }] };
@@ -3474,7 +3560,7 @@ STORIES.push({
     const levelLoss = ctx.data.levelLoss === true;
     if (ev.beat === 'worse') {
       const extra = (ctx.data.extra as number) ?? weeks;
-      return { text: 'The tape was optimistic. The scan is not.', fx: [{ playerId: p.id, outWeeks: p.outWeeks + extra, outReason: p.outReason || label, outKind: 'injury', mood: -6 }] };
+      return { text: 'The tape was optimistic. The scan is not.', fx: [{ playerId: p.id, outWeeks: Math.min(8, p.outWeeks + extra), outReason: p.outReason || label, outKind: 'injury', mood: -6 }] };
     }
     s.gameInjuries = [...(s.gameInjuries ?? []), { playerId: p.id, weeks, label, levelLoss, tape: key === 'tape' }];
     if (key === 'tape') {
@@ -3542,12 +3628,12 @@ STORIES.push({
   beat: (_b, ctx) => {
     const amt = (ctx.data.amt as number) ?? 5;
     const s = ctx.s;
-    const heat = s.heatS + s.heatB;
+    const sec = security(s);
     const snark = amt === 0
       ? 'She hands you an envelope with nothing in it. "The board feels you\'ve been... compensated in experience." You have been coaching a very long time.'
-      : heat >= 60
+      : sec <= 40
         ? `"${amt} credits," she says, holding the envelope a beat too long. "The board asked me to remind you that severance comes in a thinner envelope."`
-        : heat >= 30
+        : sec <= 55
           ? `"${amt} credits. Spend them better than last week's." She smiles the way auditors smile.`
           : s.trophies > 0
             ? `"${amt} credits, coach." She almost hands it over warmly. "The trophy case is doing your negotiating for you."`
@@ -3693,6 +3779,63 @@ STORIES.push({
   },
 });
 
+// ---- THE CAMPUS GROWS: the ordered upgrade lands, one week later --------------
+STORIES.push({
+  id: 'facility_arrives',
+  kind: 'coach',
+  figure: 'janitor',
+  beat: (_b, ctx) => {
+    const fd = facilityById(ctx.data.facId as FacId);
+    const nxt = Math.min(3, facLevel(ctx.s, fd.id) + 1);
+    return { tag: '★ THE CAMPUS GROWS ★', text: `${fd.arrive}\n\n${fd.name} stands at LEVEL ${nxt}: ${fd.blurbs[nxt]}.` };
+  },
+  resolve: (_k, ctx) => {
+    const id = ctx.data.facId as FacId;
+    const s = ctx.s;
+    const cur: Record<FacId, number> = { ship: 1, gym: 1, cryo: 1, library: 1, stadium: 1, greekrow: 1, ...(s.facilities ?? {}) };
+    cur[id] = Math.min(3, (cur[id] ?? 1) + 1);
+    s.facilities = cur;
+    return { text: '' };
+  },
+});
+
+// ---- THE CODEX pays out: a past career's speeches and tricks come back --------
+STORIES.push({
+  id: 'codex_recall',
+  kind: 'coach',
+  weight: 3,
+  figure: 'assistant',
+  when: (s) => !!s.codexPending && (s.codexPending.plans.length > 0 || s.codexPending.instrs.length > 0),
+  beat: () => ({
+    tag: 'YOU REMEMBER THE WORDS',
+    text: 'Halfway through drawing up a play, your hand keeps going — old diagrams, old chants, whole speeches from another gym in another life.\n\nA coach keeps what a coach earns.',
+  }),
+  resolve: (_k, ctx) => {
+    const s = ctx.s;
+    const pend = s.codexPending;
+    s.codexPending = undefined;
+    if (!pend) return { text: '' };
+    return {
+      text: 'It all comes back.',
+      fx: [
+        ...pend.plans.map((p) => ({ unlockPlan: p }) as Fx),
+        ...pend.instrs.map((i) => ({ unlockInstr: i }) as Fx),
+      ],
+    };
+  },
+});
+
+// ---- THE LEADERS' season titles: one crown per stat --------------------------
+STORIES.push({
+  id: 'stat_title',
+  kind: 'player',
+  beat: (_b, ctx) => ({
+    tag: `★ ${ctx.data.title as string} ★`,
+    text: `${pname(ctx)} finishes the season as ${ctx.data.title}: ${ctx.data.line}, best in the conference.\n\nThe trophy is a little ugly. Nobody cares. It's going in the case.`,
+  }),
+  resolve: () => ({ text: '', fx: [{ mood: 15, xp: 25 }, { legacy: 1 }] }),
+});
+
 export function storyById(id: string): StoryDef {
   const def = STORIES.find((st) => st.id === id);
   if (!def) throw new Error(`unknown story: ${id}`);
@@ -3715,7 +3858,7 @@ export const TRAVEL_OUT_FLAVOR = [
   'The scouting report is taped to the cabin wall and somebody has already drawn a mustache on their center.',
   'The bus climbs out of the atmosphere on schedule. The starters sleep. The freshmen press their faces to the glass.',
   'Away game. The driver puts on the pregame playlist; it is one song, eleven hours long, and nobody complains.',
-  'The team bus points its nose at a stranger\'s sun. Everyone chews the same brand of gum. Ritual is ritual.',
+  'Everyone chews the same brand of gum on the climb out. Ritual is ritual.',
   'Departure is smooth. Somewhere behind you, your home arena shrinks to a bright dot with a scoreboard in it.',
 ];
 

@@ -107,6 +107,9 @@ export interface Player {
   mood: number;
   /** the hot streak: 20+ points lights it, everything plays +20% until he cools */
   onFire?: boolean;
+  /** consecutive WEEKS the fire has lived — adrenaline recovers him harder,
+      but the injury risk climbs with every week it burns */
+  fireWeeks?: number;
   outWeeks: number;
   outReason: string;
   /** WHY he's out: an injury (medicine takes weeks off it) or an absence —
@@ -252,8 +255,12 @@ export interface Fx {
       beat lands (cleared automatically when his next story resolves) */
   tense?: boolean;
   coachEnergy?: number;
+  /** displeasure deltas: heatS lowers THE SCHOOL's opinion, heatB lowers
+      THE FANS' (positive = worse — the historical hot-seat sign convention) */
   heatS?: number;
   heatB?: number;
+  /** THE PUBLIC's opinion delta (positive = better — Scoop's track) */
+  opP?: number;
   legacy?: number;
   giveItem?: string;
   loseItemIdx?: number;
@@ -322,6 +329,9 @@ export interface MyGameResult {
   /** THE ROPE: my win share (0–1) and where the night landed on it */
   share: number;
   needle: number;
+  /** THE BOOKIE'S LINE as printed before tip-off (deterministic) — the final
+      screen quotes THIS number, never a re-roll */
+  bookiePct?: number;
   home: boolean;
   /** tonight's MVP — best combined line; his card wears the tag */
   mvpId?: number;
@@ -374,11 +384,16 @@ export interface CareerEnd {
 
 // ---- state ----------------------------------------------------------------------
 
+/** THE CAMPUS (v5): the six facilities, each 0–3 (level 0 lives only in the
+    tutorial — a normal career opens with the whole campus at 1). */
+export type FacId = 'ship' | 'gym' | 'cryo' | 'library' | 'stadium' | 'greekrow';
+
 export type Phase =
   | 'pickTeam'
   | 'teamSelect'
   | 'weekstart'
   | 'stories'
+  | 'facilities'
   | 'scouting'
   | 'practice'
   | 'recruiting'
@@ -416,18 +431,29 @@ export interface GameState {
   /** the coach's power cells: cache 0–12, stipend +6/week (shrinks from season 21) */
   energy: number;
 
-  /** THE HOT SEAT: school heat fills from the left, booster heat from the right */
+  /** LEGACY (pre-v5): the old hot-seat pair — kept in saves for migration,
+      no longer driven. Story Fx still speak heatS/heatB; applyFx translates
+      them onto the opinion tracks below. */
   heatS: number;
   heatB: number;
-  /** one interference per crossing; resets when that side cools below 40 */
   interferedS: boolean;
   interferedB: boolean;
+  /** JOB SECURITY (v5): three opinion ledgers 0–100 (THE PLAYERS' track is
+      derived live from squad mood) — util.security() runs the gauge math */
+  opSchool?: number;
+  opFans?: number;
+  opPublic?: number;
+  /** THE SUCCESS CYCLE: what the fans expect, 0 (came from the cellar) …
+      4 (defending champions) — sets how hard each result hits their track */
+  expectation?: number;
+  /** the last week a sub-30 ultimatum fired (they breathe every 3 weeks) */
+  lastDemand?: { season: number; week: number };
 
   legacy: number;
   trophies: number;
   utTitles: number;
   /** THE RUBBER BAND on the slide: every BIG BANG title raises the field
-      (+3 per title, cap +9); a season without a tournament win eases it
+      (+4 per title, cap +16); a season without a tournament win eases it
       (−2, floor −6). Applied to the champions' averages, half to the
       conference tiers. */
   fieldShift?: number;
@@ -457,6 +483,15 @@ export interface GameState {
   tipsAuto: boolean;
   /** the ship: 0 = flying; >0 = grounded (home-planet scouting only, no deep scans) */
   groundedWeeks: number;
+  /** THE CAMPUS: facility levels (0–3). Missing = everything at 1. */
+  facilities?: Record<FacId, number>;
+  /** GRAB A MOP: the weekly free hand for the janitor (resets Monday) */
+  moppedWk?: boolean;
+  /** the janitor "knows a guy": 2¢ off one upgrade ordered THIS week */
+  mopDiscount?: boolean;
+  /** THE CODEX: knowledge carried in from past careers, waiting for the
+      "you remember the words" story to hand the speeches/instructions back */
+  codexPending?: { plans: PlanId[]; instrs: string[] };
 
   /** weekly flags */
   trainedThisWeek: boolean;
@@ -475,6 +510,9 @@ export interface GameState {
   oppFx?: SpeechFx | null;
   /** premium speeches recharge: planId → weeks until it can be given again */
   speechCooldowns?: Record<string, number>;
+  /** the pricey moves recharge too: drill/board-act id → weeks until again
+      (2¢ → 1 week, 3¢ → 2 weeks; free and 1¢ actions never wait) */
+  actCooldowns?: Record<string, number>;
   sitouts: number[];
   drillReport: string | null;
   voyageRolled: boolean;

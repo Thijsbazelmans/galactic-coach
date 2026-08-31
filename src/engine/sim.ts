@@ -234,9 +234,11 @@ export function tacticsMult(tacO?: string, tacD?: string): AttrRec {
   return m;
 }
 
-/** The night's split as a percentage — what the bookie prints. */
+/** The night's split as a percentage — what the bookie prints. DETERMINISTIC:
+    the same state always prints the same line (no re-rolled opponent speech),
+    so the number on the matchup screen IS the number quoted after the horn. */
 export function bookieLine(s: GameState, me: Team, opp: Team | null, champ: ChampTeam | null, home: boolean): number {
-  const { mine, theirs } = gameRope(s, me, opp, champ, home, s.speechFx ?? null);
+  const { mine, theirs } = gameRope(s, me, opp, champ, home, s.speechFx ?? null, undefined, true);
   return Math.round(winShare(mine, theirs) * 100);
 }
 
@@ -370,9 +372,9 @@ export interface SimOutcome {
 
 // ---- the box score: 4 stats, one per attribute, dealt from the team totals ----
 
-function dealStat(pool: { p: Player; w: number }[], total: number, weigh: (p: Player) => number): Map<number, number> {
+function dealStat(pool: { p: Player; w: number; col: number }[], total: number, weigh: (p: Player) => number, colMult?: (col: number) => number): Map<number, number> {
   const out = new Map<number, number>();
-  const ws = pool.map((x) => x.w * (1 + weigh(x.p)));
+  const ws = pool.map((x) => x.w * (1 + weigh(x.p)) * (colMult ? colMult(x.col) : 1));
   const tw = ws.reduce((a, x) => a + x, 0) || 1;
   let dealt = 0;
   pool.forEach((x, i) => {
@@ -388,21 +390,37 @@ function dealStat(pool: { p: Player; w: number }[], total: number, weigh: (p: Pl
   return out;
 }
 
-/** Deal my full-game box score by attribute-weighted shares. */
-export function dealBox(me: Team, myScore: number, plan: PlanId, forms?: Forms): BoxRow[] {
-  const pool = [
-    ...starters(me).filter(available).map((p) => ({ p, w: 3 * formMult(forms, p.id) })),
-    ...benchPlayers(me).filter(available).map((p) => ({ p, w: 1 * formMult(forms, p.id) })),
-  ];
+/** Deal a full-game box score by attribute-weighted shares. THE TACTICS
+    BOARD colors the distribution (never the outcome): PLAY CALL feeds the
+    frontcourt's scoring, FAST BREAK the backcourt's; ZONE tilts every line
+    a touch toward the bigs, PRESS toward the guards. */
+export function dealBox(me: Team, myScore: number, plan: PlanId, forms?: Forms, tacO?: string, tacD?: string): BoxRow[] {
+  const pool: { p: Player; w: number; col: number }[] = [];
+  for (let c = 0; c < 3; c++) {
+    for (const [row, base] of [[0, 3], [1, 1]] as [number, number][]) {
+      const p = slotPlayer(me, row * 3 + c);
+      if (p && available(p)) pool.push({ p, w: base * formMult(forms, p.id), col: c });
+    }
+  }
   if (!pool.length) return [];
+  const colB = (col: number, offense: boolean): number => {
+    let m = 1;
+    if (offense) {
+      if (tacO === 'playcall' && col === 2) m *= 1.15; // half-court sets feed the bigs
+      if (tacO === 'fastbreak' && col === 0) m *= 1.15; // guards leak out
+    }
+    if (tacD === 'zone' && col === 2) m *= 1.1;
+    if (tacD === 'press' && col === 0) m *= 1.1;
+    return m;
+  };
   // one attribute per column: SKILL scores, FIERCENESS owns the glass,
   // ATHLETICISM jumps the lanes, BRAINS runs the show — distribution, not
   // outcomes; starters (w=3) still out-touch the bench (w=1)
   const speechAttr = planById(plan).attr;
-  const pts = dealStat(pool, myScore, (p) => attrEff(p, 'skl') + attrEff(p, 'ath') * 0.3);
-  const reb = dealStat(pool, 16 + rand(11), (p) => attrEff(p, 'frc') + sizeIndex(p) * 2);
-  const stl = dealStat(pool, 3 + rand(7) + (speechAttr === 'ath' ? 3 : 0), (p) => attrEff(p, 'ath'));
-  const ast = dealStat(pool, 6 + rand(7) + (speechAttr === 'brn' ? 3 : 0), (p) => attrEff(p, 'brn'));
+  const pts = dealStat(pool, myScore, (p) => attrEff(p, 'skl') + attrEff(p, 'ath') * 0.3, (c) => colB(c, true));
+  const reb = dealStat(pool, 16 + rand(11), (p) => attrEff(p, 'frc') + sizeIndex(p) * 2, (c) => colB(c, false));
+  const stl = dealStat(pool, 3 + rand(7) + (speechAttr === 'ath' ? 3 : 0), (p) => attrEff(p, 'ath'), (c) => colB(c, false));
+  const ast = dealStat(pool, 6 + rand(7) + (speechAttr === 'brn' ? 3 : 0), (p) => attrEff(p, 'brn'), (c) => colB(c, false));
   return pool
     .map(({ p }) => ({
       playerId: p.id,
@@ -435,6 +453,13 @@ function commitBox(me: Team, rows: BoxRow[]): number | null {
   return mp?.id ?? null;
 }
 
+/** THE LEADERS: an AI game leaves stat lines too — same dealer, no drama.
+    Feeds the conference leaderboards, the buzz, and the season titles. */
+export function creditAiBox(t: Team, score: number): void {
+  const rows = dealBox(t, score, t.plan);
+  commitBox(t, rows);
+}
+
 function boxLineFrom(rows: BoxRow[]): string {
   if (!rows.length) return '';
   const top = rows[0];
@@ -452,7 +477,8 @@ export function verdictLines(
   won: boolean,
   share: number,
   margin: number,
-  box: BoxRow[] = []
+  box: BoxRow[] = [],
+  forms?: Forms
 ): { wheelLine: string; heroLine: string } {
   const mine = planById(myPlan);
   // the night's story: what the numbers promised vs what the horn said
@@ -471,7 +497,10 @@ export function verdictLines(
   // out of position: standing somewhere that reads him a grade below his best
   const misplaced = st.filter((x) => slotRating(x.p, x.c) < slotRating(x.p, bestCol(x.p)) * 0.86);
   const fit = (p: Player): number => attrEff(p, mine.attr);
-  const hero = [...st].sort((a, b) => fit(b.p) - fit(a.p))[0].p;
+  // never crown a hero the recap will call "never got going": OFF DAY
+  // players can't be "built for this" in the same breath
+  const heroPool = st.filter((x) => forms?.[x.p.id] !== -1);
+  const hero = [...(heroPool.length ? heroPool : st)].sort((a, b) => fit(b.p) - fit(a.p))[0].p;
   // the goat is judged by what he actually PUT UP in the plan's column —
   // and never the night's top scorer (the box line already crowns him)
   const stat = ATTR_STAT[mine.attr];
@@ -502,7 +531,8 @@ function gameRope(
   champ: ChampTeam | null,
   home: boolean,
   fx: SpeechFx | SpeechFx[] | null,
-  forms?: Forms
+  forms?: Forms,
+  det = false
 ): { mine: number; theirs: number } {
   const [vm, vt] = champ ? [1, 1] : home ? [1.03, 1] : [1, 1.03];
   // THE TACTICS BOARD is the coach's edge: only MY side runs a scheme
@@ -510,10 +540,11 @@ function gameRope(
   if (s.easyNight) mine *= 0.93; // coasting: less burn, less punch
   // their locker room hears a speech too — the same shift we get, aimed at
   // their strength (fairness law) — and a LANDED instruction drags their side
-  // down (s.oppFx, amt negative)
-  const oppAmt = 3 + rand(2);
+  // down (s.oppFx, amt negative). `det` = the bookie's chalkboard read: the
+  // EXPECTED opponent speech (fixed +3/−3), no dice — stable across renders.
+  const oppAmt = det ? 3 : 3 + rand(2);
   const oppFxs: SpeechFx[] = [];
-  if (!champ && !roll(SPEECH_FLOP)) { // their speech can fall flat too
+  if (!champ && (det || !roll(SPEECH_FLOP))) { // their speech can fall flat too
     const pa = planById(opp!.plan).attr;
     oppFxs.push({ attr: pa, amt: oppAmt }, { attr: OPPOSITE[pa], amt: -oppAmt });
   }
@@ -549,13 +580,16 @@ export function simMyGame(s: GameState, me: Team, opp: Team | null, champ: Champ
       forms[p.id] = -1;
     }
   }
+  // the line as the bookie printed it, frozen at tip-off — the final screen
+  // quotes this exact number
+  const bookiePct = bookieLine(s, me, opp, champ, home);
   const { mine, theirs } = gameRope(s, me, opp, champ, home, s.speechFx ?? null, forms);
   const share = winShare(mine, theirs);
   const u = Math.random();
   const sc = fullScores(share, u);
-  const box = dealBox(me, sc.my, s.plan, forms);
+  const box = dealBox(me, sc.my, s.plan, forms, s.tacO, s.tacD);
   const mvpId = commitBox(me, box);
-  const { wheelLine, heroLine } = verdictLines(me, s.plan, sc.won, share, Math.abs(sc.my - sc.opp), box);
+  const { wheelLine, heroLine } = verdictLines(me, s.plan, sc.won, share, Math.abs(sc.my - sc.opp), box, forms);
   return {
     won: sc.won,
     result: {
@@ -570,6 +604,7 @@ export function simMyGame(s: GameState, me: Team, opp: Team | null, champ: Champ
       box,
       share,
       needle: u,
+      bookiePct,
       home,
       mvpId: mvpId ?? undefined,
       forms,

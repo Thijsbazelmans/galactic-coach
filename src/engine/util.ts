@@ -1,6 +1,6 @@
 // Tiny shared helpers — no imports beyond types, no state.
 
-import type { Attr, AttrRec, StatLine } from './types';
+import type { Attr, AttrRec, GameState, StatLine } from './types';
 
 export const ATTRS: Attr[] = ['skl', 'ath', 'frc', 'brn'];
 
@@ -191,4 +191,45 @@ export function perGame(line: StatLine, key: 'pts' | 'reb' | 'stl' | 'ast'): str
     (0–19 / 20–39 / 40–59 / 60–79 / 80–99). */
 export function potStars(potOvr: number): number {
   return Math.max(1, Math.min(5, 1 + Math.floor(potOvr / 20)));
+}
+
+// ---- JOB SECURITY (v5): four opinions, one gauge ------------------------------
+// Deliberately NOT a straight line: the locker room's real mood band (35–100)
+// is stretched over the whole PLAYERS track, and the gauge is a weighted
+// average DRAGGED by the angriest voice — one furious constituency endangers
+// the job even when the others shrug.
+
+export const SEC_PIVOT = 35; // squad mood at or below this = a PLAYERS track of zero
+export const SEC_STRETCH = 1.6; // maps the real mood band onto the full track
+export const SEC_MIN_BLEND = 0.4; // how hard the angriest voice drags the gauge
+export const SEC_NEUTRAL = 60; // where the ledgers drift home
+export const SEC_W = { school: 0.3, fans: 0.3, players: 0.25, pub: 0.15 };
+
+export interface OpTracks {
+  school: number; // the dean: students, fairness, clean paperwork
+  fans: number; // the booster: wins, measured against THE SUCCESS CYCLE
+  players: number; // the locker room: squad mood, derived live
+  pub: number; // Scoop: fairness, cheating, attention
+}
+
+export function opTracks(s: GameState): OpTracks {
+  const t = s.teams[s.myTeamId];
+  const pool = t?.players ?? [];
+  const avgMood = pool.length ? pool.reduce((a, p) => a + p.mood, 0) / pool.length : 60;
+  return {
+    school: clamp(Math.round(s.opSchool ?? SEC_NEUTRAL), 0, 100),
+    fans: clamp(Math.round(s.opFans ?? SEC_NEUTRAL), 0, 100),
+    players: clamp(Math.round((avgMood - SEC_PIVOT) * SEC_STRETCH), 0, 100),
+    pub: clamp(Math.round(s.opPublic ?? SEC_NEUTRAL), 0, 100),
+  };
+}
+
+/** JOB SECURITY 0–100. Seasons 1–2 floor at 25 — the school is patient with
+    a new coach, for a while. */
+export function security(s: GameState): number {
+  const o = opTracks(s);
+  const avg = o.school * SEC_W.school + o.fans * SEC_W.fans + o.players * SEC_W.players + o.pub * SEC_W.pub;
+  const mn = Math.min(o.school, o.fans, o.players, o.pub);
+  const sec = Math.round((1 - SEC_MIN_BLEND) * avg + SEC_MIN_BLEND * mn);
+  return s.season <= 2 ? clamp(sec, 25, 100) : clamp(sec, 0, 100);
 }

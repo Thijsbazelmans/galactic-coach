@@ -74,9 +74,25 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('lost to you forever')) throw new Error('cut confirm dialog missing');
   anyWin.gcAction('confirm-roster', '');
   drain();
-  if (!['stories', 'scouting'].includes(state().phase)) throw new Error(`expected season start, got ${state().phase}`);
+  if (!['stories', 'facilities'].includes(state().phase)) throw new Error(`expected season start, got ${state().phase}`);
   drain();
-  if (state().phase !== 'scouting') throw new Error(`expected scouting, got ${state().phase}`);
+  if (state().phase !== 'facilities') throw new Error(`expected facilities, got ${state().phase}`);
+
+  // FACILITIES: six buildings, the mop, and an upgrade ordered for next week
+  if (!app.innerHTML.includes('FACILITIES')) throw new Error('facilities screen missing');
+  if (!app.innerHTML.includes('GRAB A MOP')) throw new Error('the mop is missing');
+  if (app.querySelectorAll('.facrow').length !== 6) throw new Error('expected six facility rows');
+  const e0 = (gc.state() as any).energy;
+  anyWin.gcAction('fac-upgrade', 'cryo');
+  if (!(gc.state() as any).futureBeats.some((b: any) => b.defId === 'facility_arrives')) throw new Error('upgrade not ordered');
+  if ((gc.state() as any).energy >= e0) throw new Error('upgrade cost nothing');
+  for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* the order confirmation */ }
+  anyWin.gcAction('grab-mop', '');
+  for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* mop flavor */ }
+  drain(); // or the janitor hands an item instead
+  anyWin.gcAction('to-scouting', '');
+  drain();
+  if (state().phase !== 'scouting') throw new Error(`expected scouting after the campus, got ${state().phase}`);
 
   // the bottom stack (Aug 29 order): lens tabs → the big button → the bag
   const stack = [...app.querySelectorAll('.navbar, .lensbar, .bagbar')].map((el) => (el as unknown as { className: string }).className.split(' ')[0]);
@@ -250,17 +266,36 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('THE STANDINGS')) throw new Error('standings screen missing');
   if (app.innerHTML.includes('AROUND THE LEAGUE')) throw new Error('other results should have left the standings screen');
   anyWin.gcAction('continue-result', '');
-  drain(); // travel-home story, if the game was away
+  drain(); // the wrap-up dialogues: returns, the dean, the cryo bay arriving
   if (state().phase !== 'weekstart') throw new Error(`expected weekstart, got ${state().phase}`);
   if (!app.innerHTML.includes('WEEK START')) throw new Error('WEEK START screen missing');
+  if ((gc.state() as any).facilities.cryo !== 2) throw new Error('the ordered upgrade never arrived');
   anyWin.gcAction('begin-week', '');
   drain();
-  if (state().phase !== 'scouting') {
+  if (state().phase !== 'facilities') {
     const q = (gc.state() as any).queue[0];
-    throw new Error(`expected scouting after week start, got ${state().phase} (stuck on ${q?.defId}/${q?.beat} "${q?.tag}" · choices ${JSON.stringify(q?.choices?.map((c: any) => [c.key, c.cost, c.disabled]))} · ¢${(gc.state() as any).energy})`);
+    throw new Error(`expected facilities after week start, got ${state().phase} (stuck on ${q?.defId}/${q?.beat} "${q?.tag}" · choices ${JSON.stringify(q?.choices?.map((c: any) => [c.key, c.cost, c.disabled]))} · ¢${(gc.state() as any).energy})`);
+  }
+  anyWin.gcAction('to-scouting', '');
+  drain();
+  if (state().phase !== 'scouting') throw new Error(`expected scouting after the campus, got ${state().phase}`);
+
+  // THE CAMPUS CAST + SEASON MOMENTS (260830): the new illustrations render
+  // without throwing (canvas is stubbed — we assert the scene/figure box shows)
+  const storyFn = (gc as unknown as { story: (d: string, b: string, p: number | null, dt?: Record<string, unknown>) => void }).story;
+  for (const [defId, data] of [
+    ['oracle', {}],
+    ['goblin_bill', {}],
+    ['bigbang_invite', { place: 1, record: '9-1' }],
+    ['bigbang_out', { round: 0, opp: 'KRO WRAITHS', score: '55-70' }],
+  ] as [string, Record<string, unknown>][]) {
+    storyFn(defId, 'start', null, data);
+    if (!app.innerHTML.includes('storypanel')) throw new Error(`story panel missing for ${defId}`);
+    if (!app.innerHTML.includes('scenebox')) throw new Error(`illustration missing for ${defId}`);
+    drain();
   }
 
-  console.log('UI SMOKE OK — pick team → tryouts → scouting → lenses → drill → recruiting → pregame move → live game → YOU WON/LOST → box score → league → WEEK START → scouting');
+  console.log('UI SMOKE OK — pick team → tryouts → scouting → lenses → drill → recruiting → pregame move → live game → YOU WON/LOST → box score → league → WEEK START → scouting → campus cast renders');
 }
 
 main().catch((e) => {

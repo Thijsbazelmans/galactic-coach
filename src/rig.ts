@@ -1108,8 +1108,8 @@ export function iconOutlinedUrl(kind: IconKind, color = '#7dfc9a'): string {
 // Each scene/figure renders as a 24-frame sheet on the same CSS steps() loop
 // as the player rigs. The team's color is the accent (stripe, fin, tie).
 
-export type SceneId = 'bus-move' | 'bus-stranded' | 'bus-hoop' | 'saucer-move' | 'saucer-stranded' | 'saucer-hoop';
-export type FigureId = 'dean' | 'booster' | 'scoop' | 'janitor' | 'assistant' | 'attendant';
+export type SceneId = 'bus-move' | 'bus-stranded' | 'bus-hoop' | 'saucer-move' | 'saucer-stranded' | 'saucer-hoop' | 'tourney' | 'champs' | 'seasonlost';
+export type FigureId = 'dean' | 'booster' | 'scoop' | 'janitor' | 'assistant' | 'attendant' | 'oracle' | 'cheerleader' | 'nerd' | 'ref' | 'bookie' | 'goblin';
 export type FigureMood = 'neutral' | 'worried' | 'mad' | 'elated';
 
 const IL_BODY = '#2e3d74', IL_DARK = '#232c4e', IL_WIN = '#7fd8ec', IL_WHITE = '#e8ecf8',
@@ -1185,6 +1185,7 @@ function ilSaucerBody(R: RFn, ox: number, y: number, lightFn: (i: number) => str
 const SCENE_SIZE: Record<SceneId, [number, number]> = {
   'bus-move': [64, 32], 'bus-stranded': [64, 32], 'bus-hoop': [64, 32],
   'saucer-move': [48, 28], 'saucer-stranded': [48, 28], 'saucer-hoop': [48, 28],
+  tourney: [64, 44], champs: [64, 44], seasonlost: [64, 44],
 };
 
 function drawScene(R: RFn, scene: SceneId, acc: string, f: number): void {
@@ -1226,6 +1227,72 @@ function drawScene(R: RFn, scene: SceneId, acc: string, f: number): void {
       ilCourtNight(R, 48, 28, f, 21, 40);
       ilSaucerBody(R, -8, 12, (i) => (i + Math.floor(f / 3)) % 7 === 0 ? acc : IL_DARK);
       ilHoopBall(R, f, 40, 21);
+      break;
+    }
+    // ---- SEASON MOMENTS (fromDesign/260830, turn 4) --------------------------
+    case 'tourney': {
+      // the bus pulls up to the great stone arena: searchlights, beacon spire,
+      // chasing marquee lights
+      ilStars(R, 64, 44, f);
+      const ph = [0, 1, 2, 3, 2, 1][f % 6];
+      ([[16, 26], [48, 26]] as [number, number][]).forEach(([bx, by], s) => {
+        const a = s ? 3 - ph : ph;
+        for (let i = 0; i < 12; i++) {
+          const dx = Math.round((a - 1.5) * i * 0.6);
+          R(bx + dx - 1 + (s ? -i >> 2 : i >> 2), by - 2 - i * 2, 2 + (i >> 2), 2, i < 4 ? '#c8cdd6' : '#8a91a6');
+        }
+      });
+      R(6, 26, 52, 12, '#5c4a33'); R(6, 26, 52, 1, '#7a6344');
+      for (let i = 0; i < 6; i++) R(14 + i * 6, 20 - (i % 2), 4, 6 + (i % 2), '#6e5638');
+      R(10, 22, 44, 4, '#6e5638'); R(28, 14, 8, 8, '#7a6344'); R(30, 10, 4, 4, acc);
+      if (f % 4 < 2) R(31, 8, 2, 2, IL_FL1);
+      R(0, 38, 64, 6, '#141828'); R(0, 38, 64, 1, '#232a44');
+      ilBusBody(R, acc, f, -4, 27, { lights: true, beacon: f % 4 < 2 });
+      R(16, 2, 32, 8, '#0f1220'); R(16, 2, 32, 1, acc); R(16, 9, 32, 1, acc);
+      const on = f % 6 < 3;
+      [20, 26, 32, 38, 44].forEach((x, i) => R(x, 5, 3, 3, (i + (on ? 0 : 1)) % 2 ? IL_FL1 : acc));
+      break;
+    }
+    case 'champs': {
+      // the gold trophy on the podium: team-color confetti, star bursts, flashes
+      R(0, 0, 64, 44, '#141828');
+      for (let i = 0; i < 22; i++) {
+        const x = (i * 11 + f * 2 * (i % 2 ? 1 : -1) + 64) % 64, y = (i * 7 + f * 3) % 40;
+        R(x, y, 1, i % 3 ? 1 : 2, [acc, IL_FL1, '#f36ad2', IL_WIN][i % 4]);
+      }
+      R(0, 40, 64, 4, '#232a44'); R(0, 40, 64, 1, '#39406b');
+      R(20, 30, 24, 10, '#2e3d74'); R(20, 30, 24, 1, acc); R(29, 33, 6, 5, '#232c4e');
+      const G = IL_FL1, Gd = '#c9973f';
+      R(26, 10, 12, 8, G); R(27, 18, 10, 2, Gd); R(24, 11, 2, 4, G); R(38, 11, 2, 4, G);
+      R(30, 20, 4, 4, Gd); R(28, 24, 8, 2, G); R(26, 26, 12, 2, Gd);
+      R(28, 12, 2, 4, '#fff2c0');
+      const big = f % 6 < 3;
+      ([[10, 8], [50, 14], [14, 24]] as [number, number][]).forEach(([x, y], i) => {
+        if ((i + (big ? 0 : 1)) % 2) { R(x, y - 1, 1, 3, '#f4f6fa'); R(x - 1, y, 3, 1, '#f4f6fa'); }
+        else R(x, y, 1, 1, '#8a8f9e');
+      });
+      if (f % 4 < 2) { R(22, 6, 2, 2, acc); R(42, 5, 2, 2, acc); }
+      break;
+    }
+    case 'seasonlost': {
+      // rain over an empty outdoor court: a lone hoop, a sagging net, the
+      // ball left at center court, one flickering lamp
+      R(0, 0, 64, 44, '#10131c');
+      for (let i = 0; i < 14; i++) {
+        const x = (i * 9 + 4) % 64, y = (i * 13 + f * 5) % 38;
+        R(x, y, 1, 2, IL_DIM);
+      }
+      R(0, 38, 64, 6, '#141828'); R(0, 38, 64, 1, '#232a44');
+      R(24, 40, 16, 1, '#1e2436'); R(10, 41, 2, 2, '#1e2436'); R(52, 41, 2, 2, '#1e2436');
+      R(46, 12, 2, 26, '#3c4150');
+      R(44, 26, 4, 1, '#2b3040');
+      R(40, 8, 2, 10, '#5a6070'); R(40, 8, 2, 1, '#3c4150'); R(42, 12, 4, 1, '#3c4150');
+      R(34, 14, 6, 1, '#8a6d47'); R(33, 15, 2, 1, '#8a6d47');
+      R(33, 16, 1, 4, '#5a6070'); R(38, 15, 1, 5, '#5a6070'); R(34, 19, 2, 1, '#5a6070'); R(36, 20, 2, 1, '#5a6070');
+      if (f % 5 < 1) R(34, 21, 1, 2, IL_DIM);
+      R(30, 36, 3, 2, '#7d4315'); R(30, 35, 3, 1, '#c9752e');
+      R(10, 0, 1, 8, '#3c4150'); R(9, 8, 3, 2, f % 9 < 6 ? '#8a6d2f' : '#4e4234');
+      if (f % 2) R(18, 41, 8, 1, '#1c2542');
       break;
     }
   }
@@ -1335,60 +1402,60 @@ const REPORTER_MAP = [
   '......ooo.ooo.ooo.........',
   '......ooo.ooo.ooo.........'];
 
-// THE JANITOR (fromDesign/260829): flat cap, grey coveralls, chest patch in
-// team color — the item-giver of THE SUPPLY CLOSET. Face shares the dean's
-// pixel coordinates, so the mood edits are shared too.
+// THE JANITOR (fromDesign/260830): a QUADRAN now — four arms, the side pair
+// on the hips, the wide pair with the mop and the water bucket. The face
+// sits on the reporter's coordinates, so those mood edits are shared.
 const JANITOR_MAP = [
-  '........cccccccc........',
-  '.......cccccccccc.......',
-  '......cccccccccccc......',
-  '.......cssssssssc.......',
-  '.......cssssssssc.......',
-  '.......ckeksskekc.......',
-  '.......cssssssssc.......',
-  '.......csskksssdc.......',
-  '........ssssssss........',
-  '..........ssss..........',
-  '.........uuuuuu.........',
-  '......uuuuuuuuuuuu......',
-  '....uuuuuuUttUuuuuuu....',
-  '....uu.uuuUttUuuu.uu....',
-  '....uu.uuuuuuuuuu.uu....',
-  '....uu.uuuuUUuuuu.uu....',
-  '....ss.uuuuuuuuuu.ss....',
-  '.......uuuuuuuuuu.......',
-  '.......uuu....uuu.......',
-  '.......uuu....uuu.......',
-  '.......UUu....uUU.......',
-  '......ooo......ooo......',
-  '......ooo......ooo......'];
+  '..........................',
+  '..........................',
+  '..........................',
+  '..........................',
+  '........ssssssss..........',
+  '........sekseksd..........',
+  '........ssssssss..........',
+  '........sskkssss..........',
+  '.........ssssss...........',
+  '...........ss.............',
+  '.......uuuuuuuuuu.........',
+  '..ss.uuuuuuuuuuuuuu.ss....',
+  '..ss.uuuuuuuuuuuuuu.ss....',
+  '.....uu.uuuuuuuuu.uu......',
+  '.....uu.uuuuuuuuu.uu......',
+  '.....ss.wwwwwwwww.ss......',
+  '.......UUUUUUUUUU.........',
+  '.......ss......ss.........',
+  '.......ww......ww.........',
+  '.......oo......oo.........'];
 
-// THE ASSISTANT COACH (fromDesign/260829): team-color cap and jacket stripe,
-// a whistle on a cord, a clipboard always in hand — the future tutorial voice.
+// THE ASSISTANT COACH (fromDesign/260830): tall dark-skinned femme terran —
+// a head taller than the rest: twin ponytails, long torso and legs, track
+// jacket, whistle, clipboard.
 const ASSISTANT_MAP = [
-  '........tttttttt........',
-  '.......tttttttttt.......',
-  '......tttttttttttt......',
-  '.......tsssssssst.......',
-  '.......tsssssssst.......',
-  '.......tkeksskekt.......',
-  '.......tsssssssst.......',
-  '.......tsskksssdt.......',
-  '........ssssssss........',
-  '..........ssss..........',
-  '.........uuyuuu.........',
-  '......uuuuuyuuuuuu......',
-  '....uuuuutttttuuuuuu....',
-  '....uu.uuutttuuuu.uu....',
-  '....uu.uuuuuuuuuu.uu....',
-  '....uu.uuuuuuuuuu.uu....',
-  '....ss.uuuuuuuuuu.bb....',
-  '.......uuuuuuuuuu.bb....',
-  '.......UUu....uUU.......',
-  '.......UUu....uUU.......',
-  '.......UUu....uUU.......',
-  '......ooo......ooo......',
-  '......ooo......ooo......'];
+  '......hh........hh........',
+  '......hh.hhhhhh.hh........',
+  '......hhhhhhhhhhhh........',
+  '......hhhssssssshh........',
+  '......hhsekseksdhh........',
+  '.......hssssssssh.........',
+  '.......hsskkssssh.........',
+  '......hh.ssssss.hh........',
+  '......hh...ss...hh........',
+  '.......uuuuuuuuuu.........',
+  '.....uuuuuuuuuuuuuu.......',
+  '.....uu.uuuuuuuuu.uu......',
+  '.....uu.uuwwuuuuu.uu......',
+  '.....uu.uuuuuuuuu.uu......',
+  '.....uu.uuuuuuuuu.CC......',
+  '.....ss.uuuuuuuuu.CC......',
+  '.......uuuuuuuuuu.........',
+  '.......UUUUUUUUUU.........',
+  '.......UU......UU.........',
+  '.......UU......UU.........',
+  '.......ss......ss.........',
+  '.......ss......ss.........',
+  '.......ss......ss.........',
+  '.......ss......ss.........',
+  '.......oo......oo.........'];
 
 // THE GAS STATION ATTENDANT (fromDesign/260829, option 3g): a gelid in a
 // service cap and coveralls, the ring stack rippling below — reads engine
@@ -1460,15 +1527,6 @@ const REPORTER_CHEER: PixEdit[] = (() => {
   return out;
 })();
 
-const WORKER_CHEER: PixEdit[] = (() => {
-  // arms up: the sleeves leave the sides and rise past the shoulders
-  const out: PixEdit[] = [];
-  for (let y = 13; y <= 16; y++) [4, 5, 18, 19].forEach((x) => out.push([y, x, '.']));
-  ([[11, 'u'], [10, 'u']] as [number, string][]).forEach(([y, ch]) => [4, 5, 18, 19].forEach((x) => out.push([y, x, ch])));
-  [4, 5, 18, 19].forEach((x) => out.push([9, x, 's']));
-  return out;
-})();
-
 function deanPal(acc: string): Record<string, string> {
   return { h: '#b9bec9', s: '#c08a5e', d: '#a06f45', k: '#1a1e2e', e: '#f4f6fa',
     w: '#e8ecf8', u: '#6b4a2f', U: '#4e3520', o: '#3a2a1c', t: acc, y: '#ffd76a' };
@@ -1484,14 +1542,368 @@ function reporterPal(acc: string): Record<string, string> {
 function attendantPal(acc: string): Record<string, string> {
   return { s: '#78b955', d: '#5f9a40', k: '#1a1e2e', e: '#f4f6fa', u: '#4a5a7a', o: '#1a1e2e', t: acc, w: '#e8ecf8', y: '#ffd76a' };
 }
-function janitorPal(acc: string): Record<string, string> {
-  return { c: '#3d5a63', s: '#c08a5e', d: '#a06f45', k: '#1a1e2e', e: '#f4f6fa',
-    u: '#5a6472', U: '#3e4650', t: acc, o: '#26262e', w: '#e8ecf8', y: '#ffd76a' };
+// ---- THE CAMPUS CAST (fromDesign/260830 "Illustration Options", turn 3) ------
+// Recurring characters built from the game species, each acting the four
+// states: the oracle (nimbus, never blinks), the head cheerleader (hexid,
+// pom-poms fly), the campus nerd (oculid, glasses ON the stalks), the
+// quadran janitor, the tall femme assistant, the petran referee, the gelid
+// attendant, the bookie (one squinted eye, gold tooth, something much larger
+// blinking red in the shadows) and the mech-goblins (a lead, two helpers).
+
+function mkClear(rows: number[], cols: number[]): PixEdit[] {
+  const out: PixEdit[] = [];
+  rows.forEach((y) => cols.forEach((x) => out.push([y, x, '.'])));
+  return out;
 }
-function assistantPal(acc: string): Record<string, string> {
-  return { s: '#8a5a36', d: '#6d4527', k: '#1a1e2e', e: '#f4f6fa',
-    u: '#2e3d74', U: '#232c4e', t: acc, o: '#e8ecf8', b: '#b9bec9',
-    w: '#e8ecf8', y: '#ffd76a' };
+function mkFill(rows: number[], cols: number[], ch: string): PixEdit[] {
+  const out: PixEdit[] = [];
+  rows.forEach((y) => cols.forEach((x) => out.push([y, x, ch])));
+  return out;
+}
+const STD_BLINK: [number, number][] = [[5, 9], [5, 12]];
+
+const ORACLE_MAP = [
+  '.........ee.ee............',
+  '.........ek.ek............',
+  '..........s..s............',
+  '..........ssss............',
+  '.........ssssss...........',
+  '.........ssssss...........',
+  '........ssssssss..........',
+  '........sskkssss..........',
+  '.........ssssss...........',
+  '.......uuuuuuuuuu.........',
+  '......uuuutttuuuuu........',
+  '.....uu.uuuuuuuuu.uu......',
+  '.....uu.uuuuuuuuu.uu......',
+  '.....ss.uuuuuuuuu.ss......',
+  '.......uuuuuuuuuu.........',
+  '........uuuuuuuu..........',
+  '.........uuuuuu...........',
+  '.........u.uu.u...........',
+  '..........u..u............'];
+const ORACLE_STATES: Record<FigureMood, PixEdit[]> = {
+  neutral: [],
+  worried: [[7, 9, 'k'], [7, 12, 'k']],
+  mad: [[0, 9, 'k'], [0, 10, 'k'], [0, 12, 'k'], [0, 13, 'k'], [7, 9, 'k'], [7, 12, 'k'], [7, 10, 'e'], [7, 11, 'e']],
+  elated: [[0, 9, 'y'], [0, 10, 'y'], [0, 12, 'y'], [0, 13, 'y'], [1, 9, 'y'], [1, 10, 'y'], [1, 12, 'y'], [1, 13, 'y'], [7, 10, 'e'], [7, 11, 'e'], [8, 10, 'k'], [8, 11, 'k']],
+};
+
+const CHEER_MAP = [
+  '........h......h..........',
+  '.........h....h...........',
+  '.........h....h...........',
+  '........hhhhhhhh..........',
+  '........ssssssss..........',
+  '........sekseksd..........',
+  '........ssssssss..........',
+  '........sskkssss..........',
+  '.........ssssss...........',
+  '...........ss.............',
+  '.......tttttttttt.........',
+  '...gg..tttttttttt..gg.....',
+  '..gggg.tttttttttt.gggg....',
+  '..gggg.wwwwwwwwww.gggg....',
+  '...gg..tttttttttt..gg.....',
+  '.......t.tt..tt.t.........',
+  '......ss.ss..ss.ss........',
+  '......ss.ss..ss.ss........',
+  '......ww.ww..ww.ww........',
+  '......oo.oo..oo.oo........'];
+
+const NERD_MAP = [
+  '..........................',
+  '........kkk.kkk...........',
+  '........kek.kek...........',
+  '........kkk.kkk...........',
+  '.........s...s............',
+  '.........s...s............',
+  '.........ssssss...........',
+  '........sskkssss..........',
+  '.........ssssss...........',
+  '...........ss.............',
+  '.......wwwwwwwwww.........',
+  '.....ss.wwwwttwwww.ss.....',
+  '.....ss.wwwwttwwww.ss.....',
+  '.....ss.wwwwttwwww.ss.....',
+  '.......UUUUUUUUUU.........',
+  '......UU.UU.UU.UU.........',
+  '......UU.UU.UU.UU.........',
+  '......oo.oo.oo.oo.........'];
+const NERD_STATES: Record<FigureMood, PixEdit[]> = {
+  neutral: [],
+  worried: [[7, 9, 'k'], [7, 12, 'k']],
+  mad: [[0, 8, 'k'], [0, 9, 'k'], [0, 13, 'k'], [0, 14, 'k'], [7, 9, 'k'], [7, 12, 'k'], [7, 10, 'e'], [7, 11, 'e']],
+  elated: [[2, 9, 'y'], [2, 13, 'y'], [7, 10, 'e'], [7, 11, 'e'], [8, 10, 'k'], [8, 11, 'k']],
+};
+
+const REF_MAP = [
+  '..........................',
+  '..........................',
+  '..........................',
+  '........ssssssss..........',
+  '........ssssdsss..........',
+  '........sekseksd..........',
+  '........ssssssss..........',
+  '........sskkssss..........',
+  '.........ssssss...........',
+  '...........ss.............',
+  '.......wkwkwkwkww.........',
+  '....ss.wkwkwkwkww.ss......',
+  '....ss.wkwkwkwkww.ss......',
+  '....ss.wkwkwkwkww.ss......',
+  '....ss.wkwkwkwkww.ss......',
+  '.......UUUUUUUUUU.........',
+  '.......UU......UU.........',
+  '.......ss......ss.........',
+  '.......dd......dd.........',
+  '.......oo......oo.........'];
+
+const BOOKIE_MAP = [
+  '........kkkkkkkk..........',
+  '.......kkkkkkkkkk.........',
+  '........tttttttt..........',
+  '........ssssssss..........',
+  '........sKsseksd..........',
+  '........ssssssss..........',
+  '........ssKKgsss..........',
+  '.........ssssss...........',
+  '...........ss.............',
+  '.......uuKuKuKuu..........',
+  '.....uuuuKuKuKuuuu........',
+  '.....uu.uKuKuKuu.uu.......',
+  '.....uu.KuKuKuKu.uu.......',
+  '.....uu.uKuKuKuu.uu.......',
+  '.....ss.KuKuKuKu.ss.......',
+  '.......UUUUUUUUUU.........',
+  '.......UU......UU.........',
+  '.......UU......UU.........',
+  '.......ss......ss.........',
+  '.......oo......oo.........'];
+const BOOKIE_STATES: Record<FigureMood, PixEdit[]> = {
+  neutral: [],
+  worried: [[6, 9, 'K'], [6, 12, 'K']],
+  mad: [[3, 9, 'K'], [3, 10, 'K'], [3, 12, 'K'], [3, 13, 'K'], [6, 9, 'K'], [6, 12, 'K'], [6, 10, 'e'], [6, 11, 'e'], [6, 13, 's']],
+  elated: [[4, 9, 'y'], [4, 10, 'y'], [4, 12, 'y'], [4, 13, 'y'], [6, 9, 'K'], [6, 12, 'K'], [6, 10, 'e'], [6, 11, 'e'], [7, 10, 'K'], [7, 11, 'K']],
+};
+
+const GOBLIN_MAP = [
+  '...........yy.............',
+  '...........cc.............',
+  '........cccccccc..........',
+  '........cccccccc..........',
+  '........cccccccc..........',
+  '........cekcekcc..........',
+  '........cccccccc..........',
+  '........cckkcccc..........',
+  '.........cccccc...........',
+  '...........cc.............',
+  '.......uuuuuuuuuu.........',
+  '.....cc.uuuuuuuuuu.cc.....',
+  '.....cc.uuuuuuuuuu.cc.....',
+  '.....ww.uuuuuuuuuu.cc.....',
+  '.......uuuuuuuuuu.........',
+  '.......cc......cc.........',
+  '.......oo......oo.........'];
+const GOBLIN_MINI = [
+  '...yy...',
+  'cccccccc',
+  'cekcekcc',
+  'cckkcccc',
+  '.cccccc.',
+  'cc.cc.cc',
+  'oo.oo.oo'];
+
+interface CastDef {
+  map: string[];
+  st: Record<FigureMood, PixEdit[]>;
+  blink: [number, number][] | null;
+  cheer: PixEdit[];
+  oy: number;
+  bob?: boolean;
+  ripple?: [number, number];
+  fx: [number, number, number, number];
+  bg: (R: RFn, f: number, acc: string) => void;
+  pal: (acc: string) => Record<string, string>;
+  extra?: (R: RFn, f: number, oy: number, pal: Record<string, string>) => void;
+}
+
+/** The oracle's crystal cave: pulsing crystals, the hut with the lit window. */
+function oracleBg(R: RFn, f: number): void {
+  R(0, 0, 64, 44, '#150f24');
+  for (let i = 0; i < 14; i++) { const x = (i * 9 + 2) % 64, y = (i * 5 + 1) % 40; if ((i + f) % 7 < 5) R(x, y, 1, 1, '#3c3152'); }
+  ([[8, 10], [56, 22]] as [number, number][]).forEach(([x, y], i) => { const b = (Math.floor(f / 3) + i) % 2; R(x, y + b, 2, 3, '#7fd8ec'); R(x, y + 1 + b, 2, 1, '#e8ecf8'); });
+  R(48, 30, 12, 10, '#241b3d'); R(47, 30, 14, 1, '#3c3152');
+  R(50, 26, 8, 1, '#4a3f7a'); R(51, 25, 6, 1, '#4a3f7a'); R(52, 24, 4, 1, '#4a3f7a'); R(53, 23, 2, 1, '#4a3f7a');
+  R(52, 34, 3, 6, '#150f24');
+  R(56, 32, 2, 2, f % 6 < 3 ? '#ffd76a' : '#8a6d2f');
+  R(12, 40, 40, 4, '#241b3d'); if (f % 4 < 2) R(16, 39, 32, 1, '#7fd8ec');
+}
+function cheerBg(R: RFn, _f: number, acc: string): void {
+  R(0, 0, 64, 40, '#3a2d20');
+  for (let y = 8; y < 36; y += 8) R(0, y, 64, 1, '#2e2318');
+  for (let i = 0; i < 8; i++) { const x = 2 + i * 8, c = i % 2 ? acc : '#e8ecf8'; R(x, 2, 4, 2, c); R(x + 1, 4, 2, 1, c); }
+  R(0, 40, 64, 4, '#8a6d47'); R(0, 40, 64, 1, '#a3855c');
+}
+function nerdBg(R: RFn): void {
+  R(0, 0, 64, 40, '#241f19');
+  const cols = ['#8a3d33', '#2e3d74', '#5f9a40', '#8a6d2f', '#4a3f7a'];
+  for (let sy = 0; sy < 3; sy++) { const y = 3 + sy * 12; R(2, y + 8, 60, 2, '#4e4234'); for (let i = 0; i < 15; i++) { const dy = i % 3 === 0 ? 1 : 0; R(3 + i * 4, y + dy, 3, 8 - dy, cols[(i + sy) % 5]); } }
+  R(0, 40, 64, 4, '#3a3128');
+}
+function equipBg(R: RFn, f: number): void {
+  R(0, 0, 64, 40, '#2a2d33');
+  R(0, 24, 64, 1, '#3c4150');
+  for (let i = 0; i < 8; i++) { const x = 2 + i * 8; R(x, 4, 6, 20, '#3c4855'); R(x, 4, 6, 1, '#4d5a68'); R(x + 2, 12, 2, 1, '#1a1e2e'); }
+  R(0, 40, 64, 4, '#454a52'); R(0, 40, 64, 1, '#5a606a');
+  R(50, 32, 8, 8, '#ffd76a'); R(53, 33, 2, 5, '#1a1e2e');
+  if (f % 4 < 2) R(30 + (f % 8), 41, 3, 1, '#7fd8ec');
+}
+function coachBg(R: RFn, f: number, acc: string): void {
+  R(0, 0, 64, 40, '#241f19');
+  R(8, 6, 30, 18, '#e8ecf8'); R(8, 6, 30, 1, '#3c4150'); R(8, 23, 30, 1, '#3c4150'); R(8, 6, 1, 18, '#3c4150'); R(37, 6, 1, 18, '#3c4150');
+  R(12, 10, 2, 2, '#1a1e2e'); R(12, 16, 2, 2, '#1a1e2e'); R(28, 13, 2, 2, '#8a3d33');
+  R(16 + (f % 4), 14, 3, 1, acc);
+  R(44, 26, 16, 3, '#4e4234'); R(45, 29, 2, 6, '#3a3128'); R(57, 29, 2, 6, '#3a3128');
+  R(0, 40, 64, 4, '#8a6d47'); R(0, 40, 64, 1, '#a3855c');
+}
+function refBg(R: RFn, f: number): void {
+  R(0, 0, 64, 26, '#141828');
+  R(0, 26, 64, 18, '#8a6d47'); R(0, 26, 64, 1, '#a3855c');
+  const L = '#a89066';
+  R(20, 32, 24, 1, L); R(18, 33, 2, 6, L); R(44, 33, 2, 6, L); R(20, 39, 24, 1, L);
+  R(22, 3, 20, 10, '#0f1220'); R(22, 3, 20, 1, '#232a44');
+  const on = f % 6 < 3;
+  R(25, 6, 4, 4, on ? '#b6f36a' : '#26301c'); R(35, 6, 4, 4, on ? '#26301c' : '#8a3d33'); R(31, 7, 2, 2, '#3c4150');
+}
+function gasBg(R: RFn, f: number, acc: string): void {
+  ilStars(R, 64, 44, f);
+  R(0, 38, 64, 6, '#2a231b'); R(0, 38, 64, 1, '#3a3128');
+  R(4, 16, 12, 22, '#3c4150'); R(5, 18, 10, 6, f % 8 < 4 ? acc : '#26301c'); R(6, 26, 8, 2, '#141828');
+  R(16, 20, 2, 2, '#5f6878'); R(18, 21, 1, 14, '#5f6878');
+  R(6, 5, 10, 6, '#8a3d33'); R(7, 6, 8, 4, f % 2 ? '#ffd76a' : '#e08a3c'); R(10, 11, 2, 5, '#5f6878');
+}
+function bookieBg(R: RFn, f: number): void {
+  R(0, 0, 64, 40, '#12101a');
+  R(0, 0, 64, 14, '#1a1626');
+  // hulking silhouette seated behind, off to the right
+  const S = '#221e30';
+  R(34, 6, 22, 34, S); R(30, 12, 6, 22, S); R(54, 12, 8, 22, S);
+  R(38, 0, 14, 8, S); R(36, 2, 2, 4, S); R(52, 2, 2, 4, S);
+  R(28, 30, 8, 10, S); R(56, 30, 8, 10, S);
+  if (f % 8 < 5) { R(41, 3, 2, 2, '#8a3d33'); R(47, 3, 2, 2, '#8a3d33'); }
+  if (f % 16 > 11) R(43, 8 - (f % 2), 4, 1, '#3c3152');
+  R(0, 40, 64, 4, '#1c1926'); R(0, 40, 64, 1, '#2b2735');
+  R(10, 0, 1, 6, '#3c4150'); R(9, 6, 3, 3, f % 7 < 5 ? '#ffd76a' : '#8a6d2f');
+  R(4, 22, 8, 10, '#2b2933'); R(5, 23, 6, 3, '#3c3a45');
+}
+function goblinBg(R: RFn, f: number): void {
+  R(0, 0, 64, 44, '#181420');
+  R(0, 40, 64, 4, '#232030'); R(0, 40, 64, 1, '#3c4150');
+  const S = '#8a919e', Sd = '#5f6878';
+  const spanner = (x: number, y: number, len: number): void => {
+    R(x, y + 1, 3, 2, S); R(x - 1, y, 2, 2, S); R(x - 1, y + 3, 2, 2, S);
+    R(x + 3, y + 1, len, 2, S); R(x + 3, y + 2, len, 1, Sd);
+    R(x + 3 + len, y, 3, 4, S); R(x + 4 + len, y + 1, 1, 2, '#181420');
+  };
+  spanner(22, 2, 22);
+  spanner(26, 10, 15);
+  spanner(30, 17, 9);
+  if (f % 3 < 2) { R(12, 34 + (f % 2), 2, 1, '#ffd76a'); R(14, 33, 1, 1, '#f4f6fa'); }
+}
+
+const CAST: Partial<Record<FigureId, CastDef>> = {
+  oracle: {
+    map: ORACLE_MAP, st: ORACLE_STATES, blink: null, oy: 18, bob: true, fx: [37, 3, 35, 19],
+    bg: oracleBg,
+    cheer: mkClear([11, 12, 13], [5, 6, 18, 19]).concat(mkFill([9, 10], [5, 6, 18, 19], 'u'), mkFill([8], [5, 6, 18, 19], 's')),
+    pal: (acc) => ({ t: acc, s: '#a9d6e8', d: '#7fb5cc', k: '#1a1e2e', e: '#f4f6fa', u: '#4a3f7a', U: '#37305c', y: '#ffd76a' }),
+  },
+  cheerleader: {
+    map: CHEER_MAP, st: REPORTER_STATES, blink: STD_BLINK, oy: 20, fx: [42, 3, 35, 21],
+    bg: cheerBg,
+    cheer: mkClear([11, 12, 13, 14], [2, 3, 4, 5, 18, 19, 20, 21]).concat(mkFill([1, 2, 3, 4], [3, 4, 5, 6, 17, 18, 19, 20], 'g')),
+    pal: (acc) => ({ t: acc, s: '#c98a3f', d: '#a06a26', h: '#5a3a1a', k: '#1a1e2e', e: '#f4f6fa', g: '#f4f6fa', w: '#e8ecf8', o: '#1a1e2e', y: '#ffd76a' }),
+  },
+  nerd: {
+    map: NERD_MAP, st: NERD_STATES, blink: null, oy: 22, fx: [37, 4, 35, 23],
+    bg: nerdBg,
+    cheer: mkClear([11, 12, 13], [5, 6, 19, 20]).concat(mkFill([8, 9, 10], [5, 6, 19, 20], 's')),
+    pal: (acc) => ({ t: acc, s: '#c9a53f', d: '#a37f2c', k: '#1a1e2e', e: '#f4f6fa', w: '#e8ecf8', U: '#6b4a2f', o: '#1a1e2e', y: '#ffd76a' }),
+  },
+  janitor: {
+    map: JANITOR_MAP, st: REPORTER_STATES, blink: STD_BLINK, oy: 20, fx: [37, 3, 35, 21],
+    bg: equipBg,
+    cheer: mkClear([11, 12], [2, 3, 21, 22]).concat(mkFill([9, 10], [2, 3, 21, 22], 'u'), mkFill([8], [2, 3, 21, 22], 's')),
+    pal: (acc) => ({ t: acc, s: '#b0614a', d: '#8a4634', k: '#1a1e2e', e: '#f4f6fa', u: '#4a5a5f', U: '#37454a', w: '#e8ecf8', o: '#1a1e2e', y: '#ffd76a' }),
+    extra: (R, _f, oy) => {
+      // mop in one wide hand, bucket by the other
+      R(20, oy - 4, 1, 16, '#8a6d47');
+      R(18, oy + 12, 5, 2, '#c8cdd6'); R(18, oy + 14, 1, 2, '#e8ecf8'); R(20, oy + 14, 1, 2, '#e8ecf8'); R(22, oy + 14, 1, 2, '#e8ecf8');
+      R(40, oy + 12, 6, 4, '#5f6878'); R(41, oy + 12, 4, 1, '#7fd8ec'); R(39, oy + 11, 8, 1, '#3c4150');
+    },
+  },
+  assistant: {
+    map: ASSISTANT_MAP, st: REPORTER_STATES, blink: STD_BLINK, oy: 15, fx: [37, 3, 35, 16],
+    bg: coachBg,
+    cheer: mkClear([11, 12, 13, 14, 15], [5, 6, 18, 19]).concat(mkFill([9], [5, 6, 18, 19], 'u'), mkFill([8], [5, 6, 18, 19], 's')),
+    pal: (acc) => ({ t: acc, s: '#5d3a24', d: '#472b18', h: '#14100c', k: '#1a1e2e', e: '#f4f6fa', u: '#2e3d74', U: '#232c4e', w: '#ffd76a', C: '#c8a06a', o: '#1a1e2e', y: '#ffd76a' }),
+  },
+  ref: {
+    map: REF_MAP, st: REPORTER_STATES, blink: STD_BLINK, oy: 20, fx: [37, 3, 35, 21],
+    bg: refBg,
+    cheer: mkClear([11, 12, 13, 14], [4, 5, 18, 19]).concat(mkFill([8, 9, 10], [4, 5, 18, 19], 's')),
+    pal: (acc) => ({ t: acc, s: '#8a8f98', d: '#5f6470', k: '#1a1e2e', e: '#f4f6fa', w: '#e8ecf8', U: '#3c4150', o: '#1a1e2e', y: '#ffd76a' }),
+  },
+  attendant: {
+    map: ATTENDANT_MAP, st: REPORTER_STATES, blink: STD_BLINK, oy: 20, ripple: [14, 18], fx: [37, 3, 35, 21],
+    bg: gasBg,
+    cheer: ATTENDANT_CHEER,
+    pal: attendantPal,
+  },
+  bookie: {
+    map: BOOKIE_MAP, st: BOOKIE_STATES, blink: [[4, 9]], oy: 20, fx: [37, 3, 35, 21],
+    bg: bookieBg,
+    cheer: mkClear([11, 12, 13, 14], [5, 6, 17, 18]).concat(mkFill([9, 10], [5, 6, 17, 18], 'u'), mkFill([8], [5, 6, 17, 18], 's')),
+    // the hat band stays RED — a bookie wears nobody's colors
+    pal: () => ({ t: '#8a3d33', s: '#c08a5e', d: '#a06f45', k: '#6b4a2f', K: '#1a1e2e', e: '#f4f6fa', u: '#3c3a45', U: '#2b2933', g: '#ffd76a', w: '#e8ecf8', o: '#1a1e2e', y: '#ffd76a' }),
+  },
+  goblin: {
+    map: GOBLIN_MAP, st: REPORTER_STATES, blink: null, oy: 23, fx: [37, 3, 35, 24],
+    bg: goblinBg,
+    cheer: mkClear([11, 12, 13], [5, 6, 19, 20]).concat(mkFill([8, 9, 10], [5, 6, 19, 20], 'c'), [[7, 5, 'w'], [7, 6, 'w']] as PixEdit[]),
+    pal: (acc) => ({ t: acc, c: '#9aa3b5', C: '#5f6878', k: '#1a1e2e', e: '#f4f6fa', u: '#4a5058', w: '#c8cdd6', o: '#1a1e2e', y: '#ffd76a' }),
+    extra: (R, f, _oy, pal) => {
+      // the two bobbing helpers flank the lead
+      const bob = f % 6 < 3 ? 0 : 1;
+      ilDrawMap(R, GOBLIN_MINI, pal, 6, 32 + bob);
+      ilDrawMap(R, GOBLIN_MINI, pal, 48, 33 - bob);
+    },
+  },
+};
+
+/** One draw path for the whole campus cast: background, the acting body
+    (cheer / shrug / blink / ripple / bob), the character's extras, the icon. */
+function drawCast(R: RFn, who: FigureId, state: FigureMood, acc: string, f: number): void {
+  const C = CAST[who]!;
+  C.bg(R, f, acc);
+  const cheer = state === 'elated' && f % 8 < 4;
+  const shrug = state === 'mad' && f % 8 < 3;
+  const m = ilEdited(C.map, (C.st[state] ?? []).concat(cheer ? C.cheer : [])).map((r) => r.split(''));
+  if (C.blink && (state === 'neutral' || state === 'worried') && f % 14 < 2) {
+    C.blink.forEach(([y, x]) => { m[y][x] = 's'; });
+  }
+  if (C.ripple) {
+    for (let y = C.ripple[0]; y <= C.ripple[1]; y++) {
+      const ph = (y + Math.floor(f / 2)) % 4;
+      if (ph === 0) { m[y].pop(); m[y].unshift('.'); } else if (ph === 2) { m[y].shift(); m[y].push('.'); }
+    }
+  }
+  const oy = C.oy + (C.bob ? (f % 8 < 4 ? 0 : 1) : 0);
+  const pal = C.pal(acc);
+  drawChar(R, { rows: m.map((r) => r.join('')), shrug, he: 8 }, pal, 19, oy);
+  C.extra?.(R, f, oy, pal);
+  stateFx(R, f, state, C.fx[0], C.fx[1], C.fx[2], C.fx[3]);
 }
 
 function ilDrawMap(R: RFn, map: string[], pal: Record<string, string>, ox: number, oy: number): void {
@@ -1508,20 +1920,20 @@ function ilDrawIcon(R: RFn, x: number, y: number, pat: string[]): void {
 // the dean before the sepia college pediment, the booster on the landing pad
 // with his pink cadillac-ship idling, Scoop in the empty press room under
 // the blinking ON AIR sign.
-const FIGURE_SIZE: Record<FigureId, [number, number]> = { dean: [64, 44], booster: [64, 44], scoop: [64, 44], janitor: [64, 44], assistant: [64, 44], attendant: [64, 44] };
+const FIGURE_SIZE: Record<FigureId, [number, number]> = {
+  dean: [64, 44], booster: [64, 44], scoop: [64, 44], janitor: [64, 44], assistant: [64, 44], attendant: [64, 44],
+  oracle: [64, 44], cheerleader: [64, 44], nerd: [64, 44], ref: [64, 44], bookie: [64, 44], goblin: [64, 44],
+};
 
 interface FigState { rows: string[]; shrug: boolean; he: number }
 
 function figState(who: FigureId, state: FigureMood, f: number): FigState {
+  // only the three bespoke scenes route here — the campus cast has drawCast
   const cfg = {
     dean: { base: DEAN_MAP, st: DEAN_STATES, ch: DEAN_CHEER, he: 9, blink: [[5, 9], [5, 14]] as [number, number][] },
     booster: { base: BOOSTER_MAP, st: BOOSTER_STATES, ch: BOOSTER_CHEER, he: 8, blink: null },
     scoop: { base: REPORTER_MAP, st: REPORTER_STATES, ch: REPORTER_CHEER, he: 9, blink: [[5, 9], [5, 12]] as [number, number][] },
-    // the janitor and the assistant share the dean's face coordinates
-    janitor: { base: JANITOR_MAP, st: DEAN_STATES, ch: WORKER_CHEER, he: 9, blink: [[5, 9], [5, 14]] as [number, number][] },
-    assistant: { base: ASSISTANT_MAP, st: DEAN_STATES, ch: WORKER_CHEER, he: 9, blink: [[5, 9], [5, 14]] as [number, number][] },
-    attendant: { base: ATTENDANT_MAP, st: REPORTER_STATES, ch: ATTENDANT_CHEER, he: 9, blink: [[5, 9], [5, 12]] as [number, number][], ripple: [14, 18] as [number, number] },
-  }[who] as { base: string[]; st: Record<FigureMood, PixEdit[]>; ch: PixEdit[]; he: number; blink: [number, number][] | null; ripple?: [number, number] };
+  }[who as 'dean' | 'booster' | 'scoop'] as { base: string[]; st: Record<FigureMood, PixEdit[]>; ch: PixEdit[]; he: number; blink: [number, number][] | null; ripple?: [number, number] };
   const cheer = state === 'elated' && f % 8 < 4;
   const shrug = state === 'mad' && f % 8 < 3;
   const m = ilEdited(cfg.base, (cfg.st[state] ?? []).concat(cheer ? cfg.ch : [])).map((r) => r.split(''));
@@ -1572,6 +1984,11 @@ function ilCollege(R: RFn, W: number, H: number): void {
 
 function drawFigure(R: RFn, who: FigureId, state: FigureMood, acc: string, f: number): void {
   const W = 64, H = 44;
+  // the campus cast (260830) draws through the one shared path
+  if (CAST[who]) {
+    drawCast(R, who, state, acc, f);
+    return;
+  }
   if (who === 'dean') {
     ilCollege(R, W, H);
     drawChar(R, figState('dean', state, f), deanPal(acc), 20, 13);
@@ -1593,52 +2010,6 @@ function drawFigure(R: RFn, who: FigureId, state: FigureMood, acc: string, f: nu
     R(47, 6, 10, 3, f % 6 < 3 ? IL_RED : '#5a2430');
     drawChar(R, figState('scoop', state, f), reporterPal(acc), 24, 14);
     stateFx(R, f, state, 17, 7, 41, 16);
-    return;
-  }
-  if (who === 'janitor') {
-    // THE SUPPLY CLOSET: shelf of boxes, a swinging bulb, the mop and bucket
-    R(0, 0, W, H, '#1c1913');
-    R(0, 40, W, 4, '#141210'); R(0, 40, W, 1, '#2e2a22'); // floor
-    R(2, 8, 24, 2, '#4e4234'); R(2, 22, 24, 2, '#4e4234'); // shelf planks
-    [[3, 3], [10, 2], [17, 4]].forEach(([x, off]) => { R(x, off, 6, 5, '#5a4630'); R(x, off, 6, 1, '#6e5638'); });
-    [[4, 17], [12, 16], [19, 18]].forEach(([x, yy]) => { R(x, yy, 5, 5, '#3e3a4e'); R(x, yy, 5, 1, '#55506a'); });
-    // the hanging bulb, swinging one pixel, flickering warm
-    const bx = 44 + (f % 8 < 4 ? 0 : 1);
-    R(bx, 0, 1, 5, IL_CHROME_D);
-    R(bx - 1, 5, 3, 3, f % 11 === 0 ? '#8a6d47' : IL_FL1);
-    if (f % 11 !== 0) R(bx - 3, 8, 7, 1, 'rgba(255,215,106,0.25)');
-    // the mop leans on the wall; the bucket waits
-    R(56, 12, 1, 26, '#8a5a32'); R(57, 12, 1, 26, '#6d4527');
-    R(54, 36, 5, 4, '#d8dde8'); R(54, 36, 5, 1, '#9aa3b5');
-    R(48, 34, 7, 6, '#4e5a66'); R(48, 34, 7, 1, '#7fd8ec');
-    drawChar(R, figState('janitor', state, f), janitorPal(acc), 20, 15);
-    stateFx(R, f, state, 34, 4, 32, 12);
-    return;
-  }
-  if (who === 'attendant') {
-    // THE FUEL STOP: the pump with its glowing screen, the hose, the sign
-    // that buzzes — and the attendant reading your exhaust
-    ilStars(R, W, H, f);
-    R(0, 38, W, 6, '#2a231b'); R(0, 38, W, 1, '#3a3128');
-    R(4, 16, 12, 22, '#3c4150'); R(5, 18, 10, 6, f % 8 < 4 ? acc : '#26301c'); R(6, 26, 8, 2, '#141828');
-    R(16, 20, 2, 2, '#5f6878'); R(18, 21, 1, 14, '#5f6878');
-    R(6, 5, 10, 6, '#8a3d33'); R(7, 6, 8, 4, f % 2 ? '#ffd76a' : '#e08a3c'); R(10, 11, 2, 5, '#5f6878');
-    drawChar(R, figState('attendant', state, f), attendantPal(acc), 19, 20);
-    stateFx(R, f, state, 37, 3, 35, 21);
-    return;
-  }
-  if (who === 'assistant') {
-    // the practice gym: wood floor, a whiteboard mid-diagram, a blinking play
-    R(0, 0, W, 36, '#241f19');
-    R(0, 36, W, 8, '#6e5638'); R(0, 36, W, 1, '#8a6d47'); // hardwood
-    R(3, 4, 24, 18, '#e8ecf8'); R(2, 3, 26, 1, '#4e4234'); R(2, 22, 26, 1, '#4e4234'); // whiteboard
-    // X's, O's and the arrow — the play under construction
-    [[6, 8], [11, 15], [20, 9]].forEach(([x, yy]) => { R(x, yy, 2, 2, '#1a1e2e'); });
-    [[9, 12], [17, 17], [22, 15]].forEach(([x, yy]) => { R(x, yy, 2, 2, '#f36a6a'); });
-    R(8, 6, 10, 1, '#1a1e2e'); R(17, 5, 1, 3, '#1a1e2e');
-    if (f % 6 < 3) R(13, 12, 2, 2, acc); // the option he keeps circling
-    drawChar(R, figState('assistant', state, f), assistantPal(acc), 30, 13);
-    stateFx(R, f, state, 50, 4, 48, 12);
     return;
   }
   // the booster: starfield, landing pad, the pink cadillac-ship idling behind

@@ -16,7 +16,7 @@ import {
 import type { Attr, AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21; // v5 THE CAMPUS: facilities arrived, old saves feed the codex
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
 export const UT_WEEKS = 3; // QF, SF, THE UNIVERSAL FINAL
 export const ROSTER_SIZE = 9;
@@ -47,10 +47,13 @@ export const CONF_TIERS = [62, 55, 49, 44, 38];
 export const FOUNDER_TIER = 47;
 /** THE BIG BANG by round: first round · semifinal · the final */
 export const UT_TIERS: [number, number][] = [[62, 72], [68, 78], [72, 82]];
-/** the rubber band: per title / per season without a tournament win, and its walls */
-export const FIELD_HUNT = 3;
+/** the rubber band: per title / per season without a tournament win, and its
+    walls. Raised for THE CAMPUS era: a facilities-powered dynasty outgrew
+    the old +9 ceiling (headless: 11 titles in ten careers) — the field now
+    keeps hunting a repeat champion much longer. */
+export const FIELD_HUNT = 4;
 export const FIELD_EASE = 2;
-export const FIELD_MAX = 9;
+export const FIELD_MAX = 16;
 export const FIELD_MIN = -6;
 /** Meters live around 75. Natural recovery drifts HOME, never past it —
     the extremes (elated/angry, pumped/sleeping) belong to stories. */
@@ -363,6 +366,7 @@ const REGION_ROLL: Record<string, { shift: number; luck: number }> = {
   reccenter: { shift: -1, luck: -1 },
   home: { shift: -1, luck: 0 },
   nebula: { shift: 0, luck: 0 },
+  stormlayers: { shift: 0, luck: 0 },
   outerrim: { shift: 0, luck: 0 },
   deepcore: { shift: 0, luck: 1 },
 };
@@ -547,6 +551,12 @@ export function newGameState(): GameState {
     heatB: 0,
     interferedS: false,
     interferedB: false,
+    // JOB SECURITY: the school starts hopeful, everyone else neutral, and a
+    // brand-new program is expected to deliver next to nothing
+    opSchool: 70,
+    opFans: 60,
+    opPublic: 60,
+    expectation: 1,
     legacy: 0,
     trophies: 0,
     utTitles: 0,
@@ -559,7 +569,11 @@ export function newGameState(): GameState {
     notebook: [],
     legendariesUsed: [],
     unlockedDrills: ['shootaround', 'scrimmage', 'twodays', 'rest', 'bonfire'],
-    unlockedRegions: ['reccenter', 'home', 'nebula', 'outerrim'],
+    unlockedRegions: ['reccenter', 'home', 'nebula', 'stormlayers', 'outerrim'],
+    // THE CAMPUS: a normal career opens with everything at level 1 (the
+    // level-0 squalor belongs to the tutorial) — the LEVELS gate what the
+    // known drills/regions/acts above actually reach
+    facilities: { ship: 1, gym: 1, cryo: 1, library: 1, stadium: 1, greekrow: 1 },
     knownPlans: [...STARTING_PLANS],
     knownInstr: [...STARTING_INSTRUCTIONS],
     tipsSeen: [],

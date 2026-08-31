@@ -224,8 +224,9 @@ button.hold.wiggle::after {
 .etrack { flex: 1; min-width: 0; display: flex; gap: 2px; }
 .ecell { flex: 1; height: 13px; background: var(--r20); }
 
-/* JOB SECURITY: bright bar, darkness eats in from both sides */
-.jobbar { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 132px; }
+/* JOB SECURITY (v5): one bright bar, the darkness eats from the right —
+   tap it for the four opinions */
+.jobbar { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 132px; cursor: pointer; }
 .topbar.spotlight .chip, .topbar.spotlight .jobbar, .topbar.spotlight .weeklab, .topbar.spotlight .hbtns-col { opacity: 0.2; }
 /* the hot seat moved: everything else dims while the darkness visibly eats */
 .topbar.jobflash .chip, .topbar.jobflash .weeklab, .topbar.jobflash .ebar, .topbar.jobflash .hbtns-col { opacity: 0.2; }
@@ -250,6 +251,17 @@ button.hold.wiggle::after {
   text-shadow: 0 0 1px rgba(255, 255, 255, 0.5);
   z-index: 1;
 }
+
+/* THE FOUR OPINIONS dialog: one row per constituency, its own mini-bar */
+.jobrow { margin: 10px 0 12px; }
+.jobrow .jr1 { display: flex; align-items: baseline; gap: 8px; }
+.jobrow .jr1 b { color: var(--r95); font-size: 13px; letter-spacing: 1px; }
+.jobrow .jr1 .jrv { margin-left: auto; font-size: 16px; }
+.jobrow .jangry { font-size: 9px; letter-spacing: 1px; color: #ff4a3d; font-weight: bold; }
+.jobrow .jrtrack { height: 8px; background: var(--r20); margin: 3px 0 2px; position: relative; overflow: hidden; }
+.jobrow .jrtrack span { display: block; height: 100%; }
+.jobrow .jr2 { font-size: 11px; line-height: 1.35; }
+.jobnote { font-size: 12px; line-height: 1.5; }
 
 .weeklab { white-space: nowrap; font-size: 12px; overflow: hidden; text-overflow: ellipsis; min-width: 0; justify-self: start; max-width: 100%; }
 .weeklab b { color: var(--r95); }
@@ -322,6 +334,10 @@ button.hold.wiggle::after {
   gap: 8px;
 }
 .navbar button { margin: 0; }
+/* when the nav is the LAST element on screen (pick-team, the tombstone —
+   no bag row below it), it carries the safe-area inset itself: the NEW
+   GAME button must never hide under the phone's home indicator */
+.navbar:last-child { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
 /* ONE continue button — and it IS the action button: while a mandatory
    action waits it reads «▶ RUN — …» with a ▾ picker arrow hugging EACH side
    of the screen; afterwards the same button names what's next. Always the
@@ -1294,8 +1310,9 @@ button.actmain.scopehl { border-color: var(--r95); }
 .rankdown { color: #ff4a3d; font-size: 12px; margin-left: 4px; }
 /* the notebook's scrawl */
 .notebookrow.scrawl { color: var(--r35); font-style: italic; letter-spacing: 1px; }
-/* THE BOOKIE */
+/* THE BOOKIE — the man himself stands over his line */
 .bookie { text-align: center; font-size: 13px; letter-spacing: 2px; color: var(--r75); margin-top: 8px; line-height: 1.5; }
+.bookie .bookiefig { display: flex; justify-content: center; margin-bottom: 5px; }
 .bookie b { color: var(--r95); font-size: 17px; }
 .bookie .bookieverdict { display: inline-block; margin-top: 2px; letter-spacing: 1px; }
 /* picker rows wrap their tails (the captain's order is a mouthful) */
@@ -1569,6 +1586,19 @@ button.hrow b { color: var(--r95); }
 .schedtable td { font-size: 14px; padding: 5px 8px 5px 0; }
 .schedtable td.wk { width: 34px; color: var(--r55); }
 .schedtable td.va { width: 26px; text-align: center; color: var(--r55); padding-right: 4px; }
+
+/* ---- FACILITIES: the campus stop ------------------------------------------- */
+
+.facwrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.facrow .prow1 { align-items: center; }
+.facrow .fpips { display: inline-flex; gap: 3px; margin: 0 4px; }
+.fpip { width: 10px; height: 10px; background: var(--r20); display: inline-block; }
+.fpip.on { background: #5fe07a; }
+.facbtn { margin-left: auto; font-size: 12px; padding: 4px 9px; white-space: nowrap; }
+.facwait { margin-left: auto; font-size: 10px; letter-spacing: 1px; color: #ffd83d; white-space: nowrap; }
+.facmax { margin-left: auto; font-size: 10px; letter-spacing: 1px; color: var(--r55); }
+/* the standings dialog's tabs (THE LEADERS) */
+.standtabs { border-top: none; background: transparent; padding: 6px 0 2px; }
 
 /* the players being discussed stand in the dialog */
 .confirmcards { display: flex; gap: 6px; margin: 8px 0; }

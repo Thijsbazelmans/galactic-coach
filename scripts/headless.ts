@@ -3,10 +3,10 @@
 // Definition of done (SPEC §16): survives full careers without error and
 // reports skill curves, UT reach, ending causes, and energy starvation.
 
-import { PLANS } from '../src/engine/data';
+import { GYM_REQ, PLANS, facLevel } from '../src/engine/data';
 import { LEVEL_CAP, ROSTER_SIZE, newGameState } from '../src/engine/gen';
 import { arrangeRow, floorAvg, meterMult, normalizeLineup } from '../src/engine/sim';
-import { ATTRS, bestAttr, ovr } from '../src/engine/util';
+import { ATTRS, bestAttr, opTracks, ovr, security } from '../src/engine/util';
 import {
   actionGalaxy,
   beginWeek,
@@ -17,6 +17,7 @@ import {
   deliverSpeech,
   dismissStory,
   finalizeRoster,
+  grabMop,
   isUtWeek,
   letGoPro,
   myTeam,
@@ -31,10 +32,13 @@ import {
   toPractice,
   toRecruiting,
   toMatchup,
+  toScouting,
   toSigning,
   toggleProspect,
+  upgradeFacility,
+  wipeCodex,
 } from '../src/engine/state';
-import type { GameState, PlanId } from '../src/engine/types';
+import type { FacId, GameState, PlanId } from '../src/engine/types';
 
 const CAREERS = Number(process.argv[2] ?? 3);
 const MAX_SEASONS = Number(process.env.MAX_SEASONS ?? 26); // retire here if still alive (aging bites from 21)
@@ -59,7 +63,10 @@ function checkInvariants(s: GameState): void {
   const t = myTeam(s);
   if (t.players.length > ROSTER_SIZE) throw new Error(`roster too big: ${t.players.length}`);
   if (s.energy < 0 || s.energy > 12) throw new Error(`cache out of range: ${s.energy}`);
-  if (s.heatS < 0 || s.heatB < 0 || s.heatS + s.heatB > 100) throw new Error(`hot seat broken: ${s.heatS}/${s.heatB}`);
+  const o = opTracks(s);
+  for (const [k, v] of Object.entries(o)) if (v < 0 || v > 100) throw new Error(`opinion ${k} broken: ${v}`);
+  const sec = security(s);
+  if (sec < 0 || sec > 100) throw new Error(`security broken: ${sec}`);
   if (s.bag.length > 9) throw new Error(`bag overflow: ${s.bag.length}`);
   for (const p of t.players) {
     // species caps are DEAD — the 0–25 scale and level 10 are the only walls
@@ -82,14 +89,24 @@ interface CareerStats {
   legacy: number;
   ending: string;
   starvedWeeks: number;
+  /** JOB SECURITY telemetry: the career's lowest gauge reading, and how many
+      weeks it spent in the ultimatum zone (< 30) */
+  minSec: number;
+  hotWeeks: number;
 }
 
 function playCareer(idx: number): CareerStats {
+  // Node ships a localStorage now, so THE CODEX would snowball across the
+  // careers of one run — benchmark FRESH coaches unless CODEX=1 says
+  // otherwise (the veteran-run curve is its own experiment)
+  if (!process.env.CODEX) wipeCodex();
   const s = newGameState();
   chooseTeam(s, idx % s.teams.length);
   let starved = 0;
   let utReached = 0;
   let lastWeekKey = '';
+  let minSec = 100;
+  let hotWeeks = 0;
 
   for (let guard = 0; guard < 30000; guard++) {
     if (s.phase === 'gameover') break;
@@ -117,6 +134,20 @@ function playCareer(idx: number): CareerStats {
       case 'stories':
         drainQueue(s);
         break;
+      case 'facilities': {
+        drainQueue(s);
+        if ((s.phase as string) !== 'facilities') break;
+        // the campus stop: mop sometimes, build sometimes
+        if (Math.random() < 0.5) grabMop(s);
+        drainQueue(s);
+        if (s.energy >= 6 && Math.random() < 0.35) {
+          const ids: FacId[] = ['ship', 'gym', 'cryo', 'library', 'stadium', 'greekrow'];
+          upgradeFacility(s, ids[Math.floor(Math.random() * ids.length)]);
+        }
+        toScouting(s);
+        if ((s.phase as string) === 'facilities' && !s.queue.length) throw new Error('stuck at facilities');
+        break;
+      }
       case 'scouting': {
         drainQueue(s);
         if (s.phase !== 'scouting') break;
@@ -124,15 +155,20 @@ function playCareer(idx: number): CareerStats {
         if (key !== lastWeekKey) {
           lastWeekKey = key;
           if (s.energy === 0) starved++;
+          const sec = security(s);
+          minSec = Math.min(minSec, sec);
+          if (sec < 30) hotWeeks++;
         }
         if (!s.scoutActWk) {
-          // the intel move: read the board early, refill it when it thins
-          const actId = s.energy < 1
-            ? 'reccenter'
-            : s.prospects.length < 6
-              ? s.energy >= 2 ? 'nebula' : 'home'
-              : s.energy >= 2 ? 'roadtrip' : 'filmnight';
-          if (!actionGalaxy(s, actId)) throw new Error(`scouting action refused: ${actId} (¢${s.energy})`);
+          // the intel move — the ship's range, cooldowns and the purse all
+          // gate options now, so walk a preference list to the first that fires
+          const prefs = s.prospects.length < 6 ? ['nebula', 'home', 'reccenter'] : ['roadtrip', 'filmnight', 'reccenter'];
+          let done = false;
+          for (const actId of prefs) {
+            if ((s.actCooldowns?.[actId] ?? 0) > 0) continue;
+            if (actionGalaxy(s, actId)) { done = true; break; }
+          }
+          if (!done && !actionGalaxy(s, 'reccenter')) throw new Error(`scouting action refused (¢${s.energy})`);
           if (s.pendingRecruits.length) confirmBoard(s);
           drainQueue(s);
         }
@@ -147,10 +183,13 @@ function playCareer(idx: number): CareerStats {
           // practice is mandatory: rest tired or broke squads, otherwise train
           const t = myTeam(s);
           const tired = t.players.filter((p) => p.energy < 40).length;
-          const adv = ['meteor', 'asteroid', 'sparring', 'filmroom', 'dreamlab'].filter((d) => s.unlockedDrills.includes(d));
+          const adv = ['meteor', 'asteroid', 'sparring', 'filmroom', 'dreamlab']
+            .filter((d) => s.unlockedDrills.includes(d) && (s.actCooldowns?.[d] ?? 0) === 0 && facLevel(s, 'gym') >= (GYM_REQ[d] ?? 2));
           if (tired >= 4 || s.energy < 1) runDrill(s, 'rest');
           else if (adv.length && s.energy >= 4 && Math.random() < 0.5) runDrill(s, adv[Math.floor(Math.random() * adv.length)]);
           else runDrill(s, 'shootaround');
+          if (!s.trainedThisWeek) runDrill(s, 'shootaround'); // gym-gated pick fell through
+          if (!s.trainedThisWeek) runDrill(s, 'rest');
           if (!s.trainedThisWeek) throw new Error('mandatory practice failed');
           drainQueue(s);
         }
@@ -162,13 +201,16 @@ function playCareer(idx: number): CareerStats {
         drainQueue(s);
         if (s.phase !== 'recruiting') break;
         if (!s.recruitActWk) {
-          // the charm move: direct work mostly, the booster when flush
-          const actId = s.energy < 1
-            ? 'groupchat'
-            : s.energy >= 3 && Math.random() < 0.3
-              ? 'skybox'
-              : s.energy >= 2 ? 'openhouse' : 'letters';
-          if (!actionGalaxy(s, actId)) throw new Error(`recruiting action refused: ${actId} (¢${s.energy})`);
+          // the charm move — Greek Row gates the fancy stuff, so walk the list
+          const prefs = s.energy >= 3 && Math.random() < 0.3
+            ? ['skybox', 'openhouse', 'letters', 'groupchat']
+            : ['openhouse', 'letters', 'groupchat'];
+          let done = false;
+          for (const actId of prefs) {
+            if ((s.actCooldowns?.[actId] ?? 0) > 0) continue;
+            if (actionGalaxy(s, actId)) { done = true; break; }
+          }
+          if (!done && !actionGalaxy(s, 'groupchat')) throw new Error(`recruiting action refused (¢${s.energy})`);
           drainQueue(s);
         }
         if (s.phase === 'recruiting') toMatchup(s);
@@ -223,7 +265,8 @@ function playCareer(idx: number): CareerStats {
           // THE SLIDE, season by season: my six on the floor vs the conference
           const t = myTeam(s);
           const ladder = s.teams.map((tm) => `${tm.id === s.myTeamId ? '*' : ''}${Math.round(floorAvg(tm))}`).join(' ');
-          console.log(`  S${s.season} ${t.wins}–${t.losses} floor ${ladder} · heat ${s.heatS}/${s.heatB}`);
+          const o2 = opTracks(s);
+          console.log(`  S${s.season} ${t.wins}–${t.losses} floor ${ladder} · sec ${security(s)} (S${o2.school}/F${o2.fans}/P${o2.players}/X${o2.pub})`);
         }
         releaseHeldStories(s); // the box score press
         drainQueue(s);
@@ -259,6 +302,8 @@ function playCareer(idx: number): CareerStats {
     legacy: s.legacy,
     ending: s.end?.cause ?? '???',
     starvedWeeks: starved,
+    minSec,
+    hotWeeks,
   };
 }
 
@@ -267,7 +312,7 @@ for (let i = 0; i < CAREERS; i++) {
   const st = playCareer(i);
   all.push(st);
   console.log(
-    `career ${i + 1}: ${st.ending} after ${st.seasons} seasons · ${st.wins} wins · UT titles ${st.utTitles} · legacy ${st.legacy} · starved weeks ${st.starvedWeeks}`
+    `career ${i + 1}: ${st.ending} after ${st.seasons} seasons · ${st.wins} wins · UT titles ${st.utTitles} · legacy ${st.legacy} · starved weeks ${st.starvedWeeks} · sec floor ${st.minSec} (${st.hotWeeks}w hot)`
   );
 }
 
@@ -276,3 +321,4 @@ console.log('---');
 console.log(`OK: ${CAREERS} careers complete.`);
 console.log(`endings: ${JSON.stringify(endings)}`);
 console.log(`avg seasons ${(all.reduce((a, c) => a + c.seasons, 0) / CAREERS).toFixed(1)} · avg wins ${(all.reduce((a, c) => a + c.wins, 0) / CAREERS).toFixed(1)} · UT reach ${all.filter((c) => c.utReached).length}/${CAREERS} · titles ${all.reduce((a, c) => a + c.utTitles, 0)}`);
+console.log(`security: avg floor ${(all.reduce((a, c) => a + c.minSec, 0) / CAREERS).toFixed(0)} · careers under 30 at some point ${all.filter((c) => c.minSec < 30).length}/${CAREERS} · total hot weeks ${all.reduce((a, c) => a + c.hotWeeks, 0)}`);
