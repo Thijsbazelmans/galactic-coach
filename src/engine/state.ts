@@ -66,7 +66,7 @@ import {
   stipendFor,
   xpNeed,
 } from './gen';
-import { tutGem, tutorialArrive, tutorialGemify, tutorialHeld, tutorialRigGame, tutorialWrap } from './tutorial';
+import { tutFreshman, tutGem, tutStandout, tutorialArrive, tutorialGemify, tutorialHeld, tutorialRigGame, tutorialWrap } from './tutorial';
 import {
   autoLineup,
   benchPlayers,
@@ -940,13 +940,17 @@ function startWeek(s: GameState): void {
   if (!isUtWeek(s)) deferPre('dean_budget', 'start', null, { amt: stipend + gate });
 
   // scheduled beats come due — consequences and returns wrap up LAST week,
-  // so they speak before the report
+  // so they speak before the report. EXCEPT the campus: an ordered upgrade
+  // lands as you walk INTO the building (right before the facilities
+  // screen), not on the Monday report.
   for (const fb of [...s.futureBeats]) {
     fb.weeksLeft--;
     if (fb.weeksLeft <= 0) {
       s.futureBeats.splice(s.futureBeats.indexOf(fb), 1);
       const stillHere = fb.playerId === null || t.players.some((p) => p.id === fb.playerId);
-      if (stillHere) deferPre(fb.defId, fb.beat, fb.playerId, fb.data ?? {});
+      if (!stillHere) continue;
+      if (fb.defId === 'facility_arrives') defer(fb.defId, fb.beat, fb.playerId, fb.data ?? {});
+      else deferPre(fb.defId, fb.beat, fb.playerId, fb.data ?? {});
     }
   }
 
@@ -1163,11 +1167,20 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
   const gainNotes: string[] = [];
   if (d.target === 'rest') {
     // a deliberate rest week climbs past the baseline — but only stories and
-    // items reach the true extremes (cap 85)
-    const rec = d.recover ?? { energy: 21, mood: 4 };
-    for (const p of t.players.filter((x) => x.outWeeks === 0)) {
-      if (p.energy < 85) p.energy = Math.min(85, p.energy + rec.energy);
-      if (p.mood < 85) p.mood = Math.min(85, p.mood + rec.mood);
+    // items reach the true extremes (cap 85). SEASON ZERO's one week off is
+    // a miracle cure: the whole squad lands deep in the green, so the
+    // grade-vs-energy lesson is visible at a glance.
+    if (s.tutorial !== undefined) {
+      for (const p of t.players.filter((x) => x.outWeeks === 0)) {
+        p.energy = clamp(Math.max(85, p.energy + 50), 0, 92);
+        p.mood = Math.min(90, p.mood + 10);
+      }
+    } else {
+      const rec = d.recover ?? { energy: 21, mood: 4 };
+      for (const p of t.players.filter((x) => x.outWeeks === 0)) {
+        if (p.energy < 85) p.energy = Math.min(85, p.energy + rec.energy);
+        if (p.mood < 85) p.mood = Math.min(85, p.mood + rec.mood);
+      }
     }
   } else {
     for (const p of participants) {
@@ -1572,8 +1585,12 @@ function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx[]; text: string;
   const back = 'When you come back in,';
   if (pl.kind === 'rally') {
     // no X's and O's: a coin flip on morale, a sliver of chance either way —
-    // except on season zero's one night, where the words ALWAYS take
-    const r = s.tutorial !== undefined ? 30 : Math.random() * 100;
+    // except on season zero's one night, where the cheer TEARS THE ROOF OFF
+    if (s.tutorial !== undefined) {
+      for (const p of t.players) p.mood = clamp(p.mood + 75, 0, 100);
+      return { took: true, fx: [], text: `${exit}\n\n${back} the roof is OFF. Chairs are over. Somebody is crying. The other team can hear it through the wall. Squad MOOD +75.` };
+    }
+    const r = Math.random() * 100;
     if (r < 2) { for (const p of t.players) p.mood = clamp(p.mood - 20, 0, 100); return { took: false, fx: [], text: `${exit}\n\n${back} somebody is laughing. Then somebody else. The room deflates like a tire. Squad MOOD −20.` }; }
     if (r < 4) { for (const p of t.players) p.mood = clamp(p.mood + 25, 0, 100); return { took: true, fx: [], text: `${exit}\n\n${back} the roof is OFF. Chairs are over. Somebody is crying. The other team can hear it through the wall. Squad MOOD +25.` }; }
     if (r < 52) { for (const p of t.players) p.mood = clamp(p.mood + 12, 0, 100); return { took: true, fx: [], text: `${exit}\n\n${back} ${pl.scene} The room is on its feet. Squad MOOD +12.` }; }
@@ -1609,8 +1626,33 @@ export function actCooldown(s: GameState, id: string): number {
 
 export function deliverSpeech(s: GameState, plan: PlanId): string | null {
   if (s.pregameWk || !s.knownPlans.includes(plan) || speechCooldown(s, plan) > 0) return null;
-  // season zero: the cheerleader's words are the ones that get said
-  if (s.tutorial !== undefined && plan !== 'rally') return null;
+  // season zero: the cheerleader's words are the ones that get said — and
+  // the night's two heroes (the fire freshman, the patched standout) take
+  // the floor before the ball goes up, never to be swapped out again
+  if (s.tutorial !== undefined) {
+    if (plan !== 'rally') return null;
+    const t = myTeam(s);
+    for (const hero of [tutFreshman(s), tutStandout(s)]) {
+      if (!hero || hero.outWeeks > 0) continue;
+      const at = t.lineup.slots.indexOf(hero.id);
+      if (at >= 0 && at < 6) continue;
+      // swap him with the weakest available starter that isn't the other hero
+      const starterIx = t.lineup.slots
+        .map((id, i) => ({ id, i }))
+        .filter((x) => x.i < 6 && x.id !== null && x.id !== tutFreshman(s)?.id && x.id !== tutStandout(s)?.id)
+        .sort((a, b) => {
+          const pa = t.players.find((p) => p.id === a.id);
+          const pb = t.players.find((p) => p.id === b.id);
+          return ovr(pa?.attrs ?? { skl: 99, ath: 99, frc: 99, brn: 99 }) - ovr(pb?.attrs ?? { skl: 99, ath: 99, frc: 99, brn: 99 });
+        })[0];
+      if (starterIx) {
+        const tmp = t.lineup.slots[starterIx.i];
+        t.lineup.slots[starterIx.i] = hero.id;
+        if (at >= 0) t.lineup.slots[at] = tmp;
+      }
+    }
+    normalizeLineup(t);
+  }
   s.plan = plan;
   s.pregameWk = true;
   const out = rollSpeech(s, plan);

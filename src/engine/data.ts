@@ -2596,13 +2596,17 @@ export const STORIES: StoryDef[] = [
     kind: 'coach',
     beat: (_b, ctx) => {
       const item = itemById((ctx.data.itemId as string) ?? 'protein');
+      // SEASON ZERO hands you exactly what the script needs — no leaving it
+      const choices = ctx.s.tutorial !== undefined
+        ? [C('take', 'INTO THE BAG')]
+        : [
+            C('take', 'INTO THE BAG'),
+            C('leave', 'LEAVE IT — THE BAG IS FOR BETTER THINGS'),
+          ];
       return {
         tag: '◆ AN ITEM FINDS YOU',
         text: `${item.name}. ${item.flavor}`,
-        choices: [
-          C('take', 'INTO THE BAG'),
-          C('leave', 'LEAVE IT — THE BAG IS FOR BETTER THINGS'),
-        ],
+        choices,
       };
     },
     resolve: (key, ctx) => {
@@ -3608,13 +3612,17 @@ STORIES.push({
       return { tag: 'THE MORNING AFTER', text: `${p} pulls up lame in Monday's shootaround — the fire took its toll. The trainer says ${label}: ${weeks} week${weeks === 1 ? '' : 's'}.` };
     }
     const pts = (ctx.data.pts as number) ?? 25;
+    // SEASON ZERO's fire is the story: benching him is not on the menu
+    const choices = ctx.s.tutorial !== undefined
+      ? [C('cook', 'LET HIM COOK', { up: { pct: 50, cls: 'SPIRIT', note: 'the whole team lifts' }, down: { pct: 25, cls: 'INJURY', note: 'the body pays Monday' }, want: 'love' })]
+      : [
+          C('cook', 'LET HIM COOK', { up: { pct: 50, cls: 'SPIRIT', note: 'the whole team lifts' }, down: { pct: 25, cls: 'INJURY', note: 'the body pays Monday' }, want: 'love' }),
+          C('rotate', 'ROTATE AS NORMAL', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' }, want: 'hate' }),
+        ];
     return {
       tag: '🔥 ON FIRE',
       text: `${p} is playing LIGHTS OUT tonight — ${pts} already and counting. He is setting the rim on fire. Literally: the net is smoking.\n\nThe bench is on its feet. So is the other coach.`,
-      choices: [
-        C('cook', 'LET HIM COOK', { up: { pct: 50, cls: 'SPIRIT', note: 'the whole team lifts' }, down: { pct: 25, cls: 'INJURY', note: 'the body pays Monday' }, want: 'love' }),
-        C('rotate', 'ROTATE AS NORMAL', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' }, want: 'hate' }),
-      ],
+      choices,
     };
   },
   resolve: (key, ctx, ev) => {

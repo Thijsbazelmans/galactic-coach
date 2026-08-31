@@ -82,7 +82,7 @@ import {
   wipeCodex,
   wipeSave,
 } from './engine/state';
-import { TUT_AT, tutGem, tutStandout, tutorialArrive, tutorialBoot, tutorialHeader, tutorialHint, tutorialWalkDone, tutorialWalkStart, tutorialWalkSteps, type TutStep } from './engine/tutorial';
+import { TUT_AT, tutGem, tutStandout, tutStar, tutorialAllows, tutorialArrive, tutorialBoot, tutorialHeader, tutorialHint, tutorialIntro, tutorialWalkDone, tutorialWalkStart, tutorialWalkSteps, type TutStep } from './engine/tutorial';
 import type { Attr, AttrRec, FacId, GameState, PlanId, Player, Prospect, SpeechFx, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, opTracks, ovr, perGame, potStars, rand, security } from './engine/util';
@@ -312,6 +312,8 @@ let standOpen = false;
 let standTab: 'table' | 'leaders' = 'table';
 let notebookOpen = false;
 let gxResult: { text: string; cost: number; played: boolean; art?: string } | null = null;
+/** THE WEEK TURN: the calendar flip between the horn and Monday's envelope */
+let weekTurn: { season: number; from: number; to: number } | null = null;
 /** how the story's resolution moved the four opinions (drives the dean/booster verdict + the job-bar flash) */
 let opShift: { school: number; fans: number; pub: number; sec: number } | null = null;
 /** THE FOUR OPINIONS dialog (tap the job-security gauge) */
@@ -1444,6 +1446,18 @@ function schedModalHtml(s: GameState): string {
   </div></div>`;
 }
 
+/** THE LEADERS: conference top lists, one per stat — your names stand out.
+    Shared by the standings dialog and the post-game standings screen. */
+function leadersListHtml(s: GameState): string {
+  const L = statLeaders(s);
+  const SEC: ['pts' | 'reb' | 'stl' | 'ast', string][] = [['pts', 'POINTS'], ['reb', 'REBOUNDS'], ['stl', 'STEALS'], ['ast', 'ASSISTS']];
+  return SEC.map(([k, label]) => `<div class="acthead">${label}</div><table class="standings leaders">${
+    L[k].slice(0, 8).map((e, i) => {
+      const tm = s.teams[e.teamId];
+      return `<tr class="${e.teamId === s.myTeamId ? 'me' : ''}"><td>${i + 1}. ${esc(e.name)} ${chip(tm.name, tm.bg, tm.fg, true)}</td><td class="num">${e.v}</td></tr>`;
+    }).join('')}</table>`).join('');
+}
+
 function standModalHtml(s: GameState): string {
   if (!standOpen) return '';
   const tabs = `<div class="lensbar standtabs">
@@ -1452,14 +1466,7 @@ function standModalHtml(s: GameState): string {
   </div>`;
   let body: string;
   if (standTab === 'leaders') {
-    // THE LEADERS: conference top lists, one per stat — your names stand out
-    const L = statLeaders(s);
-    const SEC: ['pts' | 'reb' | 'stl' | 'ast', string][] = [['pts', 'POINTS'], ['reb', 'REBOUNDS'], ['stl', 'STEALS'], ['ast', 'ASSISTS']];
-    body = SEC.map(([k, label]) => `<div class="acthead">${label}</div><table class="standings leaders">${
-      L[k].slice(0, 8).map((e, i) => {
-        const tm = s.teams[e.teamId];
-        return `<tr class="${e.teamId === s.myTeamId ? 'me' : ''}"><td>${i + 1}. ${esc(e.name)} ${chip(tm.name, tm.bg, tm.fg, true)}</td><td class="num">${e.v}</td></tr>`;
-      }).join('')}</table>`).join('');
+    body = leadersListHtml(s);
   } else {
     body = `<table class="standings">${sortedStandings(s)
       .map((tm, i) => `<tr class="${tm.id === s.myTeamId ? 'me' : ''}">
@@ -1509,7 +1516,9 @@ function takeNote(): boolean {
     return addNote(s, 'story', `story:${ev.uid}`, `«${snippet}${src.length > 110 ? '…' : ''}» — ${ev.tag}`);
   }
   if (s.phase === 'gamenight' && s.lastResult && (gnStage === 'verdict' || gnStage === 'table' || gnStage === 'recap')) {
-    // the box score screen: the whole night goes in at once
+    // the box score screen: the whole night goes in at once — the score, the
+    // MVP, the top scorer, the league's lines AND where my names sit on the
+    // conference leaderboards
     const r = s.lastResult;
     const mvp = r.box.find((x) => x.playerId === r.mvpId)?.name ?? '—';
     const top = r.box[0];
@@ -1517,7 +1526,14 @@ function takeNote(): boolean {
       `${r.win ? 'W' : 'L'} ${r.myScore}–${r.oppScore} vs ${r.oppName} · MVP ${mvp} · top scorer ${top ? `${top.name} (${top.pts})` : '—'}`);
     const lines = [`my game: ${r.win ? 'W' : 'L'} ${r.myScore}–${r.oppScore} vs ${r.oppName}`, ...s.resultsLog];
     const b = addNote(s, 'results', `res:${s.season}:${s.week}`, lines.join(' · '));
-    return a || b;
+    const L = statLeaders(s);
+    const keys = ['pts', 'reb', 'stl', 'ast'] as const;
+    const bits = keys.map((k) => `${STAT_WORD[k]}: ${L[k][0]?.name ?? '—'} (${L[k][0]?.v ?? 0})`);
+    const myRk: string[] = [];
+    for (const k of keys) L[k].forEach((e, i) => { if (e.teamId === s.myTeamId && e.v > 0) myRk.push(`${STAT_WORD[k]} #${i + 1} ${e.name} (${e.v})`); });
+    const c = addNote(s, 'lead', `lead:${s.season}:${s.week}`,
+      `conference leaders — ${bits.join(' · ')}${myRk.length ? ` · my board: ${myRk.join(' · ')}` : ''}`);
+    return a || b || c;
   }
   if (standOpen && standTab === 'leaders') {
     // the leaders page goes in whole — Scoop asks about the scoring race
@@ -1821,9 +1837,14 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
   if (ev.tag === 'ASSISTANT COACH') {
     return `<div class="scenebox">${figureHtml('assistant', 'neutral', kit, 3)}</div>`;
   }
-  if ((ev.defId === 'graduation' || ev.defId === 'tut_kid') && ev.data?.player) {
+  if (ev.defId === 'graduation' && ev.data?.player) {
     const gp = ev.data.player as Player;
     return `<div class="modalcard truth">${playerCard(gp, { inert: true, story: 'good', storyView: 'abilities', kit, labelPop: false })}</div>`;
+  }
+  // the kid at the gas station: street clothes, no jersey — he's nobody's yet
+  if (ev.defId === 'tut_kid' && ev.data?.player) {
+    const gp = ev.data.player as Player;
+    return `<div class="modalcard truth">${playerCard(gp, { inert: true, pose: 'shrug', pure: true, labelPop: false })}</div>`;
   }
   if (ev.defId === 'signing_verdict') {
     // SIGNING DAY: the whole truth, for the first time — the ABILITIES card
@@ -2430,6 +2451,14 @@ function speechSheetHtml(s: GameState): string {
   let hidden = 0;
   const speeches = PLANS.map((pl) => {
     if (!s.knownPlans.includes(pl.id)) { hidden++; return ''; }
+    // SEASON ZERO: before the cheerleader keeps her promise, only the four
+    // standard trades are on the sheet — THE RALLY isn't yours yet; after,
+    // hers are the only words tonight
+    if (s.tutorial !== undefined) {
+      if ((s.tutorial ?? 0) < TUT_AT.SPEECH) {
+        if (pl.kind !== 'shift' || pl.premium) { hidden++; return ''; }
+      } else if (pl.id !== 'rally') { hidden++; return ''; }
+    }
     const cd = speechCooldown(s, pl.id);
     if (cd > 0) {
       return `<div class="drill locked"><b>${pl.speech}</b> <span class="dim">— recharging, ${cd} week${cd === 1 ? '' : 's'}</span></div>`;
@@ -2438,6 +2467,7 @@ function speechSheetHtml(s: GameState): string {
   }).join('');
   const instrs = INSTRUCTIONS.map((it) => {
     if (!(s.knownInstr ?? []).includes(it.id)) { hidden++; return ''; }
+    if (s.tutorial !== undefined) { hidden++; return ''; }
     const cd = speechCooldown(s, it.id as PlanId);
     if (cd > 0) {
       return `<div class="drill locked"><b>${it.name}</b> <span class="dim">— recharging, ${cd} week${cd === 1 ? '' : 's'}</span></div>`;
@@ -2601,7 +2631,8 @@ function stageGamenight(s: GameState): string {
       <div class="botstack">${others}</div>`;
   }
   // THE STANDINGS — with the night's movement: who climbed, who slid
-  // (against the table as it stood at tip-off); your sticker stands taller
+  // (against the table as it stood at tip-off); your sticker stands taller.
+  // THE LEADERS ride along as a second tab, same as the header dialog.
   const table = !isUtWeek(s)
     ? `<table class="standings">${sortedStandings(s)
         .map((t, i) => {
@@ -2614,7 +2645,14 @@ function stageGamenight(s: GameState): string {
         })
         .join('')}</table>`
     : `<div class="report">${(s.ut?.log ?? []).map((l) => `<div>${esc(l)}</div>`).join('')}</div>`;
-  return `<h2>THE STANDINGS</h2>${table}`;
+  const tabs = !isUtWeek(s)
+    ? `<div class="lensbar standtabs">
+        <button class="lenstab ${standTab === 'table' ? 'sel' : ''}" data-action="stand-tab" data-id="table">STANDINGS</button>
+        <button class="lenstab ${standTab === 'leaders' ? 'sel' : ''}" data-action="stand-tab" data-id="leaders">THE LEADERS</button>
+      </div>`
+    : '';
+  const body = standTab === 'leaders' && !isUtWeek(s) ? `<div class="facwrap">${leadersListHtml(s)}</div>` : table;
+  return `<h2>${standTab === 'leaders' && !isUtWeek(s) ? 'THE LEADERS' : 'THE STANDINGS'}</h2>${tabs}${body}`;
 }
 
 // ---- full views in the same frame ----------------------------------------------------------------------
@@ -3036,6 +3074,17 @@ function coachModalHtml(s: GameState): string {
   </div></div>`;
 }
 
+/** The calendar page flips: WEEK n dims and drops, WEEK n+1 lands bright. */
+function weekTurnHtml(): string {
+  if (!weekTurn) return '';
+  const wk = (n: number): string => (n <= REGULAR_WEEKS ? `WEEK ${n}` : `WEEK ${REGULAR_WEEKS}+${n - REGULAR_WEEKS}`);
+  return `<div class="weekturn" data-action="week-turn-close">
+    <div class="wtseason">SEASON ${Math.max(1, weekTurn.season)}</div>
+    <div class="wtrow"><span class="wtfrom">${wk(weekTurn.from)}</span><span class="wtarrow">▸</span><span class="wtto">${wk(weekTurn.to)}</span></div>
+    <div class="wthint">▸ TAP</div>
+  </div>`;
+}
+
 function toastModalHtml(): string {
   if (!toast) return '';
   return `<div class="modalback"><div class="modal" data-action="toast-tap">
@@ -3062,6 +3111,14 @@ function tutMaybeWalk(): void {
   if (currentStory(state) || toast || gxResult) return;
   const key = tutorialWalkStart(state, gnStage);
   if (!key) return;
+  // every screen opens on ONE full-screen assistant line — then the walk
+  const introText = tutorialIntro(state, key);
+  if (introText && !(state.tutSeen ?? []).includes(`intro:${key}`)) {
+    (state.tutSeen ??= []).push(`intro:${key}`);
+    queueStory(state, 'tut_intro', 'start', null, { key, text: introText });
+    save(state);
+    return;
+  }
   const steps = tutorialWalkSteps(state, key);
   if (!steps.length) {
     (state.tutSeen ??= []).push(key);
@@ -3081,6 +3138,22 @@ function tutWalkFinish(key: string): void {
   save(state);
 }
 
+/** the walk box's typewriter state (a tap first finishes the line) */
+let walkTypeKey = '';
+let walkTypeDone = false;
+
+/** What may be DRAGGED during season zero: exactly the scripted thing. */
+function tutAllowsDrag(kind: 'card' | 'item' | 'pr', itemId: string): boolean {
+  if (state.tutorial === undefined) return true;
+  const step = state.tutWalk?.steps?.[state.tutWalk.ix];
+  if (kind === 'item') return !!step && (step.advance ?? '') === `item:${itemId}`;
+  if (kind === 'pr') return state.phase === 'scouting';
+  if (state.phase === 'practice') return true;
+  if (state.phase === 'matchup') return !state.pregameWk && !step;
+  if (state.phase === 'teamSelect') return true;
+  return false;
+}
+
 /** Advance on a matching signal ('tap', 'lens:1', 'note', 'item:patch'…). */
 function tutWalkAdvance(sig: string): void {
   const w = state.tutWalk;
@@ -3094,45 +3167,81 @@ function tutWalkAdvance(sig: string): void {
   else save(state);
 }
 
-/** The spotlight: the step's target lights up, its rivals step back. */
+/** The spotlight: the step's target lights up STEADILY (blinking is for
+    sub-elements — a gauge, an OVR, a lens tab), and everything the step is
+    not about steps back: dimmed, and dead to the touch. */
 function applyWalkSpotlight(): void {
   const wStep = tutWalkStep();
   if (!wStep?.hi || currentStory(state) || toast || gxResult) return;
   const hi = wStep.hi;
-  const spot = (sel: string): void => document.querySelectorAll(sel).forEach((el) => el.classList.add('tutspot'));
-  const dimCardsExcept = (ids: Set<number>): void => document.querySelectorAll('.middle .pcard').forEach((el) => {
-    const pid = Number(el.getAttribute('data-pid'));
-    if (ids.has(pid)) el.classList.add('tutspot');
-    else el.classList.add('scopedim');
-  });
-  if (hi === 'grid' || hi === 'board') spot('.grid');
-  else if (hi === 'rows') spot('.grid .gridrow .rowlabel');
+  const targets: Element[] = [];
+  const collect = (sel: string): void => document.querySelectorAll(sel).forEach((el) => targets.push(el));
+  const idsOf = (str: string): Set<number> => new Set(str.split(',').map(Number));
+  const spotCards = (ids: Set<number>, sub?: 'ge' | 'gm' | 'ovr'): void => {
+    document.querySelectorAll('.middle .pcard').forEach((el) => {
+      const pid = Number(el.getAttribute('data-pid'));
+      if (!ids.has(pid)) { el.classList.add('scopedim'); return; }
+      targets.push(el);
+      if (sub === 'ge') el.querySelectorAll('.gauge.gl').forEach((g) => g.classList.add('tutblink'));
+      if (sub === 'gm') el.querySelectorAll('.gauge.gr').forEach((g) => g.classList.add('tutblink'));
+      if (sub === 'ovr') el.querySelectorAll('.kbl').forEach((g) => g.classList.add('tutblink'));
+    });
+  };
+  if (hi === 'grid' || hi === 'board') collect('.grid');
+  else if (hi === 'rows') collect('.grid .gridrow .rowlabel');
   else if (hi.startsWith('row:')) {
     const n = Number(hi.slice(4));
     document.querySelectorAll('.grid .gridrow').forEach((el, i) => {
-      if (i === n) el.classList.add('tutspot');
+      if (i === n) targets.push(el);
       else el.classList.add('scopedim');
     });
-  } else if (hi.startsWith('p:') || hi.startsWith('pr:')) dimCardsExcept(new Set([Number(hi.split(':')[1])]));
-  else if (hi.startsWith('ids:')) dimCardsExcept(new Set(hi.slice(4).split(',').map(Number)));
+  } else if (hi.startsWith('p:') || hi.startsWith('pr:')) spotCards(new Set([Number(hi.split(':')[1])]));
+  else if (hi.startsWith('ids:')) spotCards(idsOf(hi.slice(4)));
+  else if (hi.startsWith('ge:')) spotCards(idsOf(hi.slice(3)), 'ge');
+  else if (hi.startsWith('gm:')) spotCards(idsOf(hi.slice(3)), 'gm');
+  else if (hi.startsWith('ovr:')) spotCards(new Set([Number(hi.slice(4))]), 'ovr');
   else if (hi.startsWith('lens:')) {
     const n = Number(hi.slice(5));
-    document.querySelectorAll('.lensbar .lenstab').forEach((el, i) => { if (i === n) el.classList.add('tutspot'); });
-  } else if (hi === 'nav') spot('.navbar .navmain');
-  else if (hi === 'tac') spot('.tacboard');
-  else if (hi === 'bars') spot('.mu-bars, .middle > .botstack .tbars');
-  else if (hi === 'fac') spot('.facwrap');
-  else if (hi === 'notebook') spot('.bslot.notebook');
-  else if (hi === 'jobbar') spot('.jobbar');
-  else if (hi === 'patch') {
-    spot('.bslot[data-bagitem="patch"]');
-    const p = tutStandout(state);
-    if (p) dimCardsExcept(new Set([p.id]));
-  } else if (hi === 'check') {
-    spot('.bslot[data-bagitem="check"]');
-    const g = tutGem(state);
-    if (g) dimCardsExcept(new Set([g.pr.id]));
+    document.querySelectorAll('.lensbar .lenstab').forEach((el, i) => {
+      if (i === n) { el.classList.add('tutblink'); targets.push(el); }
+    });
+  } else if (hi === 'nav') collect('.navbar .navmain');
+  else if (hi === 'tac') collect('.tacboard');
+  else if (hi === 'bars') { collect('.mu-bars'); collect('.middle .botstack .tbars'); }
+  else if (hi === 'fac') collect('.facwrap');
+  else if (hi === 'notebook') collect('.bslot.notebook');
+  else if (hi === 'jobbar') collect('.jobbar');
+  else if (hi === 'patch' || hi === 'check' || hi === 'timeloop') {
+    collect(`.bslot[data-bagitem="${hi}"]`);
+    const ids = new Set<number>();
+    if (hi === 'patch') { const p = tutStandout(state); if (p) ids.add(p.id); }
+    if (hi === 'check') { const g = tutGem(state); if (g) ids.add(g.pr.id); }
+    if (hi === 'timeloop') { const st = tutStar(state); if (st) ids.add(st.id); }
+    if (ids.size) spotCards(ids);
   }
+  // big areas skip the outline (the fade around them IS the pointer);
+  // small things wear a steady glow
+  const bigArea = ['grid', 'board', 'fac', 'bars', 'tac'].includes(hi);
+  if (!bigArea) for (const el of targets) el.classList.add('tutspot');
+  // everything else steps back — the middle's other children, and whichever
+  // chrome bars hold no target (yes, even the header: nothing up there
+  // matters while the assistant is pointing at something else)
+  const holds = (root: Element | null): boolean => !!root && targets.some((el) => root.contains(el));
+  document.querySelectorAll('.middle > *').forEach((el) => { if (!holds(el)) el.classList.add('tutfade'); });
+  for (const sel of ['.topbar', '.lensbar', '.navbar', '.bagbar']) {
+    const el = document.querySelector(sel);
+    if (el && !holds(el)) el.classList.add('tutfade');
+  }
+}
+
+/** THE LOCK's visual half: every off-script button dims (the click gate is
+    the functional half — tutorialAllows). */
+function applyTutLock(): void {
+  if (state.tutorial === undefined || currentStory(state)) return;
+  document.querySelectorAll('.topbar [data-action], .lensbar [data-action], .navbar [data-action], .middle [data-action], .bagbar [data-action]').forEach((el) => {
+    const a = el.getAttribute('data-action') ?? '';
+    if (!tutorialAllows(state, a, el.getAttribute('data-id') ?? '')) el.classList.add('tutoff');
+  });
 }
 
 // ---- render ------------------------------------------------------------------------------------------------
@@ -3238,12 +3347,13 @@ function render(): void {
   const walkTap = wStep && (wStep.advance ?? 'tap') === 'tap';
   const walkHtml = wStep
     ? `<div class="tutwalk ${wStep.pos ?? 'bot'}" ${walkTap ? 'data-action="tut-walk-tap"' : ''}>
-        <b>${esc(wStep.who ?? 'ASSISTANT COACH')}</b><span>${esc(wStep.text)}</span>${walkTap ? '<i class="wtap">▸ tap</i>' : ''}
+        <b>${esc(wStep.who ?? 'ASSISTANT COACH')}</b><span id="tutwalktext"></span>${walkTap ? '<i class="wtap">▸ tap</i>' : ''}
       </div>`
     : '';
-  const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
+  const frame = (state.phase === 'pickTeam' || state.phase === 'gameover'
     ? `<div class="midwrap"><div class="middle solo">${middle}</div>${overlays}</div>${navHtml}`
-    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${walkHtml || hintHtml}${overlays}</div>${lensHtml}${navHtml}${bagBar(state)}`;
+    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${walkHtml || hintHtml}${overlays}</div>${lensHtml}${navHtml}${bagBar(state)}`)
+    + weekTurnHtml();
 
   // THE ANIMATION BUILD: a screen CHANGE builds in stages — title first (you
   // know where you are), content next, the action button last (you know where
@@ -3477,6 +3587,18 @@ function currentBeatText(ev: { text: string; resolvedText?: string }): string | 
 
 function postRender(): void {
   applyWalkSpotlight();
+  applyTutLock();
+  // the walk box TYPES its line — attention lands where the words appear
+  const wsStep = tutWalkStep();
+  if (wsStep && !currentStory(state) && !toast && !gxResult) {
+    const wEl = document.getElementById('tutwalktext');
+    if (wEl && state.tutWalk) {
+      const k = `${state.tutWalk.key}:${state.tutWalk.ix}`;
+      if (k !== walkTypeKey) { walkTypeKey = k; walkTypeDone = false; }
+      if (walkTypeDone) wEl.textContent = wsStep.text;
+      else typewrite(wEl, wsStep.text, () => { walkTypeDone = true; });
+    }
+  }
   if (gxResult && !gxResult.played) {
     gxResult.played = true;
     const r = gxResult;
@@ -3655,6 +3777,8 @@ let holdEl: HTMLElement | null = null;
 let holdTimer = 0;
 
 function startHold(el: HTMLElement): void {
+  // THE LOCK reaches the hold buttons too
+  if (!currentStory(state) && !tutorialAllows(state, el.getAttribute('data-action') ?? '', el.getAttribute('data-id') ?? '')) return;
   cancelHold();
   holdEl = el;
   el.classList.add('holding');
@@ -3750,6 +3874,8 @@ function handleDrop(zoneIdx: number, playerId: number): void {
     idxs.forEach((i, r) => { t.lineup.slots[i] = ordered[r]?.id ?? null; });
   }
   save(state);
+  // season zero's lineup lesson: the freshman lands on the floor
+  if (zoneIdx < 6) tutWalkAdvance(`floor:${playerId}`);
 }
 
 /** The recruiting board swap: prospect between the board and the 4th row. */
@@ -3759,6 +3885,8 @@ function handleProspectDrop(zoneIdx: number, prospectId: number): void {
   const from = boardIdx >= 0 ? boardIdx : pendIdx >= 0 ? 9 + pendIdx : -1;
   if (from < 0 || from === zoneIdx) return;
   swapBoardSlot(state, from, zoneIdx);
+  // season zero's board lesson: the gem lands ON the board
+  if (state.tutorial !== undefined && tutGem(state)?.where === 'board') tutWalkAdvance('swap:gem');
 }
 
 function dropItemOnStory(itemId: string): void {
@@ -3771,6 +3899,21 @@ function dropItemOnStory(itemId: string): void {
 /** A player item dragged onto a card: the individual action lands there —
     and shows there (the anchored stickers). */
 function dropItemOnPlayer(itemId: string, playerId: number): void {
+  // season zero scripts the machine: it goes on the star — and it MISFIRES,
+  // exactly the way the story needs it to
+  if (state.tutorial !== undefined && itemId === 'timeloop') {
+    const st = tutStar(state);
+    if (!st || playerId !== st.id) {
+      toast = `◆ TIME MACHINE: point it at the suspension, coach${st ? ` — ${st.name}` : ''}.`;
+      return;
+    }
+    const ix = state.bag.indexOf('timeloop');
+    if (ix >= 0) state.bag.splice(ix, 1);
+    tutWalkAdvance('item:timeloop');
+    queueStory(state, 'tut_haywire3', 'start', st.id);
+    save(state);
+    return;
+  }
   // season zero teaches the drop: the patch goes on the hurt one, nobody else
   if (state.tutorial !== undefined && itemId === 'patch') {
     const hurtT = tutStandout(state);
@@ -3939,6 +4082,8 @@ app.addEventListener('pointerdown', (e) => {
   const bag = (e.target as HTMLElement).closest('.bslot.filled') as HTMLElement | null;
   if (bag) {
     const itemId = bag.getAttribute('data-bagitem')!;
+    // season zero: an item drags ONLY when its walk step is asking for it
+    if (!currentStory(state) && !tutAllowsDrag('item', itemId)) return;
     // every item DRAGS whenever the moment allows it (a refusal bounces)
     const canDrag = itemAllowedNow(state, itemId) && !currentStory(state)
       && !(itemById(itemId).rarity === 'legendary' && state.legendariesUsed.includes(itemId));
@@ -3956,6 +4101,7 @@ app.addEventListener('pointerdown', (e) => {
   if (!gridDraggablePhase()) return;
   const card = (e.target as HTMLElement).closest('.pcard.grabbable') as HTMLElement | null;
   if (!card) return;
+  if (!tutAllowsDrag(card.getAttribute('data-kind') === 'pr' ? 'pr' : 'card', '')) return;
   ptr = {
     pointerId: e.pointerId,
     kind: card.getAttribute('data-kind') === 'pr' ? 'pr' : 'card',
@@ -4032,7 +4178,10 @@ function executeAction(action: string, id: string): void {
       break;
     }
     case 'tut-back': pendingTeam = null; break;
-    case 'tut-walk-tap': tutWalkAdvance('tap'); break;
+    case 'tut-walk-tap':
+      if (finishTypeNow()) break; // first tap lands the whole line
+      tutWalkAdvance('tap');
+      break;
     case 'tut-walk-skip': {
       const w = state.tutWalk;
       if (w) tutWalkFinish(w.key);
@@ -4101,8 +4250,23 @@ function executeAction(action: string, id: string): void {
       gnStage = 'recap'; clearFloatTimers(); releaseHeldStories(state); break;
     case 'gn-verdict': gnStage = 'verdict'; boxPass = 0; clearFloatTimers(); break;
     case 'gn-pass': boxPass = Math.min(1, boxPass + 1); break;
-    case 'gn-table': gnStage = 'table'; clearFloatTimers(); break;
-    case 'continue-result': gnStage = 'beat'; clearFloatTimers(); cardDeltas = null; gxStickers = null; liveProg = null; continueFromResult(state); break;
+    case 'gn-table': gnStage = 'table'; standTab = 'table'; clearFloatTimers(); break;
+    case 'continue-result': {
+      const wkFrom = state.week;
+      const seasonFrom = state.season;
+      gnStage = 'beat';
+      clearFloatTimers();
+      cardDeltas = null;
+      gxStickers = null;
+      liveProg = null;
+      continueFromResult(state);
+      // THE WEEK TURN: the calendar page flips between the horn and Monday
+      if (!state.end && state.tutorial === undefined && state.season === seasonFrom && state.week !== wkFrom) {
+        weekTurn = { season: state.season, from: wkFrom, to: state.week };
+      }
+      break;
+    }
+    case 'week-turn-close': weekTurn = null; break;
 
     case 'gx-run': {
       const { actId } = boardSel(state);
@@ -4151,6 +4315,7 @@ function executeAction(action: string, id: string): void {
       captureBars();
       cascArmed = 'bars';
       setTactic(state, rowk as 'o' | 'd', tid);
+      tutWalkAdvance('tac');
       break;
     }
     case 'speech-pick': selPregame = { kind: 'speech', id: id as PlanId }; speechSheet = false; break;
@@ -4286,6 +4451,9 @@ app.addEventListener('click', (e) => {
   if (!el) return;
   const action = el.getAttribute('data-action')!;
   const id = el.getAttribute('data-id') ?? '';
+  // THE LOCK: season zero only accepts the scripted next move (stories run
+  // their own show; everything else off-script is dead, not just dimmed)
+  if (!currentStory(state) && !tutorialAllows(state, action, id)) return;
   if (el.classList.contains('hold')) return;
 
   switch (action) {
@@ -4379,6 +4547,8 @@ app.addEventListener('click', (e) => {
     case 'stand-close': standOpen = false; break;
     case 'stand-tab': standTab = id as 'table' | 'leaders'; break;
     case 'notebook': {
+      // NEVER mid-game: a note popup over the live ticker breaks the night
+      if (liveGameOn(state)) break;
       const ev = currentStory(state);
       // during Scoop's question the notebook ANSWERS (if it has the note)
       if (ev?.defId === 'scoop_question' && !ev.resolvedText) {

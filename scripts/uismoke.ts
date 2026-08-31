@@ -291,22 +291,35 @@ async function main(): Promise<void> {
   if (app.querySelector('.grid .pcard.grabbable')) throw new Error('the box score should not allow rearranging');
   if (app.innerHTML.includes('notebook tall pulse')) throw new Error('the notebook must not blink for note-taking (only for answers)');
   if (app.innerHTML.includes('BANKED XP')) throw new Error('XP belongs to WEEK START, not the box score');
+  // the notebook takes the WHOLE night down — scores, MVP, and where my
+  // names sit on the conference boards
+  click('.bslot.notebook');
+  toasts();
+  if (!(gc.state() as any).notebook.some((n: any) => n.kind === 'lead' && n.text.includes('conference leaders'))) throw new Error('the notebook should note the leaderboards');
   anyWin.gcAction('gn-pass', ''); // → ⚡ & MOOD
-  // → the standings → NEXT WEEK
+  // → the standings — WITH the leaderboard tab riding along
   anyWin.gcAction('gn-table', '');
   if (!app.innerHTML.includes('THE STANDINGS')) throw new Error('standings screen missing');
+  if (!app.innerHTML.includes('THE LEADERS')) throw new Error('the leaders tab is missing from the post-game standings');
+  must('[data-action="stand-tab"][data-id="leaders"]', 'the post-game leaders tab');
+  if (!app.innerHTML.includes('POINTS')) throw new Error('the leaders lists did not render post-game');
+  must('[data-action="stand-tab"][data-id="table"]', 'back to the table');
   if (app.innerHTML.includes('AROUND THE LEAGUE')) throw new Error('other results should have left the standings screen');
   anyWin.gcAction('continue-result', '');
-  drain(); // the wrap-up dialogues: returns, the dean, the cryo bay arriving
+  // THE WEEK TURN: the calendar flips before the dean shows up
+  if (!app.innerHTML.includes('weekturn')) throw new Error('the week-turn animation is missing');
+  must('[data-action="week-turn-close"]', 'flip the calendar');
+  drain(); // the wrap-up dialogues: returns, the dean's envelope
   if (state().phase !== 'weekstart') throw new Error(`expected weekstart, got ${state().phase}`);
   if (!app.innerHTML.includes('WEEK START')) throw new Error('WEEK START screen missing');
-  if ((gc.state() as any).facilities.cryo !== 2) throw new Error('the ordered upgrade never arrived');
+  if ((gc.state() as any).facilities.cryo === 2) throw new Error('the upgrade should land at the CAMPUS door, not on the Monday report');
   anyWin.gcAction('begin-week', '');
-  drain();
+  drain(); // …the crates land as you walk into the building
   if (state().phase !== 'facilities') {
     const q = (gc.state() as any).queue[0];
     throw new Error(`expected facilities after week start, got ${state().phase} (stuck on ${q?.defId}/${q?.beat} "${q?.tag}" · choices ${JSON.stringify(q?.choices?.map((c: any) => [c.key, c.cost, c.disabled]))} · ¢${(gc.state() as any).energy})`);
   }
+  if ((gc.state() as any).facilities.cryo !== 2) throw new Error('the ordered upgrade never arrived');
   anyWin.gcAction('fac-run', ''); // the weekly mop
   toasts();
   drain();
@@ -329,7 +342,7 @@ async function main(): Promise<void> {
     drain();
   }
 
-  // ---- THE TUTORIAL SEASON (v5 M4): season zero, paced, taught by doing ----
+  // ---- THE TUTORIAL SEASON (v5 M4.1): season zero, paced, locked, walked ----
   anyWin.gcAction('new-game', ''); // no title screen on an in-session reset
   must('[data-action="pick-team"]', 'pick team (tutorial run)');
   if (!app.innerHTML.includes('START FRESH')) throw new Error('burn-the-codex path missing on the second career');
@@ -338,39 +351,54 @@ async function main(): Promise<void> {
   if (st3().tutorial === undefined) throw new Error('the tutorial did not arm');
   if (Object.values(st3().facilities).some((v) => v !== 0)) throw new Error('the tutorial campus should start at level 0');
   const me3 = (): any => st3().teams[st3().myTeamId];
-  drain(); // the call · the dean: gauge → credit → time machine (take it)
+  drain(); // the call · the dean: gauge → credit → time machine (take only)
   if (me3().wins !== 0 || me3().losses !== 9) throw new Error(`season zero must stand 0–9, got ${me3().wins}–${me3().losses}`);
   if (!me3().players.some((p: any) => p.stats.gp > 0)) throw new Error('the lost season should show in the stats');
   if (st3().energy !== 1) throw new Error(`the dean hands exactly one credit, got ${st3().energy}`);
   if (!st3().bag.includes('timeloop')) throw new Error('the time machine never entered the bag');
   if (st3().phase !== 'weekstart') throw new Error(`expected weekstart in season zero, got ${st3().phase}`);
-  // THE WALK: the roster spotlight, then the haywire machine
+  // the freshman must be the WORST rating on the roster
+  {
+    const fr = me3().players.find((p: any) => p.classYear === 0);
+    const worst = Math.min(...me3().players.map((p: any) => p.attrs.skl + p.attrs.ath + p.attrs.frc + p.attrs.brn));
+    if (!fr || fr.attrs.skl + fr.attrs.ath + fr.attrs.frc + fr.attrs.brn !== worst) throw new Error('the freshman should have the worst OVR');
+  }
+  // THE WALK: intro dialog first (drained above), then the roster spotlight
   if (!st3().tutWalk || st3().tutWalk.key !== 'roster') throw new Error('the roster walk did not arm');
   if (!app.innerHTML.includes('tutwalk')) throw new Error('the walk box did not render');
-  anyWin.gcAction('tut-walk-tap', ''); // step by tap works…
-  anyWin.gcAction('tut-walk-skip', ''); // …and the skip hands the floor on
-  drain(); // the time machine goes haywire
+  // THE LOCK: off-script clicks are dead while the walk holds the floor
+  anyWin.gcAction('tut-walk-tap', ''); // (finishes the typed line)
+  click('[data-action="begin-week"]');
+  if (st3().phase !== 'weekstart') throw new Error('THE LOCK failed: continued mid-walk');
+  anyWin.gcAction('tut-walk-skip', '');
+  drain(); // the idea arrives · the assistant blesses it
+  // now the machine must be DRAGGED onto the star — the walk demands it
+  if (!st3().tutWalk || st3().tutWalk.key !== 'timeloop') throw new Error('the timeloop walk did not arm');
+  const star3 = me3().players.find((p: any) => p.outKind === 'away');
+  if (!star3) throw new Error('the suspended star is missing');
+  (gc as any).drop('timeloop', 'p', star3.id);
+  drain(); // the mishap: lost in time, the assistant's "nice try"
   if (!me3().players.some((p: any) => p.outReason === 'lost in time')) throw new Error('the haywire beat never fired');
+  if (st3().bag.includes('timeloop')) throw new Error('the machine should dissolve into a smell');
   anyWin.gcAction('begin-week', '');
-  drain();
+  drain(); // the campus intro
   if (st3().phase !== 'facilities') throw new Error(`expected facilities in season zero, got ${st3().phase}`);
-  walkSkip(); // the campus walk…
-  drain(); // …hands the floor to the dean in the parking lot (the hoop)
-  if (!st3().futureBeats.some((b: any) => b.data?.facId === 'gym')) throw new Error("the dean's hoop should read ARRIVING");
+  walkSkip(); // the campus walk
   anyWin.gcAction('fac-run', ''); // GRAB THE MOP (the only tutorial move)
-  drain(); // the mop scene → the janitor → the patch kit (take it)
+  drain(); // mop → janitor → patch (take only) → the assistant's read → the dean's hoop
   if (!st3().bag.includes('patch')) throw new Error('the janitor never handed the patch kit');
+  if (!st3().futureBeats.some((b: any) => b.data?.facId === 'gym')) throw new Error("the dean's hoop should read ARRIVING");
   if (!app.innerHTML.includes('tuthint')) throw new Error('tutorial hint bar missing');
   anyWin.gcAction('to-scouting', '');
-  drain();
-  walkSkip(); // the board walk…
-  drain(); // …then the head cheerleader reveals the board, opens the row
+  drain(); // the scouting intro → the head cheerleader reveals the board
   if (!st3().prospects.every((p: any) => p.digits >= 2)) throw new Error('the cheerleader should reveal the whole board');
   if (st3().facilities.greekrow !== 1) throw new Error('Kappa Nebula should open GREEK ROW 1');
+  walkSkip(); // the board walk (rows, one move a week)
   anyWin.gcAction('gx-run', ''); // LOCAL REC CENTER — free, pinned to find the gem
   click('[data-action="gx-result-tap"]');
   click('[data-action="gx-result-tap"]');
   drain();
+  walkSkip(); // the POTENTIAL walk (??, the stars, keep the kid)
   const stateMod = await import('../src/engine/state');
   if (st3().pendingRecruits.length) {
     // the board was full: swap the 5★ kid on, let a nobody go
@@ -379,25 +407,34 @@ async function main(): Promise<void> {
     anyWin.gcAction('board-confirm-do', '');
     toasts();
   }
-  walkSkip(); // the POTENTIAL lens walk (the stars, the ?? rating)
   anyWin.gcAction('to-practice', '');
+  drain(); // the practice intro
+  walkSkip(); // the practice walk (grades, the freshman drag, tactics)
+  // the patch lands on the standout (the walk step normally forces this)
+  {
+    const hurt = me3().players.find((p: any) => p.outKind === 'injury');
+    if (hurt) {
+      (gc as any).drop('patch', 'p', hurt.id);
+      toasts();
+      if (me3().players.some((p: any) => p.outKind === 'injury')) throw new Error('the patch kit should clear the injury');
+    }
+  }
+  anyWin.gcAction('drill-run', ''); // TEAM REST — season zero's miracle week off
   drain();
-  walkSkip(); // the practice walk (grades, the patch, the tactics)
-  anyWin.gcAction('drill-run', ''); // TEAM REST — the whole menu at gym 0
-  drain();
+  if (me3().players.some((p: any) => p.outWeeks === 0 && p.energy < 80)) throw new Error('the tutorial rest should put the whole squad in the green');
+  walkSkip(); // "a rested squad grades better"
   anyWin.gcAction('to-recruiting', '');
-  drain();
+  drain(); // the recruiting intro
   walkSkip(); // the recruiting walk
   anyWin.gcAction('gx-run', ''); // THE GROUP HOLO-CHAT
   click('[data-action="gx-result-tap"]');
   click('[data-action="gx-result-tap"]');
-  drain(); // the booster: faith (+25), then the BLANK CHECK (take it)
+  drain(); // the booster: faith (+25), then the BLANK CHECK (take only)
   if (!st3().bag.includes('check')) throw new Error('the booster never left the blank check');
   // the check must land on the kid before the bus leaves
   anyWin.gcAction('to-matchup', '');
   if (st3().phase !== 'matchup') {
-    // still recruiting: good — the drop is the lesson
-    walkSkip();
+    walkSkip(); // the check walk
     const gem = st3().prospects.find((p: any) => p.pots.skl + p.pots.ath + p.pots.frc + p.pots.brn >= 70);
     if (!gem) throw new Error('the rec-center gem is missing from the board');
     (gc as any).drop('check', 'pr', gem.id);
@@ -409,17 +446,30 @@ async function main(): Promise<void> {
   if (st3().phase !== 'matchup') throw new Error(`expected matchup, got ${st3().phase}`);
   if (st3().energy !== 1) throw new Error('the goblin gag must hand the credit back');
   walkSkip(); // the matchup walk (the bars, the speech)
+  // pre-cheer, the sheet holds ONLY the four standard trades — no RALLY yet
+  must('.navbar [data-action="speech-sheet"]', 'open the tutorial speech sheet');
+  if (!app.innerHTML.includes('SHOOTERS SHOOT')) throw new Error('the standard speeches are missing from the tutorial sheet');
+  if (app.innerHTML.includes('THIS IS OUR HOUSE')) throw new Error('THE RALLY must not be pickable before the cheerleader');
+  if (app.innerHTML.includes('COUNTER THE SET')) throw new Error('instructions must stay off the tutorial sheet');
+  anyWin.gcAction('speech-pick', 'showtime');
   anyWin.gcAction('speech-run', ''); // first attempt → the cheerleader walks in
   drain();
-  anyWin.gcAction('speech-run', ''); // THE RALLY — and tonight it WORKS
+  anyWin.gcAction('speech-run', ''); // THE RALLY — and tonight it TEARS THE ROOF OFF
   toasts();
   if (!st3().pregameWk) throw new Error('the rally never got said');
   if (st3().speechTook !== true) throw new Error('the tutorial rally must land');
+  if (me3().players.some((p: any) => p.outWeeks === 0 && p.mood < 80)) throw new Error('the rally should put the room at 80+ mood');
+  // the two heroes stand in the starting lineup, locked there
+  {
+    const fr = me3().players.find((p: any) => p.classYear === 0);
+    const floor = me3().lineup.slots.slice(0, 6);
+    if (fr && !floor.includes(fr.id)) throw new Error('the freshman must start the finale');
+  }
   anyWin.gcAction('play-game', '');
   drain(); // the bookie says hello, favoring the opposition
   for (let i = 0; i < 4 && app.querySelector('#needle-stage') && !/YOU WON/.test(app.innerHTML); i++) {
     (app.querySelector('#needle-stage') as unknown as { click?: () => void } | null)?.click?.();
-    drain(); // the freshman catches fire at the half
+    drain(); // the freshman catches fire — LET HIM COOK is the only door
   }
   if (!/YOU WON/.test(app.innerHTML)) throw new Error('the tutorial game must be WON');
   anyWin.gcAction('gn-recap', '');
@@ -435,7 +485,7 @@ async function main(): Promise<void> {
   anyWin.gcAction('gn-pass', '');
   anyWin.gcAction('gn-table', '');
   anyWin.gcAction('continue-result', '');
-  drain(); // the road home: the attendant, the kid (1¢ meal), the gifts, tryouts
+  drain(); // the road home: attendant, the kid (1¢ meal), the gifts, the nerd, tryouts
   if (st3().phase !== 'teamSelect') throw new Error(`expected teamSelect after the wrap, got ${st3().phase}`);
   if (st3().tutorial === undefined) throw new Error('the assistant stays through the tryouts');
   if (st3().energy !== 0) throw new Error('the hot meal should spend the last credit');
@@ -448,7 +498,7 @@ async function main(): Promise<void> {
   if (st3().tutorial !== undefined) throw new Error('the tutorial should end after the goodbye');
   if (st3().season !== 1) throw new Error(`season 1 should begin after tutorial tryouts, got ${st3().season}`);
 
-  console.log('UI SMOKE OK — pick team → new-career paths → tryouts → campus move → scouting → lenses → drill → recruiting → pregame move → live game → YOU WON/LOST → box score → league → WEEK START → campus cast renders → TUTORIAL season zero start to finish (walks, mop, check, rally, notebook, goodbye)');
+  console.log('UI SMOKE OK — new-career paths → tryouts → one campus move → scouting → lenses → drill → recruiting → pregame → live game → box score + leaders note → standings w/ leaders tab → WEEK TURN → arrival at the campus door → campus cast → TUTORIAL season zero (intros, walks, lock, timeloop drag, mop, check, roof-raising rally, notebook, nerd, goodbye)');
 }
 
 main().catch((e) => {
