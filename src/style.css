@@ -1731,3 +1731,87 @@ button.hopp .chip { vertical-align: 1px; }
   60% { opacity: 1; transform: scale(1.04); }
   100% { opacity: 1; transform: none; }
 }
+
+/* ---- M5 COURT CARDS: the live floor ------------------------------------------
+   Three mini-cards under the rope — the scoring script flashes whichever
+   card the box score says earned the bump; the bench pair slides in for the
+   middle stretch; ON FIRE gets a stage (the card smokes over the rig's own
+   flames). Pure theater — the rope above stays the truth. */
+.court {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 10px;
+  margin: 18px 6px 0;
+  min-height: 96px;
+}
+.ccard {
+  position: relative;
+  width: 84px;
+  padding: 10px 3px 4px;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.ccard .cspr { margin: 0 auto; }
+.cname {
+  max-width: 100%;
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #cfd6cf;
+}
+.ccard.pop { animation: courtpop 0.6s ease-out; border-color: #fff; }
+@keyframes courtpop {
+  0% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+  25% { transform: translateY(-6px) scale(1.07); box-shadow: 0 0 14px rgba(255, 255, 255, 0.55); }
+  100% { transform: translateY(0) scale(1); box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+}
+.cpop {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  color: #fff;
+  text-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+  animation: cpoprise 0.6s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes cpoprise {
+  from { opacity: 1; top: -10px; }
+  to { opacity: 0; top: -28px; }
+}
+.ccard.fresh { animation: courtin 0.45s ease-out; }
+@keyframes courtin {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.ccard.onfire { border-color: rgba(255, 154, 46, 0.7); animation: ember 1.6s ease-in-out infinite; }
+@keyframes ember {
+  0%, 100% { box-shadow: 0 0 6px rgba(255, 122, 24, 0.35); }
+  50% { box-shadow: 0 0 16px rgba(255, 154, 46, 0.7); }
+}
+.ccard.onfire::after {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(200, 200, 200, 0.35);
+  animation: smokeup 1.8s linear infinite;
+  pointer-events: none;
+}
+@keyframes smokeup {
+  0% { transform: translate(-50%, 0) scale(0.6); opacity: 0.5; }
+  100% { transform: translate(-50%, -22px) scale(1.6); opacity: 0; }
+}

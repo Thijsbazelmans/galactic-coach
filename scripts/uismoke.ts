@@ -266,6 +266,11 @@ async function main(): Promise<void> {
   // out of the in-game screen (illustrations are for dialogs)
   if (!app.innerHTML.includes('THE BOOKIE')) throw new Error('the bookie line is missing');
   if (app.innerHTML.includes('bookiefig')) throw new Error('the bookie figure should be gone from the in-game screen');
+  // M5 COURT CARDS: three mini-cards on the floor under the rope, each with
+  // a rig sprite and a name — my side only (the opponent stays cards-less)
+  if (app.querySelectorAll('#court .ccard').length !== 3) throw new Error('the court should hold three cards at tip-off');
+  if (app.querySelectorAll('#court .ccard .cspr').length !== 3) throw new Error('court cards should wear sprites');
+  if (app.querySelectorAll('#court .ccard .cname').length !== 3) throw new Error('court cards should wear names');
   // skip the live game (tap) → the night's interruptions may speak at the
   // half (answer them, the game resumes) → YOU WON / YOU LOST on the same screen
   for (let i = 0; i < 3 && app.querySelector('#needle-stage') && !/YOU WON|YOU LOST/.test(app.innerHTML); i++) {
@@ -467,6 +472,16 @@ async function main(): Promise<void> {
   }
   anyWin.gcAction('play-game', '');
   drain(); // the bookie says hello, favoring the opposition
+  // M5 COURT CARDS in season zero: the rally forced the freshman into the
+  // top six — his card either opens on the floor or swaps in with the bench
+  // pair at 40% of the clock
+  {
+    const fr = me3().players.find((p: any) => p.classYear === 0);
+    if (app.querySelectorAll('#court .ccard').length !== 3) throw new Error('the tutorial court should hold three cards');
+    const onCourt = fr && !!app.querySelector(`#court .ccard[data-cpid="${fr.id}"]`);
+    const slotIx = fr ? me3().lineup.slots.indexOf(fr.id) : -1;
+    if (fr && !onCourt && !(slotIx >= 3 && slotIx < 6)) throw new Error('the freshman must reach the court (start or bench pair)');
+  }
   for (let i = 0; i < 4 && app.querySelector('#needle-stage') && !/YOU WON/.test(app.innerHTML); i++) {
     (app.querySelector('#needle-stage') as unknown as { click?: () => void } | null)?.click?.();
     drain(); // the freshman catches fire — LET HIM COOK is the only door

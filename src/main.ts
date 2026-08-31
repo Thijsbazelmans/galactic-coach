@@ -28,7 +28,7 @@ import {
   storyById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, REGULAR_WEEKS, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, bestCol, bookieLine, grade, gradeRating, matchAttrs, posArrows, slotPlayer, tacticsMult, winShare, type Grade } from './engine/sim';
+import { COL_LABELS, benchPlayers, bestCol, bookieLine, grade, gradeRating, matchAttrs, posArrows, slotPlayer, tacticsMult, winShare, type Grade } from './engine/sim';
 import {
   actCooldown,
   actionGalaxy,
@@ -83,7 +83,7 @@ import {
   wipeSave,
 } from './engine/state';
 import { TUT_AT, tutGem, tutStandout, tutStar, tutorialAllows, tutorialArrive, tutorialBoot, tutorialHeader, tutorialHint, tutorialIntro, tutorialWalkDone, tutorialWalkStart, tutorialWalkSteps, type TutStep } from './engine/tutorial';
-import type { Attr, AttrRec, FacId, GameState, PlanId, Player, Prospect, SpeechFx, Team } from './engine/types';
+import type { Attr, AttrRec, BoxRow, FacId, GameState, PlanId, Player, Prospect, SpeechFx, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, opTracks, ovr, perGame, potStars, rand, security } from './engine/util';
 import { PRACTICE_KIT, STREET_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, titleHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
@@ -2493,6 +2493,47 @@ function speechSheetHtml(s: GameState): string {
 /** where the live game paused for the night's interruptions (per week) */
 let liveProg: { key: string; l: number; r: number } | null = null;
 
+// ---- M5 COURT CARDS: the live floor ------------------------------------------
+// Pure theater, zero effect on the result: the box score dealt at tip-off
+// becomes a scoring script — every bump on my side flashes the card of the
+// player the box says earned it. Three cards on the floor; the bench pair
+// takes the two quietest spots for the middle stretch of the clock. The
+// opponent's side stays cards-less — enemy territory.
+
+/** Who stands on the floor at clock fraction t — deterministic, so the
+    night resumes correctly after an interruption. Starters open and close;
+    the two loudest bench lines replace the two quietest starters between
+    40% and 75% of the clock. */
+function courtFloor(t: Team, box: BoxRow[], frac: number): Player[] {
+  const st = starters(t);
+  if (frac < 0.4 || frac >= 0.75) return st;
+  const pts = (p: Player): number => box.find((b) => b.playerId === p.id)?.pts ?? 0;
+  const bench = benchPlayers(t).filter((p) => p.outWeeks === 0).sort((a, b) => pts(b) - pts(a)).slice(0, 2);
+  if (!bench.length) return st;
+  const sitting = new Set([...st].sort((a, b) => pts(a) - pts(b)).slice(0, bench.length).map((p) => p.id));
+  let bi = 0;
+  return st.map((p) => (sitting.has(p.id) && bi < bench.length ? bench[bi++] : p));
+}
+
+/** name + sprite, nothing else — a player on fire smokes (the rig itself
+    already draws his flames) */
+function courtCardHtml(p: Player, kit: Kit, fresh: boolean): string {
+  return `<div class="ccard ${p.onFire ? 'onfire' : ''} ${fresh ? 'fresh' : ''}" data-cpid="${p.id}">
+      ${rigSpriteHtml(rigView(p), kit, 1.1, 'cspr')}
+      <span class="cname">${esc(p.name)}</span>
+    </div>`;
+}
+
+/** The court's inner HTML at clock fraction t; `prev` marks which cards are
+    NEW this rotation (they slide in). */
+function courtHtml(s: GameState, frac: number, prev?: Set<number>): string {
+  const r = s.lastResult;
+  if (!r) return '';
+  const t = myTeam(s);
+  const floor = courtFloor(t, r.box, frac);
+  return floor.map((p) => courtCardHtml(p, { bg: t.bg, fg: t.fg }, !!prev && !prev.has(p.id))).join('');
+}
+
 function needleStage(s: GameState, title: string, share: number, home: boolean, oppName: string, final?: { my: number; opp: number; win: boolean }): string {
   const t = myTeam(s);
   const m = myMatchup(s);
@@ -2557,7 +2598,7 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
     ${final ? `<div class="gn-final ${final.win ? 'won' : 'lost'} ${final.win && titleGame ? 'title' : ''}">
       <b>${final.win ? (titleGame ? 'CHAMPIONS OF THE UNIVERSE' : 'YOU WON') : 'YOU LOST'}</b>
       <span class="gn-score">${final.my} – ${final.opp}</span>
-    </div>` : '<div class="lg-air"></div>'}
+    </div>` : `<div class="court" id="court">${courtHtml(s, (l + rr) / total)}</div><div class="lg-air"></div>`}
   </div>`;
 }
 
@@ -3715,6 +3756,40 @@ function animateLiveGame(myPts: number, oppPts: number, _share: number, home: bo
   let l = liveProg && liveProg.key === wkKey ? liveProg.l : 0;
   let r = liveProg && liveProg.key === wkKey ? liveProg.r : 0;
   let done = false;
+  // M5 COURT CARDS — the scoring script: what's left of each box line at
+  // this point of the clock; my side's bumps pop names out of this bag
+  const bag = new Map<number, number>();
+  for (const b of state.lastResult?.box ?? []) bag.set(b.playerId, Math.max(0, Math.round(b.pts * (1 - (l + r) / total))));
+  const bandOf = (frac: number): number => (frac < 0.4 ? 0 : frac < 0.75 ? 1 : 2);
+  let band = bandOf((l + r) / total);
+  const courtSwap = (): void => {
+    const frac = (l + r) / total;
+    if (bandOf(frac) === band) return;
+    band = bandOf(frac);
+    const court = document.getElementById('court');
+    if (!court) return;
+    const prev = new Set([...court.querySelectorAll('.ccard')].map((el) => Number(el.getAttribute('data-cpid'))));
+    court.innerHTML = courtHtml(state, frac, prev);
+  };
+  const flashCourt = (amt: number): void => {
+    const cards = [...document.querySelectorAll('#court .ccard')] as HTMLElement[];
+    if (!cards.length) return;
+    const ids = cards.map((el) => Number(el.getAttribute('data-cpid')));
+    const pool = ids.filter((id) => (bag.get(id) ?? 0) > 0);
+    let pick = ids[Math.floor(Math.random() * ids.length)];
+    if (pool.length) {
+      let roll = Math.random() * pool.reduce((a, id) => a + (bag.get(id) ?? 0), 0);
+      for (const id of pool) { roll -= bag.get(id) ?? 0; if (roll <= 0) { pick = id; break; } }
+    }
+    bag.set(pick, Math.max(0, (bag.get(pick) ?? 0) - amt));
+    const card = cards[ids.indexOf(pick)];
+    card.querySelector('.cpop')?.remove();
+    card.classList.remove('pop');
+    void card.offsetWidth; // restart the flash
+    card.classList.add('pop');
+    card.insertAdjacentHTML('beforeend', `<b class="cpop">+${amt}</b>`);
+    window.setTimeout(() => { card.classList.remove('pop'); card.querySelector('.cpop')?.remove(); }, 640);
+  };
   // THE INTERRUPTIONS: at the half the night's stories get the floor; the
   // game resumes from this exact frame once the coach has answered
   const pause = (): void => {
@@ -3753,6 +3828,7 @@ function animateLiveGame(myPts: number, oppPts: number, _share: number, home: bo
     l = leftFinal;
     r = rightFinal;
     apply();
+    courtSwap(); // the horn: starters close it out
     lgsep.classList.add('landed');
     if (skip) onDone();
     else window.setTimeout(onDone, 850);
@@ -3767,6 +3843,8 @@ function animateLiveGame(myPts: number, oppPts: number, _share: number, home: bo
     const amt = Math.min(1 + rand(3), left ? remL : remR);
     if (left) l += amt; else r += amt;
     apply();
+    courtSwap();
+    if (left === !home) flashCourt(amt); // my bump: the box score names him
   }, 170);
   document.getElementById('needle-stage')?.addEventListener('click', () => finish(true));
 }
