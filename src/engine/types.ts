@@ -479,8 +479,11 @@ export interface GameState {
   knownInstr?: string[];
   /** one-time assistant-coach explainers, by key */
   tipsSeen: string[];
-  /** auto-show tips (the ? button always works) */
+  /** auto-show tips — DEAD (v5 M3): the tutorial teaches now; kept in saves */
   tipsAuto: boolean;
+  /** THE TUTORIAL SEASON (v5 M3): the beat index of season zero's scripted
+      week. Defined = the tutorial is running; deleted when the wheels come off. */
+  tutorial?: number;
   /** the ship: 0 = flying; >0 = grounded (home-planet scouting only, no deep scans) */
   groundedWeeks: number;
   /** THE CAMPUS: facility levels (0–3). Missing = everything at 1. */

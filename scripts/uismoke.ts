@@ -62,6 +62,9 @@ async function main(): Promise<void> {
   must('[data-action="press-start"]', 'press start');
   if (!app.innerHTML.includes('GALACTIC COACH')) throw new Error('pick-team screen missing');
   must('[data-action="pick-team"]', 'pick team');
+  // FIRST TIME PLAYING? — the veteran path skips straight to tryouts
+  if (!app.innerHTML.includes('FIRST TIME PLAYING?')) throw new Error('first-time ask missing after pick');
+  must('[data-action="tut-skip"]', 'skip the tutorial');
   if (state().phase !== 'teamSelect') throw new Error(`expected teamSelect, got ${state().phase}`);
   drain();
   const anyWin = win as unknown as { gcAction?: (a: string, id: string) => void };
@@ -295,7 +298,77 @@ async function main(): Promise<void> {
     drain();
   }
 
-  console.log('UI SMOKE OK — pick team → tryouts → scouting → lenses → drill → recruiting → pregame move → live game → YOU WON/LOST → box score → league → WEEK START → scouting → campus cast renders');
+  // ---- THE TUTORIAL SEASON (v5 M3): season zero, scripted, taught by doing ----
+  anyWin.gcAction('new-game', ''); // no title screen on an in-session reset
+  must('[data-action="pick-team"]', 'pick team (tutorial run)');
+  must('[data-action="tut-yes"]', 'first time — coach the tutorial');
+  const st3 = (): any => gc.state() as any;
+  if (st3().tutorial === undefined) throw new Error('the tutorial did not arm');
+  if (Object.values(st3().facilities).some((v) => v !== 0)) throw new Error('the tutorial campus should start at level 0');
+  drain(); // the call, the dean, the roster, the haywire machine
+  if (st3().phase !== 'weekstart') throw new Error(`expected weekstart in season zero, got ${st3().phase}`);
+  anyWin.gcAction('begin-week', '');
+  drain(); // the hoop complaint, the janitor's patch kit
+  if (st3().phase !== 'facilities') throw new Error(`expected facilities in season zero, got ${st3().phase}`);
+  if (!app.innerHTML.includes('tuthint')) throw new Error('tutorial hint bar missing');
+  if (!st3().bag.includes('patch')) throw new Error('the janitor never handed the patch kit');
+  anyWin.gcAction('to-scouting', '');
+  drain(); // the head cheerleader reveals the board
+  if (!st3().prospects.every((p: any) => p.digits >= 2)) throw new Error('the cheerleader should reveal the whole board');
+  if (st3().facilities.greekrow !== 1) throw new Error('Kappa Nebula should open GREEK ROW 1');
+  anyWin.gcAction('gx-run', ''); // LOCAL REC CENTER — free, and pinned to find the gem
+  click('[data-action="gx-result-tap"]');
+  click('[data-action="gx-result-tap"]');
+  drain();
+  const stateMod = await import('../src/engine/state');
+  if (st3().pendingRecruits.length) {
+    // the board was full: swap the 5★ kid on, let a nobody go
+    stateMod.swapBoardSlot(st3(), 9, 8);
+    anyWin.gcAction('board-confirm-open', '');
+    anyWin.gcAction('board-confirm-do', '');
+    for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* the walk-away toast */ }
+  }
+  anyWin.gcAction('to-practice', '');
+  drain(); // the assistant on grades and the patch
+  anyWin.gcAction('drill-run', ''); // TEAM REST — the whole menu at gym 0
+  drain();
+  anyWin.gcAction('to-recruiting', '');
+  drain(); // the booster, the blank check
+  if (!st3().prospects.some((p: any) => p.signed)) throw new Error('the blank check should sign the rec-center kid');
+  anyWin.gcAction('gx-run', ''); // THE GROUP HOLO-CHAT
+  click('[data-action="gx-result-tap"]');
+  click('[data-action="gx-result-tap"]');
+  drain();
+  anyWin.gcAction('to-matchup', '');
+  drain(); // wheels up, Scoop's question, the bus breakdown
+  anyWin.gcAction('speech-run', ''); // THE RALLY — the only page in the book
+  for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* the speech verdict */ }
+  anyWin.gcAction('play-game', '');
+  drain();
+  for (let i = 0; i < 4 && app.querySelector('#needle-stage') && !/YOU WON/.test(app.innerHTML); i++) {
+    (app.querySelector('#needle-stage') as unknown as { click?: () => void } | null)?.click?.();
+    drain(); // the freshman catches fire at the half
+  }
+  if (!/YOU WON/.test(app.innerHTML)) throw new Error('the tutorial game must be WON');
+  anyWin.gcAction('gn-recap', '');
+  drain(); // the notebook lesson, the bookie's cryo unit
+  if (st3().facilities.cryo !== 1) throw new Error("the bookie's cryo unit never fell off the truck");
+  anyWin.gcAction('gn-verdict', '');
+  anyWin.gcAction('gn-pass', '');
+  anyWin.gcAction('gn-table', '');
+  anyWin.gcAction('continue-result', '');
+  drain(); // the road home, the gifts, goodbye assistant
+  if (st3().tutorial !== undefined) throw new Error('the tutorial should end at tryouts');
+  if (st3().phase !== 'teamSelect') throw new Error(`expected teamSelect after the wrap, got ${st3().phase}`);
+  if (Object.values(st3().facilities).some((v) => v !== 1)) throw new Error('six gifts: the campus must stand at level 1');
+  if (st3().selectPool.length !== 12) throw new Error(`the tryouts pool should hold 12, got ${st3().selectPool.length}`);
+  if (st3().knownPlans.length < 6) throw new Error('the standard speeches should return with season 1');
+  anyWin.gcAction('cut-confirm-open', '');
+  anyWin.gcAction('confirm-roster', '');
+  drain();
+  if (st3().season !== 1) throw new Error(`season 1 should begin after tutorial tryouts, got ${st3().season}`);
+
+  console.log('UI SMOKE OK — pick team → tryouts → scouting → lenses → drill → recruiting → pregame move → live game → YOU WON/LOST → box score → league → WEEK START → scouting → campus cast renders → TUTORIAL season zero start to finish');
 }
 
 main().catch((e) => {

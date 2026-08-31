@@ -1612,3 +1612,19 @@ button.hrow b { color: var(--r95); }
 /* the header's next-game row: plain text, opponent in their colors */
 button.hopp { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; min-width: 0; justify-self: start; color: var(--r95); font-weight: bold; }
 button.hopp .chip { vertical-align: 1px; }
+
+/* THE TUTORIAL (v5 M3): the assistant's one-line cue above the nav */
+.tuthint {
+  margin: 0 8px 4px;
+  padding: 6px 10px;
+  background: var(--rpanel);
+  border: 1px solid var(--rline);
+  color: var(--r75);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.tuthint b {
+  color: var(--r95);
+  letter-spacing: 1px;
+  margin-right: 6px;
+}

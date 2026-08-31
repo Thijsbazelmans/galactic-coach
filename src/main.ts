@@ -75,7 +75,6 @@ import {
   toScouting,
   toSigning,
   toggleProspect,
-  toggleTips,
   upgradeFacility,
   useItem,
   utOpponent,
@@ -83,6 +82,7 @@ import {
   wipeCodex,
   wipeSave,
 } from './engine/state';
+import { tutorialBoot, tutorialHint } from './engine/tutorial';
 import type { Attr, AttrRec, FacId, GameState, PlanId, Player, Prospect, SpeechFx, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, opTracks, ovr, perGame, potStars, rand, security } from './engine/util';
@@ -131,6 +131,9 @@ let state: GameState = load() ?? freshGame();
 // THE TITLE SCREEN: everyone lands on MARCH MANIACS — press start (anywhere)
 // and you either pick a program or pick up exactly where you left off
 let titleOpen = true;
+
+/** the picked program, waiting on the FIRST TIME PLAYING? answer (v5 M3) */
+let pendingTeam: number | null = null;
 
 function titleScreenHtml(): string {
   const t = state.myTeamId >= 0 ? myTeam(state) : null;
@@ -2680,9 +2683,21 @@ function stagePickTeam(s: GameState): string {
     return `<button class="teampickbtn" data-action="pick-team" data-id="${t.id}" style="background:${t.bg};color:${t.fg}">
       <b>${esc(teamLabel(t))}</b><br/><span>${esc(t.region)} · ${esc(t.planet)}</span></button>`;
   }).join('');
+  // FIRST TIME PLAYING? (v5 M3): yes → one scripted week as SEASON ZERO;
+  // no → straight to today's flow with the slow-open kit
+  const pt = pendingTeam !== null ? s.teams[pendingTeam] : null;
+  const ask = pt
+    ? `<div class="modalback"><div class="modal">
+      <span class="tag">${esc(teamLabel(pt)).toUpperCase()}</span>
+      <p><b>FIRST TIME PLAYING?</b><br/><span class="dim">Season zero is one scripted week — a doomed program, one game to coach, every screen taught by doing.</span></p>
+      <button class="wide" data-action="tut-yes">🏀 FIRST TIME — COACH THE TUTORIAL</button>
+      <button class="wide" data-action="tut-skip">I KNOW THE DRILL — STRAIGHT TO TRYOUTS</button>
+      <button class="wide" data-action="tut-back">PICK A DIFFERENT PROGRAM</button>
+    </div></div>`
+    : '';
   return `<h1>GALACTIC COACH</h1>
     <p class="sub">3-on-3. Every choice has two tails.</p>
-    <div class="teampick">${cards}</div>`;
+    <div class="teampick">${cards}</div>${ask}`;
 }
 
 // ---- nav (always there) ------------------------------------------------------------------------------------
@@ -2960,7 +2975,6 @@ function coachModalHtml(s: GameState): string {
       <div class="acthead">PRACTICE</div>${practice}
       <div class="acthead">SCOUTING</div>${scouting}
     </div>
-    <button class="wide" data-action="toggle-tips">ASSISTANT AUTO-TIPS: ${s.tipsAuto ? 'ON' : 'OFF'}</button>
     <p class="dim">GALACTIC COACH ${VERSION} · build ${typeof __BUILD_ID__ === 'undefined' ? 'dev' : __BUILD_ID__}</p>
     <button class="wide danger hold" data-action="codex-wipe">🗑 DELETE CODEX — START FRESH (cannot be undone)</button>
     <button class="wide danger hold" data-action="new-game">NEW GAME (wipes this save)</button>
@@ -3067,9 +3081,13 @@ function render(): void {
   // the bottom stack, rearranged (Aug 29): view tabs FIRST, then the one
   // big action/continue button, then THE BAG — the tabs change what you
   // see, the button moves you on, in that reading order
+  // THE TUTORIAL's cue: the assistant's one line above the nav — where to
+  // press next, never a lecture (it yields while a story holds the floor)
+  const tutTxt = tutorialHint(state, gnStage);
+  const hintHtml = tutTxt && !ev ? `<div class="tuthint"><b>ASSISTANT</b>${esc(tutTxt)}</div>` : '';
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
     ? `<div class="midwrap"><div class="middle solo">${middle}</div>${overlays}</div>${navHtml}`
-    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${overlays}</div>${lensHtml}${navHtml}${bagBar(state)}`;
+    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${overlays}</div>${lensHtml}${hintHtml}${navHtml}${bagBar(state)}`;
 
   // THE ANIMATION BUILD: a screen CHANGE builds in stages — title first (you
   // know where you are), content next, the action button last (you know where
@@ -3813,7 +3831,19 @@ const PHASE_TIP: Record<string, string> = {
 function executeAction(action: string, id: string): void {
   switch (action) {
     case 'press-start': titleOpen = false; builtKey = ''; break;
-    case 'pick-team': chooseTeam(state, Number(id)); break;
+    case 'pick-team': pendingTeam = Number(id); break;
+    case 'tut-yes': {
+      if (pendingTeam === null) break;
+      for (const r of tutorialBoot(state, pendingTeam)) queueStory(state, r.defId, r.beat, r.playerId, r.data ?? {});
+      save(state);
+      pendingTeam = null;
+      break;
+    }
+    case 'tut-skip':
+      if (pendingTeam !== null) chooseTeam(state, pendingTeam);
+      pendingTeam = null;
+      break;
+    case 'tut-back': pendingTeam = null; break;
 
     case 'story-choice':
       doResolve(id);
@@ -4023,6 +4053,7 @@ function executeAction(action: string, id: string): void {
       wipeSave();
       state = freshGame();
       lens = 0;
+      pendingTeam = null;
       coachOpen = false;
       itemUi = null;
       toast = null;
@@ -4146,7 +4177,6 @@ app.addEventListener('click', (e) => {
     case 'notebook-close': notebookOpen = false; break;
     case 'coach-open': coachOpen = true; break;
     case 'coach-close': coachOpen = false; break;
-    case 'toggle-tips': toggleTips(state); break;
     case 'help': {
       const key = PHASE_TIP[state.phase];
       if (key) showTip(state, key);

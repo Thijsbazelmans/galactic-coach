@@ -66,6 +66,7 @@ import {
   stipendFor,
   xpNeed,
 } from './gen';
+import { tutorialArrive, tutorialGemify, tutorialHeld, tutorialRigGame, tutorialWrap } from './tutorial';
 import {
   autoLineup,
   benchPlayers,
@@ -126,7 +127,7 @@ function takenNames(s: GameState): Set<string> {
 }
 
 export function weekLabel(s: GameState): string {
-  if (s.season === 0) return 'TRYOUTS';
+  if (s.season === 0) return s.tutorial !== undefined ? `WEEK ${s.week} — SEASON ZERO` : 'TRYOUTS';
   if (s.week <= REGULAR_WEEKS) return `WEEK ${s.week}/${REGULAR_WEEKS}`;
   return `WEEK ${REGULAR_WEEKS}+${s.week - REGULAR_WEEKS}`;
 }
@@ -503,11 +504,18 @@ function storyCtx(s: GameState, playerId: number | null, data: Record<string, un
   };
 }
 
-/** The assistant coach explains each screen exactly once, then trusts you. */
-export function maybeTip(s: GameState, key: string): void {
-  if (!s.tipsAuto || s.tipsSeen.includes(key) || !TIPS[key]) return;
-  s.tipsSeen.push(key);
-  queueStory(s, 'notice', 'start', null, { tag: 'ASSISTANT COACH', text: TIPS[key] });
+/** RETIRED with the tutorial (v5 M3): the assistant no longer lectures
+    unprompted — season zero teaches by doing, and the ? button answers on
+    demand. The call sites stay as markers of where a screen is first met. */
+export function maybeTip(_s: GameState, _key: string): void {
+  /* the wordy assistant has left the building */
+}
+
+/** THE TUTORIAL SEASON: the script asks for the floor as the coach reaches
+    each screen — the beats queue like any other story, the screens stay
+    untouched. */
+function tutQueue(s: GameState, reqs: StoryReq[]): void {
+  for (const r of reqs) queueStory(s, r.defId, r.beat, r.playerId, r.data ?? {});
 }
 
 /** The ? button: the assistant explains the current screen, on demand. */
@@ -515,11 +523,6 @@ export function showTip(s: GameState, key: string): void {
   if (!TIPS[key] || s.queue.some((e) => e.tag === 'ASSISTANT COACH')) return;
   if (!s.tipsSeen.includes(key)) s.tipsSeen.push(key);
   queueStory(s, 'notice', 'start', null, { tag: 'ASSISTANT COACH', text: TIPS[key] });
-  save(s);
-}
-
-export function toggleTips(s: GameState): void {
-  s.tipsAuto = !s.tipsAuto;
   save(s);
 }
 
@@ -1043,6 +1046,7 @@ export function beginWeek(s: GameState): void {
   s.phase = s.queue.length ? 'stories' : isUtWeek(s) ? 'matchup' : 'facilities';
   if (s.phase === 'facilities') maybeTip(s, 'facilities');
   if (s.phase === 'matchup') maybeTip(s, 'matchup');
+  if (s.tutorial !== undefined) tutQueue(s, tutorialArrive(s, s.phase));
   save(s);
 }
 
@@ -1053,6 +1057,7 @@ export function toScouting(s: GameState): void {
   if (s.queue.length || s.phase !== 'facilities') return;
   s.phase = 'scouting';
   maybeTip(s, 'scouting');
+  if (s.tutorial !== undefined) tutQueue(s, tutorialArrive(s, 'scouting'));
   save(s);
 }
 
@@ -1425,6 +1430,9 @@ export function actionGalaxy(s: GameState, actId: string, targetIds?: number[]):
     const names = takenNames(s);
     const found: Prospect[] = [genProspect(counter, s.season, act.id, names)];
     if (act.twoChance && roll(act.twoChance)) found.push(genProspect(counter, s.season, act.id, names));
+    // SEASON ZERO pins the find: the rec-center trip turns up the ??-rated
+    // 5★ kid — the reason not to cut the stranger
+    if (s.tutorial !== undefined && found[0]) tutorialGemify(found[0]);
     s.nextId = counter.nextId;
     // the ride matches the trip: local searches take the bus (the rec
     // center is a drive, not a launch); deep space takes the saucer
@@ -1730,6 +1738,7 @@ export function toPractice(s: GameState): void {
   if (s.phase === 'scouting' && (!s.scoutActWk || s.pendingRecruits.length)) return;
   s.phase = 'practice';
   maybeTip(s, 'practice');
+  if (s.tutorial !== undefined) tutQueue(s, tutorialArrive(s, 'practice'));
   save(s);
 }
 
@@ -1739,6 +1748,7 @@ export function toRecruiting(s: GameState): void {
   if (!s.trainedThisWeek) return;
   s.phase = 'recruiting';
   maybeTip(s, 'recruiting');
+  if (s.tutorial !== undefined) tutQueue(s, tutorialArrive(s, 'recruiting'));
   save(s);
 }
 
@@ -1752,6 +1762,7 @@ export function toMatchup(s: GameState): void {
   if (m && !m.home && s.phase === 'recruiting') queueStory(s, 'travel_out', 'start', null);
   s.phase = 'matchup';
   maybeTip(s, 'matchup');
+  if (s.tutorial !== undefined) tutQueue(s, tutorialArrive(s, 'matchup'));
   save(s);
 }
 
@@ -1866,7 +1877,14 @@ function simWeek(s: GameState): void {
   s.gameShift = 0;
   s.gameInjuries = [];
   const held = s.queue.length;
-  rollMidEvents(s, me, out.result);
+  if (s.tutorial !== undefined) {
+    // SEASON ZERO deals its own night: the upset lands, the freshman
+    // catches fire, nobody gets hurt
+    tutorialRigGame(s, out.result);
+    tutQueue(s, tutorialArrive(s, 'midgame'));
+  } else {
+    rollMidEvents(s, me, out.result);
+  }
   s.midStories = s.queue.splice(held);
   if (!s.midStories.length) finalizeGame(s);
   save(s);
@@ -1983,6 +2001,9 @@ export function finalizeGame(s: GameState): void {
     }
   }
   s.easyNight = false;
+  // the tutorial's post-horn beats (the notebook lesson, the bookie's cryo
+  // unit) queue here so they hold with everything else
+  if (s.tutorial !== undefined) tutQueue(s, tutorialHeld(s));
   // NEVER mid-game: the frozen one's verdict, the fire going out — all of it
   // holds until YOU WON / YOU LOST has been seen
   if (s.queue.length > held) s.heldStories = [...(s.heldStories ?? []), ...s.queue.splice(held)];
@@ -2093,6 +2114,15 @@ function applyGameEffects(s: GameState, won: boolean): void {
 
 export function continueFromResult(s: GameState): void {
   if (s.end) return;
+  if (s.tutorial !== undefined) {
+    // SEASON ZERO has no next Monday: the wrap-up chain takes the floor —
+    // the road home, the gifts, the goodbye, then season-1 tryouts
+    s.preGame = null;
+    s.phase = 'departures';
+    tutQueue(s, tutorialWrap(s));
+    save(s);
+    return;
+  }
   s.preGame = null;
   if (isUtWeek(s) && s.ut) {
     const wonRound = s.lastResult?.win ?? false;

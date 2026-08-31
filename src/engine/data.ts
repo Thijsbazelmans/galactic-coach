@@ -1521,6 +1521,109 @@ ITEMS.push(
   }
 );
 
+// ---- POWER ITEMS (v5 M3): the spiral needs a bailout to exist as loot --------
+// Fans fall → ultimatum → mood falls → Players fall. These are the levers.
+ITEMS.push(
+  {
+    id: 'puffpiece',
+    short: 'PUFF',
+    name: 'THE PUFF PIECE',
+    rarity: 'rare',
+    flavor: 'Scoop owes you one. He hates that he owes you one.',
+    effectText: 'THE PUBLIC +20 — and Scoop leaves you his own notes on the week',
+    context: ['mood'],
+    target: 'team',
+    up: { pct: 5, cls: 'SPIRIT' },
+    down: { pct: 2, cls: 'DRAMA' },
+    use: (ctx) => {
+      const s = ctx.s;
+      // he empties his notebook into yours: the week's answers, pre-written
+      const jot = (kind: string, key: string, text: string): void => {
+        if (!s.notebook.some((n) => n.key === key)) s.notebook.unshift({ season: s.season, week: s.week, kind, key, text });
+      };
+      const r = s.lastResult;
+      if (r) {
+        const mvp = r.box.find((x) => x.playerId === r.mvpId)?.name ?? '—';
+        const top = r.box[0];
+        jot('mvp', `mvp:${s.season}:${s.week}`, `${r.win ? 'W' : 'L'} ${r.myScore}–${r.oppScore} vs ${r.oppName} · MVP ${mvp} · top scorer ${top ? `${top.name} (${top.pts})` : '—'}`);
+        jot('results', `res:${s.season}:${s.week}`, [`my game: ${r.win ? 'W' : 'L'} ${r.myScore}–${r.oppScore} vs ${r.oppName}`, ...s.resultsLog].join(' · '));
+      }
+      const tops: string[] = [];
+      for (const k of ['pts', 'reb', 'stl', 'ast'] as const) {
+        let best: { name: string; v: number } | null = null;
+        for (const t of s.teams) for (const p of t.players) if (!best || p.stats[k] > best.v) best = { name: p.name, v: p.stats[k] };
+        tops.push(`${STAT_WORD[k]}: ${best?.name ?? '—'} (${best?.v ?? 0})`);
+      }
+      jot('lead', `lead:${s.season}:${s.week}`, `conference leaders — ${tops.join(' · ')}`);
+      return {
+        text: 'The piece runs Sunday: two columns, one flattering photograph, the word "architect" used without irony. Folded inside your copy: Scoop\'s own notes on the week, in handwriting neater than his hat suggests.',
+        fx: [{ opP: 20 }],
+      };
+    },
+  },
+  {
+    id: 'alumnigala',
+    short: 'GALA',
+    name: 'THE ALUMNI GALA',
+    rarity: 'rare',
+    flavor: 'Three hundred people who once rushed this court, back in one room.',
+    effectText: '3¢ · every opinion +8 — the campus remembers it likes basketball',
+    context: ['mood'],
+    target: 'team',
+    check: (ctx) => (ctx.s.energy >= 3 ? null : 'the caterers want 3¢ up front'),
+    up: { pct: 10, cls: 'WINDFALL' },
+    down: { pct: 2, cls: 'DRAIN' },
+    use: () => {
+      const t = tails(10, 2);
+      const base: Fx = { coachEnergy: -3, heatS: -8, heatB: -8, opP: 8, teamMood: 6 };
+      if (t === 'up') {
+        return { text: 'The gala runs three hours past the permit. Old banners come down off the truck, somebody re-hangs a buzzer-beater on the holo-loop, and an alum presses an envelope into your hand "for the program". Every voice on campus softens.', fx: [base, { coachEnergy: 2 }] };
+      }
+      if (t === 'down') {
+        return { text: 'The gala lands — the room sings the fight song twice — but the open bar was a mistake you will be paying for monthly. (−1¢ more.)', fx: [base, { coachEnergy: -1 }] };
+      }
+      return { text: 'The gala fills the old gym with people who remember it louder. The dean laughs at a booster\'s joke. Scoop dances, badly, with the head cheerleader\'s grandmother. The campus remembers it likes basketball.', fx: [base] };
+    },
+  },
+  {
+    id: 'pardon',
+    short: 'GRACE',
+    name: 'THE FORGIVING SEASON',
+    rarity: 'legendary',
+    flavor: 'A holiday so old the league rulebook just says "observed".',
+    effectText: 'an ultimatum, cancelled — whoever set it respects the nerve',
+    context: ['ultimatum'],
+    target: 'team',
+    up: { pct: 5, cls: 'SPIRIT' },
+    down: { pct: 2, cls: 'DRAMA' },
+    use: (ctx) => {
+      const s = ctx.s;
+      s.lastDemand = { season: s.season, week: s.week }; // the terms rest a while
+      return {
+        text: 'You invoke THE FORGIVING SEASON — the old rite, the open palm. The room goes quiet, then somebody laughs despite themselves, and the list of demands goes back into the briefcase unread. Grudging respect is still respect.',
+        fx: [{ heatS: -12, heatB: -12, opP: 5, teamMood: 4 }],
+      };
+    },
+  },
+  {
+    id: 'gooseegg',
+    short: 'EGG',
+    name: 'GOLDEN GOOSE EGG',
+    rarity: 'legendary',
+    flavor: 'Heavy, warm, and stamped by a bank with no address.',
+    effectText: '+6¢, once — a facilities fund from a mystery donor. Scoop gets curious…',
+    context: ['mood'],
+    target: 'team',
+    up: { pct: 2, cls: 'WINDFALL' },
+    down: { pct: 25, cls: 'DRAMA' },
+    use: () => ({
+      text: 'The egg cracks open on your desk: six credits in unmarked chips and a note that reads "FOR THE PROGRAM. ASK NOTHING." You ask nothing. Somewhere across campus, a fedora tilts toward your window.',
+      fx: [{ coachEnergy: 6 }],
+      follow: [{ weeks: 1, beat: 'start', defId: 'goose_press', playerId: null }],
+    }),
+  }
+);
+
 /** The supply-closet drip: an item most weeks — small, single-use, meant to
     be SPENT (the notebook holds the fifth slot forever). */
 export const SMALL_ITEMS = ['patch', 'juice', 'cocoa', 'pass', 'protein', 'poster', 'snakeoil', 'pocketweek'];
@@ -2823,6 +2926,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'interfere_school',
     kind: 'coach',
+    context: 'ultimatum',
     figure: 'dean',
     beat: () => ({
       tag: 'THE SCHOOL INTERFERES',
@@ -2852,6 +2956,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'interfere_boost',
     kind: 'coach',
+    context: 'ultimatum',
     figure: 'booster',
     beat: () => ({
       tag: 'THE BOOSTERS INTERFERE',
@@ -2882,6 +2987,7 @@ export const STORIES: StoryDef[] = [
   {
     id: 'summons',
     kind: 'coach',
+    context: 'ultimatum',
     figure: 'side',
     beat: (_b, ctx) => {
       const lean = (ctx.data.side as string) ?? 'joint';
@@ -3234,33 +3340,36 @@ export const STORIES: StoryDef[] = [
 ];
 
 // one-time explainers from the assistant coach (shown once, then never again)
+// HELP, NOT LECTURES (v5 M3): the ? button answers exactly one question —
+// "where do I press next, and what does it do?" Two sentences, max. The deep
+// rules stay the game's actual fun; the tutorial teaches the rest by doing.
 export const TIPS: Record<string, string> = {
   tryouts:
-    "First practice, coach. Six players from last year's squad, a gym full of hopefuls, one clipboard: yours.\n\nThe top three rows are your squad — starters, bench, reserves. The bottom row is the door. Drag players between the rows; whoever is in the bottom row when you confirm is gone forever. The letter on every card is what they're worth IN THAT SLOT — move them and it changes.",
+    "Drag players between the rows — the top three are your squad, the bottom row is the door, forever. The letter on every card is what they're worth in that exact slot; CONFIRM when it reads right.",
   practice:
-    "Practice is mandatory, coach — pick something and HOLD RUN. TEAM REST costs nothing (mostly harmless).\n\nThree families: TRAIN earns XP (levels bank +2 points YOU place), SHARPEN hammers direct points into attributes, RECOVER gets meters back. Anyone under 40 energy sits out automatically. Every option shows its two tails — how good it can go, how bad. Read the language. The odds are yours to learn.",
+    'Pick a drill with ▾, then hold RUN — one practice a week, TEAM REST is free. Anyone under 40⚡ sits out on their own.',
   lenses:
-    "One squad, three lenses: ROSTER is who they are right now (energy left, mood right, the grade for the slot they stand in), STATS is what they've done this season, ABILITIES is the compass — where they point and how far the ceiling goes.\n\nSame nine faces in the same nine places — only the question changes.",
+    'One squad, three lenses: ROSTER is right now, STATS is the season, ABILITIES is the shape and the ceiling. Same nine faces, same nine places.',
   facilities:
-    "The campus is yours to build, coach: the SHIP decides how far you scout, the GYM what you can run, GREEK ROW who you can charm — and the found things carry level requirements of their own. Upgrades cost credits and land NEXT WEEK.\n\nThe mop? The mop is free. The janitor remembers who grabs it.",
+    'Tap ▲ to order an upgrade — it costs now and lands NEXT WEEK. The mop is free, and the janitor remembers who grabs it.',
   scouting:
-    "SCOUTING first, coach: either SEARCH the galaxy for new talent (regions shift WHO you find, never how good) or read THE BIG BOARD — one move a week, and it reads the rows: cheap touches all nine lightly, dear goes deep on the TARGETS alone. A full board means somebody gets discarded FOREVER.\n\nBroke? The local rec center is free. Terrans only. Kids notice where you go looking.",
+    'Pick a move with ▾ and press the big button — one board move a week, the REC CENTER is free. The rows are your priority: TARGETS get the deep looks.',
   recruiting:
-    "RECRUITING is its own stop now. Work the board YOURSELF — safe, modest, sincere — or take the BOOSTER'S HELP: care packages, skybox weekends, duffel bags. Huge swings, scandal in the tail, and when it blows up his name is on it. Mostly.\n\nThe bottom row can tell it's the bottom row. Kids notice silence twice as fast down there.",
+    "Pick your charm with ▾ and press the big button — one move a week, the GROUP CHAT is free. The booster's options swing harder and can blow up.",
   matchup:
-    "One pregame move, coach: a SPEECH or LAST-MINUTE INSTRUCTIONS. A speech is a trade (most nights) — play with BRAINS and the whole squad gives up FIERCENESS tonight; SKILL costs ATHLETICISM; and back the other way. Instructions play the tape instead: call their set right and their game dies a little; get READ, and yours does.\n\nBetter speeches and stranger instructions exist. The galaxy hands them out in stories.\n\nTheir numbers sit right next to yours — tune the lineup until the bars lean your way. Every card's letter is what they're worth where they stand: BRAINS run the backcourt, ATHLETICISM holds the frontcourt, the wing takes anyone.",
+    "Drag the lineup until the bars lean your way, make the pregame move with ▾, then hold PLAY. The OVERALL rope is tonight's win chance.",
   signing:
-    "Signing day math, coach: send ONE letter and you keep the full commitment number. Every extra letter costs — minus 10 on the second, 25 on the third, 45 on the fourth. Greed is a strategy. A bad one.\n\nThen each kid answers, one by one — and you finally see exactly what you were chasing.",
+    "Tap a name to send a letter — every letter past the first costs commitment. SEND LETTERS when you've chosen, and the wheel answers.",
   bag:
-    "That's THE BAG — two rows at the bottom of your screen, always under your thumb, with THE NOTEBOOK standing tall on the left. Every item is a bargain with two tails. When a story could use one, its slot pulses — tap it for the terms, or drag it straight onto the story. Player items drag straight onto a player's card.\n\nEight slots is the LAW — every find is offered first: take it or leave it. A full bag still watches things walk away.",
+    'Tap an item for its terms, or drag it onto a player, a recruit, or a story. THE NOTEBOOK on the left writes down whatever screen you tap it on.',
   grid:
-    "The grid is your lineup, always: top row starts, middle row comes off the bench, bottom row watches. Hold and drag to rearrange — any screen, any time.\n\nColumns matter: the BACKCOURT reads BRAINS and shrugs at muscle, the FRONTCOURT reads ATHLETICISM and shrugs at thinking, the WING reads everything evenly. Small bodies left, big bodies right. Every card's letter is what they're worth exactly where they stand. When someone goes down, they sink to the bottom of their column and the column steps up.",
+    "Hold and drag to rearrange — top row starts, middle is the bench, bottom watches. Small bodies left, big right; the letter is what they're worth where they stand.",
   stories:
-    "The week opens with whatever the galaxy throws at you. Every choice shows its two tails — how wonderful it can go, how wrong. The words tell you which way it leans. The people sometimes lie; the tails never do.",
+    'Tap to advance. Every choice prints its two tails — how good and how bad it can go; the words lean, the tails never lie.',
   gamenight:
-    "A game EMPTIES people, coach — the whole night runs on the lineup and the one speech you gave it. The final horn shows every line, every tank, every mood — XP banks Monday, at WEEK START, and the recovery bump SHRINKS with every consecutive start.\n\nThe table: the top two board the shuttle to THE BIG BANG — eight champions, one universe.\n\nOne more thing: drop 25 points and a player catches FIRE — everything they have plays +20% until they cool off (under 12 points, or a night without minutes).",
+    'Tap the court to run the clock to the horn, then tap through the verdict, the box score and the table with the big button. XP lands Monday, at WEEK START.',
   departures:
-    "Season's over, coach. Seniors walk, stars flirt with the pros — one conversation each, the wheel decides. And every offseason the question waits at the bottom: walk away with your legacy, or go again.",
+    "Talk to each star the pros are circling — the wheel decides — then continue to SIGNING DAY. RETIRE sits at the bottom, for when you're ready to lock in the legacy.",
 };
 
 // THE TRAVEL LAW: every trip opens on the vehicle speeding through space with
@@ -3834,6 +3943,32 @@ STORIES.push({
     text: `${pname(ctx)} finishes the season as ${ctx.data.title}: ${ctx.data.line}, best in the conference.\n\nThe trophy is a little ugly. Nobody cares. It's going in the case.`,
   }),
   resolve: () => ({ text: '', fx: [{ mood: 15, xp: 25 }, { legacy: 1 }] }),
+});
+
+// ---- the GOLDEN GOOSE EGG's tail: money without a name makes the papers ------
+STORIES.push({
+  id: 'goose_press',
+  kind: 'coach',
+  figure: 'scoop',
+  beat: () => ({
+    tag: 'THE GAZETTE GETS CURIOUS',
+    text: 'Scoop is at your door holding a bank statement like a subpoena. "Six credits, coach. From NOBODY. I looked nobody up — nobody doesn\'t bank here." The recorder is already running.',
+    choices: [
+      C('friend', '"AN ANONYMOUS FRIEND OF THE PROGRAM"', { up: { pct: 25, cls: 'SPIRIT' }, down: { pct: 25, cls: 'SCANDAL', note: 'he keeps digging' } }),
+      C('books', 'OPEN THE BOOKS — SHOW HIM EVERYTHING', { up: { pct: 50, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' } }),
+    ],
+  }),
+  resolve: (key) => {
+    if (key === 'books') {
+      const t = tails(50, 5);
+      if (t === 'down') return { text: 'You open every ledger. He finds a parking violation from three seasons ago and runs THAT instead. Journalism.', fx: [{ opP: -2 }] };
+      return { text: 'You slide the whole ledger across the desk. He reads it twice, finds nothing, and prints a column about transparency with your name spelled correctly. High praise.', fx: [{ opP: 6 }] };
+    }
+    const t = tails(25, 25);
+    if (t === 'down') return { text: '"A friend," he repeats, writing it down slowly enough to hurt. The follow-up piece has a question mark in the headline. Those are never good.', fx: [{ opP: -8 }] };
+    if (t === 'up') return { text: 'He narrows every eye he has, then shrugs. "Program\'s got friends. That\'s a story too, I guess." It runs small, on page six.', fx: [{ opP: 2 }] };
+    return { text: 'He doesn\'t buy it. He can\'t disprove it either. The piece runs neutral, itching between every line.', fx: [{ opP: -2 }] };
+  },
 });
 
 export function storyById(id: string): StoryDef {
