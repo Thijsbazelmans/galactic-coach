@@ -1815,3 +1815,20 @@ button.hopp .chip { vertical-align: 1px; }
   0% { transform: translate(-50%, 0) scale(0.6); opacity: 0.5; }
   100% { transform: translate(-50%, -22px) scale(1.6); opacity: 0; }
 }
+
+/* ---- the drag carries the ITEM, the walk box steps aside ---------------------- */
+/* the slot empties while its cargo is in the air */
+.bslot.draglift { opacity: 0.25; }
+/* the ghost IS the item: the diamond big, solid border, real shadow */
+.dragghost.bslot {
+  height: 56px;
+  min-width: 64px;
+  font-size: 22px;
+  border-style: solid;
+  border-color: var(--r95);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.75);
+}
+.tutwalk { transition: opacity 0.15s ease; }
+.tutwalk.walkhide { opacity: 0; pointer-events: none; }
+/* un-notable moments: the notebook goes dead, not weird */
+.bslot.ndead { opacity: 0.35; pointer-events: none; }

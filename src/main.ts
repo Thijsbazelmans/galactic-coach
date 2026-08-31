@@ -1405,7 +1405,7 @@ function headerHtml(s: GameState): string {
       ${ebarHtml}
     </div>
     <div class="hbtns-col">
-      <button class="hbtn" data-action="help">?</button>
+      ${s.tutorial !== undefined ? '' : '<button class="hbtn" data-action="help">?</button>'}
       <button class="hbtn" data-action="coach-open">⚙</button>
     </div>
   </div>`;
@@ -1491,7 +1491,12 @@ function bagBar(s: GameState): string {
   const ev = currentStory(s);
   const canAnswer = (ev?.defId === 'scoop_question' || ev?.defId === 'tut_scoop2') && !ev.resolvedText
     && s.notebook.some((n) => n.key === ev.data?.noteKey);
-  const noteSlot = `<button class="bslot filled notebook tall ${canAnswer ? 'pulse' : ''}" data-action="notebook">▤<span class="bshort">NOTES</span></button>`;
+  // season zero: the notebook enters the story at the box score — until the
+  // walk teaches it, the pocket is just another empty pocket
+  const tutHideNote = s.tutorial !== undefined && !(s.tutSeen ?? []).includes('notebook') && s.tutWalk?.key !== 'notebook';
+  const noteSlot = tutHideNote
+    ? '<div class="bslot empty tall">·</div>'
+    : `<button class="bslot filled notebook tall ${canAnswer ? 'pulse' : ''} ${notebookDead(s) ? 'ndead' : ''}" data-action="notebook">▤<span class="bshort">NOTES</span></button>`;
   const slots = Array.from({ length: BAG_SIZE }, (_, i) => {
     const id = s.bag[i];
     if (!id) return '<div class="bslot empty">·</div>';
@@ -1507,13 +1512,24 @@ function bagBar(s: GameState): string {
 
 // ---- THE NOTEBOOK: tap it and something noteworthy goes in --------------------
 
+/** Moments when the notebook must NOT answer a tap: a decision pending, an
+    outcome page, the live ticker — a note there is noise on top of noise.
+    Scoop's questions are the exception: the notebook IS the answer. */
+function notebookDead(s: GameState): boolean {
+  if (liveGameOn(s)) return true;
+  const ev = currentStory(s);
+  if (!ev) return false;
+  if ((ev.defId === 'scoop_question' || ev.defId === 'tut_scoop2') && !ev.resolvedText) return false;
+  return storyMode === 'impact' || storyMode === 'choices';
+}
+
 function takeNote(): boolean {
   const s = state;
   const ev = currentStory(s);
   if (ev) {
     const src = ev.resolvedText ?? ev.text;
     const snippet = src.replace(/\s+/g, ' ').trim().slice(0, 110);
-    return addNote(s, 'story', `story:${ev.uid}`, `«${snippet}${src.length > 110 ? '…' : ''}» — ${ev.tag}`);
+    return addNote(s, 'story', `story:${ev.uid}`, `«${snippet}${src.length > 110 ? '…' : ''}»${ev.tag ? ` — ${ev.tag}` : ''}`);
   }
   if (s.phase === 'gamenight' && s.lastResult && (gnStage === 'verdict' || gnStage === 'table' || gnStage === 'recap')) {
     // the box score screen: the whole night goes in at once — the score, the
@@ -1950,7 +1966,7 @@ function storyPanel(s: GameState): string {
     }
     return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
       ${fete}
-      <span class="tag">${esc(ev.tag)}</span>
+      ${ev.tag ? `<span class="tag">${esc(ev.tag)}</span>` : ''}
       <div class="storyart">${pageArt}</div>
       ${impactHtml(s)}
       <div class="modal-actions" id="modal-actions"><div class="taphint">▸ tap</div></div>
@@ -1976,7 +1992,7 @@ function storyPanel(s: GameState): string {
     }
     return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
       ${fete}
-      <span class="tag">${esc(ev.tag)}</span>
+      ${ev.tag ? `<span class="tag">${esc(ev.tag)}</span>` : ''}
       <div class="storyart">${art}</div>
       ${inChoices
         ? `<div class="typebox">${esc(beats[beats.length - 1])}</div>`
@@ -1989,7 +2005,7 @@ function storyPanel(s: GameState): string {
   // message, nothing ever jumps between beats
   return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
     ${fete}
-    <span class="tag">${esc(ev.tag)}</span>
+    ${ev.tag ? `<span class="tag">${esc(ev.tag)}</span>` : ''}
     <div class="storyart">${art}</div>
     <div class="typebox beatbox" id="typebox"></div>
     <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap</div></div>
@@ -3130,8 +3146,8 @@ function toastModalHtml(): string {
   if (!toast) return '';
   return `<div class="modalback"><div class="modal" data-action="toast-tap">
     <span class="tag">OUTCOME</span>
-    <div class="typebox" id="typebox"></div>
-    <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap to continue</div></div>
+    <div class="typebox" id="toastbox"></div>
+    <div class="modal-actions hide" id="toast-actions"><div class="taphint">▸ tap to continue</div></div>
   </div></div>`;
 }
 
@@ -3666,10 +3682,13 @@ function postRender(): void {
 
   const ev = currentStory(state);
   const box = document.getElementById('typebox');
-  if (box && toast !== null) {
+  // the toast types into its OWN box — with a story underneath, a shared id
+  // would feed the outcome to the story's page and leave the toast empty
+  const tbox = document.getElementById('toastbox');
+  if (tbox && toast !== null) {
     if (toast !== toastShown) { toastShown = toast; toastBeat = 0; }
     const beats = splitBeats(toast);
-    typewrite(box, beats[Math.min(toastBeat, beats.length - 1)] ?? toast, revealActions);
+    typewrite(tbox, beats[Math.min(toastBeat, beats.length - 1)] ?? toast, () => { document.getElementById('toast-actions')?.classList.remove('hide'); });
   } else if (ev) {
     const text = box ? currentBeatText(ev) : null;
     if (box && text !== null) {
@@ -4100,6 +4119,8 @@ function activateDrag(): void {
   document.body.appendChild(ghost);
   ptr.ghost = ghost;
   ptr.el.classList.add('draglift');
+  // the assistant's box steps aside — nothing may cover the drop target
+  document.querySelector('.tutwalk')?.classList.add('walkhide');
   moveGhost();
 }
 
@@ -4135,6 +4156,7 @@ function endDrag(drop: boolean): void {
     const target = drop ? targetAtPoint() : null;
     ptr.ghost?.remove();
     ptr.el.classList.remove('draglift');
+    document.querySelector('.tutwalk.walkhide')?.classList.remove('walkhide');
     suppressClick = true;
     setTimeout(() => { suppressClick = false; }, 60);
     document.querySelectorAll('.dropzone.dragover, .storypanel.dragover, .pcard.dragover').forEach((z) => z.classList.remove('dragover'));
@@ -4625,8 +4647,9 @@ app.addEventListener('click', (e) => {
     case 'stand-close': standOpen = false; break;
     case 'stand-tab': standTab = id as 'table' | 'leaders'; break;
     case 'notebook': {
-      // NEVER mid-game: a note popup over the live ticker breaks the night
-      if (liveGameOn(state)) break;
+      // dead moments (a decision pending, an outcome page, the live ticker)
+      // swallow the tap — the slot already renders dead for them
+      if (notebookDead(state)) break;
       const ev = currentStory(state);
       // during Scoop's question the notebook ANSWERS (if it has the note)
       if (ev?.defId === 'scoop_question' && !ev.resolvedText) {

@@ -380,17 +380,21 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
         { text: 'The LEFT gauge on a card is ENERGY — how much a body has left this week. Theirs are running on fumes.', hi: `ge:${senIds}` },
         { text: 'The RIGHT gauge is MOOD. A lost season does this to a room.', hi: `gm:${senIds}` },
         ...(star ? [
-          S({ text: `${star.name}. Look at that OVR — head and shoulders the best player here.`, hi: `ovr:${star.id}` }),
-          S({ text: 'And suspended. Academics — two more weeks.', hi: `p:${star.id}` }),
+          S({ text: `${star.name}. Look at that OVR — head and shoulders the best player here.`, hi: `ovr:${star.id}`, pos: 'top' }),
+          S({ text: 'And suspended. Academics — two more weeks.', hi: `p:${star.id}`, pos: 'top' }),
         ] : []),
-        ...(hurt ? [S({ text: `${hurt.name} would start every night, anywhere. Hurt — back in a week.`, hi: `p:${hurt.id}` })] : []),
-        ...(fresh ? [S({ text: `And the freshman, ${fresh.name} — the WORST rating on this roster. Couldn't sink a shot if his life depended on it. But the tanks are always full, and he grins at walls.`, hi: `ovr:${fresh.id}` })] : []),
+        ...(hurt ? [S({ text: `${hurt.name} would start every night, anywhere. Hurt — back in a week.`, hi: `p:${hurt.id}`, pos: 'top' })] : []),
+        ...(fresh ? [S({ text: `And the freshman, ${fresh.name} — the WORST rating on this roster. Couldn't sink a shot if his life depended on it. But the tanks are always full, and he grins at walls.`, hi: `ovr:${fresh.id}`, pos: 'top' })] : []),
         { text: 'Top row STARTS tonight.', hi: 'row:0', pos: 'bot' },
         { text: 'Middle row is the BENCH.', hi: 'row:1', pos: 'top' },
         { text: 'Bottom row watches — the RESERVES.', hi: 'row:2', pos: 'top' },
-        { text: 'Tap STATS — the season so far. It has not been pretty.', hi: 'lens:1', pos: 'top', advance: 'lens:1' },
+        { text: 'Tap STATS — the season so far.', hi: 'lens:1', pos: 'top', advance: 'lens:1' },
+        // no hi: the lights come UP — the coach reads the wreckage in peace
+        { text: "It has not been pretty. Take a good look — tap here when you're done.", pos: 'bot' },
         { text: 'Tap ABILITIES.', hi: 'lens:2', pos: 'top', advance: 'lens:2' },
-        { text: 'Every player is four things: SKILL, ATHLETICISM, FIERCENESS, BRAINS — the compass. The outline past it is POTENTIAL: how far each can still grow.', hi: 'grid', pos: 'top' },
+        // the lesson floats over the DIMMED bottom half, covering nothing lit
+        { text: 'Every player is four things: SKILL, ATHLETICISM, FIERCENESS, BRAINS — the compass. The outline past it is POTENTIAL: how far each can still grow.', hi: 'grid', pos: 'bot' },
+        { text: 'Have a look around — tap here when you are ready.', pos: 'bot' },
         { text: 'And back to the ROSTER.', hi: 'lens:0', pos: 'top', advance: 'lens:0' },
       ];
     case 'timeloop':
@@ -424,9 +428,9 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
     case 'practice':
       return [
         { text: "The team bars, down here — tonight's strength, line by line.", hi: 'bars', pos: 'top' },
-        { text: 'Now the grades: your tired seniors all read F. An exhausted body is worth nothing tonight, whatever its rating.', hi: `ids:${senIds}`, pos: 'top' },
+        { text: 'Now the grades: your tired seniors all read F. An exhausted body is worth nothing tonight, whatever its rating.', hi: `ids:${senIds}`, pos: 'bot' },
         ...(fresh ? [
-          S({ text: `Let's try something. Drag ${fresh.name} onto the floor — top row.`, hi: `p:${fresh.id}`, pos: 'top', advance: `floor:${fresh.id}` }),
+          S({ text: `Let's try something. Drag ${fresh.name} onto the floor — top row.`, hi: `p:${fresh.id}`, pos: 'mid', advance: `floor:${fresh.id}` }),
           S({ text: 'A D instead of an F! The letter is what a body is worth in that slot TONIGHT — rating and abilities, times energy and mood.', hi: `p:${fresh.id}`, pos: 'bot' }),
         ] : []),
         { text: 'Columns count too: small bodies play best on the left, big ones on the right. Miscast somebody and the grade sags.', hi: 'grid', pos: 'bot' },
@@ -487,6 +491,8 @@ const TUT_ALWAYS = new Set([
   'story-tap', 'story-choice', 'toast-tap', 'gx-result-tap', 'tut-walk-tap',
   'tut-walk-skip', 'card', 'noop', 'week-turn-close', 'item-close',
   'press-start', // a reload mid-walk still lands on the title screen — START must work
+  'coach-open', 'coach-close', // the settings gear always answers…
+  'new-game', // …and NEW GAME inside it is the universal escape hatch
 ]);
 
 export function tutorialAllows(s: GameState, action: string, id: string): boolean {
@@ -700,8 +706,8 @@ STORIES.push(
     id: 'tut_haywire',
     kind: 'player',
     beat: (_b, ctx) => ({
-      tag: 'A THOUGHT ARRIVES',
-      text: `It shows up the way bad ideas do: fully dressed. The suspension is two weeks long — and the machine in THE BAG eats weeks.\n\n${ctx.player?.name ?? 'Your star'} pretends not to notice you looking at his paperwork.`,
+      tag: '',
+      text: `A thought arrives, the way bad ideas do: fully dressed. The suspension is two weeks long — and the machine in THE BAG eats weeks.\n\n${ctx.player?.name ?? 'Your star'} pretends not to notice you looking at his paperwork.`,
     }),
     resolve: () => ({ text: '', next: { defId: 'tut_haywire2', beat: 'start', playerId: null } }),
   },
