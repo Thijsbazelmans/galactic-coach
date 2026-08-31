@@ -484,12 +484,21 @@ export interface GameState {
   /** THE TUTORIAL SEASON (v5 M3): the beat index of season zero's scripted
       week. Defined = the tutorial is running; deleted when the wheels come off. */
   tutorial?: number;
+  /** THE WALK (v5 M4): the assistant's step-by-step spotlight — a floating
+      box over the live screen, one thing lit at a time. The steps freeze at
+      walk start so names and spotlights stay stable. Serializable. */
+  tutWalk?: { key: string; ix: number; steps?: { text: string; who?: string; hi?: string; pos?: 'top' | 'mid' | 'bot'; advance?: string }[] };
+  /** walks already given (they play once) */
+  tutSeen?: string[];
   /** the ship: 0 = flying; >0 = grounded (home-planet scouting only, no deep scans) */
   groundedWeeks: number;
   /** THE CAMPUS: facility levels (0–3). Missing = everything at 1. */
   facilities?: Record<FacId, number>;
   /** GRAB A MOP: the weekly free hand for the janitor (resets Monday) */
   moppedWk?: boolean;
+  /** FACILITIES is a stop like any other now: one action a week (the mop is
+      the free floor, an upgrade order the spend) before CONTINUE */
+  facActWk?: boolean;
   /** the janitor "knows a guy": 2¢ off one upgrade ordered THIS week */
   mopDiscount?: boolean;
   /** THE CODEX: knowledge carried in from past careers, waiting for the

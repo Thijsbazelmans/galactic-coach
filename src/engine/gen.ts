@@ -42,7 +42,11 @@ export const PRO_OVR = 75;
 // Which conference team is best reshuffles every summer — the ladder doesn't.
 
 /** the five AI programs in your conference, best → worst (±jitter) */
-export const CONF_TIERS = [62, 55, 49, 44, 38];
+// +2 across the slide (260830): the speech rework made every landed speech a
+// net-positive trade (gain 4–5 / lose 2–3, mine only) — under the ^6
+// win-share curve that edge compounded to ~+25 wins a career, so the other
+// programs stand a step taller to keep the accepted curve (~131 wins/career)
+export const CONF_TIERS = [64, 57, 51, 46, 40];
 /** your founding six (walk-ons fill the rest, weaker) */
 export const FOUNDER_TIER = 47;
 /** THE BIG BANG by round: first round · semifinal · the final */

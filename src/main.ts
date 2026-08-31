@@ -82,13 +82,13 @@ import {
   wipeCodex,
   wipeSave,
 } from './engine/state';
-import { tutorialBoot, tutorialHint } from './engine/tutorial';
+import { TUT_AT, tutGem, tutStandout, tutorialArrive, tutorialBoot, tutorialHeader, tutorialHint, tutorialWalkDone, tutorialWalkStart, tutorialWalkSteps, type TutStep } from './engine/tutorial';
 import type { Attr, AttrRec, FacId, GameState, PlanId, Player, Prospect, SpeechFx, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, opTracks, ovr, perGame, potStars, rand, security } from './engine/util';
 import { PRACTICE_KIT, STREET_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, titleHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
 
-const VERSION = 'v4.9';
+const VERSION = 'v5.1';
 
 // ---- THE UPDATE CHECK -----------------------------------------------------------
 // The home-screen app on iOS keeps stale HTML for a long time. On launch and
@@ -278,6 +278,9 @@ let drillSheet = false;
 // pickers DEFAULT to the free option every week — spending ⚡ takes a
 // deliberate trip into the menu
 let selectedDrill = 'rest';
+/** the campus move: the mop (free) or one upgrade order */
+let selFac: string = 'mop';
+let facSheet = false;
 /** which board sheet is open: the SCOUTING menu or the RECRUITING menu */
 let galaxySheet: false | 'scouting' | 'recruiting' = false;
 let selScout = 'reccenter';
@@ -399,35 +402,39 @@ function leagueResultsHtml(s: GameState): string {
 let energyFresh: { from: number; until: number } | null = null;
 
 function floatEnergyGain(n: number, from: number): void {
-  const bar = document.querySelector('.ebar');
-  if (!bar || n <= 0) return;
+  if (n <= 0) return;
   energyFresh = { from, until: Date.now() + 2600 };
   for (let i = 0; i < n; i++) {
     floatTimers.push(
       window.setTimeout(() => {
+        // the bar is looked up AT FIRE TIME: a re-render between the call and
+        // the timeout must not strand the float on a detached node
+        const bar = document.querySelector('.ebar');
+        if (!bar) return;
         const el = document.createElement('div');
         el.className = 'efloat big gain';
         el.textContent = '+1¢';
         bar.appendChild(el);
         window.setTimeout(() => el.remove(), 900);
-      }, i * 300)
+      }, 60 + i * 300)
     );
   }
 }
 
 /** EVERY spent ⚡ blasts away over the energy bar — huge, one per cell. */
 function floatEnergyBig(n: number): void {
-  const bar = document.querySelector('.ebar');
-  if (!bar || n <= 0) return;
+  if (n <= 0) return;
   for (let i = 0; i < n; i++) {
     floatTimers.push(
       window.setTimeout(() => {
+        const bar = document.querySelector('.ebar');
+        if (!bar) return;
         const el = document.createElement('div');
         el.className = 'efloat big';
         el.textContent = '-1¢';
         bar.appendChild(el);
         window.setTimeout(() => el.remove(), 900);
-      }, i * 300)
+      }, 60 + i * 300)
     );
   }
 }
@@ -498,18 +505,15 @@ function buildImpact(snap: Snap, fxList: Fx[], pid: number | null): { pages: Imp
     const label = changed.length > 1 ? 'THE SQUAD' : changed[0].name;
     squad.push({ label, text: `${key.toUpperCase()} ${d > 0 ? '+' : ''}${d}`, up: d > 0 });
   }
-  // the coach's world: which OPINIONS moved, then the gauge they feed
+  // the coach's world: credits, then the ONE gauge. The four opinions never
+  // get their own counters — those numbers live in the job-security menu
+  // alone, and mood-driven drift doesn't earn a gauge fanfare either.
   const coach: ImpRow[] = [];
   if (state.energy !== snap.energy) coach.push({ label: '¢ CREDITS', from: snap.energy, to: state.energy, up: state.energy > snap.energy });
   const o1 = opTracks(state);
-  const trackRow = (label: string, from: number, to: number): void => {
-    if (to !== from) coach.push({ label, from, to, up: to > from });
-  };
-  trackRow('THE SCHOOL', snap.ops.school, o1.school);
-  trackRow('THE FANS', snap.ops.fans, o1.fans);
-  trackRow('THE PUBLIC', snap.ops.pub, o1.pub);
+  const trackMoved = o1.school !== snap.ops.school || o1.fans !== snap.ops.fans || o1.pub !== snap.ops.pub;
   const sec1 = security(state);
-  if (sec1 !== snap.sec) coach.push({ label: 'JOB SECURITY', from: snap.sec, to: sec1, up: sec1 > snap.sec });
+  if (trackMoved && sec1 !== snap.sec) coach.push({ label: 'JOB SECURITY', from: snap.sec, to: sec1, up: sec1 > snap.sec });
   if (state.legacy !== snap.legacy) coach.push({ label: 'LEGACY', from: snap.legacy, to: state.legacy, up: state.legacy > snap.legacy });
   const pages: ImpPage[] = [];
   if (rows.length) pages.push({ kind: 'player', pid, rows: [...rows, ...(pid !== null ? squad : [])] });
@@ -559,11 +563,13 @@ function doResolve(key: string): void {
   if (cost > 0) floatEnergyBig(cost);
   if (state.energy > snap.energy) floatEnergyGain(state.energy - snap.energy, snap.energy);
   const oNow = opTracks(state);
+  const trackMoved = oNow.school !== snap.ops.school || oNow.fans !== snap.ops.fans || oNow.pub !== snap.ops.pub;
   opShift = {
     school: oNow.school - snap.ops.school,
     fans: oNow.fans - snap.ops.fans,
     pub: oNow.pub - snap.ops.pub,
-    sec: security(state) - snap.sec,
+    // mood-driven drift never flashes the gauge — only real opinion moves do
+    sec: trackMoved ? security(state) - snap.sec : 0,
   };
   jobAnimDone = false;
   impact = buildImpact(snap, res.fx, res.resolved.playerId ?? ev.playerId);
@@ -717,7 +723,7 @@ function riskTag(level: RiskLevel | 'trade'): string {
 interface Fact { text: string; tier: 0 | 1 | 2 | 3 }
 const fact = (text: string, tier: 0 | 1 | 2 | 3): Fact => ({ text, tier });
 const costFact = (cost: number): Fact => fact(cost ? `${cost}¢` : 'FREE', cost <= 0 ? 3 : cost === 1 ? 2 : cost === 2 ? 1 : 0);
-const scopeFact = (word: string): Fact => fact(word, word === 'ALL 9' || word === 'SQUAD' ? 3 : word === 'PICK 6' || word === 'THE BOARD' ? 2 : 1);
+const scopeFact = (word: string): Fact => fact(word, word === 'ALL 9' || word === 'SQUAD' ? 3 : word === 'PICK UP TO 6' || word === 'THE BOARD' ? 2 : 1);
 
 function pickerRow(o: {
   tag: 'button' | 'div';
@@ -1299,10 +1305,9 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
 // JOB SECURITY (v5): ONE gauge, filled from the left, the darkness eating
 // from the right — fed by four opinions (school/fans/players/public). Tap it
 // for the breakdown. The icon blinks below 30: somebody is setting terms.
-function jobBar(s: GameState): string {
+function jobBar(s: GameState, blink = false): string {
   const sec = security(s);
-  return `<div class="jobbar" data-action="job-open" title="job security ${sec}/100 — tap for the four opinions">
-    <img class="jicon ${sec < 30 ? 'blink' : ''}" src="${iconUrl('aplus', ramp(0.75))}" alt=""/>
+  return `<div class="jobbar ${blink || sec < 30 ? 'blink' : ''}" data-action="job-open" title="job security ${sec}/100 — tap for the four opinions">
     <div class="jtrack">
       <div class="jdark r" style="width:${100 - sec}%"></div>
       <span class="jlabel">JOB SECURITY</span>
@@ -1332,7 +1337,7 @@ function jobModalHtml(s: GameState): string {
   return `<div class="modalback" data-action="job-close"><div class="modal">
     <span class="tag">JOB SECURITY — ${sec}/100</span>
     ${bars}
-    <p class="dim jobnote">${s.season <= 2 ? 'A new coach gets two seasons of patience. Then the board starts counting.' : 'Under 50 the questions get harder · under 30 the angriest voice sets terms · under 20 every week has a price.'}</p>
+    <p class="dim jobnote">Under 50 the questions get harder · under 30 the angriest voice sets terms · under 20 every week has a price.</p>
     <button class="wide" data-action="job-close">CLOSE</button>
   </div></div>`;
 }
@@ -1375,16 +1380,27 @@ function headerHtml(s: GameState): string {
   const rank = ordinal(frozen ? frozen.rank : 1 + sortedStandings(s).findIndex((x) => x.id === s.myTeamId));
   const wins = frozen ? frozen.wins : t.wins;
   const losses = frozen ? frozen.losses : t.losses;
-  return `<div class="topbar ${gxResult ? 'spotlight' : ''} ${jobFlash ? 'jobflash' : ''}">
-    <div class="hgrid">
-      <button class="hrow hopp" data-action="stand-open">${chip(t.name, t.bg, t.fg, true)} <b>${wins}–${losses}</b> · <b>${rank}</b></button>
-      ${jobBar(s)}
-      <button class="hrow hopp" data-action="sched-open">S<b>${Math.max(1, s.season)}</b> · ${nextOppRow(s)}</button>
-      <div class="ebar" title="credits ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">
+  // SEASON ZERO reveals the header one piece at a time: the gauge from the
+  // start (blinking while the dean introduces it), credits once the first
+  // one lands, the schedule row when there is finally a game to point at
+  const th = s.tutorial !== undefined ? tutorialHeader(s) : null;
+  const jobBlink = currentStory(s)?.defId === 'tut_dean';
+  const schedRow = th && !th.sched
+    ? '<div></div>'
+    : `<button class="hrow hopp" data-action="sched-open">S<b>${Math.max(1, s.season)}</b> · ${nextOppRow(s)}</button>`;
+  const ebarHtml = th && !th.credits
+    ? '<div class="ebar ghost"></div>'
+    : `<div class="ebar" title="credits ${s.energy}/${CACHE_MAX} (+${stipendFor(s.season)}/wk)">
         <img class="jicon ${s.energy < 2 ? 'blink' : 'ghost'}" src="${iconUrl('alert', ramp(0.9))}" alt=""/>
         <div class="etrack ${s.energy === 0 ? 'blink' : ''}">${cells}</div>
         <img class="jicon" src="${iconUrl('credit', ramp(0.75))}" alt=""/>
-      </div>
+      </div>`;
+  return `<div class="topbar ${gxResult ? 'spotlight' : ''} ${jobFlash ? 'jobflash' : ''}">
+    <div class="hgrid">
+      <button class="hrow hopp" data-action="stand-open">${chip(t.name, t.bg, t.fg, true)} <b>${wins}–${losses}</b> · <b>${rank}</b></button>
+      ${jobBar(s, jobBlink)}
+      ${schedRow}
+      ${ebarHtml}
     </div>
     <div class="hbtns-col">
       <button class="hbtn" data-action="help">?</button>
@@ -1466,7 +1482,7 @@ function bagBar(s: GameState): string {
   // One exception, by law: THE NOTEBOOK pulses when the ANSWER to a live
   // Scoop question is already on its pages — never to tell you to write.
   const ev = currentStory(s);
-  const canAnswer = ev?.defId === 'scoop_question' && !ev.resolvedText
+  const canAnswer = (ev?.defId === 'scoop_question' || ev?.defId === 'tut_scoop2') && !ev.resolvedText
     && s.notebook.some((n) => n.key === ev.data?.noteKey);
   const noteSlot = `<button class="bslot filled notebook tall ${canAnswer ? 'pulse' : ''}" data-action="notebook">▤<span class="bshort">NOTES</span></button>`;
   const slots = Array.from({ length: BAG_SIZE }, (_, i) => {
@@ -1805,7 +1821,7 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
   if (ev.tag === 'ASSISTANT COACH') {
     return `<div class="scenebox">${figureHtml('assistant', 'neutral', kit, 3)}</div>`;
   }
-  if (ev.defId === 'graduation' && ev.data?.player) {
+  if ((ev.defId === 'graduation' || ev.defId === 'tut_kid') && ev.data?.player) {
     const gp = ev.data.player as Player;
     return `<div class="modalcard truth">${playerCard(gp, { inert: true, story: 'good', storyView: 'abilities', kit, labelPop: false })}</div>`;
   }
@@ -2213,36 +2229,62 @@ function stagePractice(s: GameState): string {
   return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, true, lens, lens === 0 ? practiceScope(s) : null)}<div class="botstack fill">${tacticsBoard(s)}${teamBarsPractice(s)}</div>`;
 }
 
-/** FACILITIES: the campus stop — six buildings, the mop, the janitor. */
+/** FACILITIES: the campus stop — six buildings, one move a week. The tiles
+    say what stands there NOW and what the next step costs; the upgrade picks
+    live in the ▾ menu, like every other screen. */
 function stageFacilities(s: GameState): string {
-  const rows = FACILITIES.map((fd) => {
+  const tiles = FACILITIES.map((fd) => {
     const lvl = facLevel(s, fd.id);
     const pending = s.futureBeats.some((fb) => fb.defId === 'facility_arrives' && fb.data?.facId === fd.id);
-    const next = Math.min(3, lvl + 1);
-    const cost = Math.max(1, facCost(next) - (s.mopDiscount ? 2 : 0));
+    const cost = Math.max(1, facCost(Math.min(3, lvl + 1)) - (s.mopDiscount ? 2 : 0));
     const pips = [1, 2, 3].map((i) => `<span class="fpip ${i <= lvl ? 'on' : ''}"></span>`).join('');
     const right = pending
       ? '<span class="facwait blink">ARRIVING NEXT WEEK</span>'
       : lvl >= 3
         ? '<span class="facmax">MAXED</span>'
-        : `<button class="hold facbtn" data-action="fac-upgrade" data-id="${fd.id}" ${s.energy < cost ? 'disabled' : ''}>▲ LVL ${next} — ${cost}¢</button>`;
-    return `<div class="drill facrow">
+        : `<span class="faccost">▲ ${cost}¢</span>`;
+    const pickable = !pending && lvl < 3 && !s.facActWk && s.tutorial === undefined;
+    const tag = pickable ? 'button' : 'div';
+    return `<${tag} class="drill facrow factile ${selFac === fd.id ? 'sel' : ''}" ${pickable ? `data-action="fac-pick" data-id="${fd.id}"` : ''}>
       <div class="prow1"><b>${fd.name}</b><span class="fpips">${pips}</span>${right}</div>
-      <div class="prow2"><span class="pf f2">${esc(fd.blurbs[lvl])}</span></div>
-      ${lvl < 3 && !pending ? `<span class="ddesc">next: ${esc(fd.blurbs[next])}</span>` : ''}
-    </div>`;
+      <div class="facstate">${esc(fd.blurbs[lvl])}</div>
+    </${tag}>`;
   }).join('');
-  const mop = s.moppedWk
-    ? '<div class="fourthrow slim"><div class="report dim">THE FLOORS SHINE. The janitor nods at you differently now.</div></div>'
-    : '<div class="fourthrow"><button class="bigctl" data-action="grab-mop">🧹 GRAB A MOP — help the janitor (free)</button></div>';
-  const disc = s.mopDiscount ? '<div class="fourthrow slim"><div class="report">the janitor "knows a guy": <b>2¢ OFF</b> any upgrade ordered this week</div></div>' : '';
-  return `<h2 class="gridhead">FACILITIES</h2><div class="facwrap">${rows}</div><div class="botstack">${disc}${mop}</div>`;
+  const disc = s.mopDiscount ? '<div class="fourthrow slim"><div class="report">the janitor "knows a guy": <b>2¢ OFF</b> the upgrade if you order it this week</div></div>' : '';
+  const mopped = s.moppedWk ? '<div class="fourthrow slim"><div class="report dim">THE FLOORS SHINE. The janitor nods at you differently now.</div></div>' : '';
+  return `<h2 class="gridhead">FACILITIES</h2><div class="facwrap">${tiles}</div><div class="botstack">${disc}${mopped}</div>`;
+}
+
+/** The campus-move sheet: the mop (free) and every orderable upgrade. */
+function facSheetHtml(s: GameState): string {
+  if (!facSheet) return '';
+  const mopRow = `<button class="drill ${selFac === 'mop' ? 'sel' : ''}" data-action="fac-pick" data-id="mop">
+    <div class="prow1"><b>🧹 GRAB A MOP</b></div>
+    <div class="prow2"><span class="pf f3">FREE</span><span class="dim"> · </span><span class="pf f1">the janitor remembers who grabs it</span></div>
+  </button>`;
+  const ups = s.tutorial !== undefined ? '' : FACILITIES.map((fd) => {
+    const lvl = facLevel(s, fd.id);
+    const pending = s.futureBeats.some((fb) => fb.defId === 'facility_arrives' && fb.data?.facId === fd.id);
+    if (lvl >= 3 || pending) return '';
+    const cost = Math.max(1, facCost(lvl + 1) - (s.mopDiscount ? 2 : 0));
+    const cant = s.energy < cost;
+    return `<button class="drill ${selFac === fd.id ? 'sel' : ''}" data-action="fac-pick" data-id="${fd.id}" ${cant ? 'disabled' : ''}>
+      <div class="prow1"><b>▲ ${fd.name}</b></div>
+      <div class="prow2"><span class="pf f2">${esc(fd.blurbs[Math.min(3, lvl + 1)])}</span><span class="dim"> · </span><span class="pf ${cant ? 'f0' : 'f1'}">${cost}¢ · lands NEXT WEEK</span></div>
+    </button>`;
+  }).join('');
+  return `<div class="modalback sheet" data-action="fac-sheet-close"><div class="modal sheetup scrolly">
+    <span class="tag">THE CAMPUS MOVE</span>
+    <div class="sheethead">ONE MOVE A WEEK — the mop is free; an upgrade costs now and lands next Monday</div>
+    ${mopRow}${ups}
+    <div class="scrollmore">▼</div>
+  </div></div>`;
 }
 
 /** «ALL 9» / «PICK 6» / «PICK 3» — the scope, printed everywhere: a scoped
     action works the names YOU highlight first. */
 function gxScopeWord(act: (typeof GALAXY_ACTS)[number]): string {
-  return act.scope ? `PICK ${act.scope}` : 'ALL 9';
+  return act.scope ? `PICK UP TO ${act.scope}` : 'ALL 9';
 }
 
 /** One-line recap of a galaxy act for the main button. */
@@ -2458,12 +2500,11 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
   // at tip-off, and whether the bookie called it
   const pct = final ? (r0?.bookiePct ?? Math.round(share * 100)) : bookieLine(s, t, champ ? null : m0?.opponent ?? null, champ, home);
   const called = final ? (pct >= 50) === final.win : false;
-  // the bookie himself stands over his line (260830): neutral before the
-  // ball goes up; after the horn he gloats or eats it with the rest of us
-  const bookieFig = `<span class="bookiefig">${figureHtml('bookie', final ? (called ? 'elated' : 'mad') : 'neutral', { bg: t.bg, fg: t.fg }, 2)}</span>`;
+  // the bookie is a person, not court decoration: he speaks in dialogs
+  // pre-game — the in-game screen keeps only his printed line
   const bookie = final
-    ? `<div class="bookie" title="win chance ${pct}%">${bookieFig}THE BOOKIE HAD YOU AT <b>${moneyline(pct)}</b>.<br/><span class="bookieverdict">${called ? 'He knows what he\'s doing.' : 'Shows you what he knows!'}</span></div>`
-    : `<div class="bookie" title="win chance ${pct}%">${bookieFig}THE BOOKIE HAS YOU AT <b>${moneyline(pct)}</b></div>`;
+    ? `<div class="bookie" title="win chance ${pct}%">THE BOOKIE HAD YOU AT <b>${moneyline(pct)}</b>.<br/><span class="bookieverdict">${called ? 'He knows what he\'s doing.' : 'Shows you what he knows!'}</span></div>`
+    : `<div class="bookie" title="win chance ${pct}%">THE BOOKIE HAS YOU AT <b>${moneyline(pct)}</b></div>`;
   // centered, the whole screen used: AWAY on top, @, HOME — then open air
   // where the score tag lives, hovering above the bar. The bar LIGHTS from
   // the center outward as the clock runs; the line inside the lit part is
@@ -2683,16 +2724,22 @@ function stagePickTeam(s: GameState): string {
     return `<button class="teampickbtn" data-action="pick-team" data-id="${t.id}" style="background:${t.bg};color:${t.fg}">
       <b>${esc(teamLabel(t))}</b><br/><span>${esc(t.region)} · ${esc(t.planet)}</span></button>`;
   }).join('');
-  // FIRST TIME PLAYING? (v5 M3): yes → one scripted week as SEASON ZERO;
-  // no → straight to today's flow with the slow-open kit
+  // START A NEW CAREER (v5 M4): no codex → the tutorial always teaches;
+  // codex present → keep the knowledge and skip to tryouts, or burn it and
+  // coach season zero again from scratch
   const pt = pendingTeam !== null ? s.teams[pendingTeam] : null;
+  const cdx0 = loadCodex();
+  const hasCodex = cdx0.plans.length + cdx0.drills.length + cdx0.instrs.length + cdx0.regions.length > 0;
+  const askBtns = hasCodex
+    ? `<button class="wide askbtn" data-action="tut-skip"><b>I KNOW THE DRILL</b><span>Keep your knowledge — go straight to tryouts</span></button>
+      <button class="wide askbtn hold danger" data-action="tut-fresh"><b>START FRESH</b><span>Delete the codex and coach the tutorial (cannot be undone)</span></button>`
+    : `<button class="wide askbtn" data-action="tut-yes"><b>FIRST TIME PLAYER</b><span>Coach a short tutorial</span></button>`;
   const ask = pt
     ? `<div class="modalback"><div class="modal">
-      <span class="tag">${esc(teamLabel(pt)).toUpperCase()}</span>
-      <p><b>FIRST TIME PLAYING?</b><br/><span class="dim">Season zero is one scripted week — a doomed program, one game to coach, every screen taught by doing.</span></p>
-      <button class="wide" data-action="tut-yes">🏀 FIRST TIME — COACH THE TUTORIAL</button>
-      <button class="wide" data-action="tut-skip">I KNOW THE DRILL — STRAIGHT TO TRYOUTS</button>
-      <button class="wide" data-action="tut-back">PICK A DIFFERENT PROGRAM</button>
+      <span class="tag">START A NEW CAREER</span>
+      <p class="askteam"><span class="dim">SELECTED TEAM</span><br/>${chipBig(teamLabel(pt), pt.bg, pt.fg)}</p>
+      ${askBtns}
+      <button class="wide askbtn" data-action="tut-back"><b>PICK A DIFFERENT PROGRAM</b></button>
     </div></div>`
     : '';
   return `<h1>GALACTIC COACH</h1>
@@ -2731,8 +2778,21 @@ function nav(s: GameState): string {
       return navMain('CONFIRM SQUAD', 'cut-confirm-open', false, false);
     case 'weekstart':
       return navGo(isUtWeek(s) ? 'THE MATCHUP' : 'THE CAMPUS', 'begin-week');
-    case 'facilities':
-      return navGo('SCOUTING', 'to-scouting');
+    case 'facilities': {
+      if (s.facActWk) return navGo('SCOUTING', 'to-scouting');
+      if (selFac !== 'mop') {
+        const fd = FACILITIES.find((x) => x.id === selFac);
+        const lvl = fd ? facLevel(s, fd.id) : 3;
+        const pending = fd ? s.futureBeats.some((fb) => fb.defId === 'facility_arrives' && fb.data?.facId === fd.id) : true;
+        if (!fd || lvl >= 3 || pending) selFac = 'mop';
+        else {
+          const cost = Math.max(1, facCost(lvl + 1) - (s.mopDiscount ? 2 : 0));
+          const cant = s.energy < cost;
+          return navAction(`▶ UPGRADE — ${fd.name}`, cant ? `NEED ${cost}¢` : `${fd.blurbs[Math.min(3, lvl + 1)]} · ${cost}¢`, 'fac-run', 'fac-sheet', { disabled: cant });
+        }
+      }
+      return navAction('▶ GRAB A MOP', 'help the janitor · FREE', 'fac-run', 'fac-sheet');
+    }
     case 'scouting': {
       if (s.pendingRecruits.length) return navMain('CONFIRM THE BOARD', 'board-confirm-open', false, false);
       if (s.scoutActWk) return navGo('PRACTICE', 'to-practice');
@@ -2807,8 +2867,11 @@ function drillSheetHtml(s: GameState): string {
     const drills = DRILLS.filter((d) => drillKind(d) === kind).map((d) => {
       // undiscovered methods stay off the sheet — the galaxy will tell you
       if (!s.unlockedDrills.includes(d.id)) { hidden++; return ''; }
-      const gymNeed = GYM_REQ[d.id] ?? 2;
-      if (facLevel(s, 'gym') < gymNeed) return `<div class="drill locked"><b>${d.name}</b> <span class="dim">— needs THE GYM level ${gymNeed}</span></div>`;
+      // season zero: TEAM REST is the whole menu — the bonfire waits for a real season
+      if (s.tutorial !== undefined && d.id !== 'rest') { hidden++; return ''; }
+      // a method the building can't hold yet stays UNDISCOVERED — finding
+      // out what a level buys is the fun, not the menu's job
+      if (facLevel(s, 'gym') < (GYM_REQ[d.id] ?? 2)) { hidden++; return ''; }
       const cd = actCooldown(s, d.id);
       if (cd > 0) return `<div class="drill locked"><b>${d.name}</b> <span class="dim">— recharging, ${cd} week${cd === 1 ? '' : 's'}</span></div>`;
       return drillRow(d, 'button', selectedDrill === d.id ? 'sel' : '', `data-action="drill-pick" data-id="${d.id}"`);
@@ -2832,12 +2895,10 @@ function galaxySheetHtml(s: GameState): string {
   let hidden = 0;
   const actRow = (a: (typeof GALAXY_ACTS)[number]): string => {
     if (a.kind === 'search' && !s.unlockedRegions.includes(a.id)) { hidden++; return ''; }
-    if (a.kind === 'search' && facLevel(s, 'ship') < (SHIP_REQ[a.id] ?? 3)) {
-      return `<div class="drill locked"><b>${a.name}</b> <span class="dim">— needs the SCOUTING SHIP level ${SHIP_REQ[a.id] ?? 3}</span></div>`;
-    }
-    if (a.kind === 'recruit' && facLevel(s, 'greekrow') < (ROW_REQ[a.id] ?? 0)) {
-      return `<div class="drill locked"><b>${a.name}</b> <span class="dim">— needs GREEK ROW level ${ROW_REQ[a.id] ?? 0}</span></div>`;
-    }
+    // out of the campus's reach = UNDISCOVERED: no spoilers about what a
+    // future level buys — finding out is the fun
+    if (a.kind === 'search' && facLevel(s, 'ship') < (SHIP_REQ[a.id] ?? 3)) { hidden++; return ''; }
+    if (a.kind === 'recruit' && facLevel(s, 'greekrow') < (ROW_REQ[a.id] ?? 0)) { hidden++; return ''; }
     const cd = actCooldown(s, a.id);
     if (cd > 0) return `<div class="drill locked"><b>${a.name}</b> <span class="dim">— recharging, ${cd} week${cd === 1 ? '' : 's'}</span></div>`;
     const grounded = s.groundedWeeks > 0 && a.kind === 'search' && !a.local;
@@ -2855,7 +2916,7 @@ function galaxySheetHtml(s: GameState): string {
   return `<div class="modalback sheet" data-action="gx-sheet-close"><div class="modal sheetup scrolly">
     <span class="tag">${recruiting ? 'THE CHARM OFFENSIVE' : 'THE SCOUTING RUN'}</span>
     ${groups}
-    ${hidden ? `<div class="sheethint dim">▓ ${hidden} region${hidden === 1 ? '' : 's'} uncharted</div>` : ''}
+    ${hidden ? `<div class="sheethint dim">▓ ${hidden} move${hidden === 1 ? '' : 's'} undiscovered</div>` : ''}
     <div class="scrollmore">▼</div>
   </div></div>`;
 }
@@ -2946,9 +3007,9 @@ function coachModalHtml(s: GameState): string {
   // the leg of the week it belongs to. ✓ known this run · ◈ remembered (comes
   // back via story or facility) · ▓ never discovered.
   const cdx = loadCodex();
-  const row = (known: boolean, remembered: boolean, label: string, gate?: string): string =>
+  const row = (known: boolean, remembered: boolean, label: string): string =>
     known
-      ? `<div>✓ ${label}${gate ? ` <span class="dim">· ${gate}</span>` : ''}</div>`
+      ? `<div>✓ ${label}</div>`
       : remembered
         ? `<div class="dim">◈ ${label} — remembered</div>`
         : '<div class="dim">▓▓▓ undiscovered</div>';
@@ -2957,14 +3018,8 @@ function coachModalHtml(s: GameState): string {
   ).join('') + INSTRUCTIONS.map((it) =>
     row((s.knownInstr ?? []).includes(it.id), cdx.instrs.includes(it.id), `${it.name} <span class="dim">(instruction)</span>`)
   ).join('');
-  const practice = DRILLS.map((d) => {
-    const need = GYM_REQ[d.id] ?? 2;
-    return row(s.unlockedDrills.includes(d.id), cdx.drills.includes(d.id), d.name, facLevel(s, 'gym') < need ? `needs gym ${need}` : undefined);
-  }).join('');
-  const scouting = GALAXY_ACTS.filter((a) => a.kind === 'search').map((a) => {
-    const need = SHIP_REQ[a.id] ?? 3;
-    return row(s.unlockedRegions.includes(a.id), cdx.regions.includes(a.id), a.name, facLevel(s, 'ship') < need ? `needs ship ${need}` : undefined);
-  }).join('');
+  const practice = DRILLS.map((d) => row(s.unlockedDrills.includes(d.id), cdx.drills.includes(d.id), d.name)).join('');
+  const scouting = GALAXY_ACTS.filter((a) => a.kind === 'search').map((a) => row(s.unlockedRegions.includes(a.id), cdx.regions.includes(a.id), a.name)).join('');
   const codexCount = cdx.plans.length + cdx.drills.length + cdx.instrs.length + cdx.regions.length;
   return `<div class="modalback"><div class="modal scrolly">
     <span class="tag">THE COACH</span>
@@ -2976,8 +3031,7 @@ function coachModalHtml(s: GameState): string {
       <div class="acthead">SCOUTING</div>${scouting}
     </div>
     <p class="dim">GALACTIC COACH ${VERSION} · build ${typeof __BUILD_ID__ === 'undefined' ? 'dev' : __BUILD_ID__}</p>
-    <button class="wide danger hold" data-action="codex-wipe">🗑 DELETE CODEX — START FRESH (cannot be undone)</button>
-    <button class="wide danger hold" data-action="new-game">NEW GAME (wipes this save)</button>
+    <button class="wide danger hold" data-action="new-game">NEW GAME (wipes this save — the codex survives)</button>
     <button class="wide" data-action="coach-close">CLOSE</button>
   </div></div>`;
 }
@@ -2989,6 +3043,96 @@ function toastModalHtml(): string {
     <div class="typebox" id="typebox"></div>
     <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap to continue</div></div>
   </div></div>`;
+}
+
+// ---- THE WALK: the assistant's floating spotlight over the live screen ------
+// One step at a time: a small box (never a full-screen dialog), one thing
+// lit, everything else stepped back. Tap advances — or the step waits for
+// the actual deed (a lens tap, a notebook note, an item landing).
+
+function tutWalkStep(): TutStep | null {
+  const w = state.tutWalk;
+  if (!w) return null;
+  const steps = (w.steps as TutStep[] | undefined) ?? tutorialWalkSteps(state, w.key);
+  return steps[w.ix] ?? null;
+}
+
+function tutMaybeWalk(): void {
+  if (state.tutorial === undefined || state.tutWalk) return;
+  if (currentStory(state) || toast || gxResult) return;
+  const key = tutorialWalkStart(state, gnStage);
+  if (!key) return;
+  const steps = tutorialWalkSteps(state, key);
+  if (!steps.length) {
+    (state.tutSeen ??= []).push(key);
+    save(state);
+    return;
+  }
+  // the steps freeze at walk start: names and spotlights stay stable even
+  // as the state underneath changes mid-walk
+  state.tutWalk = { key, ix: 0, steps };
+  save(state);
+}
+
+function tutWalkFinish(key: string): void {
+  delete state.tutWalk;
+  (state.tutSeen ??= []).push(key);
+  for (const r of tutorialWalkDone(state, key)) queueStory(state, r.defId, r.beat, r.playerId, r.data ?? {});
+  save(state);
+}
+
+/** Advance on a matching signal ('tap', 'lens:1', 'note', 'item:patch'…). */
+function tutWalkAdvance(sig: string): void {
+  const w = state.tutWalk;
+  if (!w || currentStory(state)) return;
+  const steps = (w.steps as TutStep[] | undefined) ?? tutorialWalkSteps(state, w.key);
+  const step = steps[w.ix];
+  if (!step) { tutWalkFinish(w.key); return; }
+  if ((step.advance ?? 'tap') !== sig) return;
+  w.ix++;
+  if (w.ix >= steps.length) tutWalkFinish(w.key);
+  else save(state);
+}
+
+/** The spotlight: the step's target lights up, its rivals step back. */
+function applyWalkSpotlight(): void {
+  const wStep = tutWalkStep();
+  if (!wStep?.hi || currentStory(state) || toast || gxResult) return;
+  const hi = wStep.hi;
+  const spot = (sel: string): void => document.querySelectorAll(sel).forEach((el) => el.classList.add('tutspot'));
+  const dimCardsExcept = (ids: Set<number>): void => document.querySelectorAll('.middle .pcard').forEach((el) => {
+    const pid = Number(el.getAttribute('data-pid'));
+    if (ids.has(pid)) el.classList.add('tutspot');
+    else el.classList.add('scopedim');
+  });
+  if (hi === 'grid' || hi === 'board') spot('.grid');
+  else if (hi === 'rows') spot('.grid .gridrow .rowlabel');
+  else if (hi.startsWith('row:')) {
+    const n = Number(hi.slice(4));
+    document.querySelectorAll('.grid .gridrow').forEach((el, i) => {
+      if (i === n) el.classList.add('tutspot');
+      else el.classList.add('scopedim');
+    });
+  } else if (hi.startsWith('p:') || hi.startsWith('pr:')) dimCardsExcept(new Set([Number(hi.split(':')[1])]));
+  else if (hi.startsWith('ids:')) dimCardsExcept(new Set(hi.slice(4).split(',').map(Number)));
+  else if (hi.startsWith('lens:')) {
+    const n = Number(hi.slice(5));
+    document.querySelectorAll('.lensbar .lenstab').forEach((el, i) => { if (i === n) el.classList.add('tutspot'); });
+  } else if (hi === 'nav') spot('.navbar .navmain');
+  else if (hi === 'tac') spot('.tacboard');
+  else if (hi === 'bars') spot('.mu-bars, .middle > .botstack .tbars');
+  else if (hi === 'fac') spot('.facwrap');
+  else if (hi === 'notebook') spot('.bslot.notebook');
+  else if (hi === 'jobbar') spot('.jobbar');
+  else if (hi === 'patch') {
+    spot('.bslot[data-bagitem="patch"]');
+    const p = tutStandout(state);
+    if (p) dimCardsExcept(new Set([p.id]));
+  } else if (hi === 'check') {
+    spot('.bslot[data-bagitem="check"]');
+    const g = tutGem(state);
+    if (g) dimCardsExcept(new Set([g.pr.id]));
+  }
 }
 
 // ---- render ------------------------------------------------------------------------------------------------
@@ -3009,6 +3153,7 @@ function render(): void {
   if (wk !== uiWeekKey) {
     uiWeekKey = wk;
     selectedDrill = 'rest';
+    selFac = 'mop';
     selScout = 'reccenter';
     selRecruit = 'groupchat';
     selPregame = null;
@@ -3017,6 +3162,9 @@ function render(): void {
     boxPass = 0;
     stickerBatches.clear();
   }
+
+  // THE WALK: when the stage is quiet, the assistant may take the floor
+  tutMaybeWalk();
 
   const ev = currentStory(state);
   // a screen CHANGE: the build animation arms, and the lens falls back to
@@ -3066,8 +3214,8 @@ function render(): void {
 
   // popups live INSIDE the middle: the stats bar, THE BAG and the nav stay
   // visible (⚡ readable while a story asks you to spend it) — the nav just dims.
-  const overlays = drillSheetHtml(state) + galaxySheetHtml(state) + speechSheetHtml(state) + gxResultHtml(state) + cutConfirmHtml(state) + boardConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state) + schedModalHtml(state) + standModalHtml(state) + notebookModalHtml(state) + jobModalHtml(state);
-  const modalOpen = drillSheet || speechSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet || gxResult !== null || cutConfirm || boardConfirm || schedOpen || standOpen || notebookOpen || jobOpen;
+  const overlays = drillSheetHtml(state) + facSheetHtml(state) + galaxySheetHtml(state) + speechSheetHtml(state) + gxResultHtml(state) + cutConfirmHtml(state) + boardConfirmHtml(state) + toastModalHtml() + itemModalHtml(state) + coachModalHtml(state) + schedModalHtml(state) + standModalHtml(state) + notebookModalHtml(state) + jobModalHtml(state);
+  const modalOpen = drillSheet || facSheet || speechSheet || coachOpen || itemUi !== null || toast !== null || galaxySheet || gxResult !== null || cutConfirm || boardConfirm || schedOpen || standOpen || notebookOpen || jobOpen;
   const navHtml = `<div class="navbar ${modalOpen ? 'dimmed' : ''}">${nav(state)}</div>`;
   // the bottom stack, thumb-first: the ONE BIG BUTTON sits on top (the most
   // comfortable reach), the view tabs under it, THE BAG's two rows at the
@@ -3084,10 +3232,18 @@ function render(): void {
   // THE TUTORIAL's cue: the assistant's one line above the nav — where to
   // press next, never a lecture (it yields while a story holds the floor)
   const tutTxt = tutorialHint(state, gnStage);
-  const hintHtml = tutTxt && !ev ? `<div class="tuthint"><b>ASSISTANT</b>${esc(tutTxt)}</div>` : '';
+  const hintHtml = tutTxt && !ev && !modalOpen ? `<div class="tuthint"><b>ASSISTANT</b>${esc(tutTxt)}</div>` : '';
+  // THE WALK's box floats OVER the screen (never pushing the layout around)
+  const wStep = !ev && !toast && !gxResult ? tutWalkStep() : null;
+  const walkTap = wStep && (wStep.advance ?? 'tap') === 'tap';
+  const walkHtml = wStep
+    ? `<div class="tutwalk ${wStep.pos ?? 'bot'}" ${walkTap ? 'data-action="tut-walk-tap"' : ''}>
+        <b>${esc(wStep.who ?? 'ASSISTANT COACH')}</b><span>${esc(wStep.text)}</span>${walkTap ? '<i class="wtap">▸ tap</i>' : ''}
+      </div>`
+    : '';
   const frame = state.phase === 'pickTeam' || state.phase === 'gameover'
     ? `<div class="midwrap"><div class="middle solo">${middle}</div>${overlays}</div>${navHtml}`
-    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${overlays}</div>${lensHtml}${hintHtml}${navHtml}${bagBar(state)}`;
+    : `${headerHtml(state)}<div class="midwrap"><div class="middle">${middle}</div>${walkHtml || hintHtml}${overlays}</div>${lensHtml}${navHtml}${bagBar(state)}`;
 
   // THE ANIMATION BUILD: a screen CHANGE builds in stages — title first (you
   // know where you are), content next, the action button last (you know where
@@ -3320,6 +3476,7 @@ function currentBeatText(ev: { text: string; resolvedText?: string }): string | 
 }
 
 function postRender(): void {
+  applyWalkSpotlight();
   if (gxResult && !gxResult.played) {
     gxResult.played = true;
     const r = gxResult;
@@ -3614,9 +3771,18 @@ function dropItemOnStory(itemId: string): void {
 /** A player item dragged onto a card: the individual action lands there —
     and shows there (the anchored stickers). */
 function dropItemOnPlayer(itemId: string, playerId: number): void {
+  // season zero teaches the drop: the patch goes on the hurt one, nobody else
+  if (state.tutorial !== undefined && itemId === 'patch') {
+    const hurtT = tutStandout(state);
+    if (!hurtT || playerId !== hurtT.id) {
+      toast = `◆ PATCH KIT: not there, coach${hurtT ? ` — ${hurtT.name} is the one who needs it` : ''}.`;
+      return;
+    }
+  }
   const pre = snapCards();
   const text = useItem(state, itemId, { playerId });
   if (!text) return;
+  if (itemId === 'patch') tutWalkAdvance('item:patch');
   const map = diffCards(pre);
   if (map.size) cardDeltas = { key: `item:${itemId}:${Date.now()}`, map };
   const said = describeDeltas(map);
@@ -3625,8 +3791,17 @@ function dropItemOnPlayer(itemId: string, playerId: number): void {
 
 /** A recruit item dragged onto a big-board card. */
 function dropItemOnProspect(itemId: string, prospectId: number): void {
+  // season zero teaches the drop: the check goes on the rec-center kid
+  if (state.tutorial !== undefined && itemId === 'check') {
+    const g = tutGem(state);
+    if (g && prospectId !== g.pr.id) {
+      toast = `◆ BLANK CHECK: the fans want the rec-center kid — ${g.pr.name}.`;
+      return;
+    }
+  }
   const text = useItem(state, itemId, { prospectId });
   if (text) toast = text;
+  if (itemId === 'check') tutWalkAdvance('item:check');
   gxStickers = null;
 }
 
@@ -3843,7 +4018,26 @@ function executeAction(action: string, id: string): void {
       if (pendingTeam !== null) chooseTeam(state, pendingTeam);
       pendingTeam = null;
       break;
+    case 'tut-fresh': {
+      // START FRESH: the codex burns, and the tutorial teaches from zero
+      if (pendingTeam === null) break;
+      wipeCodex();
+      state.codexPending = undefined;
+      state.unlockedDrills = ['shootaround', 'scrimmage', 'twodays', 'rest', 'bonfire'];
+      state.unlockedRegions = ['reccenter', 'home', 'nebula', 'stormlayers', 'outerrim'];
+      state.knownInstr = ['counter'];
+      for (const r of tutorialBoot(state, pendingTeam)) queueStory(state, r.defId, r.beat, r.playerId, r.data ?? {});
+      save(state);
+      pendingTeam = null;
+      break;
+    }
     case 'tut-back': pendingTeam = null; break;
+    case 'tut-walk-tap': tutWalkAdvance('tap'); break;
+    case 'tut-walk-skip': {
+      const w = state.tutWalk;
+      if (w) tutWalkFinish(w.key);
+      break;
+    }
 
     case 'story-choice':
       doResolve(id);
@@ -3884,21 +4078,19 @@ function executeAction(action: string, id: string): void {
     }
 
     case 'begin-week': beginWeek(state); break;
-    case 'to-scouting': toScouting(state); break;
-    case 'fac-upgrade': {
-      const out = upgradeFacility(state, id as FacId);
-      if (out) { floatEnergyBig(out.cost); toast = out.text; }
+    case 'to-scouting': facSheet = false; toScouting(state); break;
+    case 'fac-pick': selFac = id; facSheet = false; break;
+    case 'fac-run': {
+      if (selFac === 'mop') {
+        const txt = grabMop(state);
+        if (txt) toast = txt;
+      } else {
+        const out = upgradeFacility(state, selFac as FacId);
+        if (out) { floatEnergyBig(out.cost); toast = out.text; }
+        selFac = 'mop';
+      }
       break;
     }
-    case 'grab-mop': {
-      const txt = grabMop(state);
-      if (txt) toast = txt;
-      break;
-    }
-    case 'codex-wipe':
-      wipeCodex();
-      toast = 'THE CODEX BURNS. Every remembered speech, method and route is gone — the NEXT career starts truly from scratch. This one keeps what it knows.';
-      break;
     case 'to-practice': galaxySheet = false; gxStickers = null; cardDeltas = null; toPractice(state); break;
     case 'to-recruiting': drillSheet = false; cardDeltas = null; toRecruiting(state); break;
     case 'to-matchup': galaxySheet = false; gxStickers = null; cardDeltas = null; toMatchup(state); break;
@@ -3973,6 +4165,22 @@ function executeAction(action: string, id: string): void {
     case 'noop': break;
 
     case 'speech-run': {
+      // SEASON ZERO: the first attempt brings the cheerleader in with the
+      // words; after that, only THE RALLY leaves your mouth tonight
+      if (state.tutorial !== undefined) {
+        if ((state.tutorial ?? 0) < TUT_AT.SPEECH) {
+          for (const r of tutorialArrive(state, 'speech')) queueStory(state, r.defId, r.beat, r.playerId, r.data ?? {});
+          selPregame = { kind: 'speech', id: 'rally' };
+          save(state);
+          break;
+        }
+        const selT = pregameSel(state);
+        if (!(selT.kind === 'speech' && selT.id === 'rally')) {
+          selPregame = { kind: 'speech', id: 'rally' };
+          toast = 'Tonight the words are hers: THE RALLY.';
+          break;
+        }
+      }
       const sel = pregameSel(state);
       lens = 0;
       captureBars();
@@ -4062,6 +4270,8 @@ function executeAction(action: string, id: string): void {
       selRecruit = 'groupchat';
       selPregame = null;
       selectedDrill = 'rest';
+      selFac = 'mop';
+      facSheet = false;
       selSlots = null;
       cutConfirm = false;
       boardConfirm = false;
@@ -4118,7 +4328,12 @@ app.addEventListener('click', (e) => {
         storyUid = -1;
         break;
       }
-      // 'reveal' with no pending choices: tap-through story resolves now
+      // 'reveal' with no pending choices: tap-through story resolves now —
+      // except season zero's press question: THE NOTEBOOK answers that one
+      if (ev.defId === 'tut_scoop2' && !ev.resolvedText && state.notebook.some((n) => n.key === ev.data?.noteKey)) {
+        toast = '▤ Read it off THE NOTEBOOK, coach — bottom left.';
+        break;
+      }
       doResolve('ok');
       break;
     }
@@ -4147,10 +4362,12 @@ app.addEventListener('click', (e) => {
       break;
     }
 
-    case 'lens-set': lens = (Number(id) % 3) as Lens; break;
+    case 'lens-set': lens = (Number(id) % 3) as Lens; tutWalkAdvance(`lens:${lens}`); break;
 
     case 'drill-sheet': drillSheet = true; break;
     case 'drill-sheet-close': if (e.target === el) drillSheet = false; break;
+    case 'fac-sheet': facSheet = true; break;
+    case 'fac-sheet-close': if (e.target === el) facSheet = false; break;
 
     case 'bag-item': itemUi = id; break;
     case 'item-close': itemUi = null; break;
@@ -4169,9 +4386,16 @@ app.addEventListener('click', (e) => {
         else toast = '▤ THE NOTEBOOK: the pages are blank on this one, coach.';
         break;
       }
+      // season zero's follow-up: Scoop asks, and the notebook IS the answer
+      if (ev?.defId === 'tut_scoop2' && !ev.resolvedText) {
+        doResolve(state.notebook.some((n) => n.key === ev.data?.noteKey) ? 'notebook' : 'ok');
+        break;
+      }
       // otherwise: note something noteworthy — or browse the pages
-      if (takeNote()) toast = `▤ NOTED: ${esc(state.notebook[0].text.slice(0, 90))}${state.notebook[0].text.length > 90 ? '…' : ''}`;
-      else notebookOpen = true;
+      if (takeNote()) {
+        toast = `▤ NOTED: ${esc(state.notebook[0].text.slice(0, 90))}${state.notebook[0].text.length > 90 ? '…' : ''}`;
+        tutWalkAdvance('note');
+      } else notebookOpen = true;
       break;
     }
     case 'notebook-close': notebookOpen = false; break;
@@ -4202,6 +4426,11 @@ app.addEventListener('click', (e) => {
   starters,
   story: (defId: string, beat: string, playerId: number | null, data?: Record<string, unknown>) => {
     queueStory(state, defId, beat, playerId, data ?? {});
+    render();
+  },
+  drop: (itemId: string, kind: 'p' | 'pr', id: number) => {
+    if (kind === 'pr') dropItemOnProspect(itemId, id);
+    else dropItemOnPlayer(itemId, id);
     render();
   },
   ui: () => ({ storyMode, stageTyped, impact, impactPlayed }),

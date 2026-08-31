@@ -22,7 +22,9 @@ g.localStorage = win.localStorage;
 g.HTMLElement = (win as unknown as Record<string, unknown>).HTMLElement;
 g.Element = (win as unknown as Record<string, unknown>).Element;
 
-const { default: _ } = { default: null };
+// a veteran's codex sits in storage: the new-career dialog must offer BOTH
+// paths (keep the knowledge → tryouts · start fresh → the tutorial)
+win.localStorage.setItem('galactic-coach-codex', JSON.stringify({ plans: ['warcry'], drills: [], instrs: [], regions: [] }));
 
 async function main(): Promise<void> {
   await import('../src/main');
@@ -44,16 +46,29 @@ async function main(): Promise<void> {
       throw new Error(`could not click ${label} (${selector}) in phase ${state().phase}`);
     }
   };
+  const anyWin = win as unknown as { gcAction: (a: string, id: string) => void };
   const drain = (max = 400): void => {
     for (let i = 0; i < max && state().queue.length; i++) {
+      const q = (gc.state() as any).queue[0];
+      // season zero's press question resolves off the NOTEBOOK, not the panel
+      if (q?.defId === 'tut_scoop2' && !q.resolvedText) {
+        click('.bslot.notebook');
+        continue;
+      }
       // choice buttons are hold-to-commit (clicks are ignored) — fire the action
       const c = app.querySelector('[data-action="story-choice"]:not([disabled])');
       if (c) {
-        (win as unknown as { gcAction: (a: string, id: string) => void }).gcAction('story-choice', c.getAttribute('data-id') ?? 'ok');
+        anyWin.gcAction('story-choice', c.getAttribute('data-id') ?? 'ok');
         continue;
       }
       if (!click('[data-action="story-tap"]')) break;
     }
+  };
+  const toasts = (): void => {
+    for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* beats */ }
+  };
+  const walkSkip = (): void => {
+    if ((gc.state() as any).tutWalk) anyWin.gcAction('tut-walk-skip', '');
   };
 
   // everyone lands on MARCH MANIACS: press start (anywhere) → the program pick
@@ -62,12 +77,14 @@ async function main(): Promise<void> {
   must('[data-action="press-start"]', 'press start');
   if (!app.innerHTML.includes('GALACTIC COACH')) throw new Error('pick-team screen missing');
   must('[data-action="pick-team"]', 'pick team');
-  // FIRST TIME PLAYING? — the veteran path skips straight to tryouts
-  if (!app.innerHTML.includes('FIRST TIME PLAYING?')) throw new Error('first-time ask missing after pick');
-  must('[data-action="tut-skip"]', 'skip the tutorial');
+  // START A NEW CAREER — with a codex present: keep the knowledge, or burn it
+  if (!app.innerHTML.includes('START A NEW CAREER')) throw new Error('new-career dialog missing after pick');
+  if (!app.innerHTML.includes('SELECTED TEAM')) throw new Error('selected team missing from the new-career dialog');
+  if (!app.innerHTML.includes('I KNOW THE DRILL')) throw new Error('the keep-knowledge path is missing');
+  if (!app.innerHTML.includes('START FRESH')) throw new Error('the burn-the-codex path is missing');
+  must('[data-action="tut-skip"]', 'skip the tutorial (keep the codex)');
   if (state().phase !== 'teamSelect') throw new Error(`expected teamSelect, got ${state().phase}`);
   drain();
-  const anyWin = win as unknown as { gcAction?: (a: string, id: string) => void };
   if (!anyWin.gcAction) throw new Error('gcAction dev handle missing (expose it for the smoke test)');
   // TRYOUTS: the selection grid — 4 rows, the bottom one is the CUT
   if (!app.innerHTML.includes('cutrow')) throw new Error('selection grid CUT row missing');
@@ -81,18 +98,24 @@ async function main(): Promise<void> {
   drain();
   if (state().phase !== 'facilities') throw new Error(`expected facilities, got ${state().phase}`);
 
-  // FACILITIES: six buildings, the mop, and an upgrade ordered for next week
+  // FACILITIES: six tiles, ONE campus move a week — the mop is the free
+  // floor, an upgrade the spend; the picks live in the ▾ menu
   if (!app.innerHTML.includes('FACILITIES')) throw new Error('facilities screen missing');
-  if (!app.innerHTML.includes('GRAB A MOP')) throw new Error('the mop is missing');
-  if (app.querySelectorAll('.facrow').length !== 6) throw new Error('expected six facility rows');
+  if (!app.innerHTML.includes('GRAB A MOP')) throw new Error('the mop is missing from the nav');
+  if (app.querySelectorAll('.facrow').length !== 6) throw new Error('expected six facility tiles');
+  if (!app.querySelector('.navbar [data-action="fac-run"]')) throw new Error('campus move missing from the nav');
+  if (app.innerHTML.includes('LVL 1 —') || app.innerHTML.includes('/4')) throw new Error('facility tiles should not talk in levels');
+  // mandatory action: the nav refuses to move on until one lands
+  anyWin.gcAction('to-scouting', '');
+  if (state().phase !== 'facilities') throw new Error('left the campus without a move');
   const e0 = (gc.state() as any).energy;
-  anyWin.gcAction('fac-upgrade', 'cryo');
+  anyWin.gcAction('fac-pick', 'cryo');
+  anyWin.gcAction('fac-run', '');
   if (!(gc.state() as any).futureBeats.some((b: any) => b.defId === 'facility_arrives')) throw new Error('upgrade not ordered');
   if ((gc.state() as any).energy >= e0) throw new Error('upgrade cost nothing');
-  for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* the order confirmation */ }
-  anyWin.gcAction('grab-mop', '');
-  for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* mop flavor */ }
-  drain(); // or the janitor hands an item instead
+  if (!(gc.state() as any).facActWk) throw new Error('the campus move did not land');
+  toasts();
+  drain();
   anyWin.gcAction('to-scouting', '');
   drain();
   if (state().phase !== 'scouting') throw new Error(`expected scouting after the campus, got ${state().phase}`);
@@ -118,11 +141,14 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('LOCAL REC CENTER')) throw new Error('free scouting option not the default');
   if (!app.querySelector('.navbar [data-action="gx-run"]')) throw new Error('scouting action missing from the nav');
   if (app.querySelectorAll('.navbar [data-action="gx-sheet"]').length !== 2) throw new Error('expected a ▾ arrow on BOTH sides');
+  // scoped actions speak in "up to": never a demand for exactly six
+  anyWin.gcAction('gx-sheet', '');
+  if (app.innerHTML.includes('PICK 6') && !app.innerHTML.includes('PICK UP TO 6')) throw new Error('scoped actions should read PICK UP TO');
+  if (app.innerHTML.includes('needs the SCOUTING SHIP') || app.innerHTML.includes('needs GREEK ROW')) throw new Error('gated moves should stay undiscovered, not name their level');
+  anyWin.gcAction('gx-pick', 'filmnight');
   // mandatory action: the nav refuses to move on until one lands
   anyWin.gcAction('to-practice', '');
   if (state().phase !== 'scouting') throw new Error('left scouting without an action');
-  // pick FILM NIGHT (all 9) and run it — every prospect gains a facet
-  anyWin.gcAction('gx-pick', 'filmnight');
   anyWin.gcAction('gx-run', '');
   if (!(gc.state() as any).scoutActWk) throw new Error('scouting action did not land');
   if (!prospects.some((p: any) => p.seenSkill || p.seenPot || p.digits > 0)) throw new Error('scout revealed nothing');
@@ -214,9 +240,9 @@ async function main(): Promise<void> {
   if (!(gc.state() as any).pregameWk) throw new Error('the pregame move did not commit');
   // the speech verdict lands as a two-beat toast (the words, then the
   // trade) — tap it through until it closes
-  for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* type → beat → close */ }
+  toasts();
   if (app.querySelector('[data-action="toast-tap"]')) throw new Error('the speech toast never closed');
-  if (!app.innerHTML.includes('tbars mu')) throw new Error('matchup bars missing')
+  if (!app.innerHTML.includes('tbars mu')) throw new Error('matchup bars missing');
   // the opponent scout is DEAD: their bars are simply there, for free
   if (!app.innerHTML.includes('tbopp')) throw new Error('opponent bars not visible for free');
   if (app.innerHTML.includes('scoutbtn')) throw new Error('the scout button should be gone');
@@ -236,8 +262,10 @@ async function main(): Promise<void> {
   if (!Array.isArray(st.lastResult.box) || !st.lastResult.box.length) throw new Error('box score missing from result');
   if (st.lastResult.myScore === st.lastResult.oppScore) throw new Error('the game ended tied');
 
-  // the bookie prints the odds before the ball goes up
+  // the bookie prints the odds before the ball goes up — his FIGURE stays
+  // out of the in-game screen (illustrations are for dialogs)
   if (!app.innerHTML.includes('THE BOOKIE')) throw new Error('the bookie line is missing');
+  if (app.innerHTML.includes('bookiefig')) throw new Error('the bookie figure should be gone from the in-game screen');
   // skip the live game (tap) → the night's interruptions may speak at the
   // half (answer them, the game resumes) → YOU WON / YOU LOST on the same screen
   for (let i = 0; i < 3 && app.querySelector('#needle-stage') && !/YOU WON|YOU LOST/.test(app.innerHTML); i++) {
@@ -279,6 +307,9 @@ async function main(): Promise<void> {
     const q = (gc.state() as any).queue[0];
     throw new Error(`expected facilities after week start, got ${state().phase} (stuck on ${q?.defId}/${q?.beat} "${q?.tag}" · choices ${JSON.stringify(q?.choices?.map((c: any) => [c.key, c.cost, c.disabled]))} · ¢${(gc.state() as any).energy})`);
   }
+  anyWin.gcAction('fac-run', ''); // the weekly mop
+  toasts();
+  drain();
   anyWin.gcAction('to-scouting', '');
   drain();
   if (state().phase !== 'scouting') throw new Error(`expected scouting after the campus, got ${state().phase}`);
@@ -298,25 +329,45 @@ async function main(): Promise<void> {
     drain();
   }
 
-  // ---- THE TUTORIAL SEASON (v5 M3): season zero, scripted, taught by doing ----
+  // ---- THE TUTORIAL SEASON (v5 M4): season zero, paced, taught by doing ----
   anyWin.gcAction('new-game', ''); // no title screen on an in-session reset
   must('[data-action="pick-team"]', 'pick team (tutorial run)');
-  must('[data-action="tut-yes"]', 'first time — coach the tutorial');
+  if (!app.innerHTML.includes('START FRESH')) throw new Error('burn-the-codex path missing on the second career');
+  anyWin.gcAction('tut-fresh', ''); // wipe the codex, coach season zero
   const st3 = (): any => gc.state() as any;
   if (st3().tutorial === undefined) throw new Error('the tutorial did not arm');
   if (Object.values(st3().facilities).some((v) => v !== 0)) throw new Error('the tutorial campus should start at level 0');
-  drain(); // the call, the dean, the roster, the haywire machine
+  const me3 = (): any => st3().teams[st3().myTeamId];
+  drain(); // the call · the dean: gauge → credit → time machine (take it)
+  if (me3().wins !== 0 || me3().losses !== 9) throw new Error(`season zero must stand 0–9, got ${me3().wins}–${me3().losses}`);
+  if (!me3().players.some((p: any) => p.stats.gp > 0)) throw new Error('the lost season should show in the stats');
+  if (st3().energy !== 1) throw new Error(`the dean hands exactly one credit, got ${st3().energy}`);
+  if (!st3().bag.includes('timeloop')) throw new Error('the time machine never entered the bag');
   if (st3().phase !== 'weekstart') throw new Error(`expected weekstart in season zero, got ${st3().phase}`);
+  // THE WALK: the roster spotlight, then the haywire machine
+  if (!st3().tutWalk || st3().tutWalk.key !== 'roster') throw new Error('the roster walk did not arm');
+  if (!app.innerHTML.includes('tutwalk')) throw new Error('the walk box did not render');
+  anyWin.gcAction('tut-walk-tap', ''); // step by tap works…
+  anyWin.gcAction('tut-walk-skip', ''); // …and the skip hands the floor on
+  drain(); // the time machine goes haywire
+  if (!me3().players.some((p: any) => p.outReason === 'lost in time')) throw new Error('the haywire beat never fired');
   anyWin.gcAction('begin-week', '');
-  drain(); // the hoop complaint, the janitor's patch kit
+  drain();
   if (st3().phase !== 'facilities') throw new Error(`expected facilities in season zero, got ${st3().phase}`);
-  if (!app.innerHTML.includes('tuthint')) throw new Error('tutorial hint bar missing');
+  walkSkip(); // the campus walk…
+  drain(); // …hands the floor to the dean in the parking lot (the hoop)
+  if (!st3().futureBeats.some((b: any) => b.data?.facId === 'gym')) throw new Error("the dean's hoop should read ARRIVING");
+  anyWin.gcAction('fac-run', ''); // GRAB THE MOP (the only tutorial move)
+  drain(); // the mop scene → the janitor → the patch kit (take it)
   if (!st3().bag.includes('patch')) throw new Error('the janitor never handed the patch kit');
+  if (!app.innerHTML.includes('tuthint')) throw new Error('tutorial hint bar missing');
   anyWin.gcAction('to-scouting', '');
-  drain(); // the head cheerleader reveals the board
+  drain();
+  walkSkip(); // the board walk…
+  drain(); // …then the head cheerleader reveals the board, opens the row
   if (!st3().prospects.every((p: any) => p.digits >= 2)) throw new Error('the cheerleader should reveal the whole board');
   if (st3().facilities.greekrow !== 1) throw new Error('Kappa Nebula should open GREEK ROW 1');
-  anyWin.gcAction('gx-run', ''); // LOCAL REC CENTER — free, and pinned to find the gem
+  anyWin.gcAction('gx-run', ''); // LOCAL REC CENTER — free, pinned to find the gem
   click('[data-action="gx-result-tap"]');
   click('[data-action="gx-result-tap"]');
   drain();
@@ -326,49 +377,78 @@ async function main(): Promise<void> {
     stateMod.swapBoardSlot(st3(), 9, 8);
     anyWin.gcAction('board-confirm-open', '');
     anyWin.gcAction('board-confirm-do', '');
-    for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* the walk-away toast */ }
+    toasts();
   }
+  walkSkip(); // the POTENTIAL lens walk (the stars, the ?? rating)
   anyWin.gcAction('to-practice', '');
-  drain(); // the assistant on grades and the patch
+  drain();
+  walkSkip(); // the practice walk (grades, the patch, the tactics)
   anyWin.gcAction('drill-run', ''); // TEAM REST — the whole menu at gym 0
   drain();
   anyWin.gcAction('to-recruiting', '');
-  drain(); // the booster, the blank check
-  if (!st3().prospects.some((p: any) => p.signed)) throw new Error('the blank check should sign the rec-center kid');
+  drain();
+  walkSkip(); // the recruiting walk
   anyWin.gcAction('gx-run', ''); // THE GROUP HOLO-CHAT
   click('[data-action="gx-result-tap"]');
   click('[data-action="gx-result-tap"]');
-  drain();
+  drain(); // the booster: faith (+25), then the BLANK CHECK (take it)
+  if (!st3().bag.includes('check')) throw new Error('the booster never left the blank check');
+  // the check must land on the kid before the bus leaves
   anyWin.gcAction('to-matchup', '');
-  drain(); // wheels up, Scoop's question, the bus breakdown
-  anyWin.gcAction('speech-run', ''); // THE RALLY — the only page in the book
-  for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* the speech verdict */ }
-  anyWin.gcAction('play-game', '');
+  if (st3().phase !== 'matchup') {
+    // still recruiting: good — the drop is the lesson
+    walkSkip();
+    const gem = st3().prospects.find((p: any) => p.pots.skl + p.pots.ath + p.pots.frc + p.pots.brn >= 70);
+    if (!gem) throw new Error('the rec-center gem is missing from the board');
+    (gc as any).drop('check', 'pr', gem.id);
+    toasts();
+    if (!st3().prospects.some((p: any) => p.signed)) throw new Error('the blank check should sign the rec-center kid');
+  }
+  anyWin.gcAction('to-matchup', '');
+  drain(); // Scoop first, THEN wheels up, THEN the breakdown and the goblins
+  if (st3().phase !== 'matchup') throw new Error(`expected matchup, got ${st3().phase}`);
+  if (st3().energy !== 1) throw new Error('the goblin gag must hand the credit back');
+  walkSkip(); // the matchup walk (the bars, the speech)
+  anyWin.gcAction('speech-run', ''); // first attempt → the cheerleader walks in
   drain();
+  anyWin.gcAction('speech-run', ''); // THE RALLY — and tonight it WORKS
+  toasts();
+  if (!st3().pregameWk) throw new Error('the rally never got said');
+  if (st3().speechTook !== true) throw new Error('the tutorial rally must land');
+  anyWin.gcAction('play-game', '');
+  drain(); // the bookie says hello, favoring the opposition
   for (let i = 0; i < 4 && app.querySelector('#needle-stage') && !/YOU WON/.test(app.innerHTML); i++) {
     (app.querySelector('#needle-stage') as unknown as { click?: () => void } | null)?.click?.();
     drain(); // the freshman catches fire at the half
   }
   if (!/YOU WON/.test(app.innerHTML)) throw new Error('the tutorial game must be WON');
   anyWin.gcAction('gn-recap', '');
-  drain(); // the notebook lesson, the bookie's cryo unit
+  drain(); // the bookie's cryo unit falls off a truck
   if (st3().facilities.cryo !== 1) throw new Error("the bookie's cryo unit never fell off the truck");
   anyWin.gcAction('gn-verdict', '');
+  // THE NOTEBOOK lesson lands MID box score: tap it, the walk advances
+  if (!st3().tutWalk || st3().tutWalk.key !== 'notebook') throw new Error('the notebook walk did not arm on the box score');
+  click('.bslot.notebook');
+  toasts();
+  if (st3().tutWalk) throw new Error('the notebook tap should finish the walk');
+  if (!st3().notebook.length) throw new Error('the note never landed');
   anyWin.gcAction('gn-pass', '');
   anyWin.gcAction('gn-table', '');
   anyWin.gcAction('continue-result', '');
-  drain(); // the road home, the gifts, goodbye assistant
-  if (st3().tutorial !== undefined) throw new Error('the tutorial should end at tryouts');
+  drain(); // the road home: the attendant, the kid (1¢ meal), the gifts, tryouts
   if (st3().phase !== 'teamSelect') throw new Error(`expected teamSelect after the wrap, got ${st3().phase}`);
+  if (st3().tutorial === undefined) throw new Error('the assistant stays through the tryouts');
+  if (st3().energy !== 0) throw new Error('the hot meal should spend the last credit');
   if (Object.values(st3().facilities).some((v) => v !== 1)) throw new Error('six gifts: the campus must stand at level 1');
   if (st3().selectPool.length !== 12) throw new Error(`the tryouts pool should hold 12, got ${st3().selectPool.length}`);
   if (st3().knownPlans.length < 6) throw new Error('the standard speeches should return with season 1');
   anyWin.gcAction('cut-confirm-open', '');
   anyWin.gcAction('confirm-roster', '');
-  drain();
+  drain(); // goodbye, assistant — then season one's Monday
+  if (st3().tutorial !== undefined) throw new Error('the tutorial should end after the goodbye');
   if (st3().season !== 1) throw new Error(`season 1 should begin after tutorial tryouts, got ${st3().season}`);
 
-  console.log('UI SMOKE OK — pick team → tryouts → scouting → lenses → drill → recruiting → pregame move → live game → YOU WON/LOST → box score → league → WEEK START → scouting → campus cast renders → TUTORIAL season zero start to finish');
+  console.log('UI SMOKE OK — pick team → new-career paths → tryouts → campus move → scouting → lenses → drill → recruiting → pregame move → live game → YOU WON/LOST → box score → league → WEEK START → campus cast renders → TUTORIAL season zero start to finish (walks, mop, check, rally, notebook, goodbye)');
 }
 
 main().catch((e) => {

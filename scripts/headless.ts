@@ -137,13 +137,14 @@ function playCareer(idx: number): CareerStats {
       case 'facilities': {
         drainQueue(s);
         if ((s.phase as string) !== 'facilities') break;
-        // the campus stop: mop sometimes, build sometimes
-        if (Math.random() < 0.5) grabMop(s);
-        drainQueue(s);
+        // ONE campus move a week now: try an upgrade when rich and lucky,
+        // otherwise the mop is the free floor
         if (s.energy >= 6 && Math.random() < 0.35) {
           const ids: FacId[] = ['ship', 'gym', 'cryo', 'library', 'stadium', 'greekrow'];
-          upgradeFacility(s, ids[Math.floor(Math.random() * ids.length)]);
+          for (let i = 0; i < 6 && !s.facActWk; i++) upgradeFacility(s, ids[Math.floor(Math.random() * ids.length)]);
         }
+        if (!s.facActWk) grabMop(s);
+        drainQueue(s);
         toScouting(s);
         if ((s.phase as string) === 'facilities' && !s.queue.length) throw new Error('stuck at facilities');
         break;

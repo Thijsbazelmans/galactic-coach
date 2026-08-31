@@ -1613,18 +1613,79 @@ button.hrow b { color: var(--r95); }
 button.hopp { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; min-width: 0; justify-self: start; color: var(--r95); font-weight: bold; }
 button.hopp .chip { vertical-align: 1px; }
 
-/* THE TUTORIAL (v5 M3): the assistant's one-line cue above the nav */
+/* THE TUTORIAL: the assistant's one-line cue FLOATS over the bottom of the
+   stage (never pushing the layout around — the board must keep fitting) */
 .tuthint {
-  margin: 0 8px 4px;
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 6px;
+  z-index: 55;
   padding: 6px 10px;
   background: var(--rpanel);
   border: 1px solid var(--rline);
   color: var(--r75);
   font-size: 12px;
   line-height: 1.35;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55);
 }
 .tuthint b {
   color: var(--r95);
   letter-spacing: 1px;
   margin-right: 6px;
 }
+
+/* ---- THE WALK (v5 M4): the assistant's step-by-step spotlight ------------- */
+/* A small floating box — never a full-screen dialog — with ONE thing lit on
+   the live screen behind it. Tap advances; deed-steps wait for the deed. */
+.tutwalk {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  z-index: 60;
+  background: var(--rbg);
+  border: 1px solid var(--r95);
+  padding: 9px 12px;
+  color: var(--r95);
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.65);
+  cursor: pointer;
+}
+.tutwalk.top { top: 8px; }
+.tutwalk.mid { top: 38%; }
+.tutwalk.bot { bottom: 8px; }
+.tutwalk b {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--r55);
+  margin-bottom: 3px;
+}
+.tutwalk .wtap {
+  display: block;
+  text-align: right;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--r35);
+  animation: blink 1.6s steps(2, start) infinite;
+}
+/* the lit thing: a bright blinking outline, above the dimmed rest */
+.tutspot {
+  outline: 2px solid var(--r95) !important;
+  outline-offset: -2px;
+  animation: scopeblink 1.1s steps(2, start) infinite;
+  position: relative;
+  z-index: 45;
+}
+
+/* ---- START A NEW CAREER: headline + subline buttons ----------------------- */
+.askteam { text-align: center; margin: 10px 0 14px; }
+.askteam .dim { font-size: 10px; letter-spacing: 2px; }
+.askbtn b { display: block; font-size: 15px; letter-spacing: 1px; color: var(--r95); }
+.askbtn span { display: block; font-size: 11px; color: var(--r55); margin-top: 2px; }
+
+/* ---- FACILITIES tiles: current state + a cost, nothing more --------------- */
+.factile { margin: 4px 0; padding: 7px 10px; }
+.facstate { margin-top: 3px; font-size: 12px; color: var(--r55); }
+.faccost { margin-left: auto; font-size: 12px; font-weight: bold; color: var(--r95); white-space: nowrap; }

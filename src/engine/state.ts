@@ -66,7 +66,7 @@ import {
   stipendFor,
   xpNeed,
 } from './gen';
-import { tutorialArrive, tutorialGemify, tutorialHeld, tutorialRigGame, tutorialWrap } from './tutorial';
+import { tutGem, tutorialArrive, tutorialGemify, tutorialHeld, tutorialRigGame, tutorialWrap } from './tutorial';
 import {
   autoLineup,
   benchPlayers,
@@ -804,6 +804,7 @@ function startWeek(s: GameState): void {
   s.scoutActWk = false;
   s.recruitActWk = false;
   s.moppedWk = false;
+  s.facActWk = false;
   s.mopDiscount = false;
   s.pregameWk = false;
   s.speechFx = null;
@@ -1052,9 +1053,11 @@ export function beginWeek(s: GameState): void {
 
 // ---- FACILITIES: the campus stop ---------------------------------------------------------
 
-/** FACILITIES → SCOUTING: the campus stop is free — the mop is optional. */
+/** FACILITIES → SCOUTING: the campus stop is a stop like any other now —
+    one action (the mop is the free floor) before the week moves on. */
 export function toScouting(s: GameState): void {
   if (s.queue.length || s.phase !== 'facilities') return;
+  if (!s.facActWk) return;
   s.phase = 'scouting';
   maybeTip(s, 'scouting');
   if (s.tutorial !== undefined) tutQueue(s, tutorialArrive(s, 'scouting'));
@@ -1063,7 +1066,7 @@ export function toScouting(s: GameState): void {
 
 /** Order an upgrade: costs credits now, ARRIVES next week with its own beat. */
 export function upgradeFacility(s: GameState, id: FacId): { cost: number; text: string } | null {
-  if (s.phase !== 'facilities') return null;
+  if (s.phase !== 'facilities' || s.facActWk) return null;
   const lvl = facLevel(s, id);
   if (lvl >= 3) return null;
   if (s.futureBeats.some((fb) => fb.defId === 'facility_arrives' && fb.data?.facId === id)) return null;
@@ -1071,6 +1074,7 @@ export function upgradeFacility(s: GameState, id: FacId): { cost: number; text: 
   if (s.energy < cost) return null;
   s.energy -= cost;
   s.mopDiscount = false;
+  s.facActWk = true;
   s.futureBeats.push({ weeksLeft: 1, defId: 'facility_arrives', beat: 'start', playerId: null, data: { facId: id } });
   save(s);
   const fd = facilityById(id);
@@ -1081,8 +1085,16 @@ export function upgradeFacility(s: GameState, id: FacId): { cost: number; text: 
     supply drip lives here now); sometimes he "knows a guy"; sometimes the
     floors just shine. */
 export function grabMop(s: GameState): string | null {
-  if (s.phase !== 'facilities' || s.moppedWk) return null;
+  if (s.phase !== 'facilities' || s.facActWk) return null;
   s.moppedWk = true;
+  s.facActWk = true;
+  if (s.tutorial !== undefined) {
+    // season zero scripts the mop: the coach grabs it, the assistant helps,
+    // the janitor pays in kind
+    queueStory(s, 'tut_mop', 'start', null);
+    save(s);
+    return null;
+  }
   const r = Math.random() * 100;
   if (r < 45) {
     queueStory(s, 'supply', 'start', null, { itemId: pick(SMALL_ITEMS) });
@@ -1315,6 +1327,8 @@ export function actionGalaxy(s: GameState, actId: string, targetIds?: number[]):
   // the big plays can't run every week: 2¢ rests a week, 3¢ two — no duffel
   // bags two Fridays in a row
   if (act.cost >= 2) s.actCooldowns = { ...(s.actCooldowns ?? {}), [act.id]: act.cost - 1 };
+  // season zero: the charm move landing is the booster's cue
+  if (act.kind === 'recruit' && s.tutorial !== undefined) tutQueue(s, tutorialArrive(s, 'recruited'));
   const per = new Map<number, { text: string; up?: boolean; commitFrom?: number }[]>();
   let text: string;
   let art: GalaxyResult['art'];
@@ -1557,8 +1571,9 @@ function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx[]; text: string;
   const exit = `"Tonight, ${pl.speech}," you say — and you leave the room for dramatic effect.`;
   const back = 'When you come back in,';
   if (pl.kind === 'rally') {
-    // no X's and O's: a coin flip on morale, a sliver of chance either way
-    const r = Math.random() * 100;
+    // no X's and O's: a coin flip on morale, a sliver of chance either way —
+    // except on season zero's one night, where the words ALWAYS take
+    const r = s.tutorial !== undefined ? 30 : Math.random() * 100;
     if (r < 2) { for (const p of t.players) p.mood = clamp(p.mood - 20, 0, 100); return { took: false, fx: [], text: `${exit}\n\n${back} somebody is laughing. Then somebody else. The room deflates like a tire. Squad MOOD −20.` }; }
     if (r < 4) { for (const p of t.players) p.mood = clamp(p.mood + 25, 0, 100); return { took: true, fx: [], text: `${exit}\n\n${back} the roof is OFF. Chairs are over. Somebody is crying. The other team can hear it through the wall. Squad MOOD +25.` }; }
     if (r < 52) { for (const p of t.players) p.mood = clamp(p.mood + 12, 0, 100); return { took: true, fx: [], text: `${exit}\n\n${back} ${pl.scene} The room is on its feet. Squad MOOD +12.` }; }
@@ -1594,6 +1609,8 @@ export function actCooldown(s: GameState, id: string): number {
 
 export function deliverSpeech(s: GameState, plan: PlanId): string | null {
   if (s.pregameWk || !s.knownPlans.includes(plan) || speechCooldown(s, plan) > 0) return null;
+  // season zero: the cheerleader's words are the ones that get said
+  if (s.tutorial !== undefined && plan !== 'rally') return null;
   s.plan = plan;
   s.pregameWk = true;
   const out = rollSpeech(s, plan);
@@ -1756,10 +1773,17 @@ export function toRecruiting(s: GameState): void {
 export function toMatchup(s: GameState): void {
   if (s.phase === 'stories' && s.queue.length) return;
   if (s.phase === 'recruiting' && !s.recruitActWk) return;
+  // season zero: the blank check must land on the rec-center kid first —
+  // that drop IS the lesson
+  if (s.phase === 'recruiting' && s.tutorial !== undefined) {
+    const gem = tutGem(s);
+    if (s.bag.includes('check') && gem?.where === 'board' && !gem.pr.signed) return;
+  }
   normalizeLineup(myTeam(s));
-  // wheels up: every away game opens with the bus heading out
+  // wheels up: every away game opens with the bus heading out (season zero
+  // scripts its own departure — Scoop speaks before the wheels do)
   const m = myMatchup(s);
-  if (m && !m.home && s.phase === 'recruiting') queueStory(s, 'travel_out', 'start', null);
+  if (m && !m.home && s.phase === 'recruiting' && s.tutorial === undefined) queueStory(s, 'travel_out', 'start', null);
   s.phase = 'matchup';
   maybeTip(s, 'matchup');
   if (s.tutorial !== undefined) tutQueue(s, tutorialArrive(s, 'matchup'));
@@ -1795,6 +1819,8 @@ export function playGame(s: GameState): boolean {
       return false;
     }
   }
+  // season zero: the bookie says hello before the ball goes up
+  if (s.tutorial !== undefined) tutQueue(s, tutorialArrive(s, 'pregame'));
   const me = myTeam(s);
   s.preGame = { wins: me.wins, losses: me.losses, rank: 1 + sortedStandings(s).findIndex((t) => t.id === s.myTeamId) };
   s.prevRanks = Object.fromEntries(sortedStandings(s).map((t, i) => [t.id, i + 1]));
@@ -2483,7 +2509,21 @@ export function finalizeRoster(s: GameState, chosenIds: number[]): boolean {
     }
   }
 
+  // the tutorial ends HERE, after the cut — the assistant says goodbye first
+  const wasTut = s.tutorial !== undefined;
+  if (wasTut) {
+    delete s.tutorial;
+    delete s.tutWalk;
+    delete s.tutSeen;
+  }
   startNewSeason(s);
+  if (wasTut) {
+    queueStory(s, 'tut_bye2', 'start', null);
+    const bye = s.queue.pop();
+    if (bye) s.queue.unshift(bye);
+    if (s.phase === 'weekstart' && s.queue.length) s.phase = 'weekstart'; // the report waits behind the goodbye
+    save(s);
+  }
   return true;
 }
 
