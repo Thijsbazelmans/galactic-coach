@@ -486,6 +486,7 @@ export function tutorialWalkDone(s: GameState, key: string): StoryReq[] {
 const TUT_ALWAYS = new Set([
   'story-tap', 'story-choice', 'toast-tap', 'gx-result-tap', 'tut-walk-tap',
   'tut-walk-skip', 'card', 'noop', 'week-turn-close', 'item-close',
+  'press-start', // a reload mid-walk still lands on the title screen — START must work
 ]);
 
 export function tutorialAllows(s: GameState, action: string, id: string): boolean {
@@ -497,6 +498,9 @@ export function tutorialAllows(s: GameState, action: string, id: string): boolea
     if (adv === `lens:${id}` && action === 'lens-set') return true;
     if (adv === 'note' && action === 'notebook') return true;
     if (adv === 'tac' && action === 'tac-set') return true;
+    // the scripted item must stay ALIVE: tutoff would kill the pointerdown
+    // that starts the very drag the step is asking for
+    if (adv === `item:${id}` && action === 'bag-item') return true;
     return false;
   }
   switch (s.phase) {
