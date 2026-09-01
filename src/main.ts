@@ -164,6 +164,53 @@ function ensureSetup(): SetupState {
   return setup;
 }
 
+// THE KIT PICKER (playtest #6): 32 swatches instead of the OS color wheel.
+// The TEXT row blanks every swatch that would vanish on the chosen MAIN —
+// picking the same color twice is impossible by construction.
+const KIT_SWATCHES = [
+  '#E8000D', '#990000', '#FF6B6B', '#F47321', '#BF5700', '#FFB347', '#E75480', '#461D7C',
+  '#FFCB05', '#F2A900', '#CEB888', '#FDF2D9', '#1F8A4C', '#5FE07A', '#0A3D2B', '#B3A369',
+  '#4A9ED4', '#B9D9EB', '#2D68C4', '#0051BA', '#00539B', '#003057', '#00274C', '#0B2537',
+  '#F3F6FF', '#F2E9D4', '#F5F5F5', '#8898A8', '#4E3629', '#16324A', '#101820', '#7B4FBF',
+];
+
+/** the ✎ modal's pending kit picks (null = the team's current color) */
+let edBg: string | null = null;
+let edFg: string | null = null;
+/** typed-but-unsaved name/planet, preserved across the swatch re-renders */
+let edNameV: string | null = null;
+let edPlanetV: string | null = null;
+
+/** A swatch tap re-renders the modal: bank the text inputs first. */
+function bankEditInputs(): void {
+  const val = (elId: string): string | null => (document.getElementById(elId) as HTMLInputElement | null)?.value ?? null;
+  edNameV = val('ed-name') ?? edNameV;
+  edPlanetV = val('ed-planet') ?? edPlanetV;
+}
+
+/** Would fg read on bg? Different enough in lightness, or — for two colors
+    that both carry real saturation — far enough apart on the hue wheel. */
+function swatchVisible(bg: string, fg: string): boolean {
+  const [hb, sb, lb] = hexToHsl(bg);
+  const [hf, sf, lf] = hexToHsl(fg);
+  if (Math.abs(lb - lf) >= 25) return true;
+  if (sb < 18 || sf < 18) return false; // near-greys: lightness is all they have
+  const dh = Math.abs(hb - hf);
+  return Math.min(dh, 360 - dh) >= 60;
+}
+
+function kitSwatchesHtml(which: 'bg' | 'fg'): string {
+  const st = setup;
+  const ed = st && st.editing !== null ? state.teams[st.editing] : null;
+  if (!ed) return '';
+  const bg = edBg ?? ed.bg;
+  const cur = which === 'bg' ? bg : edFg ?? ed.fg;
+  return KIT_SWATCHES.map((c) => {
+    if (which === 'fg' && !swatchVisible(bg, c)) return '<span class="swatch dead"></span>';
+    return `<button class="swatch ${c.toUpperCase() === cur.toUpperCase() ? 'sel' : ''}" data-action="setup-swatch-${which}" data-id="${c}" style="background:${c}" title="${c}"></button>`;
+  }).join('');
+}
+
 function canResume(): boolean {
   return state.phase !== 'pickTeam' && state.myTeamId >= 0;
 }
@@ -176,13 +223,17 @@ function titleScreenHtml(): string {
   const zoom = Math.min(1, avail / 384);
   const resume = canResume();
   const saveLine = resume ? `${esc(t!.name).toUpperCase()} · SEASON ${Math.max(1, state.season)} · ${esc(weekLabel(state))}` : 'A NEW CAREER AWAITS';
-  // THE CAREER MENU: continue is a tap; wiping the save is a hold
-  const menu = titleMenu && resume
+  // THE CAREER MENU (playtest #6): an active save puts CONTINUE CAREER on
+  // top and START FRESH (dashed) under it — wiping is a hold; with no save
+  // START FRESH is the only door, a plain tap
+  const menu = titleMenu
     ? `<div class="modalback"><div class="modal">
         <span class="tag">YOUR CAREER</span>
-        <p class="askteam">${chipBig(teamLabel(t!), t!.bg, t!.fg)}<br/><span class="dim">SEASON ${Math.max(1, state.season)} · ${esc(weekLabel(state))}</span></p>
-        <button class="wide askbtn" data-action="menu-continue"><b>▸ CONTINUE</b><span>Pick up exactly where you left off</span></button>
-        <button class="wide askbtn hold danger" data-action="menu-new"><b>NEW GAME</b><span>Wipe this save and start a new career (the codex survives)</span></button>
+        ${resume
+          ? `<p class="askteam">${chipBig(teamLabel(t!), t!.bg, t!.fg)}<br/><span class="dim">SEASON ${Math.max(1, state.season)} · ${esc(weekLabel(state))}</span></p>
+        <button class="wide askbtn" data-action="menu-continue"><b>▸ CONTINUE CAREER</b><span>Pick up exactly where you left off</span></button>
+        <button class="wide askbtn dashed hold danger" data-action="menu-new"><b>START FRESH</b><span>Wipe this save and start a new career (the codex survives)</span></button>`
+          : `<button class="wide askbtn dashed" data-action="menu-new"><b>START FRESH</b><span>Start a new career</span></button>`}
       </div></div>`
     : '';
   return `<div class="titlescreen" data-action="press-start">
@@ -2909,10 +2960,9 @@ function stageSetupCodex(): string {
   const n = cdx.plans.length + cdx.drills.length + cdx.instrs.length + cdx.regions.length;
   return `<h1>MARCH MANIACS</h1>
     <p class="sub">An Intergalactic College Basketball Madness Simulator</p>
-    <div class="report dim">No active saved career.</div>
-    <div class="report">You have a saved <b>CODEX</b> of discoveries <span class="dim">· ${n} entr${n === 1 ? 'y' : 'ies'} carried across careers</span></div>
-    <button class="wide askbtn" data-action="setup-codex-keep"><b>I KNOW THE DRILL</b><span>Keep everything you learned — skip the tutorial, straight to tryouts</span></button>
-    <button class="wide askbtn hold danger" data-action="setup-codex-burn"><b>START FRESH</b><span>Delete the codex and coach the tutorial season (cannot be undone)</span></button>`;
+    <div class="report">A <b>CODEX</b> of knowledge survives from a previous career <span class="dim">· ${n} entr${n === 1 ? 'y' : 'ies'}</span></div>
+    <button class="wide askbtn" data-action="setup-codex-keep"><b>KEEP THE CODEX</b><span>Start in SEASON 1 with everything you learned — skip the tutorial, straight to tryouts</span></button>
+    <button class="wide askbtn hold danger" data-action="setup-codex-burn"><b>START FRESH</b><span>Wipe the codex — this is permanent — and coach the season-zero tutorial</span></button>`;
 }
 
 function stageSetupTeams(s: GameState): string {
@@ -2920,7 +2970,7 @@ function stageSetupTeams(s: GameState): string {
     const mine = pendingTeam === t.id;
     return `<div class="confteamrow ${mine ? 'mine' : ''}">
       <button class="teampickbtn" data-action="setup-team" data-id="${t.id}" style="background:${t.bg};color:${t.fg}">
-        <b>${esc(teamLabel(t))}</b>${mine ? ' <i class="youtag">YOU</i>' : ''}<br/><span>${esc(t.region)} · ${esc(t.planet)}</span></button>
+        <b>${esc(teamLabel(t))}</b>${mine ? ' <i class="youtag">YOU</i>' : ''}<br/><span>${esc(t.region)}</span></button>
       <button class="editbtn" data-action="setup-edit" data-id="${t.id}" title="edit name & colors">✎</button>
     </div>`;
   }).join('');
@@ -2929,10 +2979,11 @@ function stageSetupTeams(s: GameState): string {
   const editModal = ed
     ? `<div class="modalback"><div class="modal">
         <span class="tag">EDIT PROGRAM</span>
-        <label class="edrow"><span>PLANET</span><input id="ed-planet" type="text" maxlength="18" value="${esc(ed.planet)}"/></label>
-        <label class="edrow"><span>TEAM NAME</span><input id="ed-name" type="text" maxlength="18" value="${esc(ed.name)}"/></label>
-        <label class="edrow"><span>MAIN COLOR</span><input id="ed-bg" type="color" value="${esc(ed.bg)}"/></label>
-        <label class="edrow"><span>TEXT COLOR</span><input id="ed-fg" type="color" value="${esc(ed.fg)}"/></label>
+        <label class="edrow"><span>PLANET</span><input id="ed-planet" type="text" maxlength="18" value="${esc(edPlanetV ?? ed.planet)}"/></label>
+        <label class="edrow"><span>TEAM NAME</span><input id="ed-name" type="text" maxlength="18" value="${esc(edNameV ?? ed.name)}"/></label>
+        <div class="edrow"><span>MAIN COLOR</span><div class="swatches">${kitSwatchesHtml('bg')}</div></div>
+        <div class="edrow"><span>TEXT COLOR</span><div class="swatches">${kitSwatchesHtml('fg')}</div></div>
+        <div class="edrow"><span>PREVIEW</span>${chip(ed.name, edBg ?? ed.bg, edFg ?? ed.fg)}</div>
         <button class="wide askbtn" data-action="setup-edit-save"><b>SAVE</b></button>
         <button class="wide askbtn" data-action="setup-edit-cancel"><b>CANCEL</b></button>
       </div></div>`
@@ -4452,9 +4503,9 @@ const PHASE_TIP: Record<string, string> = {
 function executeAction(action: string, id: string): void {
   switch (action) {
     case 'press-start':
-      // a saved career opens the menu; a blank slate walks into the wizard
-      if (canResume()) titleMenu = true;
-      else { titleOpen = false; builtKey = ''; }
+      // the career menu always opens: CONTINUE CAREER when a save is active,
+      // START FRESH always (the only door on a blank slate)
+      titleMenu = true;
       break;
     case 'menu-continue': titleMenu = false; titleOpen = false; builtKey = ''; break;
     case 'menu-back': titleMenu = false; break;
@@ -4486,8 +4537,20 @@ function executeAction(action: string, id: string): void {
       break;
     }
     case 'setup-team': pendingTeam = Number(id); break;
-    case 'setup-edit': ensureSetup().editing = Number(id); break;
-    case 'setup-edit-cancel': if (setup) setup.editing = null; break;
+    case 'setup-edit': ensureSetup().editing = Number(id); edBg = null; edFg = null; edNameV = null; edPlanetV = null; break;
+    case 'setup-edit-cancel': if (setup) setup.editing = null; edBg = null; edFg = null; edNameV = null; edPlanetV = null; break;
+    case 'setup-swatch-bg': {
+      bankEditInputs();
+      edBg = id.toUpperCase();
+      // the standing text color can go invisible on the new main — when it
+      // does, hand the kit the first swatch that still reads
+      const st = ensureSetup();
+      const t = st.editing !== null ? state.teams[st.editing] : null;
+      const fg = edFg ?? t?.fg ?? '#FFFFFF';
+      if (!swatchVisible(edBg, fg)) edFg = KIT_SWATCHES.find((c) => swatchVisible(edBg!, c)) ?? edFg;
+      break;
+    }
+    case 'setup-swatch-fg': bankEditInputs(); edFg = id.toUpperCase(); break;
     case 'setup-edit-save': {
       const st = ensureSetup();
       if (st.editing === null) break;
@@ -4495,15 +4558,17 @@ function executeAction(action: string, id: string): void {
       const val = (elId: string): string => (document.getElementById(elId) as HTMLInputElement | null)?.value ?? '';
       const name = val('ed-name').trim();
       const planet = val('ed-planet').trim();
-      const bg = val('ed-bg');
-      const fg = val('ed-fg');
       if (t) {
         if (name) t.name = name.slice(0, 18);
         if (planet) t.planet = planet.slice(0, 18);
-        if (/^#[0-9a-fA-F]{6}$/.test(bg)) t.bg = bg.toUpperCase();
-        if (/^#[0-9a-fA-F]{6}$/.test(fg)) t.fg = fg.toUpperCase();
+        if (edBg) t.bg = edBg;
+        if (edFg && swatchVisible(edBg ?? t.bg, edFg)) t.fg = edFg;
       }
       st.editing = null;
+      edBg = null;
+      edFg = null;
+      edNameV = null;
+      edPlanetV = null;
       save(state);
       break;
     }

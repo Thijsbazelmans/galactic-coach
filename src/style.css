@@ -1717,6 +1717,11 @@ button.hopp .chip { vertical-align: 1px; }
 .confteamrow.mine .teampickbtn { outline: 2px solid var(--r95); outline-offset: 1px; }
 .confteamrow .editbtn { width: 46px; flex: none; font-size: 18px; color: var(--r75); border-color: var(--r55); margin: 0; }
 .youtag { font-style: normal; font-size: 10px; letter-spacing: 1px; border: 1px solid currentColor; padding: 1px 5px; vertical-align: 3px; }
+.askbtn.dashed { border-style: dashed; }
+.swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; flex: 1; }
+.swatch { aspect-ratio: 1; min-width: 0; border: 1px solid var(--r35); padding: 0; cursor: pointer; }
+.swatch.sel { outline: 2px solid var(--r95); outline-offset: 1px; }
+.swatch.dead { border: 1px dashed var(--rline); opacity: 0.25; }
 .edrow { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 11px; letter-spacing: 1px; color: var(--r55); }
 .edrow span { width: 88px; flex: none; }
 .edrow input { flex: 1; min-width: 0; background: transparent; border: 1px solid var(--r55); color: var(--r95); font-family: inherit; font-size: 14px; padding: 6px 8px; }

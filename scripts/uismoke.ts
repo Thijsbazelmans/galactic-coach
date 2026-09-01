@@ -75,11 +75,15 @@ async function main(): Promise<void> {
   if (!app.querySelector('.titlescreen')) throw new Error('title screen missing');
   if (!app.innerHTML.includes('A NEW CAREER AWAITS')) throw new Error('fresh title should offer a new career');
   must('[data-action="press-start"]', 'press start');
+  // the career menu: no save → START FRESH is the only door
+  if (!app.innerHTML.includes('START FRESH')) throw new Error('the career menu must offer START FRESH');
+  if (app.querySelector('[data-action="menu-continue"]')) throw new Error('CONTINUE CAREER must hide without a save');
+  must('[data-action="menu-new"]', 'start fresh');
   // wizard step 1 — with a codex present: keep the knowledge, or burn it
   if (!app.innerHTML.includes('MARCH MANIACS')) throw new Error('wizard screen missing');
   if (!app.innerHTML.includes('CODEX')) throw new Error('codex step missing');
   if (app.innerHTML.includes('3-on-3')) throw new Error('the old tagline must be gone');
-  if (!app.innerHTML.includes('I KNOW THE DRILL')) throw new Error('the keep-knowledge path is missing');
+  if (!app.innerHTML.includes('KEEP THE CODEX')) throw new Error('the keep-knowledge path is missing');
   if (!app.innerHTML.includes('START FRESH')) throw new Error('the burn-the-codex path is missing');
   must('[data-action="setup-codex-keep"]', 'keep the codex');
   // wizard step 2 — THE BIG SIX: six editable programs, tap one, it wears YOU
@@ -89,16 +93,20 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('Whooshers')) throw new Error('the Whooshers left the league');
   anyWin.gcAction('setup-team', '0');
   if (!app.innerHTML.includes('youtag')) throw new Error('the picked program must wear the YOU tag');
-  // the ✎ modal: rename a rival and repaint it (Real Blue Devils, welcome)
-  anyWin.gcAction('setup-edit', '1');
+  // the ✎ modal: rename a rival and repaint it via the swatch picker
+  anyWin.gcAction('setup-edit', '4');
   const edName = doc.getElementById('ed-name') as unknown as { value: string } | null;
-  const edBg = doc.getElementById('ed-bg') as unknown as { value: string } | null;
-  if (!edName || !edBg) throw new Error('the edit modal did not open');
-  edName.value = 'Real Blue Devils';
-  edBg.value = '#001A57';
+  if (!edName) throw new Error('the edit modal did not open');
+  if (!app.querySelector('[data-action="setup-swatch-bg"]')) throw new Error('the swatch picker did not render');
+  if (!app.querySelector('.swatch.dead')) throw new Error('the text row should blank the unreadable swatches');
+  anyWin.gcAction('setup-swatch-bg', '#003057');
+  // a re-render follows the swatch pick: grab the rebuilt input before typing
+  const edName2 = doc.getElementById('ed-name') as unknown as { value: string } | null;
+  if (!edName2) throw new Error('the edit modal lost its name input');
+  edName2.value = 'Real Blue Devils';
   anyWin.gcAction('setup-edit-save', '');
-  const rival = (gc.state() as any).teams[1];
-  if (rival.name !== 'Real Blue Devils' || rival.bg !== '#001A57') throw new Error('the program edit did not stick');
+  const rival = (gc.state() as any).teams[4];
+  if (rival.name !== 'Real Blue Devils' || rival.bg !== '#003057') throw new Error('the program edit did not stick');
   // LOCK IT IN → the codex skipped the tutorial, straight to tryouts
   anyWin.gcAction('setup-confirm', '');
   if (state().phase !== 'teamSelect') throw new Error(`expected teamSelect, got ${state().phase}`);

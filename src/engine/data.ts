@@ -155,10 +155,10 @@ export const LEAGUE: LeagueDef = {
   sub: 'Six programs. One of them is about to hire you.',
   teams: [
     { name: 'Star Heels', planet: 'Novacarina', region: 'Eastern Drift', bg: '#4A9ED4', fg: '#0B2537' },
+    { name: 'Spacehawks', planet: 'Kanzar', region: 'Central Plains Expanse', bg: '#E8000D', fg: '#0051BA' },
     { name: 'Ursa Majors', planet: 'Montalvo', region: 'Western Rim', bg: '#2D68C4', fg: '#F2A900' },
     { name: 'Wolvernauts', planet: 'Ferrix-V', region: 'Great Lakes Nebula', bg: '#FFCB05', fg: '#00274C' },
-    { name: 'Spacehawks', planet: 'Kanzar', region: 'Central Plains Belt', bg: '#E8000D', fg: '#0051BA' },
-    { name: 'Voidfiends', planet: 'Duqat', region: 'Gothic Belt', bg: '#F3F6FF', fg: '#00539B' },
+    { name: 'Voidfiends', planet: 'Duqat', region: 'The Gothic Reaches', bg: '#F3F6FF', fg: '#00539B' },
     { name: 'Whooshers', planet: 'Bloomingtron', region: 'Candy Stripe Belt', bg: '#990000', fg: '#F2E9D4' },
   ],
 };

@@ -34,6 +34,7 @@ async function main(): Promise<void> {
     }
   };
   click('[data-action="press-start"]');
+  anyWin.gcAction('menu-new', ''); // the career menu's START FRESH
   anyWin.gcAction('setup-codex-burn', '');
   anyWin.gcAction('setup-team', '0');
   anyWin.gcAction('setup-confirm', '');
