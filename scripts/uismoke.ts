@@ -213,6 +213,22 @@ async function main(): Promise<void> {
   // by default (TRIANGLE / MAN 2 MAN), persistent until changed
   if (app.querySelectorAll('.tacboard .tacrow').length !== 2) throw new Error('tactics board missing');
   if (app.querySelectorAll('.tacboard .tacbtn').length !== 6) throw new Error('expected six tactic buttons');
+  // THE COUNTER (playtest #7): the read names the opponent's identity and
+  // marks the scheme that beats it — and landing it moves the engine
+  if (!app.querySelector('.tacread')) throw new Error('the counter read is missing from the board');
+  if (!app.querySelector('.tacbtn .ctag')) throw new Error('the counter scheme is not marked');
+  {
+    const simC = await import('../src/engine/sim');
+    const dataC = await import('../src/engine/data');
+    const stC = gc.state() as any;
+    const mC = (await import('../src/engine/state')).myMatchup(stC);
+    if (!mC) throw new Error('no matchup to counter');
+    const c = simC.COUNTER_OF[dataC.planById(mC.opponent.plan).attr];
+    anyWin.gcAction('tac-set', `${c.row}:${c.id}`);
+    if (!simC.counterLanded(gc.state() as any, mC.opponent.plan)) throw new Error('the counter did not land');
+    if (!app.querySelector('.tacread.on')) throw new Error('a landed counter should light the read');
+    anyWin.gcAction('tac-set', c.row === 'o' ? 'o:triangle' : 'd:man'); // back to neutral
+  }
   const selTacs = [...app.querySelectorAll('.tacbtn.sel b')].map((el) => (el as unknown as { textContent: string }).textContent);
   if (selTacs.join(',') !== 'TRIANGLE,MAN 2 MAN') throw new Error(`wrong default tactics: ${selTacs.join(',')}`);
   anyWin.gcAction('tac-set', 'd:zone');

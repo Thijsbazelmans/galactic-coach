@@ -251,6 +251,29 @@ export function tacticsMult(tacO?: string, tacD?: string): AttrRec {
   return m;
 }
 
+// ---- THE COUNTER (playtest #7): the weekly read ------------------------------
+// Every opponent has an IDENTITY — the attribute their speeches feed. Each
+// OUTER scheme beats exactly one of them: patience picks apart muscle, pace
+// runs past the system, a wall stops the runners, chaos rattles the
+// shooters. A landed counter shaves the opponent's whole night. The middles
+// stay neutral: safety counters nothing. The trade that makes it a weekly
+// DECISION: the counter scheme still leans your own bars ±20%, so countering
+// them can mean fighting your own shape.
+
+export const COUNTER_EDGE = 0.95;
+/** their identity attribute → the scheme that beats it */
+export const COUNTER_OF: Record<Attr, { id: string; row: 'o' | 'd'; verb: string }> = {
+  frc: { id: 'playcall', row: 'o', verb: 'picks it apart' }, // vs LOCKDOWN
+  brn: { id: 'fastbreak', row: 'o', verb: 'runs right past it' }, // vs CLOCKWORK
+  ath: { id: 'zone', row: 'd', verb: 'walls it off' }, // vs RUN & GUN
+  skl: { id: 'press', row: 'd', verb: 'rattles it' }, // vs SHOWTIME
+};
+
+export function counterLanded(s: GameState, oppPlan: PlanId): boolean {
+  const c = COUNTER_OF[planById(oppPlan).attr];
+  return (c.row === 'o' ? s.tacO : s.tacD) === c.id;
+}
+
 /** The night's split as a percentage — what the bookie prints. DETERMINISTIC:
     the same state always prints the same line (no re-rolled opponent speech),
     so the number on the matchup screen IS the number quoted after the horn. */
@@ -572,6 +595,8 @@ function gameRope(
   if (s.pregameFlags.wallet) mine *= 1.03; // the whistle leans your way
   if (s.pregameFlags.cloak) theirs *= 0.95; // they prepared for the wrong team
   if (s.pregameFlags.alarm) theirs *= 0.92; // the 3am fire alarm
+  // THE COUNTER: the right scheme against their identity shaves their night
+  if (counterLanded(s, champ ? champ.plan : opp!.plan)) theirs *= COUNTER_EDGE;
   return { mine, theirs };
 }
 

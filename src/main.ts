@@ -29,7 +29,7 @@ import {
   storyById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, REGULAR_WEEKS, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, benchPlayers, bestCol, bookieLine, grade, gradeRating, matchAttrs, posArrows, reserves, slotPlayer, tacticsMult, winShare, type Grade } from './engine/sim';
+import { COL_LABELS, COUNTER_EDGE, COUNTER_OF, benchPlayers, bestCol, bookieLine, counterLanded, grade, gradeRating, matchAttrs, posArrows, reserves, slotPlayer, tacticsMult, winShare, type Grade } from './engine/sim';
 import {
   actCooldown,
   actionGalaxy,
@@ -2158,10 +2158,36 @@ const TAC_ROWS: { key: 'o' | 'd'; opts: { id: string; name: string; sub: string 
   ] },
 ];
 
+/** THE COUNTER read: who's next, what they run, which scheme beats it —
+    null in season zero (one lesson at a time) and when nobody's next. */
+function counterRead(s: GameState): { planName: string; schemeName: string; verb: string; oppName: string; landed: boolean; counterId: string } | null {
+  if (s.tutorial !== undefined) return null;
+  const champ = isUtWeek(s) ? utOpponent(s) : null;
+  const m = champ ? null : myMatchup(s);
+  const planId = champ ? champ.plan : m?.opponent.plan;
+  if (!planId) return null;
+  const plan = planById(planId);
+  const c = COUNTER_OF[plan.attr];
+  const scheme = TAC_ROWS.flatMap((r) => r.opts).find((o) => o.id === c.id);
+  return {
+    planName: plan.name,
+    schemeName: scheme?.name ?? c.id.toUpperCase(),
+    verb: c.verb,
+    oppName: champ ? champ.name : teamLabel(m!.opponent),
+    landed: counterLanded(s, planId),
+    counterId: c.id,
+  };
+}
+
 function tacticsBoard(s: GameState): string {
   const sel = { o: s.tacO ?? 'triangle', d: s.tacD ?? 'man' };
-  return `<div class="tacboard">${TAC_ROWS.map((row) => `<div class="tacrow">${row.opts.map((o) =>
-    `<button class="tacbtn ${sel[row.key] === o.id ? 'sel' : ''}" data-action="tac-set" data-id="${row.key}:${o.id}"><b>${o.name}</b><span class="${o.sub === 'balanced' ? 'dim' : 'gaintag'}">${o.sub}</span></button>`
+  const cr = counterRead(s);
+  // the scouting line: the board is where you can still ACT on the read
+  const read = cr
+    ? `<div class="tacread ${cr.landed ? 'on' : ''}">${cr.landed ? '◆ COUNTERED — ' : ''}${esc(cr.oppName.toUpperCase())} RUN <b>${esc(cr.planName)}</b>${cr.landed ? '' : ` · <b>${esc(cr.schemeName)}</b> ${esc(cr.verb)}`}</div>`
+    : '';
+  return `${read}<div class="tacboard">${TAC_ROWS.map((row) => `<div class="tacrow">${row.opts.map((o) =>
+    `<button class="tacbtn ${sel[row.key] === o.id ? 'sel' : ''} ${cr?.counterId === o.id ? 'counter' : ''}" data-action="tac-set" data-id="${row.key}:${o.id}"><b>${o.name}</b><span class="${o.sub === 'balanced' ? 'dim' : 'gaintag'}">${o.sub}</span>${cr?.counterId === o.id ? '<i class="ctag">◆ COUNTER</i>' : ''}</button>`
   ).join('')}</div>`).join('')}</div>`;
 }
 
@@ -2239,6 +2265,13 @@ function teamBarsMatchup(s: GameState, opts: { fx?: SpeechFx | SpeechFx[] | null
     theirsTotal = ovr(theirs);
     oppBg = m.opponent.bg;
   }
+  // THE COUNTER shows in the bars: a landed one shaves their whole side
+  const oppPlanId = champ ? champ.plan : m?.opponent.plan;
+  const countered = oppPlanId !== undefined && counterLanded(s, oppPlanId);
+  if (theirs && countered) {
+    for (const a of ATTRS) theirs[a] *= COUNTER_EDGE;
+    theirsTotal *= COUNTER_EDGE;
+  }
   const rows = BAR_ROWS.map(({ a, label }) => {
     const big = a === 'all';
     const mv = big ? mineTotal : mine[a];
@@ -2270,7 +2303,14 @@ function teamBarsMatchup(s: GameState, opts: { fx?: SpeechFx | SpeechFx[] | null
       ${right}
     </div>`;
   }).join('');
-  return `<div class="mu-bars"><div class="tbars mu">${opts.noVs ? '' : vsRow}${rows}</div></div>`;
+  // the read, confirmed: on game night the schemes are what they are
+  const cr = counterRead(s);
+  const readLine = cr
+    ? `<div class="tacread mu ${cr.landed ? 'on' : ''}">${cr.landed
+      ? `◆ COUNTERED — <b>${esc(cr.schemeName)}</b> ${esc(cr.verb)}`
+      : `THEY RUN <b>${esc(cr.planName)}</b> · the counter was <b>${esc(cr.schemeName)}</b>`}</div>`
+    : '';
+  return `<div class="mu-bars"><div class="tbars mu">${opts.noVs ? '' : vsRow}${rows}</div>${readLine}</div>`;
 }
 
 function lensBar(names: string[] = LENS_NAMES): string {
