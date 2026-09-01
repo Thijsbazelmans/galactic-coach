@@ -1403,7 +1403,7 @@ ITEMS.push(
     check: (ctx) => medicalCheck(ctx.player, 'the tape stays in the roll'),
     up: { pct: 2, cls: 'SPIRIT' },
     down: { pct: 5, cls: 'INJURY' },
-    use: (ctx) => medicalUse(ctx.player!, 1, 5, 'Tape, spray, done.', 'The tape lied about how bad it looked.'),
+    use: (ctx) => medicalUse(ctx.player!, 1, ctx.s.tutorial !== undefined ? 0 : 5, 'Tape, spray, done.', 'The tape lied about how bad it looked.'),
   },
   {
     id: 'snakeoil',
@@ -3757,7 +3757,7 @@ STORIES.push({
             : `"${amt} credits. The school's investment in you, week by week. No pressure." There is pressure.`;
     return {
       tag: 'THE WEEKLY BUDGET',
-      text: `Monday morning. The dean is at your door with the week's envelope.\n\n${snark}`,
+      text: `The dean is at your office with an envelope.\n\n${snark}`,
     };
   },
   // the envelope opens on resolve: the credits count up on screen and blast

@@ -487,7 +487,7 @@ export interface GameState {
   /** THE WALK (v5 M4): the assistant's step-by-step spotlight — a floating
       box over the live screen, one thing lit at a time. The steps freeze at
       walk start so names and spotlights stay stable. Serializable. */
-  tutWalk?: { key: string; ix: number; steps?: { text: string; who?: string; hi?: string; pos?: 'top' | 'mid' | 'bot' | 'low'; advance?: string; mark?: string }[] };
+  tutWalk?: { key: string; ix: number; steps?: { text: string; who?: string; hi?: string; pos?: 'top' | 'mid' | 'bot' | 'low' | 'lens'; advance?: string; mark?: string }[] };
   /** walks already given (they play once) */
   tutSeen?: string[];
   /** the ship: 0 = flying; >0 = grounded (home-planet scouting only, no deep scans) */
@@ -501,6 +501,7 @@ export interface GameState {
   facActWk?: boolean;
   /** the janitor "knows a guy": 2¢ off one upgrade ordered THIS week */
   mopDiscount?: boolean;
+  mopDiscountNext?: boolean;
   /** THE CODEX: knowledge carried in from past careers, waiting for the
       "you remember the words" story to hand the speeches/instructions back */
   codexPending?: { plans: PlanId[]; instrs: string[] };

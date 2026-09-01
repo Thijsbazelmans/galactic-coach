@@ -26,7 +26,7 @@ import {
   observe,
   prospectToPlayer,
 } from './gen';
-import { autoLineup, verdictLines } from './sim';
+import { autoLineup, bestCol, gradeRating, slotRating, verdictLines } from './sim';
 import type { GameState, MyGameResult, Player, StoryChoiceView, StoryReq, Team } from './types';
 import { ATTRS, addStats, bumpAny, clamp, ovr, rand } from './util';
 
@@ -126,18 +126,27 @@ export function tutorialBoot(s: GameState, teamId: number): StoryReq[] {
   // grins at walls (the ceiling is the secret). Tuned so FULL tanks read a
   // clean D while the better-rated-but-gassed seniors all read F — the
   // letter-grade lesson at a glance.
-  const fresh = genPlayerAt(counter, 24, 0, undefined, names, 55);
+  const fresh = genPlayerAt(counter, 25, 0, undefined, names, 55);
   fresh.energy = 100;
   fresh.mood = 100;
   const roster: Player[] = [star, standout, fresh];
   // five gassed seniors and one quiet junior — the leftovers of a lost year.
   // Two kept a little gas (a D or two on the floor: it's not ONLY F's), the
-  // rest are running on fumes; a REST week lifts the whole room to D's.
+  // rest are running on fumes; a REST week lifts the room to D's — and the
+  // mood of a lost season stays put, so the full-tank freshman stays on top.
   for (let i = 0; i < 6; i++) {
-    const p = genPlayerAt(counter, 26 + rand(7), i === 5 ? 2 : 3, undefined, names);
+    const p = genPlayerAt(counter, 30 + rand(3), i === 5 ? 2 : 3, undefined, names);
     p.energy = i < 2 ? 55 + rand(10) : 15 + rand(20);
-    p.mood = 40 + rand(20);
+    p.mood = 40 + rand(13);
     roster.push(p);
+  }
+  // THE GUARANTEE: after the rest week (energy full, mood ≤52 → condition
+  // ≤0.82) no senior may out-grade the freshman — nudge him up until his
+  // full-tank rating clears their ceiling, while staying the worst RATING
+  {
+    const ceil = Math.max(...roster.slice(3).map((p) => slotRating(p, bestCol(p)))) * 0.82;
+    let guard = 0;
+    while (gradeRating(fresh, bestCol(fresh), true) <= ceil + 1 && ovr(fresh.attrs) < 29 && guard++ < 40) bumpAny(fresh, 1);
   }
   t.players = roster;
   ensureUniqueJerseys(roster);
@@ -190,6 +199,7 @@ export function tutorialBoot(s: GameState, teamId: number): StoryReq[] {
     pr.seenSkill = false;
     pr.seenPot = false;
     pr.scoutLevel = 0;
+    pr.commitPct = 10 + rand(21); // mild interest from the nobodies…
     observe(pr);
     s.prospects.push(pr);
   }
@@ -198,7 +208,9 @@ export function tutorialBoot(s: GameState, teamId: number): StoryReq[] {
   // one game that matters is yours, away — against a beatable-ish nobody
   const others = s.teams.map((x) => x.id).filter((id) => id !== teamId);
   const oppId = others[0];
-  s.teams[oppId].players = genRosterAt(counter, 27 + rand(4), names);
+  // tuned so the OVERALL gauge reads tight — and lightly THEIR way (the rig
+  // still lands the upset; the bookie prints 42%)
+  s.teams[oppId].players = genRosterAt(counter, 34 + rand(3), names);
   autoLineup(s.teams[oppId]);
   s.schedule[REGULAR_WEEKS - 1] = [
     [oppId, teamId],
@@ -320,7 +332,7 @@ export interface TutStep {
   /** where the box floats (default 'bot'); 'low' pins it to the very bottom
       of the screen, OVER the locked nav and bag — grid talk never covers
       the grid */
-  pos?: 'top' | 'mid' | 'bot' | 'low';
+  pos?: 'top' | 'mid' | 'bot' | 'low' | 'lens';
   /** how the step advances: default tap on the box; 'lens:N' waits for that
       lens tab, 'note' for a notebook entry, 'item:<id>' for that item
       landing, 'floor:<pid>' for that player dragged into the top rows,
@@ -342,8 +354,7 @@ export function tutorialIntro(s: GameState, key: string): string | null {
       return 'The campus. Six facilities — and every one of them is a level-zero disgrace.';
     case 'board':
       return "Scouting, coach: finding TALENT — kids who might join the program NEXT season. Let's see what intel the last coach left you.";
-    case 'potential':
-      return "Coach! A FIVE-STAR recruit?? I have never seen that before! Let's hope he wants to come play for us!";
+
     case 'practice':
       return 'Practice: where you set the lineup and put the squad through a week of work.';
     case 'recruiting':
@@ -377,7 +388,11 @@ export function tutorialWalkStart(s: GameState, gnStage: string): string | null 
     // the board is inked and the ship talk is done: point at the nav
     if (seen.includes('shipless') && !s.scoutActWk) return want('search');
     const gem = tutGem(s);
-    if (s.scoutActWk && gem) return want('potential');
+    if (s.scoutActWk && gem) {
+      if (!seen.includes('potential')) return 'potential';
+      // the outburst has landed: now the board-only-holds-nine lesson
+      if (seen.includes('fivestar') && gem.where === 'pending') return want('potential2');
+    }
     return null;
   }
   if (s.phase === 'practice' && at >= TUT_AT.PRACTICE) {
@@ -424,14 +439,14 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
         { text: 'Top row STARTS tonight.', hi: 'row:0', pos: 'low' },
         { text: 'Middle row is the BENCH.', hi: 'row:1', pos: 'low' },
         { text: 'Bottom row watches — the RESERVES.', hi: 'row:2', pos: 'low' },
-        { text: 'Tap STATS — the season so far.', hi: 'lens:1', pos: 'top', advance: 'lens:1' },
+        { text: 'Tap STATS — the season so far.', hi: 'lens:1', pos: 'bot', advance: 'lens:1' },
         // no hi: the lights come UP — the coach reads the wreckage in peace
         { text: "It has not been pretty. Take a good look — tap here when you're done.", pos: 'low' },
-        { text: 'Tap ABILITIES.', hi: 'lens:2', pos: 'top', advance: 'lens:2' },
+        { text: 'Tap ABILITIES.', hi: 'lens:2', pos: 'bot', advance: 'lens:2' },
         // the lesson floats over the DIMMED bottom half, covering nothing lit
         { text: 'Every player is four things: SKILL, ATHLETICISM, FIERCENESS, BRAINS. The shape in the middle is their current ability, the outline around it is their potential — with the exact numbers in the corners.', hi: 'grid', pos: 'low' },
         { text: 'Have a look around — tap here when you are ready.', pos: 'low' },
-        { text: 'And back to the ROSTER.', hi: 'lens:0', pos: 'top', advance: 'lens:0' },
+        { text: 'And back to the ROSTER.', hi: 'lens:0', pos: 'bot', advance: 'lens:0' },
       ];
     case 'timeloop':
       return star
@@ -440,12 +455,14 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
     case 'facilities':
       return [
         { text: "The gym has no hoop. The 'cryo bay' is an ice-filled dumpster. You get the idea.", hi: 'fac', pos: 'low' },
-        { text: "You get to make ONE campus move a week — if you can afford it, upgrade one facility at a time. Our one credit buys us nothing, so instead: Hold ▶ GRAB A MOP.", hi: 'nav', pos: 'bot' },
+        { text: "You get to make ONE campus move a week — if you can afford it, upgrade one facility at a time. Our one credit buys us nothing, so instead: Hold ▶ GRAB A MOP.", hi: 'nav', pos: 'lens' },
       ];
     case 'board':
       return [
         { text: 'The intel, such as it is: nine names, nine question marks. The last coach scouted NOBODY.', hi: 'board', pos: 'low' },
-        { text: 'The rows are your PRIORITY — TARGETS up top, LAST RESORTS at the bottom. Drag names between rows to reorder, any time.', hi: 'rows', pos: 'low' },
+        { text: 'The rows are your PRIORITY. Top row: THE TARGETS — the kids you actually want.', hi: 'row:0', pos: 'low' },
+        { text: 'Middle row: THE BACKUPS — in case the targets say no.', hi: 'row:1', pos: 'low' },
+        { text: 'Bottom row: LAST RESORTS. Somebody has to hold the clipboard. Drag names between rows to reorder them, any time.', hi: 'row:2', pos: 'low' },
         { text: "Have a look around — tap here when you're done.", pos: 'low' },
       ];
     case 'cheernote':
@@ -454,7 +471,7 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
       ];
     case 'search':
       return [
-        { text: 'One scouting move a week. No ship — so it\'s the bus, and the free LOCAL REC CENTER. Hold ▶ SEARCH.', hi: 'nav', pos: 'bot' },
+        { text: 'One scouting move a week. No ship — so it\'s the bus, and the free LOCAL REC CENTER. Hold ▶ SEARCH.', hi: 'nav', pos: 'lens' },
       ];
     case 'sadboard':
       return [
@@ -467,15 +484,16 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
     case 'potential':
       return gem
         ? [
-            S({ text: `There he is — ${gem.pr.name}. And we know NOTHING: the rating reads ??. Nobody has seen him play a real game.`, hi: `pr:${gem.pr.id}`, pos: 'low' }),
-            S({ text: 'Tap POTENTIAL.', hi: 'lens:2', pos: 'top', advance: 'lens:2' }),
+            S({ text: `There they are — ${gem.pr.name}. And we know NOTHING: the rating reads ??. Nobody has seen them play a real game.`, hi: `pr:${gem.pr.id}`, pos: 'low' }),
+            S({ text: 'Tap POTENTIAL.', hi: 'lens:2', pos: 'bot', advance: 'lens:2' }),
             S({ text: 'The stars guess how good a kid could BECOME. Five. On this board, that is not a typo.', hi: `pr:${gem.pr.id}`, pos: 'low' }),
-            ...(gem.where === 'pending'
-              ? [
-                  S({ text: `The board only holds nine, and it's full — drag ${gem.pr.name} onto it and bump a nobody down.`, hi: `pr:${gem.pr.id}`, pos: 'low', advance: 'swap:gem' }),
-                  S({ text: 'Whoever sits in the bottom row when you confirm walks away forever. Anybody but the kid. CONFIRM THE BOARD.', hi: 'nav', pos: 'bot' }),
-                ]
-              : []),
+          ]
+        : [];
+    case 'potential2':
+      return gem && gem.where === 'pending'
+        ? [
+            S({ text: `The board only holds nine, and it's full — drag ${gem.pr.name} onto it and bump a nobody down.`, hi: `pr:${gem.pr.id}`, pos: 'low', advance: 'swap:gem' }),
+            S({ text: 'Whoever sits in the bottom row when you confirm walks away forever. Anybody but the kid. CONFIRM THE BOARD.', hi: 'nav', pos: 'lens' }),
           ]
         : [];
     case 'practice':
@@ -483,10 +501,10 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
         // free look first: the floor answers drags from second one
         { text: 'The floor: STARTERS on top, the BENCH in the middle, RESERVES at the bottom. Drag players between rows — try it, then tap here.', pos: 'low' },
         { text: 'The LETTERS on the cards: what each player is WORTH in that spot tonight.', hi: 'grid', pos: 'low' },
-        { text: 'Tap ABILITIES.', hi: 'lens:2', pos: 'top', advance: 'lens:2' },
+        { text: 'Tap ABILITIES.', hi: 'lens:2', pos: 'bot', advance: 'lens:2' },
         { text: 'Your seniors RATE well — look at the size of those shapes.', hi: 'grid', pos: 'low' },
-        { text: 'Back to the ROSTER.', hi: 'lens:0', pos: 'top', advance: 'lens:0' },
-        { text: 'Rated well — and grading F anyway. An exhausted player is worth nothing tonight, whatever his rating.', hi: `ids:${senIds}`, pos: 'low' },
+        { text: 'Back to the ROSTER.', hi: 'lens:0', pos: 'bot', advance: 'lens:0' },
+        { text: 'Rated well — and grading F anyway. An exhausted player is worth nothing tonight, whatever their rating.', hi: `ids:${senIds}`, pos: 'low' },
         ...(fresh ? [
           S({ text: `Now the freshman: the worst RATING in the room — and the only full tank. Drag ${fresh.name} onto the floor — top row.`, hi: `p:${fresh.id}`, pos: 'mid', advance: `floor:${fresh.id}` }),
           S({ text: 'A D — the best letter on the floor! The grade is rating and abilities, times energy and mood.', hi: `p:${fresh.id}`, pos: 'low' }),
@@ -496,30 +514,32 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
         ...(hurt && hurt.outWeeks > 0 && s.bag.includes('patch')
           ? [S({ text: `No matter how you shuffle them, there are no better players. …Wait. The PATCH KIT! Drag it onto ${hurt.name}: she plays tonight if you do.`, hi: 'patch', pos: 'top', advance: 'item:patch' })]
           : []),
-        { text: "Now — the TEAM BARS: tonight's strength, line by line, you against them.", hi: 'bars', pos: 'top', mark: 'm:bars' },
+        { text: "Now — the TEAM BARS: your team's strength, line by line, ranked against the rest of the conference.", hi: 'bars', pos: 'top', mark: 'm:bars' },
         { text: 'Your best players in their best spots move the lines. Swap a few — watch them. Tap when you\'re done.', pos: 'top' },
         { text: 'As well as positions, you tell the players WHAT to practice: THE STRATEGY. Tap a different scheme — our bars lean into it. A slightly better chance to not lose. A girl can dream, right?!', hi: 'tac', pos: 'top', advance: 'tac', mark: 'm:tac' },
-        { text: 'Time to run the week. No hoop — so all we can give them is a week of REST. They could use it. Hold ▶ RUN.', hi: 'nav', pos: 'bot' },
+        { text: "Play with the schemes for a bit — watch the bars lean. Tap here when you've found one you like.", pos: 'top' },
+        { text: 'Time to run the week. No hoop — so all we can give them is a week of REST. They could use it. Hold ▶ RUN.', hi: 'nav', pos: 'lens' },
       ];
     case 'practice2':
       return [
-        { text: 'Look at that — a rested squad grades better across the board. Energy IS talent, coach. On to RECRUITING.', hi: 'grid', pos: 'bot' },
+        { text: 'Look at that — a rested squad grades better across the board. And the freshman still out-grades every senior. Energy IS talent, coach. On to RECRUITING.', hi: 'grid', pos: 'low' },
       ];
     case 'recruiting':
       return [
         { text: 'Under every name: the COMMITMENT gauge — how close each kid is to signing here.', hi: 'board', pos: 'low' },
         ...(gem && !gem.pr.signed
-          ? [S({ text: `A few of the nobodies show a flicker of interest. ${gem.pr.name}? He barely knows you exist.`, hi: `pr:${gem.pr.id}`, pos: 'low' })]
+          ? [S({ text: `A few of the nobodies show a flicker of interest. ${gem.pr.name}? They barely know you exist.`, hi: `pr:${gem.pr.id}`, pos: 'low' })]
           : []),
-        { text: 'You can run one recruiting action a week. Try to convince them — the free GROUP HOLO-CHAT is all we can afford. Hold ▶ RECRUIT.', hi: 'nav', pos: 'bot' },
+        { text: 'You can run one recruiting action a week. Try to convince them — the free GROUP HOLO-CHAT is all we can afford. Hold ▶ RECRUIT.', hi: 'nav', pos: 'lens' },
       ];
     case 'check':
       return gem && !gem.pr.signed
-        ? [S({ text: `Drop the BLANK CHECK on ${gem.pr.name}. Ink, now — no letter, no waiting, no losing him.`, hi: 'check', pos: 'top', advance: 'item:check' })]
+        ? [S({ text: `Drop the BLANK CHECK on ${gem.pr.name}. Ink, now — no letter, no waiting, no losing them.`, hi: 'check', pos: 'top', advance: 'item:check' })]
         : [];
     case 'matchup':
       return [
         { text: "The bars: you against them, line by line. The big OVERALL gauge is tonight's win chance.", hi: 'bars', pos: 'top' },
+        { text: "And look at it: they're ahead. Slightly. After the week we've had? Slightly is STEALABLE, coach.", hi: 'bars', pos: 'top' },
       ];
     case 'notebook':
       return [
@@ -537,6 +557,7 @@ export function tutorialWalkDone(s: GameState, key: string): StoryReq[] {
     return [{ defId: 'tut_haywire', beat: 'start', playerId: star.id }];
   }
   if (key === 'board') return [{ defId: 'tut_cheer0', beat: 'start', playerId: null }];
+  if (key === 'potential') return [{ defId: 'tut_fivestar', beat: 'start', playerId: null }];
   if (key === 'cheernote') return [{ defId: 'tut_cheer', beat: 'start', playerId: null }];
   if (key === 'sadboard') return [{ defId: 'tut_booster', beat: 'start', playerId: null }];
   if (key === 'matchup') return [{ defId: 'tut_cheer_speech', beat: 'start', playerId: null }];
@@ -607,6 +628,7 @@ export function tutorialGemify(pr: import('./types').Prospect): void {
   pr.seenSkill = false; // …the shape doesn't…
   pr.digits = 0; // …and the rating reads ??
   pr.scoutLevel = 4;
+  pr.commitPct = 0; // he doesn't know the program exists — yet
   observe(pr);
   pr.blurb = 'Shoots until the floodlight gives out. The floodlight blinks first.';
 }
@@ -617,12 +639,13 @@ export function tutorialGemify(pr: import('./types').Prospect): void {
     26, nobody gets hurt. The bookie's printed line stays a slight underdog. */
 export function tutorialRigGame(s: GameState, r: MyGameResult): void {
   const t = myT(s);
-  if (!r.win) {
-    const my = Math.max(r.myScore, r.oppScore + 2);
-    r.oppScore = Math.min(r.oppScore, my - 2);
-    r.myScore = my;
-    r.win = true;
-  }
+  // the whole night is DEALT: a tight score, an upset by a nose — never a
+  // blowout, whatever the sim rolled (forms and the rally swing too hard)
+  r.oppScore = 58 + rand(6);
+  r.myScore = r.oppScore + 2 + rand(3);
+  r.win = true;
+  r.share = 0.45; // the gauge read them slightly ahead — and you stole it
+  r.needle = r.share;
   r.bookiePct = 42; // a slight underdog, as promised
   const fr = tutFreshman(s);
   if (fr && fr.outWeeks === 0) {
@@ -988,6 +1011,20 @@ STORIES.push(
       return { text: '' };
     },
   },
+  // 05b · the outburst — AFTER the potential lesson has sunk in
+  {
+    id: 'tut_fivestar',
+    kind: 'coach',
+    figure: 'assistant',
+    beat: () => ({
+      tag: 'ASSISTANT COACH',
+      text: "Coach! A FIVE-STAR recruit?? I have never seen one of those before!\n\nLet's hope they want to come play for US.",
+    }),
+    resolve: (_k, ctx) => {
+      (ctx.s.tutSeen ??= []).push('fivestar');
+      return { text: '' };
+    },
+  },
   // 06 · WEEK — the sad holo-chat, then the booster: faith first, then the ink
   {
     id: 'tut_stamp',
@@ -997,7 +1034,7 @@ STORIES.push(
       const gem = tutGem(ctx.s);
       return {
         tag: 'ASSISTANT COACH',
-        text: `The holo-chat lands… a few percent, board-wide. The assistant watches ${gem ? gem.pr.name : 'the rec-center kid'} not call back.\n\n"At this rate he\'ll graduate from somewhere else before we can afford to reimburse him the stamp on a commitment letter."`,
+        text: `The holo-chat lands… a few percent, board-wide. The assistant watches ${gem ? gem.pr.name : 'the rec-center kid'} not call back.\n\n"At this rate they\'ll graduate from somewhere else before we can afford to reimburse them the stamp on a commitment letter."`,
       };
     },
     resolve: (_k, ctx) => {
@@ -1411,7 +1448,7 @@ STORIES.push(
       choices: [TC('ok', '"THAT\'S ME"')],
     }),
     resolve: () => ({
-      text: '"Personally, I don\'t care about sports — I just want this school to keep its excellent graduation record. For that, I need every student — your players included — keeping their GPA up and behaving."\n\n"Your first weekly stipend is in the envelope. Spend it on something educational."',
+      text: '"Personally, I don\'t care about sports — I just want this school to keep its excellent graduation record. For that, I need every student — your players included — keeping their GPA up and behaving."',
     }),
   }
 );

@@ -413,8 +413,10 @@ async function main(): Promise<void> {
   anyWin.gcAction('gx-run', ''); // LOCAL REC CENTER — free, pinned to find the gem
   click('[data-action="gx-result-tap"]');
   click('[data-action="gx-result-tap"]');
-  drain(); // the five-star intro takes the whole screen
-  walkSkip(); // the POTENTIAL walk (??, the stars, keep the kid)
+  drain();
+  walkSkip(); // the POTENTIAL walk (??, the stars) …
+  drain(); // …THEN the five-star outburst takes the whole screen…
+  walkSkip(); // …then the board-only-holds-nine walk
   const stateMod = await import('../src/engine/state');
   if (st3().pendingRecruits.length) {
     // the board was full: swap the 5★ kid on, let a nobody go
@@ -448,6 +450,17 @@ async function main(): Promise<void> {
   anyWin.gcAction('drill-run', ''); // TEAM REST — season zero's miracle week off
   drain();
   if (me3().players.some((p: any) => p.outWeeks === 0 && p.energy < 80)) throw new Error('the tutorial rest should put the whole squad in the green');
+  // the guarantee: even rested, nobody out-grades the full-tank freshman
+  {
+    const sim = await import('../src/engine/sim');
+    const fr = me3().players.find((p: any) => p.classYear === 0);
+    if (fr) {
+      const gOf = (p: any): number => sim.gradeRating(p, sim.bestCol(p));
+      // vs the SENIORS — the patched standout is allowed to shine
+      const best = Math.max(...me3().players.filter((p: any) => p.outWeeks === 0 && p.id !== fr.id && p.classYear >= 2).map(gOf));
+      if (gOf(fr) < best) throw new Error(`the freshman must out-grade every senior after the rest (fr ${gOf(fr)} vs ${best})`);
+    }
+  }
   walkSkip(); // "a rested squad grades better"
   anyWin.gcAction('to-recruiting', '');
   drain(); // the recruiting intro
@@ -485,11 +498,10 @@ async function main(): Promise<void> {
   if (!st3().pregameWk) throw new Error('the rally never got said');
   if (st3().speechTook !== true) throw new Error('the tutorial rally must land');
   if (me3().players.some((p: any) => p.outWeeks === 0 && p.mood < 80)) throw new Error('the rally should put the room at 80+ mood');
-  // the two heroes stand in the starting lineup, locked there
+  // the freshman STARTS the finale — top row, no exceptions
   {
     const fr = me3().players.find((p: any) => p.classYear === 0);
-    const floor = me3().lineup.slots.slice(0, 6);
-    if (fr && !floor.includes(fr.id)) throw new Error('the freshman must start the finale');
+    if (fr && !me3().lineup.slots.slice(0, 3).includes(fr.id)) throw new Error('the freshman must START the finale (top row)');
   }
   anyWin.gcAction('play-game', '');
   drain(); // the bookie says hello, favoring the opposition
@@ -499,15 +511,18 @@ async function main(): Promise<void> {
   {
     const fr = me3().players.find((p: any) => p.classYear === 0);
     if (app.querySelectorAll('#court .ccard').length !== 3) throw new Error('the tutorial court should hold three cards');
-    const onCourt = fr && !!app.querySelector(`#court .ccard[data-cpid="${fr.id}"]`);
-    const slotIx = fr ? me3().lineup.slots.indexOf(fr.id) : -1;
-    if (fr && !onCourt && !(slotIx >= 3 && slotIx < 6)) throw new Error('the freshman must reach the court (start or bench pair)');
+    if (fr && !app.querySelector(`#court .ccard[data-cpid="${fr.id}"]`)) throw new Error("the freshman starts — his card must open on the court");
   }
   for (let i = 0; i < 4 && app.querySelector('#needle-stage') && !/YOU WON/.test(app.innerHTML); i++) {
     (app.querySelector('#needle-stage') as unknown as { click?: () => void } | null)?.click?.();
     drain(); // the freshman catches fire — LET HIM COOK is the only door
   }
   if (!/YOU WON/.test(app.innerHTML)) throw new Error('the tutorial game must be WON');
+  // the night reads TIGHT, lightly the opponent's way (the rig lands the upset)
+  {
+    const share = st3().lastResult?.share ?? 0;
+    if (share < 0.4 || share > 0.5) throw new Error(`the finale must be dealt tight and opponent-leaning, got share ${share.toFixed(2)}`);
+  }
   anyWin.gcAction('gn-recap', '');
   drain(); // the bookie's cryo unit falls off a truck
   if (st3().facilities.cryo !== 1) throw new Error("the bookie's cryo unit never fell off the truck");
@@ -533,8 +548,9 @@ async function main(): Promise<void> {
   // the SEASON 1 page flip, then the dean's terms open the season
   if (!app.innerHTML.includes('wtseason')) throw new Error('the SEASON 1 flip is missing after the cut');
   anyWin.gcAction('week-turn-close', '');
-  if (!st3().queue.length || st3().queue[0].defId !== 'dean_intro') throw new Error("season 1 must open on the dean's terms");
-  drain(); // the dean's terms → her envelope → season one's Monday
+  if (st3().queue.some((q: any) => q.defId === 'dean_intro')) throw new Error('tutorial coaches heard the terms in season zero — no dean_intro');
+  if (!st3().queue.some((q: any) => q.defId === 'dean_budget')) throw new Error("season 1 must open with the dean's envelope");
+  drain(); // the envelope → season one's Monday
   if (st3().tutorial !== undefined) throw new Error('the tutorial should end with the cut');
   if (st3().season !== 1) throw new Error(`season 1 should begin after tutorial tryouts, got ${st3().season}`);
 

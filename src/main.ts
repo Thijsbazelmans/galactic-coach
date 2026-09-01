@@ -28,7 +28,7 @@ import {
   storyById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, REGULAR_WEEKS, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, benchPlayers, bestCol, bookieLine, grade, gradeRating, matchAttrs, posArrows, slotPlayer, tacticsMult, winShare, type Grade } from './engine/sim';
+import { COL_LABELS, benchPlayers, bestCol, bookieLine, grade, gradeRating, matchAttrs, posArrows, reserves, slotPlayer, tacticsMult, winShare, type Grade } from './engine/sim';
 import {
   actCooldown,
   actionGalaxy,
@@ -1405,7 +1405,7 @@ function headerHtml(s: GameState): string {
       ${ebarHtml}
     </div>
     <div class="hbtns-col">
-      ${s.tutorial !== undefined ? '' : '<button class="hbtn" data-action="help">?</button>'}
+      ${s.tutorial !== undefined && s.tutorial < TUT_AT.WRAP ? '' : '<button class="hbtn" data-action="help">?</button>'}
       <button class="hbtn" data-action="coach-open">⚙</button>
     </div>
   </div>`;
@@ -2304,7 +2304,11 @@ function stageFacilities(s: GameState): string {
       <div class="facstate">${esc(fd.blurbs[lvl])}</div>
     </${tag}>`;
   }).join('');
-  const disc = s.mopDiscount ? '<div class="fourthrow slim"><div class="report">the janitor "knows a guy": <b>2¢ OFF</b> the upgrade if you order it this week</div></div>' : '';
+  const disc = s.mopDiscount
+    ? '<div class="fourthrow slim"><div class="report">the janitor\'s guy came through: <b>2¢ OFF</b> any upgrade this week</div></div>'
+    : s.mopDiscountNext
+      ? '<div class="fourthrow slim"><div class="report">the janitor "knows a guy": <b>2¢ OFF</b> any upgrade NEXT week</div></div>'
+      : '';
   const mopped = s.moppedWk ? '<div class="fourthrow slim"><div class="report dim">THE FLOORS SHINE. The janitor nods at you differently now.</div></div>' : '';
   return `<h2 class="gridhead">FACILITIES</h2><div class="facwrap">${tiles}</div><div class="botstack">${disc}${mopped}</div>`;
 }
@@ -2393,7 +2397,8 @@ function nextYearLine(s: GameState): string {
   const sums = { skl: 0, ath: 0, frc: 0, brn: 0 };
   for (const p of returning) for (const a of ATTRS) sums[a] += p.attrs[a];
   const low = ATTRS.reduce((worst, a) => (sums[a] < sums[worst] ? a : worst), 'skl' as Attr);
-  const bits = [`${returning.length} return${leaving ? `, ${leaving} walk` : ''}`, `${byCol.map((n, c) => `${COL_SHORT[c]}×${n}`).join(' ')}`];
+  void leaving; // inferred from the returnees — the strip stays short
+  const bits = [`${returning.length} return`, `${byCol.map((n, c) => `${COL_SHORT[c]}×${n}`).join(' ')}`];
   if (holes.length) bits.push(`no ${holes.join('/')} coming back`);
   else bits.push(`thin on ${ATTR_SHORT[low]}`);
   return `NEXT YEAR: ${bits.join(' · ')}`;
@@ -2538,14 +2543,21 @@ let liveProg: { key: string; l: number; r: number } | null = null;
     the two loudest bench lines replace the two quietest starters between
     40% and 75% of the clock. */
 function courtFloor(t: Team, box: BoxRow[], frac: number): Player[] {
-  const st = starters(t);
-  if (frac < 0.4 || frac >= 0.75) return st;
   const pts = (p: Player): number => box.find((b) => b.playerId === p.id)?.pts ?? 0;
-  const bench = benchPlayers(t).filter((p) => p.outWeeks === 0).sort((a, b) => pts(b) - pts(a)).slice(0, 2);
-  if (!bench.length) return st;
-  const sitting = new Set([...st].sort((a, b) => pts(a) - pts(b)).slice(0, bench.length).map((p) => p.id));
+  const ok = (p: Player): boolean => p.outWeeks === 0; // nobody plays from a pod
+  const st = starters(t).filter(ok);
+  const bench = benchPlayers(t).filter(ok).sort((a, b) => pts(b) - pts(a));
+  const reserve = reserves(t).filter(ok).sort((a, b) => pts(b) - pts(a));
+  // a mid-game injury empties a spot: the loudest healthy body fills it
+  const fill = [...bench, ...reserve];
+  const floor = [...st];
+  while (floor.length < 3 && fill.length) { const nxt = fill.shift()!; if (!floor.some((p) => p.id === nxt.id)) floor.push(nxt); }
+  if (frac < 0.4 || frac >= 0.75) return floor;
+  const pair = fill.filter((p) => !floor.some((f) => f.id === p.id)).slice(0, 2);
+  if (!pair.length) return floor;
+  const sitting = new Set([...floor].sort((a, b) => pts(a) - pts(b)).slice(0, pair.length).map((p) => p.id));
   let bi = 0;
-  return st.map((p) => (sitting.has(p.id) && bi < bench.length ? bench[bi++] : p));
+  return floor.map((p) => (sitting.has(p.id) && bi < pair.length ? pair[bi++] : p));
 }
 
 /** name + sprite, nothing else — a player on fire smokes (the rig itself
@@ -4206,29 +4218,6 @@ function activateDrag(): void {
   moveGhost();
 }
 
-/** FLIP: the displaced card slides from where it stood to where it landed. */
-function animateSwap(pids: number[], preRects: Map<number, DOMRect>): void {
-  requestAnimationFrame(() => {
-    for (const pid of pids) {
-      const el = document.querySelector(`.pcard[data-pid="${pid}"]`) as HTMLElement | null;
-      const pre = preRects.get(pid);
-      if (!el || !pre) continue;
-      const now = el.getBoundingClientRect();
-      const dx = pre.left - now.left;
-      const dy = pre.top - now.top;
-      if (!dx && !dy) continue;
-      el.style.transition = 'none';
-      el.style.transform = `translate(${dx}px, ${dy}px)`;
-      el.style.zIndex = '40';
-      requestAnimationFrame(() => {
-        el.style.transition = 'transform 0.26s ease';
-        el.style.transform = '';
-        window.setTimeout(() => { el.style.transition = ''; el.style.zIndex = ''; }, 320);
-      });
-    }
-  });
-}
-
 function moveGhost(): void {
   if (!ptr?.ghost) return;
   ptr.ghost.style.left = `${ptr.lastX - ptr.ghost.offsetWidth / 2}px`;
@@ -4272,17 +4261,10 @@ function endDrag(drop: boolean): void {
     if (target) {
       ptr.ghost?.remove();
       if (ptr.kind === 'card' || ptr.kind === 'pr') {
-        // FLIP prep: whoever stands in the landing zone slides to the
-        // dragged card's old spot after the swap renders
-        const occ = target.querySelector('.pcard[data-pid]');
-        const occPid = occ ? Number(occ.getAttribute('data-pid')) : NaN;
-        const pre = new Map<number, DOMRect>();
-        if (occ && occPid !== ptr.pid) pre.set(occPid, occ.getBoundingClientRect());
         if (ptr.kind === 'card') handleDrop(Number(target.getAttribute('data-zone')), ptr.pid);
         else handleProspectDrop(Number(target.getAttribute('data-zone')), ptr.pid);
         ptr = null;
         render();
-        if (pre.size) animateSwap([...pre.keys()], pre);
         return;
       }
       if (currentStory(state)) dropItemOnStory(ptr.itemId);
@@ -4817,7 +4799,9 @@ app.addEventListener('click', (e) => {
       }
       // otherwise: note something noteworthy — or browse the pages
       if (takeNote()) {
-        toast = `▤ NOTED: ${esc(state.notebook[0].text.slice(0, 90))}${state.notebook[0].text.length > 90 ? '…' : ''}`;
+        toast = state.phase === 'gamenight'
+          ? `▤ You note box scores, winners, losers and standings. Everything you're bound to forget otherwise.`
+          : `▤ NOTED: ${esc(state.notebook[0].text.slice(0, 90))}${state.notebook[0].text.length > 90 ? '…' : ''}`;
         tutWalkAdvance('note');
       } else notebookOpen = true;
       break;

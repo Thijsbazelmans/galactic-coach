@@ -805,7 +805,9 @@ function startWeek(s: GameState): void {
   s.recruitActWk = false;
   s.moppedWk = false;
   s.facActWk = false;
-  s.mopDiscount = false;
+  // the janitor's guy honors last week's promise, then the offer expires
+  s.mopDiscount = s.mopDiscountNext ?? false;
+  s.mopDiscountNext = false;
   s.pregameWk = false;
   s.speechFx = null;
   s.speechTook = undefined;
@@ -1106,9 +1108,9 @@ export function grabMop(s: GameState): string | null {
     return null;
   }
   if (r < 60) {
-    s.mopDiscount = true;
+    s.mopDiscountNext = true;
     save(s);
-    return 'You mop; the janitor talks. He "knows a guy" — 2¢ off any upgrade you order THIS week.';
+    return 'You mop; the janitor talks. He "knows a guy" — 2¢ off any upgrade you order NEXT week.';
   }
   save(s);
   return pick([
@@ -1173,7 +1175,8 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
     if (s.tutorial !== undefined) {
       for (const p of t.players.filter((x) => x.outWeeks === 0)) {
         p.energy = clamp(Math.max(85, p.energy + 50), 0, 92);
-        p.mood = Math.min(90, p.mood + 10);
+        // the MOOD of a lost season stays put — the full-tank freshman must
+        // keep the best grade on the floor even after everyone rests
       }
     } else {
       const rec = d.recover ?? { energy: 21, mood: 4 };
@@ -1408,7 +1411,9 @@ export function actionGalaxy(s: GameState, actId: string, targetIds?: number[]):
         continue;
       }
       const commitFrom = pr.commitPct;
-      if (roll(act.risk ?? 0)) {
+      // SEASON ZERO: the charm never sours — a lean_away story's paid
+      // choice would eat the scripted credit
+      if (s.tutorial === undefined && roll(act.risk ?? 0)) {
         const d = act.gain![1];
         pr.commitPct = clamp(pr.commitPct - d, 0, 95);
         per.set(pr.id, [{ text: `COMMITMENT −${d}`, up: false, commitFrom }]);
@@ -1639,12 +1644,15 @@ export function deliverSpeech(s: GameState, plan: PlanId): string | null {
     const t = myTeam(s);
     for (const hero of [tutFreshman(s), tutStandout(s)]) {
       if (!hero || hero.outWeeks > 0) continue;
+      // the freshman must STAND ON THE FLOOR (top row) — the finale is his;
+      // the standout may open from the bench
+      const limit = hero.id === tutFreshman(s)?.id ? 3 : 6;
       const at = t.lineup.slots.indexOf(hero.id);
-      if (at >= 0 && at < 6) continue;
-      // swap him with the weakest available starter that isn't the other hero
+      if (at >= 0 && at < limit) continue;
+      // swap with the weakest available player in that range that isn't the other hero
       const starterIx = t.lineup.slots
         .map((id, i) => ({ id, i }))
-        .filter((x) => x.i < 6 && x.id !== null && x.id !== tutFreshman(s)?.id && x.id !== tutStandout(s)?.id)
+        .filter((x) => x.i < limit && x.id !== null && x.id !== tutFreshman(s)?.id && x.id !== tutStandout(s)?.id)
         .sort((a, b) => {
           const pa = t.players.find((p) => p.id === a.id);
           const pb = t.players.find((p) => p.id === b.id);
@@ -2565,9 +2573,10 @@ export function finalizeRoster(s: GameState, chosenIds: number[]): boolean {
     delete s.tutSeen;
   }
   startNewSeason(s);
-  // EVERY first season opens on the dean's terms — graduation first, sports
-  // a distant second — before her envelope changes hands
-  if (s.season === 1) {
+  // A first season opens on the dean's terms — graduation first, sports a
+  // distant second — but only for coaches who SKIPPED the tutorial (season
+  // zero's dean already said all this in person)
+  if (s.season === 1 && !wasTut) {
     queueStory(s, 'dean_intro', 'start', null);
     const intro = s.queue.pop();
     if (intro) s.queue.unshift(intro);

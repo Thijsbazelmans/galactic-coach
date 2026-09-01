@@ -776,6 +776,8 @@ button.hold.wiggle::after {
 .fourthrow .report { margin: 0; display: flex; align-items: center; font-size: 13px; }
 .fourthrow.slim { min-height: 24px; }
 .fourthrow.slim .report { font-size: 11px; letter-spacing: 1px; padding: 2px 10px; }
+/* single-line strips (the janitor's guy, the shined floors) sit centered */
+.fourthrow.slim:not(.two) .report { justify-content: center; text-align: center; }
 /* the board's two-line strip: the weeks left on one line, next year on the
    next — a deliberate break, never a wrap mid-sentence */
 .fourthrow.slim.two .report { flex-direction: column; align-items: flex-start; gap: 1px; line-height: 1.25; white-space: nowrap; overflow: hidden; color: rgba(255, 255, 255, 0.78); }
@@ -1624,7 +1626,7 @@ button.hopp .chip { vertical-align: 1px; }
   position: fixed;
   left: 8px;
   right: 8px;
-  bottom: 8px;
+  bottom: calc(8px + env(safe-area-inset-bottom));
   z-index: 60;
   padding: 6px 10px;
   background: var(--rpanel);
@@ -1657,9 +1659,18 @@ button.hopp .chip { vertical-align: 1px; }
   box-shadow: 0 6px 22px rgba(0, 0, 0, 0.65);
   cursor: pointer;
 }
-.tutwalk.top { top: 8px; }
+/* THE BOX SITS JUST UNDER WHAT IT POINTS AT (playtest #5):
+   top  = the very top, overlapping the top menu
+   mid  = mid-grid (rare)
+   low  = just under the grid, overlapping the team stats
+   lens = just under that, overlapping the view tabs
+   bot  = just under that, overlapping the continue/action button
+   (offsets measured against the fixed bottom stack — nudge here if a
+   device disagrees) */
+.tutwalk.top { position: fixed; top: 6px; left: 10px; right: 10px; z-index: 70; }
 .tutwalk.mid { top: 38%; }
-.tutwalk.bot { bottom: 8px; }
+.tutwalk.bot { position: fixed; bottom: calc(100px + env(safe-area-inset-bottom)); left: 10px; right: 10px; z-index: 70; }
+.tutwalk.lens { position: fixed; bottom: calc(158px + env(safe-area-inset-bottom)); left: 10px; right: 10px; z-index: 70; }
 .tutwalk b {
   display: block;
   font-size: 9px;
@@ -1838,7 +1849,7 @@ button.hopp .chip { vertical-align: 1px; }
 /* ---- playtest #4: the walk goes LOW, the rows wear frames ---------------------- */
 /* grid talk pins the box to the very bottom of the SCREEN, over the locked
    nav and bag — never over the thing it is talking about */
-.tutwalk.low { position: fixed; bottom: 8px; left: 10px; right: 10px; z-index: 70; }
+.tutwalk.low { position: fixed; bottom: calc(196px + env(safe-area-inset-bottom)); left: 10px; right: 10px; z-index: 70; }
 /* the row spotlight: a bright frame ON TOP of the cards, gently breathing */
 .gridrow.rowspot { position: relative; }
 .gridrow.rowspot::after {
