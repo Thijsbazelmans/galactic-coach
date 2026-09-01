@@ -10,14 +10,14 @@ import {
   SPECIES_ODDS,
   STARTING_INSTRUCTIONS,
   STARTING_PLANS,
-  conferenceById,
+  LEAGUE,
   speciesById,
 } from './data';
 import type { TeamTemplate } from './data';
 import type { Attr, AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
-export const SAVE_VERSION = 21; // v5 THE CAMPUS: facilities arrived, old saves feed the codex
+export const SAVE_VERSION = 22; // v5 THE BIG SIX: one league, conferences retired, old saves feed the codex
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
 export const UT_WEEKS = 3; // QF, SF, THE UNIVERSAL FINAL
 export const ROSTER_SIZE = 9;
@@ -38,11 +38,11 @@ export const PRO_OVR = 75;
 
 // ---- THE SLIDE: the galaxy's strength ladder, fixed ------------------------------
 // Numbers are the average SLOT RATING of a team's six floor players. Your
-// tryouts land you 4th–5th in the conference; the conference top is a real
+// tryouts land you 4th–5th in the league; the league top is a real
 // program; THE BIG BANG's field sits above all of it, the champion highest.
-// Which conference team is best reshuffles every summer — the ladder doesn't.
+// Which league team is best reshuffles every summer — the ladder doesn't.
 
-/** the five AI programs in your conference, best → worst (±jitter) */
+/** the five AI programs in your league, best → worst (±jitter) */
 // +2 across the slide (260830): the speech rework made every landed speech a
 // net-positive trade (gain 4–5 / lose 2–3, mine only) — under the ^6
 // win-share curve that edge compounded to ~+25 wins a career, so the other
@@ -458,7 +458,7 @@ export function emptyLineup(): Lineup {
 }
 
 function genTeam(counter: { nextId: number }, idx: number, taken: Set<string>, t: TeamTemplate): Team {
-  // a placeholder roster: chooseTeam() re-tiers the whole conference around
+  // a placeholder roster: chooseTeam() re-tiers the whole league around
   // whichever program you pick (THE SLIDE)
   const players = genRosterAt(counter, CONF_TIERS[2], taken);
   return {
@@ -538,17 +538,15 @@ export function genChamps(shift = 0): ChampTeam[] {
 
 // ---- fresh state -----------------------------------------------------------------------
 
-export function newGameState(confId?: string): GameState {
+export function newGameState(): GameState {
   const counter = { nextId: 1 };
   const takenNames = new Set<string>();
-  const conf = conferenceById(confId);
-  const teams = conf.teams.map((tt, i) => genTeam(counter, i, takenNames, tt));
+  const teams = LEAGUE.teams.map((tt, i) => genTeam(counter, i, takenNames, tt));
   return {
     version: SAVE_VERSION,
     season: 1,
     week: 1,
     phase: 'pickTeam',
-    conference: conf.id,
     myTeamId: -1,
     teams,
     schedule: genSchedule(teams.length),

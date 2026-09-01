@@ -63,7 +63,7 @@ export function tutStandout(s: GameState): Player | null {
   return myT(s).players.find((p) => p.outKind === 'injury') ?? null;
 }
 
-/** The suspended star (later: the one lost in time). */
+/** The suspended star (later: the one the machine erases). */
 export function tutStar(s: GameState): Player | null {
   return myT(s).players.find((p) => p.outKind === 'away') ?? null;
 }
@@ -514,7 +514,7 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
         ...(hurt && hurt.outWeeks > 0 && s.bag.includes('patch')
           ? [S({ text: `No matter how you shuffle them, there are no better players. …Wait. The PATCH KIT! Drag it onto ${hurt.name}: she plays tonight if you do.`, hi: 'patch', pos: 'top', advance: 'item:patch' })]
           : []),
-        { text: "Now — the TEAM BARS: your team's strength, line by line, ranked against the rest of the conference.", hi: 'bars', pos: 'top', mark: 'm:bars' },
+        { text: "Now — the TEAM BARS: your team's strength, line by line, ranked against the rest of the league.", hi: 'bars', pos: 'top', mark: 'm:bars' },
         { text: 'Your best players in their best spots move the lines. Swap a few — watch them. Tap when you\'re done.', pos: 'top' },
         { text: 'As well as positions, you tell the players WHAT to practice: THE STRATEGY. Tap a different scheme — our bars lean into it. A slightly better chance to not lose. A girl can dream, right?!', hi: 'tac', pos: 'top', advance: 'tac', mark: 'm:tac' },
         { text: "Play with the schemes for a bit — watch the bars lean. Tap here when you've found one you like.", pos: 'top' },
@@ -839,15 +839,15 @@ STORIES.push(
     kind: 'player',
     beat: (_b, ctx) => ({
       tag: 'THE LOCAL TIME MACHINE',
-      text: `The machine whirs, hiccups — and runs BACKWARD.\n\n${ctx.player?.name ?? 'Your star'} is now lost somewhere in time: six weeks out, well past graduation. The machine dissolves into a smell.`,
+      text: `The machine whirs, hiccups — and runs BACKWARD.\n\nThere is a small, polite pop: the sound of a timeline deciding it can do without somebody. Where ${ctx.player?.name ?? 'your star'} stood — a pair of sneakers, still warm, and the smell of ozone.\n\nThe machine dissolves into a smell of its own, like an accomplice leaving separately.`,
     }),
     resolve: (_k, ctx) => {
       const p = ctx.player;
-      // HIS page first: the weeks and his mood land on the player alone —
-      // the locker room reacts on the NEXT beat
+      // HIS page first: the roster loses him here, alone — the locker room
+      // reacts on the NEXT beat
       return {
         text: '',
-        fx: [{ playerId: p?.id, outWeeks: 6, outReason: 'lost in time', outKind: 'away', mood: -25 }],
+        fx: [{ playerId: p?.id, takePlayer: true }],
         next: { defId: 'tut_haywire3b', beat: 'start', playerId: null },
       };
     },
@@ -857,7 +857,7 @@ STORIES.push(
     kind: 'coach',
     beat: () => ({
       tag: '',
-      text: "The locker room takes it exactly as well as you'd think. It was in the trash for a reason.",
+      text: 'The locker room takes it exactly as well as you\'d think. Somebody closes his locker, gently. Nobody says the word "erased."\n\nIt was in the trash for a reason.',
     }),
     resolve: () => ({
       text: '',
@@ -871,7 +871,7 @@ STORIES.push(
     figure: 'assistant',
     beat: () => ({
       tag: 'ASSISTANT COACH',
-      text: 'The assistant pats you on the shoulder, once, the way you pat a fence.\n\n"Nice try, coach. I mean that."',
+      text: '"Oh wow." The assistant checks the machine\'s warning label, which is also gone. "The chances of that were MINUSCULE. I guess they\'re never zero…"\n\nShe brightens, the way institutions do. "Well — he was graduating in a couple of weeks anyway. He was never going to play for us again either way. Paperwork-wise this is almost clean."',
     }),
     resolve: () => ({ text: '', next: { defId: 'tut_haywire5', beat: 'start', playerId: null } }),
   },
@@ -881,7 +881,7 @@ STORIES.push(
     figure: 'assistant',
     beat: () => ({
       tag: 'ASSISTANT COACH',
-      text: '"Now that you\'ve met the team — the campus is waiting."',
+      text: '"Now that you\'ve met the team — let\'s move on to the campus, shall we?"',
     }),
     resolve: () => ({ text: '' }),
   },
@@ -1209,7 +1209,7 @@ STORIES.push(
     figure: 'bookie',
     beat: () => ({
       tag: 'THE BOOKIE',
-      text: 'A wide hat and a wider smile wait for you in the tunnel to the court, chalking numbers onto a little board.\n\n"No offense, coach — I\'ve got you as the underdog tonight. Numbers are numbers. Prove mine wrong and I\'ll be the happiest loser in the building."',
+      text: 'A wide hat and a wider smile wait for you in the tunnel to the court, chalking numbers onto a little board.\n\n"No offense, coach — I\'ve got you as the underdog tonight. Numbers are numbers. I don\'t make them; I only collect on them." He taps the board twice, gently, the way you knock on a coffin. "Prove mine wrong and I\'ll be the happiest loser in the building. It happens less than you\'d hope."',
     }),
     resolve: () => ({ text: '' }),
   },
@@ -1225,7 +1225,7 @@ STORIES.push(
     }),
     resolve: (_k, ctx) => {
       if (ctx.s.facilities) ctx.s.facilities.cryo = 1;
-      return { text: 'By the time you\'re home, a CRYO BAY stands where the ice-filled dumpster used to be — still cold from the truck. The dumpster retires with honors.' };
+      return { text: 'By the time you\'re home, a CRYO BAY stands where the ice-filled dumpster used to be — still cold from the truck. The dumpster retires with honors.\n\nNobody mentions a price. Somewhere, all the same, a ledger you will never be shown opens a column with your name at the top.' };
     },
   },
   // 12 · WRAP — the road home: the attendant, the kid, the last credit
@@ -1385,7 +1385,8 @@ STORIES.push(
       s.knownPlans = [...STARTING_PLANS];
       s.knownInstr = [...STARTING_INSTRUCTIONS];
       s.facilities = { ship: 1, gym: 1, cryo: 1, library: 1, stadium: 1, greekrow: 1 };
-      // the one lost in time stays lost — the void keeps its own schedule
+      // anyone still lost past the horizon walks to the void (the erased star
+      // already rests in the alumni ledger — this catches any stragglers)
       const lost = t.players.filter((p) => p.outKind === 'away' && p.outWeeks > 4);
       for (const p of lost) {
         const career = { ...p.career };

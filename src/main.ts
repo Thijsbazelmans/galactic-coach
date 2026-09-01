@@ -7,13 +7,12 @@ import {
   ATTR_LABEL,
   ATTR_SHORT,
   CLASS_ABBR,
-  CONFERENCES,
-  conferenceById,
   DRILLS,
   FACILITIES,
   GALAXY_ACTS,
   GYM_REQ,
   INSTRUCTIONS,
+  LEAGUE,
   PLANS,
   ROW_REQ,
   SHIP_REQ,
@@ -35,7 +34,6 @@ import {
   actCooldown,
   actionGalaxy,
   addNote,
-  applyConference,
   beginWeek,
   chooseTeam,
   confirmBoard,
@@ -140,11 +138,11 @@ let titleMenu = false;
 /** the picked program, waiting on the wizard's final LOCK IT IN (v5 M6) */
 let pendingTeam: number | null = null;
 
-// THE NEW CAREER WIZARD (v5 M6): codex question → conference pick → the six
-// programs (names and colors editable, your pick highlighted) → lock it in.
+// THE NEW CAREER WIZARD (v5 M7): codex question → THE BIG SIX (names and
+// colors editable, your pick highlighted) → lock it in.
 // Everything here lives OUTSIDE the save: quitting mid-wizard restarts it.
 interface SetupState {
-  step: 'codex' | 'conf' | 'teams';
+  step: 'codex' | 'teams';
   /** season zero happens unless a codex veteran skips straight to tryouts */
   tutorial: boolean;
   /** the team being edited in the ✎ modal */
@@ -160,7 +158,7 @@ function codexHasEntries(): boolean {
 function ensureSetup(): SetupState {
   if (!setup) {
     const has = codexHasEntries();
-    setup = { step: has ? 'codex' : 'conf', tutorial: !has, editing: null };
+    setup = { step: has ? 'codex' : 'teams', tutorial: !has, editing: null };
   }
   return setup;
 }
@@ -1490,11 +1488,11 @@ function schedModalHtml(s: GameState): string {
   </div></div>`;
 }
 
-/** THE LEADERS: conference top lists, one per stat — your names stand out.
+/** THE LEADERS: league top lists, one per stat — your names stand out.
     Shared by the standings dialog and the post-game standings screen. */
 function leadersListHtml(s: GameState): string {
   // SEASON ZERO: the league has no season of stats behind it — the board
-  // reads a pre-written conference, and none of the names are yours
+  // reads a pre-written league, and none of the names are yours
   if (s.tutorial !== undefined) {
     const others = s.teams.filter((t) => t.id !== s.myTeamId);
     const pool = others.flatMap((t) => t.players.map((p) => ({ p, t })))
@@ -1591,7 +1589,7 @@ function takeNote(): boolean {
   if (s.phase === 'gamenight' && s.lastResult && (gnStage === 'verdict' || gnStage === 'table' || gnStage === 'recap')) {
     // the box score screen: the whole night goes in at once — the score, the
     // MVP, the top scorer, the league's lines AND where my names sit on the
-    // conference leaderboards
+    // league leaderboards
     const r = s.lastResult;
     const mvp = r.box.find((x) => x.playerId === r.mvpId)?.name ?? '—';
     const top = r.box[0];
@@ -1605,14 +1603,14 @@ function takeNote(): boolean {
     const myRk: string[] = [];
     for (const k of keys) L[k].forEach((e, i) => { if (e.teamId === s.myTeamId && e.v > 0) myRk.push(`${STAT_WORD[k]} #${i + 1} ${e.name} (${e.v})`); });
     const c = addNote(s, 'lead', `lead:${s.season}:${s.week}`,
-      `conference leaders — ${bits.join(' · ')}${myRk.length ? ` · my board: ${myRk.join(' · ')}` : ''}`);
+      `league leaders — ${bits.join(' · ')}${myRk.length ? ` · my board: ${myRk.join(' · ')}` : ''}`);
     return a || b || c;
   }
   if (standOpen && standTab === 'leaders') {
     // the leaders page goes in whole — Scoop asks about the scoring race
     const L = statLeaders(s);
     const bits = (['pts', 'reb', 'stl', 'ast'] as const).map((k) => `${STAT_WORD[k]}: ${L[k][0]?.name ?? '—'} (${L[k][0]?.v ?? 0})`);
-    return addNote(s, 'lead', `lead:${s.season}:${s.week}`, `conference leaders — ${bits.join(' · ')}`);
+    return addNote(s, 'lead', `lead:${s.season}:${s.week}`, `league leaders — ${bits.join(' · ')}`);
   }
   if (s.phase === 'matchup' || s.phase === 'gamenight') {
     return addNote(s, 'opp', `opp:${s.season}:${s.week}`, `week ${s.week}: ${nextOppLabel(s)}`);
@@ -2151,13 +2149,12 @@ function teamBarsMatchup(s: GameState, opts: { fx?: SpeechFx | SpeechFx[] | null
       ? { name: m.opponent.name, bg: m.opponent.bg, fg: m.opponent.fg }
       : { name: '?', bg: '#333', fg: '#ccc' };
   const mineChip = { name: t.name, bg: t.bg, fg: t.fg };
-  const away = home ? opp : mineChip;
+  const away = awayColors(home ? opp : mineChip, home ? mineChip : opp);
   const homeT = home ? mineChip : opp;
-  const clash = Math.min(Math.abs(hue(away.bg) - hue(homeT.bg)), 360 - Math.abs(hue(away.bg) - hue(homeT.bg))) < 40;
   const vsRow = `<div class="tbar vsrow">
     <span class="tbl"></span><b class="tbv"></b>
     <span class="vs-track">
-      <span class="vsl">${clash ? chip(away.name, away.fg, away.bg, true) : chip(away.name, away.bg, away.fg, true)}</span>
+      <span class="vsl">${chip(away.name, away.bg, away.fg, true)}</span>
       <span class="vsat">@</span>
       <span class="vsr">${chip(homeT.name, homeT.bg, homeT.fg, true)}</span>
     </span>
@@ -2468,6 +2465,15 @@ function stageBoard(s: GameState): string {
     <div class="botstack">${infoRows}</div>`;
 }
 
+/** THE CLASH RULE: home colors are canonical — when the two mains sit within
+    40° of hue, the VISITOR flips to the inverted kit (fg/bg swapped) so no
+    night ever fields two same-color teams. The home side is never touched. */
+function awayColors<T extends { bg: string; fg: string }>(away: T, home: { bg: string }): T {
+  const d = Math.abs(hue(away.bg) - hue(home.bg));
+  const clash = Math.min(d, 360 - d) < 40;
+  return clash ? { ...away, bg: away.fg, fg: away.bg } : away;
+}
+
 function hue(hex: string): number {
   const n = parseInt(hex.slice(1), 16);
   const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
@@ -2634,9 +2640,8 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
       : { name: oppName, bg: '#555', fg: '#ddd' };
   // both sides read planet + name on game night — the opponent always did
   const mineChip = { name: teamLabel(t), bg: t.bg, fg: t.fg };
-  const away = home ? opp : mineChip;
+  const away = awayColors(home ? opp : mineChip, home ? mineChip : opp);
   const homeT = home ? mineChip : opp;
-  const clash = Math.min(Math.abs(hue(away.bg) - hue(homeT.bg)), 360 - Math.abs(hue(away.bg) - hue(homeT.bg))) < 40;
   // a finished game renders its final frame statically (the same math the
   // ticker runs) under the big verdict
   let l = 0, rr = 0;
@@ -2672,7 +2677,7 @@ function needleStage(s: GameState, title: string, share: number, home: boolean, 
   return `<div class="needle-stage lg-stage" id="needle-stage">
     <div class="ns-title">${title}</div>
     <div class="lg-vs">
-      <span class="lg-team">${clash ? chip(away.name, away.fg, away.bg) : chip(away.name, away.bg, away.fg)}</span>
+      <span class="lg-team">${chip(away.name, away.bg, away.fg)}</span>
       <span class="lg-at">@</span>
       <span class="lg-team">${chip(homeT.name, homeT.bg, homeT.fg)}</span>
     </div>
@@ -2887,10 +2892,10 @@ function stageGameover(s: GameState): string {
   </div>`;
 }
 
-// ---- THE NEW CAREER WIZARD (v5 M6) -----------------------------------------------
+// ---- THE NEW CAREER WIZARD (v5 M7) -----------------------------------------------
 // Step 1 (codex veterans only): keep the knowledge or burn it.
-// Step 2: pick a conference — four leagues, six programs each.
-// Step 3: the six programs, names and colors editable, pick yours, LOCK IT IN.
+// Step 2: THE BIG SIX — six programs, names and colors editable, pick yours,
+// LOCK IT IN.
 
 function stageSetupCodex(): string {
   const cdx = loadCodex();
@@ -2903,21 +2908,7 @@ function stageSetupCodex(): string {
     <button class="wide askbtn hold danger" data-action="setup-codex-burn"><b>START FRESH</b><span>Delete the codex and coach the tutorial season (cannot be undone)</span></button>`;
 }
 
-function stageSetupConf(): string {
-  const cards = CONFERENCES.map((c) => {
-    const chips = c.teams.map((t) => chip(t.name, t.bg, t.fg, true)).join(' ');
-    return `<button class="wide confcard" data-action="setup-conf" data-id="${c.id}">
-      <b>${esc(c.name)}</b><span>${esc(c.sub)}</span>
-      <div class="confchips">${chips}</div>
-    </button>`;
-  }).join('');
-  return `<h1>PICK A CONFERENCE</h1>
-    <p class="sub">Six programs. One of them is about to hire you.</p>
-    <div class="teampick">${cards}</div>`;
-}
-
 function stageSetupTeams(s: GameState): string {
-  const conf = conferenceById(s.conference);
   const rows = s.teams.map((t) => {
     const mine = pendingTeam === t.id;
     return `<div class="confteamrow ${mine ? 'mine' : ''}">
@@ -2939,16 +2930,14 @@ function stageSetupTeams(s: GameState): string {
         <button class="wide askbtn" data-action="setup-edit-cancel"><b>CANCEL</b></button>
       </div></div>`
     : '';
-  return `<h1>${esc(conf.name)}</h1>
-    <p class="sub">Tap the program you'll coach. ✎ renames any of the six — names and colors lock when the season starts.</p>
-    <div class="teampick">${rows}</div>
-    <button class="wide askbtn" data-action="setup-back"><b>PICK A DIFFERENT CONFERENCE</b></button>${editModal}`;
+  return `<h1>${esc(LEAGUE.name)}</h1>
+    <p class="sub">${esc(LEAGUE.sub)} Tap yours. ✎ renames any of the six — names and colors lock when the season starts.</p>
+    <div class="teampick">${rows}</div>${editModal}`;
 }
 
 function stagePickTeam(s: GameState): string {
   const st = ensureSetup();
   if (st.step === 'codex') return stageSetupCodex();
-  if (st.step === 'conf') return stageSetupConf();
   return stageSetupTeams(s);
 }
 
@@ -2984,7 +2973,7 @@ function nav(s: GameState): string {
           ? navMain('⭐ LOCK IT IN — START THE CAREER', 'setup-confirm')
           : navMain('TAP THE PROGRAM YOU WILL COACH', 'noop', true);
       }
-      return navMain(st.step === 'conf' ? 'PICK A CONFERENCE' : 'A NEW CAREER AWAITS', 'noop', true);
+      return navMain('A NEW CAREER AWAITS', 'noop', true);
     }
     case 'teamSelect':
       return navMain('CONFIRM SQUAD', 'cut-confirm-open', false, false);
@@ -4471,7 +4460,8 @@ function executeAction(action: string, id: string): void {
     case 'setup-codex-keep': {
       const st = ensureSetup();
       st.tutorial = false;
-      st.step = 'conf';
+      st.step = 'teams';
+      pendingTeam = null;
       break;
     }
     case 'setup-codex-burn': {
@@ -4484,16 +4474,8 @@ function executeAction(action: string, id: string): void {
       state.unlockedRegions = ['reccenter', 'home', 'nebula', 'stormlayers', 'outerrim'];
       state.knownInstr = ['counter'];
       st.tutorial = true;
-      st.step = 'conf';
-      break;
-    }
-    case 'setup-conf': {
-      const st = ensureSetup();
-      applyConference(state, id);
       st.step = 'teams';
-      st.editing = null;
       pendingTeam = null;
-      save(state);
       break;
     }
     case 'setup-team': pendingTeam = Number(id); break;
@@ -4518,17 +4500,8 @@ function executeAction(action: string, id: string): void {
       save(state);
       break;
     }
-    case 'setup-back': {
-      const st = ensureSetup();
-      st.editing = null;
-      if (st.step === 'teams') {
-        st.step = 'conf';
-        pendingTeam = null;
-      }
-      break;
-    }
     case 'setup-confirm': {
-      // LOCK IT IN: from here the conference, names and colors are forever
+      // LOCK IT IN: from here the names and colors are forever
       if (pendingTeam === null) break;
       const st = ensureSetup();
       setup = null;

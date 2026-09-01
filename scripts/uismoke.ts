@@ -82,14 +82,11 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('I KNOW THE DRILL')) throw new Error('the keep-knowledge path is missing');
   if (!app.innerHTML.includes('START FRESH')) throw new Error('the burn-the-codex path is missing');
   must('[data-action="setup-codex-keep"]', 'keep the codex');
-  // wizard step 2 — four conferences on the board
-  if (app.querySelectorAll('[data-action="setup-conf"]').length !== 4) throw new Error('four conferences must offer themselves');
-  if (!app.innerHTML.includes('THE BIG DIPPER')) throw new Error('the Big Dipper is missing');
-  if (!app.innerHTML.includes('THE IVY CLUSTER')) throw new Error('the Ivy Cluster is missing');
-  anyWin.gcAction('setup-conf', 'acc');
-  // wizard step 3 — six editable programs; tap one and it wears the YOU tag
+  // wizard step 2 — THE BIG SIX: six editable programs, tap one, it wears YOU
+  if (!app.innerHTML.includes('THE BIG SIX')) throw new Error('the league headline is missing');
   if (app.querySelectorAll('[data-action="setup-team"]').length !== 6) throw new Error('six programs must show');
-  if (!app.innerHTML.includes('Star Heels')) throw new Error('the Star Heels left the Asteroid Coast');
+  if (!app.innerHTML.includes('Star Heels')) throw new Error('the Star Heels left the league');
+  if (!app.innerHTML.includes('Whooshers')) throw new Error('the Whooshers left the league');
   anyWin.gcAction('setup-team', '0');
   if (!app.innerHTML.includes('youtag')) throw new Error('the picked program must wear the YOU tag');
   // the ✎ modal: rename a rival and repaint it (Real Blue Devils, welcome)
@@ -105,7 +102,7 @@ async function main(): Promise<void> {
   // LOCK IT IN → the codex skipped the tutorial, straight to tryouts
   anyWin.gcAction('setup-confirm', '');
   if (state().phase !== 'teamSelect') throw new Error(`expected teamSelect, got ${state().phase}`);
-  if ((gc.state() as any).conference !== 'acc') throw new Error('the conference did not lock into the save');
+  if ((gc.state() as any).teams[0].name !== 'Star Heels') throw new Error('the league teams did not seed');
   drain();
   if (!anyWin.gcAction) throw new Error('gcAction dev handle missing (expose it for the smoke test)');
   // TRYOUTS: the selection grid — 4 rows, the bottom one is the CUT
@@ -322,7 +319,7 @@ async function main(): Promise<void> {
   // names sit on the conference boards
   click('.bslot.notebook');
   toasts();
-  if (!(gc.state() as any).notebook.some((n: any) => n.kind === 'lead' && n.text.includes('conference leaders'))) throw new Error('the notebook should note the leaderboards');
+  if (!(gc.state() as any).notebook.some((n: any) => n.kind === 'lead' && n.text.includes('league leaders'))) throw new Error('the notebook should note the leaderboards');
   anyWin.gcAction('gn-pass', ''); // → ⚡ & MOOD
   // → the standings — WITH the leaderboard tab riding along
   anyWin.gcAction('gn-table', '');
@@ -373,8 +370,7 @@ async function main(): Promise<void> {
   anyWin.gcAction('new-game', ''); // no title screen on an in-session reset
   if (!app.innerHTML.includes('START FRESH')) throw new Error('burn-the-codex path missing on the second career');
   anyWin.gcAction('setup-codex-burn', ''); // wipe the codex, coach season zero
-  if (app.querySelectorAll('[data-action="setup-conf"]').length !== 4) throw new Error('conference pick missing on the second career');
-  anyWin.gcAction('setup-conf', 'dipper');
+  if (app.querySelectorAll('[data-action="setup-team"]').length !== 6) throw new Error('the six programs missing on the second career');
   anyWin.gcAction('setup-team', '2');
   anyWin.gcAction('setup-confirm', '');
   const st3 = (): any => gc.state() as any;
@@ -406,9 +402,12 @@ async function main(): Promise<void> {
   if (!st3().tutWalk || st3().tutWalk.key !== 'timeloop') throw new Error('the timeloop walk did not arm');
   const star3 = me3().players.find((p: any) => p.outKind === 'away');
   if (!star3) throw new Error('the suspended star is missing');
+  const rosterBefore = me3().players.length;
   (gc as any).drop('timeloop', 'p', star3.id);
-  drain(); // the mishap: lost in time, the assistant's "nice try"
-  if (!me3().players.some((p: any) => p.outReason === 'lost in time')) throw new Error('the haywire beat never fired');
+  drain(); // the mishap: the star is ERASED — the assistant's institutional shrug
+  if (me3().players.some((p: any) => p.id === star3.id)) throw new Error('the haywire beat must erase the star');
+  if (me3().players.length !== rosterBefore - 1) throw new Error('the roster should stand one body short');
+  if (!st3().alumni.some((a: any) => a.name === star3.name)) throw new Error('the erased star should rest in the alumni ledger');
   if (st3().bag.includes('timeloop')) throw new Error('the machine should dissolve into a smell');
   anyWin.gcAction('begin-week', '');
   drain(); // the campus intro

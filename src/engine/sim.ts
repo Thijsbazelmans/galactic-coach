@@ -454,7 +454,7 @@ function commitBox(me: Team, rows: BoxRow[]): number | null {
 }
 
 /** THE LEADERS: an AI game leaves stat lines too — same dealer, no drama.
-    Feeds the conference leaderboards, the buzz, and the season titles. */
+    Feeds the league leaderboards, the buzz, and the season titles. */
 export function creditAiBox(t: Team, score: number): void {
   const rows = dealBox(t, score, t.plan);
   commitBox(t, rows);

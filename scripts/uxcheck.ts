@@ -35,7 +35,6 @@ async function main(): Promise<void> {
   };
   click('[data-action="press-start"]');
   anyWin.gcAction('setup-codex-burn', '');
-  anyWin.gcAction('setup-conf', 'acc');
   anyWin.gcAction('setup-team', '0');
   anyWin.gcAction('setup-confirm', '');
   drain();

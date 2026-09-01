@@ -27,7 +27,6 @@ import {
   instrById,
   itemById,
   planById,
-  conferenceById,
   rollInjury,
   speciesById,
   storyById,
@@ -154,7 +153,7 @@ export function sortedStandings(s: GameState): Team[] {
   );
 }
 
-/** THE LEADERS: conference-wide stat boards, top ten per category. */
+/** THE LEADERS: league-wide stat boards, top ten per category. */
 export function statLeaders(s: GameState): Record<'pts' | 'reb' | 'stl' | 'ast', { playerId: number; name: string; teamId: number; v: number; gp: number }[]> {
   const keys = ['pts', 'reb', 'stl', 'ast'] as const;
   const out = { pts: [], reb: [], stl: [], ast: [] } as Record<(typeof keys)[number], { playerId: number; name: string; teamId: number; v: number; gp: number }[]>;
@@ -727,7 +726,7 @@ function buildScoopQuestion(
     if (decoys.length < 3) return null;
     const opts = shuffle([right, ...decoys]);
     return {
-      q: 'The scoring race, coach — who leads the conference in points right now?',
+      q: 'The scoring race, coach — who leads the league in points right now?',
       opts, answer: opts.indexOf(right), noteKey: `lead:${s.season}:${week}`,
     };
   }
@@ -836,7 +835,7 @@ function startWeek(s: GameState): void {
   const later: StoryReq[] = [];
   const defer: StoryDefer = (defId, beat, playerId, data = {}) => later.push({ defId, beat, playerId, data });
 
-  // THE LEADERS' buzz: sitting top-three in a conference category is a small
+  // THE LEADERS' buzz: sitting top-three in a league category is a small
   // weekly mood drip — the campus notices
   const hotIds = new Set<number>();
   if (!isUtWeek(s) && s.week > 2) {
@@ -958,6 +957,13 @@ function startWeek(s: GameState): void {
   }
 
   checkJobSecurity(s, defer);
+
+  // THE EMPTY LOCKER, standing policy: the league does not care why a locker
+  // emptied — whenever the roster runs short, the call-up choice knocks with
+  // the new week (story chains that take a player also queue it themselves)
+  if (t.players.length < ROSTER_SIZE && !later.some((r) => r.defId === 'locker') && !s.queue.some((q) => q.defId === 'locker')) {
+    defer('locker', 'start', null);
+  }
 
   if (isUtWeek(s) && s.ut) {
     // tournament rounds are voyages: wheels up, then the round's own beat —
@@ -2247,7 +2253,7 @@ export function continueFromResult(s: GameState): void {
       if (place === 1) {
         s.legacy += 3;
         s.trophies++;
-        s.careerLog.push(`Season ${s.season}: won the conference (${rec}).`);
+        s.careerLog.push(`Season ${s.season}: won the league (${rec}).`);
       } else {
         s.legacy += 1;
         s.careerLog.push(`Season ${s.season}: runner-up (${rec}) — took the second shuttle to ${TOURNEY.name}.`);
@@ -2315,7 +2321,7 @@ function endSeason(s: GameState, utNote: string | null): void {
     text: `${s.seasonNotes.join('\n\n')}${s.proDeparts.length ? `\n\nPro scouts are in the dorm lobby for ${s.proDeparts.map((d) => d.name).join(' and ')}.` : ''}`,
   });
 
-  // THE LEADERS' season titles: one crown per stat, conference-wide
+  // THE LEADERS' season titles: one crown per stat, league-wide
   const LB = statLeaders(s);
   const TITLE_NAMES: ['pts' | 'reb' | 'stl' | 'ast', string][] = [
     ['pts', 'THE SCORING CHAMP'], ['reb', 'THE BOARD KING'], ['stl', 'THE LOCKPICK'], ['ast', 'THE MAESTRO'],
@@ -2349,12 +2355,12 @@ function endSeason(s: GameState, utNote: string | null): void {
   }
 
   // AI teams roll over — and THE SLIDE reshuffles: which program is the
-  // conference's best changes every summer, the ladder itself never does
+  // league's best changes every summer, the ladder itself never does
   const tiers = [...CONF_TIERS].sort(() => Math.random() - 0.5);
   let ti = 0;
   for (const team of s.teams) {
     if (team.id === s.myTeamId) continue;
-    // half the rubber band reaches the conference: a champion's league
+    // half the rubber band reaches the league: a champion's field
     // gets a little hungrier, a fallen program's a little kinder
     const target = tiers[ti++] - 2 + rand(5) + Math.round((s.fieldShift ?? 0) / 2);
     team.players = team.players.filter((p) => p.classYear < 3 && ovr(p.attrs) < PRO_OVR);
@@ -2655,30 +2661,13 @@ function settleTier(team: Team, target: number): void {
   autoLineup(team);
 }
 
-/** FOUND THE CONFERENCE: repaint the six programs with the chosen
-    conference's identities. Rosters stay put — they are placeholders until
-    chooseTeam() re-tiers the league anyway. */
-export function applyConference(s: GameState, confId: string): void {
-  const conf = conferenceById(confId);
-  s.conference = conf.id;
-  conf.teams.forEach((tt, i) => {
-    const t = s.teams[i];
-    if (!t) return;
-    t.name = tt.name;
-    t.planet = tt.planet;
-    t.region = tt.region;
-    t.bg = tt.bg;
-    t.fg = tt.fg;
-  });
-}
-
 export function chooseTeam(s: GameState, teamId: number): void {
   s.myTeamId = teamId;
   s.season = 0;
   const t = myTeam(s);
   const counter = { nextId: s.nextId };
   // THE SLIDE, built around your pick: the five other programs take the
-  // conference tiers (shuffled — the best changes every year), your founding
+  // league tiers (shuffled — the best changes every year), your founding
   // six sit around the founder tier: 4th–5th, with everything to build
   const names = new Set<string>();
   const tiers = [...CONF_TIERS].sort(() => Math.random() - 0.5);

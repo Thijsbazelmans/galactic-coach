@@ -1711,10 +1711,7 @@ button.hopp .chip { vertical-align: 1px; }
 .askbtn b { display: block; font-size: 15px; letter-spacing: 1px; color: var(--r95); }
 .askbtn span { display: block; font-size: 11px; color: var(--r55); margin-top: 2px; }
 
-/* ---- THE NEW CAREER WIZARD: conference cards + editable program rows ------ */
-.confcard b { display: block; font-size: 16px; letter-spacing: 1px; color: var(--r95); }
-.confcard span { display: block; font-size: 11px; color: var(--r55); margin: 2px 0 6px; }
-.confchips { display: flex; flex-wrap: wrap; gap: 3px; }
+/* ---- THE NEW CAREER WIZARD: editable program rows ------------------------- */
 .confteamrow { display: flex; gap: 6px; align-items: stretch; }
 .confteamrow .teampickbtn { flex: 1; min-width: 0; }
 .confteamrow.mine .teampickbtn { outline: 2px solid var(--r95); outline-offset: 1px; }

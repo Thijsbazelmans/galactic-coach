@@ -130,10 +130,11 @@ export function fragility(speciesId: string): number {
   return speciesById(speciesId).tier === 3 ? 2 : 1;
 }
 
-// ---- the league: 4 conferences × 6 programs ---------------------------------
-// Every program is a wink at a real school — its main colors, a planet, and a
-// space mascot. The player picks ONE conference for the whole career; names
-// and colors stay editable until the first season tips off.
+// ---- the league: THE BIG SIX ------------------------------------------------
+// One league, six legendary programs — five blue bloods and the Fab Five,
+// each a wink at a real school, each instantly readable by its home colors
+// (no two share a dominant color; the home bg also drives the UI ramp).
+// Names and colors stay editable until the first season tips off.
 
 export interface TeamTemplate {
   name: string;
@@ -143,71 +144,24 @@ export interface TeamTemplate {
   fg: string;
 }
 
-export interface ConferenceDef {
-  id: string;
+export interface LeagueDef {
   name: string;
   sub: string;
   teams: TeamTemplate[];
 }
 
-export const CONFERENCES: ConferenceDef[] = [
-  {
-    id: 'dipper',
-    name: 'THE BIG DIPPER',
-    sub: 'Twelve plus ten equals six. The committee stands by the math.',
-    teams: [
-      { name: 'Skyhawks', planet: 'Kanzar', region: 'Central Plains Belt', bg: '#0051BA', fg: '#FFC82D' },
-      { name: 'Aurum Orsos', planet: 'Montalvo', region: 'Western Rim', bg: '#2D68C4', fg: '#F2A900' },
-      { name: 'Wolvernauts', planet: 'Arboria', region: 'Great Lakes Nebula', bg: '#00274C', fg: '#FFCB05' },
-      { name: 'Starhorns', planet: 'Austonia', region: 'Southern Void', bg: '#BF5700', fg: '#FFF2E5' },
-      { name: 'Comethuskers', planet: 'Lincolnia', region: 'The Grain Belt', bg: '#E41C38', fg: '#FDF2D9' },
-      { name: 'Boostermakers', planet: 'Lafayetta', region: 'Rustbelt Cluster', bg: '#CEB888', fg: '#241C0A' },
-    ],
-  },
-  {
-    id: 'sec',
-    name: 'SPACE EXPLORATION CONFERENCE',
-    sub: 'It just means more. Light-years more.',
-    teams: [
-      { name: 'Redshift Tide', planet: 'Tuscaloona', region: 'Crimson Reach', bg: '#9E1B32', fg: '#FFEDF0' },
-      { name: 'Voidcats', planet: 'Kentaurus', region: 'Bluegrass Nebula', bg: '#0033A0', fg: '#E9F0FF' },
-      { name: 'Volunauts', planet: 'Rockytopia', region: 'Smoky Drift', bg: '#FF8200', fg: '#331A00' },
-      { name: 'Gravigators', planet: 'Swampia', region: 'The Swamp Sector', bg: '#0021A5', fg: '#FF8A5C' },
-      { name: 'Nebula Bengals', planet: 'Batonia', region: 'Bayou Cluster', bg: '#461D7C', fg: '#FDD023' },
-      { name: 'Moondogs', planet: 'Athenova', region: 'Peach Arm', bg: '#BA0C2F', fg: '#FFECEC' },
-    ],
-  },
-  {
-    id: 'acc',
-    name: 'ASTEROID COAST CONFERENCE',
-    sub: 'Tobacco Road, repaved in stardust.',
-    teams: [
-      { name: 'Star Heels', planet: 'Novacarina', region: 'Eastern Drift', bg: '#4A9ED4', fg: '#0B2537' },
-      { name: 'Voidfiends', planet: 'Duqat', region: 'Gothic Belt', bg: '#00539B', fg: '#E6F0FF' },
-      { name: 'Warpack', planet: 'Raleixa', region: 'The Research Triangle', bg: '#CC0000', fg: '#FFEAEA' },
-      { name: 'Gravaliers', planet: 'Charlottia', region: 'Blue Ridge Rim', bg: '#232D4B', fg: '#F84C1E' },
-      { name: 'Solarcanes', planet: 'Coralia', region: 'Tropic Stormbelt', bg: '#F47321', fg: '#0A3D2B' },
-      { name: 'Yellowjets', planet: 'Atlantia', region: 'Southern Spiral', bg: '#003057', fg: '#B3A369' },
-    ],
-  },
-  {
-    id: 'ivy',
-    name: 'THE IVY CLUSTER',
-    sub: 'Old stars. Older money. No athletic scholarships in this galaxy.',
-    teams: [
-      { name: 'Crimsonauts', planet: 'Cantabria', region: 'The Endowment Cloud', bg: '#A51C30', fg: '#FFEBEE' },
-      { name: 'Brown Dwarfs', planet: 'Providencia', region: 'New England Drift', bg: '#4E3629', fg: '#F5E9DF' },
-      { name: 'Big Red Giants', planet: 'Ithacania', region: 'The Gorge Nebula', bg: '#B31B1B', fg: '#FFEDED' },
-      { name: 'Quasars', planet: 'Phillyon', region: 'Liberty Belt', bg: '#011F5B', fg: '#EDF2FF' },
-      { name: 'Lionauts', planet: 'Morningside', region: 'Upper West Arm', bg: '#B9D9EB', fg: '#16324A' },
-      { name: 'Tigertrons', planet: 'Nassau IX', region: 'Old Money Belt', bg: '#E77500', fg: '#1A1000' },
-    ],
-  },
-];
-
-export function conferenceById(id: string | undefined): ConferenceDef {
-  return CONFERENCES.find((c) => c.id === id) ?? CONFERENCES[0];
-}
+export const LEAGUE: LeagueDef = {
+  name: 'THE BIG SIX',
+  sub: 'Six programs. One of them is about to hire you.',
+  teams: [
+    { name: 'Star Heels', planet: 'Novacarina', region: 'Eastern Drift', bg: '#4A9ED4', fg: '#0B2537' },
+    { name: 'Ursa Majors', planet: 'Montalvo', region: 'Western Rim', bg: '#2D68C4', fg: '#F2A900' },
+    { name: 'Wolvernauts', planet: 'Ferrix-V', region: 'Great Lakes Nebula', bg: '#FFCB05', fg: '#00274C' },
+    { name: 'Spacehawks', planet: 'Kanzar', region: 'Central Plains Belt', bg: '#E8000D', fg: '#0051BA' },
+    { name: 'Voidfiends', planet: 'Duqat', region: 'Gothic Belt', bg: '#F3F6FF', fg: '#00539B' },
+    { name: 'Whooshers', planet: 'Bloomingtron', region: 'Candy Stripe Belt', bg: '#990000', fg: '#F2E9D4' },
+  ],
+};
 
 export const DEITY_NAMES = [
   'Zeuxx', 'Apollyx', 'Arex', 'Hermezz', 'Poseidrox', 'Hadezz', 'Dionyzos',
@@ -1622,7 +1576,7 @@ ITEMS.push(
         for (const t of s.teams) for (const p of t.players) if (!best || p.stats[k] > best.v) best = { name: p.name, v: p.stats[k] };
         tops.push(`${STAT_WORD[k]}: ${best?.name ?? '—'} (${best?.v ?? 0})`);
       }
-      jot('lead', `lead:${s.season}:${s.week}`, `conference leaders — ${tops.join(' · ')}`);
+      jot('lead', `lead:${s.season}:${s.week}`, `league leaders — ${tops.join(' · ')}`);
       return {
         text: 'The piece runs Sunday: two columns, one flattering photograph, the word "architect" used without irony. Folded inside your copy: Scoop\'s own notes on the week, in handwriting neater than his hat suggests.',
         fx: [{ opP: 20 }],
@@ -1728,7 +1682,7 @@ export const CHAMP_GIMMICKS = [
   'undefeated in three galaxies',
   'all-Lithoid front line, all of it angry',
   'coached by a sentient cloud with a whistle',
-  'won their conference by forfeit — nobody will play them',
+  'won their league by forfeit — nobody will play them',
   'their home arena orbits inside a star',
   'their fans are, legally speaking, a swarm',
   'every player is the same age, which is 9,000',
@@ -2468,7 +2422,7 @@ export const STORIES: StoryDef[] = [
         return {
           text: `${p.name} gets photographed entering the pod facility by a fan account with 4 followers and terrifying reach.`,
           fx: [{ playerId: p.id, xp: 10 }],
-          next: { defId: 'scandal', beat: 'start', playerId: null, data: { cause: 'The off-books training pod is on the front page of every stream in the conference.' } },
+          next: { defId: 'scandal', beat: 'start', playerId: null, data: { cause: 'The off-books training pod is on the front page of every stream in the league.' } },
         };
       }
       return { text: `${p.name} trains in the pod at 5am, twice. Nothing happens. Probably nothing happened.`, fx: [{ playerId: p.id, xp: 8 }] };
@@ -3591,7 +3545,7 @@ STORIES.push({
     return {
       tag: `★ ${TOURNEY.name} ★`,
       text: place === 1
-        ? `The final standings post and the gym goes SILENT for one full second before it explodes.\n\nCONFERENCE CHAMPIONS (${rec}). The invitation to ${TOURNEY.name} lands on your desk with a sonic boom. Eight champions. One universe. You are one of the eight.`
+        ? `The final standings post and the gym goes SILENT for one full second before it explodes.\n\nLEAGUE CHAMPIONS (${rec}). The invitation to ${TOURNEY.name} lands on your desk with a sonic boom. Eight champions. One universe. You are one of the eight.`
         : `The final standings post: second place (${rec}). The room holds its breath — and then the holo-line rings.\n\nTHE SECOND SHUTTLE IS YOURS. ${TOURNEY.name}: eight champions, one universe. You are one of the eight. Pack light.`,
     };
   },
@@ -4016,7 +3970,7 @@ STORIES.push({
   kind: 'player',
   beat: (_b, ctx) => ({
     tag: `★ ${ctx.data.title as string} ★`,
-    text: `${pname(ctx)} finishes the season as ${ctx.data.title}: ${ctx.data.line}, best in the conference.\n\nThe trophy is a little ugly. Nobody cares. It's going in the case.`,
+    text: `${pname(ctx)} finishes the season as ${ctx.data.title}: ${ctx.data.line}, best in the league.\n\nThe trophy is a little ugly. Nobody cares. It's going in the case.`,
   }),
   resolve: () => ({ text: '', fx: [{ mood: 15, xp: 25 }, { legacy: 1 }] }),
 });

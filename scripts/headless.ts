@@ -263,7 +263,7 @@ function playCareer(idx: number): CareerStats {
         if (!s.lastResult.box.length) throw new Error('box score missing');
         if (s.queue.length) throw new Error('a story butted into the live game');
         if (process.env.LADDER && s.week === 10) {
-          // THE SLIDE, season by season: my six on the floor vs the conference
+          // THE SLIDE, season by season: my six on the floor vs the league
           const t = myTeam(s);
           const ladder = s.teams.map((tm) => `${tm.id === s.myTeamId ? '*' : ''}${Math.round(floorAvg(tm))}`).join(' ');
           const o2 = opTracks(s);

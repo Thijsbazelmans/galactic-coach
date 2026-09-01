@@ -424,8 +424,6 @@ export interface GameState {
   season: number;
   week: number;
   phase: Phase;
-  /** the chosen conference (locked once the first season starts) */
-  conference?: string;
   myTeamId: number;
   teams: Team[];
   schedule: [number, number][][];
@@ -457,7 +455,7 @@ export interface GameState {
   /** THE RUBBER BAND on the slide: every BIG BANG title raises the field
       (+4 per title, cap +16); a season without a tournament win eases it
       (−2, floor −6). Applied to the champions' averages, half to the
-      conference tiers. */
+      league tiers. */
   fieldShift?: number;
   totalWins: number;
 
