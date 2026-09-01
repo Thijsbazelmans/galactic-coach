@@ -181,6 +181,9 @@ export interface Prospect {
   /** revealed facets */
   seenSkill: boolean; // the ability cloud shows
   seenPot: boolean; // the potential cloud shows
+  /** the star count the coach was FIRST shown — locked: sharper scouting
+      never rewrites a displayed rating (playtest #6) */
+  starsShown?: number;
   /** the BLANK CHECK landed: he signed then and there — greyed on the
       board, unremovable, committed */
   signed?: boolean;

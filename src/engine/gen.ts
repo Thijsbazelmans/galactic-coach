@@ -15,7 +15,7 @@ import {
 } from './data';
 import type { TeamTemplate } from './data';
 import type { Attr, AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
-import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
+import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, potStars, rand, zeroAttrs, zeroStats } from './util';
 
 export const SAVE_VERSION = 22; // v5 THE BIG SIX: one league, conferences retired, old saves feed the codex
 export const REGULAR_WEEKS = 10; // 6 teams, double round robin
@@ -361,6 +361,10 @@ export function observe(pr: Prospect): void {
     pr.seenAttrs[a] = fuzz ? clamp(Math.round(pr.attrs[a] * bias) + rand(fuzz * 2 + 1) - fuzz, 0, 25) : pr.attrs[a];
     pr.seenPots[a] = clamp(Math.round(pr.pots[a] * bias) + rand(potFuzz * 2 + 1) - potFuzz, pr.seenAttrs[a], 25);
   }
+  // THE STARS LOCK IN (playtest #6): the first rating a coach ever SEES is
+  // the one the board keeps saying — a sharper look never rewrites a shown
+  // star count (it could read a hair off the truth; it can't read sloppy)
+  if (pr.seenPot && pr.starsShown === undefined) pr.starsShown = potStars(ovr(pr.seenPots));
 }
 
 /** Where the stars are: the opening board and the local searches roll a

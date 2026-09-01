@@ -74,6 +74,7 @@ import {
   toRecruiting,
   toMatchup,
   toScouting,
+  toggleSitout,
   toSigning,
   toggleProspect,
   upgradeFacility,
@@ -1064,7 +1065,9 @@ interface CardOpts {
   draggable?: boolean;
   /** halftime: the reserves stayed in the locker room — greyed, unswappable */
   locked?: boolean;
-  sitout?: boolean;
+  /** practice-session benching: 'auto' = too gassed (red), 'manual' = the
+      coach's white sticker (tap the card to toggle; clears when the drill runs) */
+  sitout?: 'auto' | 'manual';
   /** the column he stands in: the ROSTER card grades him THERE (F–S) */
   col?: number;
   /** the RESERVE row: no letter (his plain number instead), always a touch
@@ -1211,13 +1214,14 @@ function playerCard(p: Player, opts: CardOpts = {}): string {
   }
   const mains: SpotLabel[] = [...(opts.mainLabels ?? [])];
   const his: SpotLabel[] = [...(opts.hiLabels ?? [])];
-  if (opts.sitout && l === 0 && !opts.story) his.push({ text: 'SITS OUT', up: false });
+  if (opts.sitout && l === 0 && !opts.story) his.push(opts.sitout === 'auto' ? { text: 'SITS OUT', up: false } : { text: 'SITS OUT' });
+  // OUT lives in the sticker spot under the name — never across the face
+  if (out) mains.unshift({ text: `${p.outKind === 'injury' ? 'INJURED' : 'AWAY'} ${p.outWeeks}w`, up: false });
   return `<div class="pcard lens${l} sq ${out ? 'pout' : opts.reserve ? 'resv' : ''} ${opts.bare ? 'barecard' : ''} ${opts.locked ? 'hlock' : ''} ${opts.draggable && !out && !opts.locked ? 'grabbable' : ''} ${opts.pick ? 'picked' : ''} ${opts.scope === 'in' ? 'scopehl' : opts.scope === 'out' ? 'scopedim' : ''}"
       ${opts.inert ? '' : `data-action="card" data-id="${p.id}"`} data-pid="${p.id}">
     ${body}
     ${spotHtml('main', mains, opts.labelPop !== false, opts.popDelay ?? 0)}
     ${spotHtml('hi', his, opts.labelPop !== false, (opts.popDelay ?? 0) + 200)}
-    ${out ? `<div class="ptag">${p.outKind === 'injury' ? 'INJURED' : 'AWAY'} ${p.outWeeks}w</div>` : ''}
     ${opts.tag ? `<div class="cardtag ${opts.tagCls ?? ''}">${opts.tag}</div>` : ''}
   </div>`;
 }
@@ -1294,7 +1298,7 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
   } else if (l === 2) {
     // POTENTIAL: the ceiling (?? or the stars) sits DEAD CENTER, the cloud
     // of CURRENT skills showing behind and around it
-    const n = potStars(ovr(pr.seenPots));
+    const n = pr.starsShown ?? potStars(ovr(pr.seenPots));
     const stars = !pr.seenPot
       ? `<span class="prq">??</span>`
       : `<span class="prstars"><span>${'★'.repeat(Math.min(2, n))}${'☆'.repeat(Math.max(0, 2 - n))}</span><span>${'★'.repeat(Math.max(0, Math.min(3, n - 2)))}${'☆'.repeat(3 - Math.max(0, Math.min(3, n - 2)))}</span></span>`;
@@ -1331,6 +1335,9 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
   }
   const mains: SpotLabel[] = (gxStickers?.get(pr.id) ?? []).map((st) => ({ text: st.text, up: st.up }));
   if (opts.signing?.selected) mains.push({ text: opts.signing.effPct !== undefined ? `LETTER →${opts.signing.effPct}%` : 'LETTER', up: true });
+  // SIGNED and BANNED live in the sticker spot under the name, like OUT does
+  if (pr.signed) mains.unshift({ text: '✓ SIGNED', up: true });
+  else if (pr.bannedWeeks > 0) mains.unshift({ text: `BANNED ${pr.bannedWeeks}w`, up: false, blink: true });
   const act = opts.signing && !pr.signed
     ? `data-action="pursue" data-id="${pr.id}"`
     : opts.selectable && !pr.signed
@@ -1339,8 +1346,6 @@ function prospectCard(pr: Prospect, l: Lens, opts: ProspectCardOpts = {}): strin
   return `<div class="pcard prospect sq ${opts.draggable && !pr.signed ? 'grabbable' : ''} ${opts.dim ? 'cutcard' : ''} ${pr.signed ? 'signedpr' : ''} ${opts.signing?.selected || (opts.signing && pr.signed) ? 'picked' : ''} ${opts.scope === 'in' ? 'scopehl' : opts.scope === 'out' ? 'scopedim' : ''}" data-kind="pr" data-pid="${pr.id}" ${act}>
     ${body}
     ${spotHtml('main', mains, opts.labelPop !== false)}
-    ${pr.signed ? `<div class="ptag">✓ SIGNED</div>` : ''}
-    ${pr.bannedWeeks > 0 && !pr.signed ? `<div class="ptag blink">BANNED ${pr.bannedWeeks}w</div>` : ''}
   </div>`;
 }
 
@@ -1752,7 +1757,7 @@ function gridHtml(s: GameState, draggable: boolean, gridLens: Lens = 0, scopeSet
       const scope = scopeSet && p ? (scopeSet.has(p.id) ? 'in' as const : 'out' as const) : undefined;
       return `<div class="gcell dropzone" data-zone="${idx}">
         ${p
-          ? playerCard(p, { lens: gridLens, draggable, sitout: isPractice && p.outWeeks === 0 && p.energy < 40, col: s.phase === 'weekstart' ? undefined : c, reserve: r === 2, bare: showGame && boxPass === 0, pose, delta, mainLabels: mains, hiLabels: his, labelPop, popDelay, diamond, scope })
+          ? playerCard(p, { lens: gridLens, draggable, sitout: !scopeSet || !isPractice || p.outWeeks > 0 ? undefined : p.energy < 40 ? 'auto' : s.sitouts.includes(p.id) ? 'manual' : undefined, col: s.phase === 'weekstart' ? undefined : c, reserve: r === 2, bare: showGame && boxPass === 0, pose, delta, mainLabels: mains, hiLabels: his, labelPop, popDelay, diamond, scope })
           : '<div class="pod empty">—</div>'}
       </div>`;
     }).join('');
@@ -2305,8 +2310,10 @@ function stageWeekstart(s: GameState): string {
 function practiceScope(s: GameState): Set<number> | null {
   const d = DRILLS.find((x) => x.id === selectedDrill)!;
   const scoped = !s.trainedThisWeek && d.target === 'squad' && selectedDrill !== 'rest';
+  // manual sit-outs (the white sticker) leave the scope — they dim with the
+  // rest of the non-participants and take nothing from the session
   return scoped
-    ? new Set(myTeam(s).players.filter((p) => p.outWeeks === 0 && p.energy >= 40).map((p) => p.id))
+    ? new Set(myTeam(s).players.filter((p) => p.outWeeks === 0 && p.energy >= 40 && !s.sitouts.includes(p.id)).map((p) => p.id))
     : null;
 }
 
@@ -4845,8 +4852,15 @@ app.addEventListener('click', (e) => {
       break;
     }
 
-    case 'card':
+    case 'card': {
+      // an energy-costing squad drill on deck: tapping a lit player benches
+      // him for the session (white SITS OUT), tapping again puts him back in
+      if (state.phase === 'practice' && practiceScope(state) !== null) {
+        const p = myTeam(state).players.find((x) => x.id === Number(id));
+        if (p && p.outWeeks === 0 && p.energy >= 40) toggleSitout(state, p.id);
+      }
       break;
+    }
     case 'gx-result-tap':
       if (finishTypeNow()) return;
       clearFloatTimers();

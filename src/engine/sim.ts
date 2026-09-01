@@ -92,18 +92,35 @@ export function slotRating(p: Player, col: number): number {
 }
 
 /** THE GRADE'S CONDITION: tonight's letter reads the tanks too — energy and
-    mood drag the rating down on the same curve the match runs on, CAPPED at
-    1: full tanks restore the letter, they never inflate it. A 90 standing
-    in the wrong column, tired and mad, really is an F right now. */
+    mood drag the rating down on the same curve the match runs on, capped at
+    1 (the bonus above 75 is condBonus, flat points, not a multiplier). A 90
+    standing in the wrong column, tired and mad, really is an F right now. */
 export function condFactor(p: { energy: number; mood: number }): number {
   return Math.min(1, meterMult(p.energy)) * Math.min(1, meterMult(p.mood));
 }
 
-/** What the letter grades: the slot rating × tonight's condition. `pure`
-    skips the meters — tryouts, the selection grid and scouted kids grade
-    at full tanks, so the pick compares who they ARE, not how they slept. */
+/** THE CONDITION BONUS (playtest #6): meters above 75 ADD flat letter
+    points — up to +12 per meter at 100. A rested, happy kid plays ABOVE his
+    numbers, and the weaker the roster the more those points matter. Letter
+    only: the OVR number never shows it, and the match keeps its own curve
+    (meterMult already climbs past 75 there). The bonus scales with how well
+    the column fits — a happy kid in the WRONG spot is still standing in the
+    wrong spot. */
+export const COND_BONUS_MAX = 12;
+export function condBonus(p: Player, col: number): number {
+  const flat = ((Math.max(0, p.energy - 75) + Math.max(0, p.mood - 75)) / 25) * COND_BONUS_MAX;
+  if (flat <= 0) return 0;
+  const here = slotRating(p, col);
+  const home = slotRating(p, bestCol(p));
+  return flat * (home > 0 ? clamp(here / home, 0, 1) : 1);
+}
+
+/** What the letter grades: the slot rating × tonight's condition, plus the
+    condition bonus. `pure` skips the meters — tryouts, the selection grid
+    and scouted kids grade at full tanks, so the pick compares who they ARE,
+    not how they slept. */
 export function gradeRating(p: Player, col: number, pure = false): number {
-  return Math.round(slotRating(p, col) * (pure ? 1 : condFactor(p)) * 10) / 10;
+  return Math.round((slotRating(p, col) * (pure ? 1 : condFactor(p)) + (pure ? 0 : condBonus(p, col))) * 10) / 10;
 }
 
 /** The column he'd rate highest in (penalty included — his real best home). */

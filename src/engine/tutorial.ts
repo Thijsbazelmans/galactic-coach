@@ -26,7 +26,7 @@ import {
   observe,
   prospectToPlayer,
 } from './gen';
-import { autoLineup, bestCol, gradeRating, slotRating, verdictLines } from './sim';
+import { autoLineup, verdictLines } from './sim';
 import type { GameState, MyGameResult, Player, StoryChoiceView, StoryReq, Team } from './types';
 import { ATTRS, addStats, bumpAny, clamp, ovr, rand } from './util';
 
@@ -102,51 +102,73 @@ export function tutorialBoot(s: GameState, teamId: number): StoryReq[] {
   const counter = { nextId: s.nextId };
   const names = new Set<string>();
 
-  // the league around you — real enough to have buried you all season
+  // the league around you — real enough to have buried you all season, with
+  // nine games of stats tilted by their attributes, so THE LEADERS read like
+  // a real season: different names on every board (playtest #6)
   for (const team of s.teams) {
     if (team.id === teamId) continue;
     team.players = genRosterAt(counter, 38 + rand(9), names);
     autoLineup(team);
     team.wins = 5 + rand(4);
     team.losses = 9 - team.wins;
+    for (const p of team.players) {
+      const gp = 8 + rand(2);
+      p.stats = {
+        gp,
+        pts: Math.round(gp * (3 + rand(5) + p.attrs.skl * 0.55)),
+        reb: Math.round(gp * (1 + rand(3) + p.attrs.frc * 0.35)),
+        stl: Math.round(gp * (0.4 + Math.random() + p.attrs.ath * 0.12)),
+        ast: Math.round(gp * (0.6 + Math.random() + p.attrs.brn * 0.18)),
+        mvp: 0,
+      };
+    }
   }
 
-  // MY roster: a sorry bunch, mostly seniors — plus the three who matter
+  // MY roster: a sorry bunch, mostly seniors — plus the three who matter.
+  // The numbers are STORY numbers (playtest #6): a genuine 80+ superstar, a
+  // 35–45 standout, teens across the seniors, and a freshman under 10 whose
+  // letter is carried entirely by THE CONDITION BONUS — full tanks read a C
+  // in his column while the gassed, miserable rest read F.
   const t = myT(s);
-  const star = genPlayerAt(counter, 62, 3, undefined, names);
+  const star = genPlayerAt(counter, 82, 3, undefined, names);
   star.outWeeks = 2;
   star.outKind = 'away';
   star.outReason = 'academic suspension';
-  const standout = genPlayerAt(counter, 48, 1, undefined, names);
+  const standout = genPlayerAt(counter, 40, 1, undefined, names);
   standout.form = 'femme';
   standout.outWeeks = 1;
   standout.outKind = 'injury';
   standout.outReason = 'a bad tweak';
+  // the standout is ALWAYS a center: the practice walk parks her in the
+  // frontcourt and the finale check looks for her there
+  standout.attrs = { skl: 8, ath: 14, frc: 12, brn: 6 };
+  standout.pos = 2;
+  standout.pos2 = undefined;
+  for (const a of ATTRS) standout.pots[a] = Math.max(standout.pots[a], standout.attrs[a]);
+  standout.startAttrs = { ...standout.attrs };
   // the freshman: the WORST rating on the roster — but full tanks, and he
-  // grins at walls (the ceiling is the secret). Tuned so FULL tanks read a
-  // clean D while the better-rated-but-gassed seniors all read F — the
-  // letter-grade lesson at a glance.
-  const fresh = genPlayerAt(counter, 25, 0, undefined, names, 55);
+  // grins at walls (the ceiling is the secret). ALWAYS a guard, and brainy:
+  // the position lesson needs him a C in the backcourt and an F standing in
+  // the frontcourt, every single run.
+  const fresh = genPlayerAt(counter, 9, 0, undefined, names, 55);
+  fresh.attrs = { skl: 2, ath: 1, frc: 1, brn: 5 };
+  fresh.pos = 0;
+  fresh.pos2 = undefined;
+  fresh.heightCm = 168;
+  fresh.weightKg = 62;
+  for (const a of ATTRS) fresh.pots[a] = Math.max(fresh.pots[a], fresh.attrs[a]);
+  fresh.startAttrs = { ...fresh.attrs };
   fresh.energy = 100;
   fresh.mood = 100;
   const roster: Player[] = [star, standout, fresh];
   // five gassed seniors and one quiet junior — the leftovers of a lost year.
-  // Two kept a little gas (a D or two on the floor: it's not ONLY F's), the
-  // rest are running on fumes; a REST week lifts the room to D's — and the
-  // mood of a lost season stays put, so the full-tank freshman stays on top.
+  // Teens across the board; even the rest week leaves them F's (their mood
+  // is shot), and only game night's cheer lifts the room to D's.
   for (let i = 0; i < 6; i++) {
-    const p = genPlayerAt(counter, 30 + rand(3), i === 5 ? 2 : 3, undefined, names);
+    const p = genPlayerAt(counter, 10 + rand(7), i === 5 ? 2 : 3, undefined, names);
     p.energy = i < 2 ? 55 + rand(10) : 15 + rand(20);
-    p.mood = 40 + rand(13);
+    p.mood = 38 + rand(9);
     roster.push(p);
-  }
-  // THE GUARANTEE: after the rest week (energy full, mood ≤52 → condition
-  // ≤0.82) no senior may out-grade the freshman — nudge him up until his
-  // full-tank rating clears their ceiling, while staying the worst RATING
-  {
-    const ceil = Math.max(...roster.slice(3).map((p) => slotRating(p, bestCol(p)))) * 0.82;
-    let guard = 0;
-    while (gradeRating(fresh, bestCol(fresh), true) <= ceil + 1 && ovr(fresh.attrs) < 29 && guard++ < 40) bumpAny(fresh, 1);
   }
   t.players = roster;
   ensureUniqueJerseys(roster);
@@ -168,7 +190,7 @@ export function tutorialBoot(s: GameState, teamId: number): StoryReq[] {
       mvp: 0,
     };
   };
-  seed(star, 7, 15); // suspended for the last two
+  seed(star, 7, 24); // a genuine superstar's line — suspended for the last two
   star.stats.mvp = 2;
   seed(standout, 8, 11);
   seed(fresh, 4, 1); // garbage minutes, big grin
@@ -208,9 +230,10 @@ export function tutorialBoot(s: GameState, teamId: number): StoryReq[] {
   // one game that matters is yours, away — against a beatable-ish nobody
   const others = s.teams.map((x) => x.id).filter((id) => id !== teamId);
   const oppId = others[0];
-  // tuned so the OVERALL gauge reads tight — and lightly THEIR way (the rig
-  // still lands the upset; the bookie prints 42%)
-  s.teams[oppId].players = genRosterAt(counter, 34 + rand(3), names);
+  // tuned to the new teens-roster: before the cheer the gauge reads like a
+  // clobbering; after the room's mood lifts it reads tight and lightly THEIR
+  // way (the rig still lands the upset; the bookie prints 42%)
+  s.teams[oppId].players = genRosterAt(counter, 24 + rand(3), names);
   autoLineup(s.teams[oppId]);
   s.schedule[REGULAR_WEEKS - 1] = [
     [oppId, teamId],

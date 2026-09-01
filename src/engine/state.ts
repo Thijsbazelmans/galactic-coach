@@ -1162,8 +1162,10 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
   } else if (d.target === 'rest') {
     participants = [];
   } else {
-    // anyone under 40 energy sits out automatically — no martyrs
-    participants = t.players.filter((p) => p.outWeeks === 0 && p.energy >= 40);
+    // anyone under 40 energy sits out automatically — no martyrs — and the
+    // coach can bench anyone else for the session (the white SITS OUT
+    // sticker): train the reserves without draining the starters
+    participants = t.players.filter((p) => p.outWeeks === 0 && p.energy >= 40 && !s.sitouts.includes(p.id));
     if (!participants.length) return null;
   }
   s.energy -= d.cost;
@@ -1181,7 +1183,9 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
     // grade-vs-energy lesson is visible at a glance.
     if (s.tutorial !== undefined) {
       for (const p of t.players.filter((x) => x.outWeeks === 0)) {
-        p.energy = clamp(Math.max(85, p.energy + 50), 0, 92);
+        // a rest NEVER drains: the full-tank freshman keeps his 100 (the
+        // drift toward baseline belongs to the week turn, not to practice)
+        p.energy = Math.max(p.energy, clamp(Math.max(85, p.energy + 50), 0, 92));
         // the MOOD of a lost season stays put — the full-tank freshman must
         // keep the best grade on the floor even after everyone rests
       }
@@ -1271,6 +1275,7 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
   }
 
   s.drillReport = report;
+  s.sitouts = []; // the white stickers only last until the practice runs
   save(s);
   return { report, xpByPlayer, gainByPlayer, levelUps: ups };
 }
@@ -2595,11 +2600,12 @@ export function finalizeRoster(s: GameState, chosenIds: number[]): boolean {
 export function startNewSeason(s: GameState): void {
   s.season++;
   s.week = 1;
-  // last season's box scores fold into careers; the GROWTH lens re-baselines
+  // last season's box scores fold into careers. startAttrs stays PUT: the
+  // kite's dashed line marks the start of a player's career WITH YOU, so
+  // four years of coaching read as one widening gap (playtest #6)
   for (const p of myTeam(s).players) {
     addStats(p.career, p.stats);
     p.stats = zeroStats();
-    p.startAttrs = copyAttrs(p.attrs);
     p.onFire = false; // summer puts every fire out
     p.fireWeeks = 0;
   }
