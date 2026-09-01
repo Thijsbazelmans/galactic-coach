@@ -1227,8 +1227,10 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
       ? `${d.name}: ${gainNotes.join(' · ')}.`
       : `${d.name}: the squad puts the work in.`;
 
-  // the odds line rolls once for the session — sit-outs are how you protect people
-  const r = Math.random() * 100;
+  // the odds line rolls once for the session — sit-outs are how you protect
+  // people. SEASON ZERO pins it: no surprise injury story to double the
+  // patch-kit lesson, no drama with a paid choice to eat the scripted credit
+  const r = s.tutorial !== undefined ? 999 : Math.random() * 100;
   if (r < d.down.pct) {
     const pool = d.target === 'rest' ? t.players.filter((p) => p.outWeeks === 0) : participants;
     if (pool.length) {
@@ -1345,7 +1347,10 @@ export function actionGalaxy(s: GameState, actId: string, targetIds?: number[]):
   const per = new Map<number, { text: string; up?: boolean; commitFrom?: number }[]>();
   let text: string;
   let art: GalaxyResult['art'];
-  const r = Math.random() * 100;
+  // SEASON ZERO pins the dice: no scandal, no breakdown, no surprise -1¢ —
+  // a random story with a paid choice could eat the ONE credit the script
+  // needs later (the goblins, the kid's hot meal) and strand the tutorial
+  const r = s.tutorial !== undefined ? 999 : Math.random() * 100;
   // the working set: your highlighted names, or the rows top-down
   const picked = targetIds?.length
     ? s.prospects.filter((pr) => targetIds.includes(pr.id))
@@ -2551,7 +2556,8 @@ export function finalizeRoster(s: GameState, chosenIds: number[]): boolean {
     }
   }
 
-  // the tutorial ends HERE, after the cut — the assistant says goodbye first
+  // the tutorial ends HERE, after the cut (the assistant already said her
+  // goodbye before the tryouts)
   const wasTut = s.tutorial !== undefined;
   if (wasTut) {
     delete s.tutorial;
@@ -2559,11 +2565,12 @@ export function finalizeRoster(s: GameState, chosenIds: number[]): boolean {
     delete s.tutSeen;
   }
   startNewSeason(s);
-  if (wasTut) {
-    queueStory(s, 'tut_bye2', 'start', null);
-    const bye = s.queue.pop();
-    if (bye) s.queue.unshift(bye);
-    if (s.phase === 'weekstart' && s.queue.length) s.phase = 'weekstart'; // the report waits behind the goodbye
+  // EVERY first season opens on the dean's terms — graduation first, sports
+  // a distant second — before her envelope changes hands
+  if (s.season === 1) {
+    queueStory(s, 'dean_intro', 'start', null);
+    const intro = s.queue.pop();
+    if (intro) s.queue.unshift(intro);
     save(s);
   }
   return true;

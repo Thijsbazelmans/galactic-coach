@@ -1619,11 +1619,13 @@ button.hopp .chip { vertical-align: 1px; }
 /* THE TUTORIAL: the assistant's one-line cue FLOATS over the bottom of the
    stage (never pushing the layout around — the board must keep fitting) */
 .tuthint {
-  position: absolute;
+  /* pinned to the very bottom of the SCREEN, over the locked bag — never
+     over the grid, the bars or the tactics board */
+  position: fixed;
   left: 8px;
   right: 8px;
-  bottom: 6px;
-  z-index: 55;
+  bottom: 8px;
+  z-index: 60;
   padding: 6px 10px;
   background: var(--rpanel);
   border: 1px solid var(--rline);
@@ -1832,3 +1834,73 @@ button.hopp .chip { vertical-align: 1px; }
 .tutwalk.walkhide { opacity: 0; pointer-events: none; }
 /* un-notable moments: the notebook goes dead, not weird */
 .bslot.ndead { opacity: 0.35; pointer-events: none; }
+
+/* ---- playtest #4: the walk goes LOW, the rows wear frames ---------------------- */
+/* grid talk pins the box to the very bottom of the SCREEN, over the locked
+   nav and bag — never over the thing it is talking about */
+.tutwalk.low { position: fixed; bottom: 8px; left: 10px; right: 10px; z-index: 70; }
+/* the row spotlight: a bright frame ON TOP of the cards, gently breathing */
+.gridrow.rowspot { position: relative; }
+.gridrow.rowspot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 2px solid #fff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5), inset 0 0 8px rgba(255, 255, 255, 0.18);
+  z-index: 45;
+  pointer-events: none;
+  animation: rowbreathe 1.8s ease-in-out infinite;
+}
+@keyframes rowbreathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* ---- the drag: the item in hand, the catchers aglow --------------------------- */
+.dragghost.itemghost {
+  width: auto;
+  min-width: 68px;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 12px;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--r95);
+  border: 2px solid var(--r95);
+  border-radius: 6px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8);
+  transform: rotate(-3deg) scale(1.05);
+}
+.dragghost.itemghost .gname { font-size: 10px; letter-spacing: 1px; }
+/* who can catch it: a gentle warm glow, breathing */
+.pcard.droptarget, .storypanel.droptarget { animation: catchglow 1.4s ease-in-out infinite; }
+@keyframes catchglow {
+  0%, 100% { box-shadow: 0 0 6px rgba(168, 255, 194, 0.35); }
+  50% { box-shadow: 0 0 16px rgba(168, 255, 194, 0.75); }
+}
+/* a squad item: the whole floor leans in */
+.middle.teamglow { animation: catchglow 1.4s ease-in-out infinite; }
+
+/* ---- the court rotation walks off; the points fly as a ball ------------------- */
+.ccard.leave { animation: courtout 0.26s ease-in forwards; }
+@keyframes courtout {
+  to { transform: translateY(16px); opacity: 0; }
+}
+.cball {
+  position: fixed;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ff9a2e;
+  box-shadow: inset -1px -1px 0 rgba(0, 0, 0, 0.4), 0 0 6px rgba(255, 154, 46, 0.6);
+  z-index: 80;
+  pointer-events: none;
+  transition: left 0.42s ease-in, top 0.42s ease-in, opacity 0.42s ease-in, transform 0.42s ease-in;
+}
+.cball.fly { opacity: 0.1; transform: scale(0.5); }
+
+/* the season page-flip variant */
+.wtseason.wtbig { font-size: 44px; letter-spacing: 3px; }

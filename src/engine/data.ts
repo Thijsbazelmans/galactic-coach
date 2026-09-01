@@ -515,12 +515,12 @@ export interface FacilityDef {
 export const FACILITIES: FacilityDef[] = [
   {
     id: 'ship', name: 'SCOUTING SHIP',
-    blurbs: ['grounded — the rec center and grainy film', 'home-planet range', 'nebula range — and THE STORM LAYERS open', 'outer-rim range; found DEEP CORE charts are flyable'],
+    blurbs: ['no ship — a bus pass and somebody\'s grainy film collection', 'home-planet range', 'nebula range — and THE STORM LAYERS open', 'outer-rim range; found DEEP CORE charts are flyable'],
     arrive: 'A new ship squats on the pad overnight, still warm from somebody else\'s registration. The janitor pretends not to know how it got there.',
   },
   {
     id: 'gym', name: 'THE GYM',
-    blurbs: ['no hoop: rest and bonfires', 'a hoop: shootaround', 'a full court: scrimmage and two-a-days', 'the lab wing: the strange methods can be installed'],
+    blurbs: ['a gym with no hoop; the echo is impressive', 'a hoop: shootaround', 'a full court: scrimmage and two-a-days', 'the lab wing: the strange methods can be installed'],
     arrive: 'Contractors in zero-g harnesses hammer all weekend. Monday morning the net still smells of fresh nylon.',
   },
   {
@@ -530,17 +530,17 @@ export const FACILITIES: FacilityDef[] = [
   },
   {
     id: 'library', name: 'THE LIBRARY',
-    blurbs: ['suspensions hit hard, cheating gets caught', 'a tutoring corner: study weeks help', 'real stacks: fewer academic fires', 'the archive: film study feeds BRAINS harder'],
+    blurbs: ['one sad shelf of speculative fiction', 'a tutoring corner: study weeks help', 'real stacks: fewer academic fires', 'the archive: film study feeds BRAINS harder'],
     arrive: 'Crates of books arrive addressed to "the basketball school, apparently". The nerd has them shelved by tip-off.',
   },
   {
     id: 'stadium', name: 'THE STADIUM',
-    blurbs: ['bleachers: home games pay nothing', 'a gate: +1¢ per home game', 'real stands: +2¢ per home game', 'the bowl: +3¢ — and a home loss stings the fans less'],
+    blurbs: ['splintered bleachers, free to sit on', 'a gate: +1¢ per home game', 'real stands: +2¢ per home game', 'the bowl: +3¢ — and a home loss stings the fans less'],
     arrive: 'The steel goes up in a weekend. The echo of the first bounced ball takes a full second to come back.',
   },
   {
     id: 'greekrow', name: 'GREEK ROW',
-    blurbs: ['the group chat and the letters', 'the open house', 'the dinner — and the booster takes your calls', 'skyboxes and duffel bags; the campus hums'],
+    blurbs: ['a group chat that mostly leaves you on read', 'the open house', 'the dinner — and the booster takes your calls', 'skyboxes and duffel bags; the campus hums'],
     arrive: 'Banners unroll down the row and a sound system of dubious wattage gets carried up somebody\'s stairs.',
   },
 ];
@@ -3361,7 +3361,7 @@ export const TIPS: Record<string, string> = {
   recruiting:
     "Pick your charm with ▾ and press the big button — one move a week, the GROUP CHAT is free. The booster's options swing harder and can blow up.",
   matchup:
-    "Drag the lineup until the bars lean your way, make the pregame move with ▾, then hold PLAY. The OVERALL rope is tonight's win chance.",
+    "Drag the lineup until the bars lean your way, make the pregame move with ▾, then hold PLAY. The OVERALL gauge is tonight's win chance.",
   signing:
     "Tap a name to send a letter — every letter past the first costs commitment. SEND LETTERS when you've chosen, and the wheel answers.",
   bag:

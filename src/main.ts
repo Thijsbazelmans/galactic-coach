@@ -313,7 +313,7 @@ let standTab: 'table' | 'leaders' = 'table';
 let notebookOpen = false;
 let gxResult: { text: string; cost: number; played: boolean; art?: string } | null = null;
 /** THE WEEK TURN: the calendar flip between the horn and Monday's envelope */
-let weekTurn: { season: number; from: number; to: number } | null = null;
+let weekTurn: { season: number; from: number; to: number; seasonOnly?: boolean } | null = null;
 /** how the story's resolution moved the four opinions (drives the dean/booster verdict + the job-bar flash) */
 let opShift: { school: number; fans: number; pub: number; sec: number } | null = null;
 /** THE FOUR OPINIONS dialog (tap the job-security gauge) */
@@ -1449,6 +1449,19 @@ function schedModalHtml(s: GameState): string {
 /** THE LEADERS: conference top lists, one per stat — your names stand out.
     Shared by the standings dialog and the post-game standings screen. */
 function leadersListHtml(s: GameState): string {
+  // SEASON ZERO: the league has no season of stats behind it — the board
+  // reads a pre-written conference, and none of the names are yours
+  if (s.tutorial !== undefined) {
+    const others = s.teams.filter((t) => t.id !== s.myTeamId);
+    const pool = others.flatMap((t) => t.players.map((p) => ({ p, t })))
+      .sort((a, b) => ovr(b.p.attrs) - ovr(a.p.attrs)).slice(0, 12);
+    const SEC0: [string, number][] = [['POINTS', 14], ['REBOUNDS', 8], ['STEALS', 3], ['ASSISTS', 5]];
+    return SEC0.map(([label, base], si) => `<div class="acthead">${label}</div><table class="standings leaders">${
+      pool.slice(0, 8).map((e, i) => {
+        const v = Math.max(1, Math.round((base + 4 - i * 0.9 + ((e.p.id * 7 + si * 13) % 5) * 0.4) * 9));
+        return `<tr><td>${i + 1}. ${esc(e.p.name)} ${chip(e.t.name, e.t.bg, e.t.fg, true)}</td><td class="num">${v}</td></tr>`;
+      }).join('')}</table>`).join('');
+  }
   const L = statLeaders(s);
   const SEC: ['pts' | 'reb' | 'stl' | 'ast', string][] = [['pts', 'POINTS'], ['reb', 'REBOUNDS'], ['stl', 'STEALS'], ['ast', 'ASSISTS']];
   return SEC.map(([k, label]) => `<div class="acthead">${label}</div><table class="standings leaders">${
@@ -1493,7 +1506,7 @@ function bagBar(s: GameState): string {
     && s.notebook.some((n) => n.key === ev.data?.noteKey);
   // season zero: the notebook enters the story at the box score — until the
   // walk teaches it, the pocket is just another empty pocket
-  const tutHideNote = s.tutorial !== undefined && !(s.tutSeen ?? []).includes('notebook') && s.tutWalk?.key !== 'notebook';
+  const tutHideNote = s.tutorial !== undefined && !(s.tutSeen ?? []).includes('cheernote') && s.tutWalk?.key !== 'cheernote';
   const noteSlot = tutHideNote
     ? '<div class="bslot empty tall">·</div>'
     : `<button class="bslot filled notebook tall ${canAnswer ? 'pulse' : ''} ${notebookDead(s) ? 'ndead' : ''}" data-action="notebook">▤<span class="bshort">NOTES</span></button>`;
@@ -2263,7 +2276,11 @@ function stagePractice(s: GameState): string {
   // is split evenly around the tactics board — never a lump above it
   // drag on EVERY lens — STATS and ABILITIES are exactly where you decide
   // who moves (the scope preview stays a ROSTER-lens read)
-  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, true, lens, lens === 0 ? practiceScope(s) : null)}<div class="botstack fill">${tacticsBoard(s)}${teamBarsPractice(s)}</div>`;
+  // SEASON ZERO reveals the bottom half piece by piece: the bars when the
+  // walk points at them, the tactics board when it becomes the lesson
+  const showBars = s.tutorial === undefined || (s.tutSeen ?? []).includes('m:bars');
+  const showTac = s.tutorial === undefined || (s.tutSeen ?? []).includes('m:tac');
+  return `<h2 class="gridhead">PRACTICE</h2>${gridHtml(s, true, lens, lens === 0 ? practiceScope(s) : null)}<div class="botstack fill">${showTac ? tacticsBoard(s) : ''}${showBars ? teamBarsPractice(s) : ''}</div>`;
 }
 
 /** FACILITIES: the campus stop — six buildings, one move a week. The tiles
@@ -3136,8 +3153,8 @@ function weekTurnHtml(): string {
   if (!weekTurn) return '';
   const wk = (n: number): string => (n <= REGULAR_WEEKS ? `WEEK ${n}` : `WEEK ${REGULAR_WEEKS}+${n - REGULAR_WEEKS}`);
   return `<div class="weekturn" data-action="week-turn-close">
-    <div class="wtseason">SEASON ${Math.max(1, weekTurn.season)}</div>
-    <div class="wtrow"><span class="wtfrom">${wk(weekTurn.from)}</span><span class="wtarrow">▸</span><span class="wtto">${wk(weekTurn.to)}</span></div>
+    <div class="wtseason ${weekTurn.seasonOnly ? 'wtbig' : ''}">SEASON ${Math.max(1, weekTurn.season)}</div>
+    ${weekTurn.seasonOnly ? '' : `<div class="wtrow"><span class="wtfrom">${wk(weekTurn.from)}</span><span class="wtarrow">▸</span><span class="wtto">${wk(weekTurn.to)}</span></div>`}
     <div class="wthint">▸ TAP</div>
   </div>`;
 }
@@ -3189,6 +3206,10 @@ function tutMaybeWalk(): void {
 }
 
 function tutWalkFinish(key: string): void {
+  // a skipped walk still reveals everything its steps would have (marks)
+  for (const st of (state.tutWalk?.steps as TutStep[] | undefined) ?? []) {
+    if (st.mark && !(state.tutSeen ?? []).includes(st.mark)) (state.tutSeen ??= []).push(st.mark);
+  }
   delete state.tutWalk;
   (state.tutSeen ??= []).push(key);
   for (const r of tutorialWalkDone(state, key)) queueStory(state, r.defId, r.beat, r.playerId, r.data ?? {});
@@ -3220,6 +3241,10 @@ function tutWalkAdvance(sig: string): void {
   if (!step) { tutWalkFinish(w.key); return; }
   if ((step.advance ?? 'tap') !== sig) return;
   w.ix++;
+  // the NEW step's mark lands the moment it takes the floor — the render
+  // reads these to reveal hidden pieces (the team bars, the tactics board)
+  const mk = steps[w.ix]?.mark;
+  if (mk && !(state.tutSeen ?? []).includes(mk)) (state.tutSeen ??= []).push(mk);
   if (w.ix >= steps.length) tutWalkFinish(w.key);
   else save(state);
 }
@@ -3245,11 +3270,13 @@ function applyWalkSpotlight(): void {
     });
   };
   if (hi === 'grid' || hi === 'board') collect('.grid');
-  else if (hi === 'rows') collect('.grid .gridrow .rowlabel');
-  else if (hi.startsWith('row:')) {
+  else if (hi === 'rows') {
+    // every row wears the frame: the rows ARE the lesson
+    document.querySelectorAll('.grid .gridrow').forEach((el) => { el.classList.add('rowspot'); targets.push(el); });
+  } else if (hi.startsWith('row:')) {
     const n = Number(hi.slice(4));
     document.querySelectorAll('.grid .gridrow').forEach((el, i) => {
-      if (i === n) targets.push(el);
+      if (i === n) { el.classList.add('rowspot'); targets.push(el); }
       else el.classList.add('scopedim');
     });
   } else if (hi.startsWith('p:') || hi.startsWith('pr:')) spotCards(new Set([Number(hi.split(':')[1])]));
@@ -3279,7 +3306,7 @@ function applyWalkSpotlight(): void {
   // big areas skip the outline (the fade around them IS the pointer);
   // small things wear a steady glow
   const bigArea = ['grid', 'board', 'fac', 'bars', 'tac'].includes(hi);
-  if (!bigArea) for (const el of targets) el.classList.add('tutspot');
+  if (!bigArea) for (const el of targets) if (!el.classList.contains('rowspot')) el.classList.add('tutspot');
   // everything else steps back — the middle's other children, and whichever
   // chrome bars hold no target (yes, even the header: nothing up there
   // matters while the assistant is pointing at something else)
@@ -3788,7 +3815,16 @@ function animateLiveGame(myPts: number, oppPts: number, _share: number, home: bo
     const court = document.getElementById('court');
     if (!court) return;
     const prev = new Set([...court.querySelectorAll('.ccard')].map((el) => Number(el.getAttribute('data-cpid'))));
-    court.innerHTML = courtHtml(state, frac, prev);
+    const nextHtml = courtHtml(state, frac, prev);
+    // whoever leaves the floor visibly walks off first, THEN the swap lands
+    const staying = new Set(courtFloor(myTeam(state), state.lastResult?.box ?? [], frac).map((p) => p.id));
+    let leaving = 0;
+    court.querySelectorAll('.ccard').forEach((el) => {
+      if (!staying.has(Number(el.getAttribute('data-cpid')))) { el.classList.add('leave'); leaving++; }
+    });
+    const myBand = band;
+    if (leaving) window.setTimeout(() => { if (band === myBand && document.getElementById('court') === court) court.innerHTML = nextHtml; }, 260);
+    else court.innerHTML = nextHtml;
   };
   const flashCourt = (amt: number): void => {
     const cards = [...document.querySelectorAll('#court .ccard')] as HTMLElement[];
@@ -3802,12 +3838,28 @@ function animateLiveGame(myPts: number, oppPts: number, _share: number, home: bo
     }
     bag.set(pick, Math.max(0, (bag.get(pick) ?? 0) - amt));
     const card = cards[ids.indexOf(pick)];
-    card.querySelector('.cpop')?.remove();
     card.classList.remove('pop');
     void card.offsetWidth; // restart the flash
     card.classList.add('pop');
-    card.insertAdjacentHTML('beforeend', `<b class="cpop">+${amt}</b>`);
-    window.setTimeout(() => { card.classList.remove('pop'); card.querySelector('.cpop')?.remove(); }, 640);
+    window.setTimeout(() => card.classList.remove('pop'), 640);
+    // the points fly as a BALL: from the scorer's hands into the score gauge
+    const stage = document.getElementById('needle-stage');
+    const scoreEl = document.getElementById('livescore');
+    if (stage && scoreEl) {
+      const cr = card.getBoundingClientRect();
+      const sr = scoreEl.getBoundingClientRect();
+      const ball = document.createElement('span');
+      ball.className = 'cball';
+      ball.style.left = `${cr.left + cr.width / 2}px`;
+      ball.style.top = `${cr.top + 8}px`;
+      stage.appendChild(ball);
+      requestAnimationFrame(() => {
+        ball.style.left = `${sr.left + sr.width / 2}px`;
+        ball.style.top = `${sr.top + sr.height / 2}px`;
+        ball.classList.add('fly');
+      });
+      window.setTimeout(() => ball.remove(), 520);
+    }
   };
   // THE INTERRUPTIONS: at the half the night's stories get the floor; the
   // game resumes from this exact frame once the coach has answered
@@ -4109,19 +4161,72 @@ function dropItemOnTeam(itemId: string): void {
   toast = said ? `${text}\n\n${said}` : text;
 }
 
+/** SEASON ZERO's scripted item target (null = anyone may catch it). */
+function tutItemTargetId(itemId: string): number | null {
+  if (state.tutorial === undefined) return null;
+  if (itemId === 'timeloop') return tutStar(state)?.id ?? null;
+  if (itemId === 'patch') return tutStandout(state)?.id ?? null;
+  if (itemId === 'check') return tutGem(state)?.pr.id ?? null;
+  return null;
+}
+
+function clearDropGlow(): void {
+  document.querySelectorAll('.droptarget').forEach((el) => el.classList.remove('droptarget'));
+  document.querySelector('.middle.teamglow')?.classList.remove('teamglow');
+}
+
 function activateDrag(): void {
   if (!ptr || ptr.active) return;
   ptr.active = true;
   const rect = ptr.el.getBoundingClientRect();
-  const ghost = ptr.el.cloneNode(true) as HTMLElement;
-  ghost.classList.add('dragghost');
-  ghost.style.width = `${rect.width}px`;
+  let ghost: HTMLElement;
+  if (ptr.kind === 'item') {
+    // the ghost IS the item — built fresh, never a cloned slot
+    const it = itemById(ptr.itemId);
+    ghost = document.createElement('div');
+    ghost.className = 'dragghost itemghost';
+    ghost.innerHTML = `◆<span class="gname">${esc(it.short)}</span>`;
+    // whoever can catch it glows gently — the whole floor for a squad item
+    const scripted = tutItemTargetId(ptr.itemId);
+    if (currentStory(state)) document.getElementById('storypanel')?.classList.add('droptarget');
+    else if (scripted !== null) document.querySelector(`.middle .pcard[data-pid="${scripted}"]`)?.classList.add('droptarget');
+    else if (it.target === 'player') document.querySelectorAll('.middle .pcard[data-pid]:not([data-kind="pr"])').forEach((el) => el.classList.add('droptarget'));
+    else if (it.target === 'prospect') document.querySelectorAll('.middle .pcard[data-kind="pr"]').forEach((el) => el.classList.add('droptarget'));
+    else document.querySelector('.middle')?.classList.add('teamglow');
+  } else {
+    ghost = ptr.el.cloneNode(true) as HTMLElement;
+    ghost.classList.add('dragghost');
+    ghost.style.width = `${rect.width}px`;
+  }
   document.body.appendChild(ghost);
   ptr.ghost = ghost;
   ptr.el.classList.add('draglift');
   // the assistant's box steps aside — nothing may cover the drop target
   document.querySelector('.tutwalk')?.classList.add('walkhide');
   moveGhost();
+}
+
+/** FLIP: the displaced card slides from where it stood to where it landed. */
+function animateSwap(pids: number[], preRects: Map<number, DOMRect>): void {
+  requestAnimationFrame(() => {
+    for (const pid of pids) {
+      const el = document.querySelector(`.pcard[data-pid="${pid}"]`) as HTMLElement | null;
+      const pre = preRects.get(pid);
+      if (!el || !pre) continue;
+      const now = el.getBoundingClientRect();
+      const dx = pre.left - now.left;
+      const dy = pre.top - now.top;
+      if (!dx && !dy) continue;
+      el.style.transition = 'none';
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      el.style.zIndex = '40';
+      requestAnimationFrame(() => {
+        el.style.transition = 'transform 0.26s ease';
+        el.style.transform = '';
+        window.setTimeout(() => { el.style.transition = ''; el.style.zIndex = ''; }, 320);
+      });
+    }
+  });
 }
 
 function moveGhost(): void {
@@ -4153,17 +4258,34 @@ function endDrag(drop: boolean): void {
   if (!ptr) return;
   clearTimeout(ptr.holdTimer);
   if (ptr.active) {
-    const target = drop ? targetAtPoint() : null;
-    ptr.ghost?.remove();
+    const found = drop ? targetAtPoint() : null;
+    // season zero: only the SCRIPTED player catches the item — anyone else
+    // counts as a miss, and the item flies home
+    const scripted = ptr.kind === 'item' && !currentStory(state) ? tutItemTargetId(ptr.itemId) : null;
+    const target = found && scripted !== null && Number(found.getAttribute('data-pid')) !== scripted ? null : found;
     ptr.el.classList.remove('draglift');
+    clearDropGlow();
     document.querySelector('.tutwalk.walkhide')?.classList.remove('walkhide');
     suppressClick = true;
     setTimeout(() => { suppressClick = false; }, 60);
     document.querySelectorAll('.dropzone.dragover, .storypanel.dragover, .pcard.dragover').forEach((z) => z.classList.remove('dragover'));
     if (target) {
-      if (ptr.kind === 'card') handleDrop(Number(target.getAttribute('data-zone')), ptr.pid);
-      else if (ptr.kind === 'pr') handleProspectDrop(Number(target.getAttribute('data-zone')), ptr.pid);
-      else if (currentStory(state)) dropItemOnStory(ptr.itemId);
+      ptr.ghost?.remove();
+      if (ptr.kind === 'card' || ptr.kind === 'pr') {
+        // FLIP prep: whoever stands in the landing zone slides to the
+        // dragged card's old spot after the swap renders
+        const occ = target.querySelector('.pcard[data-pid]');
+        const occPid = occ ? Number(occ.getAttribute('data-pid')) : NaN;
+        const pre = new Map<number, DOMRect>();
+        if (occ && occPid !== ptr.pid) pre.set(occPid, occ.getBoundingClientRect());
+        if (ptr.kind === 'card') handleDrop(Number(target.getAttribute('data-zone')), ptr.pid);
+        else handleProspectDrop(Number(target.getAttribute('data-zone')), ptr.pid);
+        ptr = null;
+        render();
+        if (pre.size) animateSwap([...pre.keys()], pre);
+        return;
+      }
+      if (currentStory(state)) dropItemOnStory(ptr.itemId);
       else {
         const target0 = itemById(ptr.itemId).target;
         if (target0 === 'player') dropItemOnPlayer(ptr.itemId, Number(target.getAttribute('data-pid')));
@@ -4173,6 +4295,18 @@ function endDrag(drop: boolean): void {
       ptr = null;
       render();
       return;
+    }
+    // a MISS: the item visibly flies back to its pocket
+    if (ptr.kind === 'item' && ptr.ghost) {
+      const g = ptr.ghost;
+      const home = ptr.el.getBoundingClientRect();
+      g.style.transition = 'left 0.28s ease, top 0.28s ease, opacity 0.28s ease';
+      g.style.left = `${home.left + home.width / 2 - g.offsetWidth / 2}px`;
+      g.style.top = `${home.top}px`;
+      g.style.opacity = '0.35';
+      window.setTimeout(() => g.remove(), 300);
+    } else {
+      ptr.ghost?.remove();
     }
   }
   ptr = null;
@@ -4430,19 +4564,12 @@ function executeAction(action: string, id: string): void {
     case 'noop': break;
 
     case 'speech-run': {
-      // SEASON ZERO: the first attempt brings the cheerleader in with the
-      // words; after that, only THE RALLY leaves your mouth tonight
+      // SEASON ZERO: only THE RALLY — the page you wrote — leaves your mouth
       if (state.tutorial !== undefined) {
-        if ((state.tutorial ?? 0) < TUT_AT.SPEECH) {
-          for (const r of tutorialArrive(state, 'speech')) queueStory(state, r.defId, r.beat, r.playerId, r.data ?? {});
-          selPregame = { kind: 'speech', id: 'rally' };
-          save(state);
-          break;
-        }
         const selT = pregameSel(state);
         if (!(selT.kind === 'speech' && selT.id === 'rally')) {
           selPregame = { kind: 'speech', id: 'rally' };
-          toast = 'Tonight the words are hers: THE RALLY.';
+          toast = 'Tonight the words are the ones you wrote down: THE RALLY.';
           break;
         }
       }
@@ -4463,6 +4590,10 @@ function executeAction(action: string, id: string): void {
       const text = deliverSpeech(state, sel.id);
       if (text) {
         toast = text;
+        // SEASON ZERO: the room reacts once the toast has been read
+        if (state.tutorial !== undefined) {
+          for (const r of tutorialArrive(state, 'speech')) queueStory(state, r.defId, r.beat, r.playerId, r.data ?? {});
+        }
         // a rally (or a flop) moves real MOODS: the cards blink their
         // gauges and the bars cascade — the boost must be SEEN
         const map = diffCards(preCards);
@@ -4499,12 +4630,16 @@ function executeAction(action: string, id: string): void {
     case 'letgo-pro': letGoPro(state, Number(id)); break;
     case 'retire': retire(state); break;
     case 'do-signing': selSlots = null; resolveSigning(state); break;
-    case 'confirm-roster':
+    case 'confirm-roster': {
+      const wasTut = state.tutorial !== undefined;
       if (selSlots && finalizeRoster(state, selSlots.slice(0, 9))) {
         selSlots = null;
         cutConfirm = false;
+        // the tutorial's cut opens SEASON ONE with a page flip of its own
+        if (wasTut) weekTurn = { season: 1, from: 1, to: 1, seasonOnly: true };
       }
       break;
+    }
 
     case 'use-item': {
       const itemId = id;
@@ -4650,6 +4785,24 @@ app.addEventListener('click', (e) => {
       // dead moments (a decision pending, an outcome page, the live ticker)
       // swallow the tap — the slot already renders dead for them
       if (notebookDead(state)) break;
+      // SEASON ZERO's scripted pages: the cheer gets WRITTEN at scouting;
+      // at the matchup the written page becomes THE RALLY, ready to deliver
+      const wNote = state.tutWalk?.steps?.[state.tutWalk.ix];
+      if (state.tutorial !== undefined && (wNote?.advance ?? '') === 'note' && !currentStory(state)) {
+        if (state.phase === 'scouting') {
+          const nm = myTeam(state).name.toUpperCase();
+          addNote(state, 'story', 'cheer:0', `«Go! Go! ${nm}! Go, go, go, ${nm}!» — the head cheerleader's cheer`);
+          toast = '▤ NOTED: the cheer, word for word.\n\nWhatever lands in the notebook, you keep.';
+          tutWalkAdvance('note');
+          break;
+        }
+        if (state.phase === 'matchup') {
+          selPregame = { kind: 'speech', id: 'rally' };
+          toast = '★ THE RALLY ★\n\nYou read the cheer off the page, word for word — and the room starts sitting up. Hold ▶ SPEECH.';
+          tutWalkAdvance('note');
+          break;
+        }
+      }
       const ev = currentStory(state);
       // during Scoop's question the notebook ANSWERS (if it has the note)
       if (ev?.defId === 'scoop_question' && !ev.resolvedText) {
