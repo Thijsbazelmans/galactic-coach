@@ -76,8 +76,9 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('A NEW CAREER AWAITS')) throw new Error('fresh title should offer a new career');
   must('[data-action="press-start"]', 'press start');
   // wizard step 1 — with a codex present: keep the knowledge, or burn it
-  if (!app.innerHTML.includes('GALACTIC COACH')) throw new Error('wizard screen missing');
-  if (!app.innerHTML.includes('THE CODEX')) throw new Error('codex step missing');
+  if (!app.innerHTML.includes('MARCH MANIACS')) throw new Error('wizard screen missing');
+  if (!app.innerHTML.includes('CODEX')) throw new Error('codex step missing');
+  if (app.innerHTML.includes('3-on-3')) throw new Error('the old tagline must be gone');
   if (!app.innerHTML.includes('I KNOW THE DRILL')) throw new Error('the keep-knowledge path is missing');
   if (!app.innerHTML.includes('START FRESH')) throw new Error('the burn-the-codex path is missing');
   must('[data-action="setup-codex-keep"]', 'keep the codex');

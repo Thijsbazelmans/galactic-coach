@@ -2895,9 +2895,10 @@ function stageGameover(s: GameState): string {
 function stageSetupCodex(): string {
   const cdx = loadCodex();
   const n = cdx.plans.length + cdx.drills.length + cdx.instrs.length + cdx.regions.length;
-  return `<h1>GALACTIC COACH</h1>
-    <p class="sub">3-on-3. Every choice has two tails.</p>
-    <div class="report"><b>THE CODEX</b> <span class="dim">· ${n} entr${n === 1 ? 'y' : 'ies'} carried across careers</span></div>
+  return `<h1>MARCH MANIACS</h1>
+    <p class="sub">An Intergalactic College Basketball Madness Simulator</p>
+    <div class="report dim">No active saved career.</div>
+    <div class="report">You have a saved <b>CODEX</b> of discoveries <span class="dim">· ${n} entr${n === 1 ? 'y' : 'ies'} carried across careers</span></div>
     <button class="wide askbtn" data-action="setup-codex-keep"><b>I KNOW THE DRILL</b><span>Keep everything you learned — skip the tutorial, straight to tryouts</span></button>
     <button class="wide askbtn hold danger" data-action="setup-codex-burn"><b>START FRESH</b><span>Delete the codex and coach the tutorial season (cannot be undone)</span></button>`;
 }
