@@ -84,11 +84,11 @@ import {
   wipeCodex,
   wipeSave,
 } from './engine/state';
-import { TUT_AT, tutGem, tutStandout, tutStar, tutorialAllows, tutorialArrive, tutorialBoot, tutorialHeader, tutorialHint, tutorialIntro, tutorialWalkDone, tutorialWalkStart, tutorialWalkSteps, type TutStep } from './engine/tutorial';
+import { TUT_AT, tutFreshman, tutGem, tutStandout, tutStar, tutorialAllows, tutorialArrive, tutorialBoot, tutorialHeader, tutorialHint, tutorialIntro, tutorialWalkDone, tutorialWalkStart, tutorialWalkSteps, type TutStep } from './engine/tutorial';
 import type { Attr, AttrRec, BoxRow, FacId, GameState, PlanId, Player, Prospect, SpeechFx, Team } from './engine/types';
 import type { Fx } from './engine/types';
 import { ATTRS, clamp, copyAttrs, genderize, opTracks, ovr, perGame, potStars, rand, security } from './engine/util';
-import { PRACTICE_KIT, STREET_KIT, energyBucket, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, titleHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
+import { PRACTICE_KIT, STREET_KIT, energyBucket, facIconHtml, figureHtml, iconOutlinedUrl, iconUrl, moodBucket, rigSpriteHtml, sceneHtml, titleHtml, type FigureId, type FigureMood, type Kit, type RigView, type SceneId } from './rig';
 
 const VERSION = 'v5.1';
 
@@ -354,7 +354,7 @@ interface ImpRow {
 /** ONE voice per dialog: the player's rewards/penalties (his sprite), then
     the squad's, then the coach's world (credits, JOB SECURITY — the dean or
     the booster standing over it). Separate screens, tapped through. */
-interface ImpPage { kind: 'player' | 'squad' | 'coach'; pid: number | null; rows: ImpRow[] }
+interface ImpPage { kind: 'player' | 'squad' | 'coach'; pid: number | null; rows: ImpRow[]; gone?: string }
 let impact: { pages: ImpPage[]; ix: number } | null = null;
 let impactPlayed = false;
 let impactTimers: number[] = [];
@@ -547,7 +547,7 @@ let gxStickers: Map<number, { text: string; up?: boolean; commitFrom?: number }[
 // ---- the impact reveal: snapshot → resolve → diff → animate -----------------------
 
 interface PlayerSnap {
-  attrs: AttrRec; pots: AttrRec; level: number; energy: number; mood: number; outWeeks: number;
+  name: string; attrs: AttrRec; pots: AttrRec; level: number; energy: number; mood: number; outWeeks: number;
 }
 interface Snap {
   energy: number; sec: number; ops: { school: number; fans: number; pub: number }; legacy: number;
@@ -560,7 +560,7 @@ function snapState(): Snap {
   return {
     energy: state.energy, sec: security(state), ops: { school: o.school, fans: o.fans, pub: o.pub }, legacy: state.legacy,
     players: new Map(t.players.map((p) => [p.id, {
-      attrs: copyAttrs(p.attrs), pots: copyAttrs(p.pots),
+      name: p.name, attrs: copyAttrs(p.attrs), pots: copyAttrs(p.pots),
       level: p.level, energy: p.energy, mood: p.mood, outWeeks: p.outWeeks,
     }])),
   };
@@ -612,7 +612,7 @@ function buildImpact(snap: Snap, fxList: Fx[], pid: number | null): { pages: Imp
   if (trackMoved && sec1 !== snap.sec) coach.push({ label: 'JOB SECURITY', from: snap.sec, to: sec1, up: sec1 > snap.sec });
   if (state.legacy !== snap.legacy) coach.push({ label: 'LEGACY', from: snap.legacy, to: state.legacy, up: state.legacy > snap.legacy });
   const pages: ImpPage[] = [];
-  if (rows.length) pages.push({ kind: 'player', pid, rows: [...rows, ...(pid !== null ? squad : [])] });
+  if (rows.length) pages.push({ kind: 'player', pid, rows: [...rows, ...(pid !== null ? squad : [])], gone: was && !p ? was.name : undefined });
   if (squad.length && (pid === null || !rows.length)) pages.push({ kind: 'squad', pid: null, rows: squad });
   if (coach.length) pages.push({ kind: 'coach', pid: null, rows: coach });
   return { pages, ix: 0 };
@@ -1888,6 +1888,7 @@ function impactHtml(s: GameState): string {
   const more = impact && impact.ix < impact.pages.length - 1;
   return `<div class="impactpanel">
     ${p ? `<span class="imp-sprite">${rigSpriteHtml(rigView(p, page.rows.some((r) => !r.up) ? 'bad' : 'good'), { bg: t.bg, fg: t.fg }, 2)}</span><div class="imp-name">${esc(p.name)}</div>` : ''}
+    ${!p && page.gone ? `<span class="imp-sprite"><span class="ghostbox"></span></span><div class="imp-name">${esc(page.gone)}</div>` : ''}
     ${page.kind === 'squad' ? '<div class="imp-name">THE SQUAD</div>' : ''}
     <div class="imp-rows">${rows}</div>
     ${more ? '<div class="imp-more dim">▸ and then…</div>' : ''}
@@ -1936,7 +1937,7 @@ function revealPreview(kind: string, id: string, opts: { noFlavor?: boolean } = 
   return `<div class="itemcard ${item.rarity} revealrow">
     <b>◆ ${esc(item.name)}</b> <span class="dim">${item.rarity}${item.rarity === 'legendary' ? ' · once/season' : ''}</span><br/>
     ${opts.noFlavor ? '' : `<i class="dim">${esc(item.flavor)}</i><br/>`}
-    ${esc(item.effectText)}<br/>${oddsLine(item.up, item.down)}
+    ${esc(item.effectText)} ${item.down ? riskTag(riskLevel(item.down.pct)) : ''}<br/>${oddsLine(item.up, item.down)}
   </div>`;
 }
 
@@ -1957,6 +1958,7 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
     return `<div class="revealbox">${revealPreview('item', (ev.data?.itemId as string) ?? '', { noFlavor: true })}</div>`;
   }
   // SEASON MOMENTS (260830): the arena arrival, the trophy, the rained-out court
+  if (ev.defId === 'tut_call0' || ev.defId === 'tut_call0b') return `<div class="scenebox">${sceneHtml('moonnight', kit, 3)}</div>`;
   if (ev.defId === 'bigbang_invite') return `<div class="scenebox">${sceneHtml('tourney', kit, 3)}</div>`;
   if (ev.defId === 'bigbang_champs') return `<div class="scenebox">${sceneHtml('champs', kit, 3)}</div>`;
   if (ev.defId === 'bigbang_out' || ev.defId === 'season_over') return `<div class="scenebox">${sceneHtml('seasonlost', kit, 3)}</div>`;
@@ -2386,6 +2388,7 @@ function stagePractice(s: GameState): string {
     say what stands there NOW and what the next step costs; the upgrade picks
     live in the ▾ menu, like every other screen. */
 function stageFacilities(s: GameState): string {
+  const t = myTeam(s);
   const tiles = FACILITIES.map((fd) => {
     const lvl = facLevel(s, fd.id);
     const pending = s.futureBeats.some((fb) => fb.defId === 'facility_arrives' && fb.data?.facId === fd.id);
@@ -2399,16 +2402,19 @@ function stageFacilities(s: GameState): string {
     const pickable = !pending && lvl < 3 && !s.facActWk && s.tutorial === undefined;
     const tag = pickable ? 'button' : 'div';
     return `<${tag} class="drill facrow factile ${selFac === fd.id ? 'sel' : ''}" ${pickable ? `data-action="fac-pick" data-id="${fd.id}"` : ''}>
-      <div class="prow1"><b>${fd.name}</b><span class="fpips">${pips}</span>${right}</div>
-      <div class="facstate">${esc(fd.blurbs[lvl])}</div>
+      <span class="facic">${facIconHtml(fd.id, brightKit({ bg: t.bg, fg: t.fg }))}</span>
+      <div class="facbody">
+        <div class="prow1"><b>${fd.name}</b><span class="fpips">${pips}</span>${right}</div>
+        <div class="facstate">${esc(fd.blurbs[lvl])}</div>
+      </div>
     </${tag}>`;
   }).join('');
   const disc = s.mopDiscount
-    ? '<div class="fourthrow slim"><div class="report">the janitor\'s guy came through: <b>2¢ OFF</b> any upgrade this week</div></div>'
+    ? '<div class="facnote">🔧 the janitor\'s guy came through: <b>2¢ OFF</b> any upgrade this week</div>'
     : s.mopDiscountNext
-      ? '<div class="fourthrow slim"><div class="report">the janitor "knows a guy": <b>2¢ OFF</b> any upgrade NEXT week</div></div>'
+      ? '<div class="facnote">🔧 the janitor "knows a guy": <b>2¢ OFF</b> any upgrade NEXT week</div>'
       : '';
-  const mopped = s.moppedWk ? '<div class="fourthrow slim"><div class="report dim">THE FLOORS SHINE. The janitor nods at you differently now.</div></div>' : '';
+  const mopped = s.moppedWk ? '<div class="facnote dim">THE FLOORS SHINE. The janitor nods at you differently now.</div>' : '';
   return `<h2 class="gridhead">FACILITIES</h2><div class="facwrap">${tiles}</div><div class="botstack">${disc}${mopped}</div>`;
 }
 
@@ -3251,7 +3257,7 @@ function itemModalHtml(s: GameState): string {
     <div class="itemcard ${item.rarity}">
       <b>◆ ${esc(item.name)}</b> <span class="dim">${item.rarity}${item.rarity === 'legendary' ? ' · once/season' : ''}</span><br/>
       <i class="dim">${esc(item.flavor)}</i><br/>
-      ${esc(item.effectText)}<br/>${oddsLine(item.up, item.down)}<br/>
+      ${esc(item.effectText)} ${item.down ? riskTag(riskLevel(item.down.pct)) : ''}<br/>${oddsLine(item.up, item.down)}<br/>
       <span class="itemwho t-${item.target}">${who}</span>
     </div>
     <button class="wide hold" data-action="use-item" data-id="${item.id}" ${usable ? '' : 'disabled'}>
@@ -3379,6 +3385,17 @@ function tutAllowsDrag(kind: 'card' | 'item' | 'pr', itemId: string): boolean {
   return false;
 }
 
+/** A step's gate: the hold refuses until the lineup lesson actually holds. */
+function tutGateOk(gate: string): boolean {
+  if (gate === 'bestfive') {
+    const t = myTeam(state);
+    const fr = tutFreshman(state);
+    const so = tutStandout(state);
+    return !!fr && t.lineup.slots[0] === fr.id && !!so && so.outWeeks === 0 && t.lineup.slots[2] === so.id;
+  }
+  return true;
+}
+
 /** Advance on a matching signal ('tap', 'lens:1', 'note', 'item:patch'…). */
 function tutWalkAdvance(sig: string): void {
   const w = state.tutWalk;
@@ -3390,8 +3407,24 @@ function tutWalkAdvance(sig: string): void {
   w.ix++;
   // the NEW step's mark lands the moment it takes the floor — the render
   // reads these to reveal hidden pieces (the team bars, the tactics board)
-  const mk = steps[w.ix]?.mark;
+  let mk = steps[w.ix]?.mark;
   if (mk && !(state.tutSeen ?? []).includes(mk)) (state.tutSeen ??= []).push(mk);
+  // a step already satisfied skips itself: a lens tab the coach is on, or a
+  // player already parked in the asked-for spot ("Meet me back on the
+  // roster" never fires at someone who's standing on the roster)
+  const satisfied = (st: TutStep | undefined): boolean => {
+    if (!st) return false;
+    const adv = st.advance ?? '';
+    if (adv === `lens:${lens}`) return true;
+    const m = adv.match(/^spot:(\d+):(\d+)$/);
+    if (m) return myTeam(state).lineup.slots[Number(m[2])] === Number(m[1]);
+    return false;
+  };
+  while (satisfied(steps[w.ix])) {
+    w.ix++;
+    mk = steps[w.ix]?.mark;
+    if (mk && !(state.tutSeen ?? []).includes(mk)) (state.tutSeen ??= []).push(mk);
+  }
   if (w.ix >= steps.length) tutWalkFinish(w.key);
   else save(state);
 }
@@ -3575,10 +3608,13 @@ function render(): void {
   const hintHtml = tutTxt && !ev && !modalOpen ? `<div class="tuthint"><b>ASSISTANT</b>${esc(tutTxt)}</div>` : '';
   // THE WALK's box floats OVER the screen (never pushing the layout around)
   const wStep = !ev && !toast && !gxResult ? tutWalkStep() : null;
-  const walkTap = wStep && (wStep.advance ?? 'tap') === 'tap';
+  const gateOk = !wStep?.gate || tutGateOk(wStep.gate);
+  const walkTap = wStep && (wStep.advance ?? 'tap') === 'tap' && !wStep.hold;
+  const walkHold = wStep && (wStep.advance ?? 'tap') === 'tap' && !!wStep.hold;
   const walkHtml = wStep
     ? `<div class="tutwalk ${wStep.pos ?? 'bot'}" ${walkTap ? 'data-action="tut-walk-tap"' : ''}>
         <b>${esc(wStep.who ?? 'ASSISTANT COACH')}</b><span id="tutwalktext"></span>${walkTap ? '<i class="wtap">▸ tap</i>' : ''}
+        ${walkHold ? `<button class="wide hold walkhold" data-action="tut-walk-hold" ${gateOk ? '' : 'disabled'}>${gateOk ? 'HOLD ▸ MOVE ON' : 'START YOUR BEST PLAYERS FIRST'}</button>` : ''}
       </div>`
     : '';
   const frame = (state.phase === 'pickTeam' || state.phase === 'gameover'
@@ -4170,8 +4206,11 @@ function handleDrop(zoneIdx: number, playerId: number): void {
     idxs.forEach((i, r) => { t.lineup.slots[i] = ordered[r]?.id ?? null; });
   }
   save(state);
-  // season zero's lineup lesson: the freshman lands on the floor
+  // season zero's lineup lessons: the freshman lands on the floor, and the
+  // position steps watch for a player parked in an exact STARTING column
   if (zoneIdx < 6) tutWalkAdvance(`floor:${playerId}`);
+  const at = t.lineup.slots.indexOf(playerId);
+  if (at >= 0 && at < 3) tutWalkAdvance(`spot:${playerId}:${at}`);
 }
 
 /** The recruiting board swap: prospect between the board and the 4th row. */
@@ -4590,6 +4629,15 @@ function executeAction(action: string, id: string): void {
       if (finishTypeNow()) break; // first tap lands the whole line
       tutWalkAdvance('tap');
       break;
+    case 'tut-walk-hold': {
+      // the hold-to-move-on steps: the gate has already been checked (a
+      // failing gate renders the button disabled), the hold just lands it
+      const st = tutWalkStep();
+      if (st?.gate && !tutGateOk(st.gate)) break;
+      finishTypeNow();
+      tutWalkAdvance('tap');
+      break;
+    }
     case 'tut-walk-skip': {
       const w = state.tutWalk;
       if (w) tutWalkFinish(w.key);
@@ -4960,7 +5008,7 @@ app.addEventListener('click', (e) => {
     case 'sched-open': if (!currentStory(state) && !liveGameOn(state)) { schedOpen = true; standOpen = false; jobOpen = false; } break;
     case 'sched-close': schedOpen = false; break;
     case 'job-open': if (!currentStory(state) && !liveGameOn(state)) { jobOpen = true; schedOpen = false; standOpen = false; } break;
-    case 'job-close': jobOpen = false; break;
+    case 'job-close': jobOpen = false; tutWalkAdvance('job'); break;
     case 'stand-open': if (!currentStory(state) && !liveGameOn(state)) { standOpen = true; schedOpen = false; jobOpen = false; } break;
     case 'stand-close': standOpen = false; break;
     case 'stand-tab': standTab = id as 'table' | 'leaders'; break;
@@ -4980,9 +5028,11 @@ app.addEventListener('click', (e) => {
           break;
         }
         if (state.phase === 'matchup') {
-          selPregame = { kind: 'speech', id: 'rally' };
-          toast = '★ THE RALLY ★\n\nYou read the cheer off the page, word for word — and the room starts sitting up. Hold ▶ SPEECH.';
+          // the page comes OUT: the cheer runs as its own scene — the room
+          // answers, the roof lifts, and only then is the speech a speech
           tutWalkAdvance('note');
+          queueStory(state, 'tut_cheerrun', 'start', null);
+          save(state);
           break;
         }
       }
@@ -5004,7 +5054,8 @@ app.addEventListener('click', (e) => {
           ? `▤ You note box scores, winners, losers and standings. Everything you're bound to forget otherwise.`
           : `▤ NOTED: ${esc(state.notebook[0].text.slice(0, 90))}${state.notebook[0].text.length > 90 ? '…' : ''}`;
         tutWalkAdvance('note');
-      } else notebookOpen = true;
+      } else if (state.notebook.length) notebookOpen = true;
+      else toast = '▤ Nothing here is worth noting, coach.';
       break;
     }
     case 'notebook-close': notebookOpen = false; break;

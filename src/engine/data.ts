@@ -542,17 +542,17 @@ export const FACILITIES: FacilityDef[] = [
   },
   {
     id: 'gym', name: 'THE GYM',
-    blurbs: ['a gym with no hoop; the echo is impressive', 'a hoop: shootaround', 'a full court: scrimmage and two-a-days', 'the lab wing: the strange methods can be installed'],
+    blurbs: ['a gym with no hoop; the echo is impressive', 'a single, lonely hoop', 'a full court: scrimmage and two-a-days', 'the lab wing: the strange methods can be installed'],
     arrive: 'Contractors in zero-g harnesses hammer all weekend. Monday morning the net still smells of fresh nylon.',
   },
   {
     id: 'cryo', name: 'CRYO BAY',
-    blurbs: ['an ice-filled dumpster', 'one pod: the weekend bump firms up (⚡ tops at 77)', 'a bank of pods (⚡ tops at 79)', 'the pro clinic\'s freezer (⚡ tops at 81)'],
+    blurbs: ['an ice-filled dumpster', 'one pod: players regain energy slightly faster', 'a bank of pods (⚡ tops at 79)', 'the pro clinic\'s freezer (⚡ tops at 81)'],
     arrive: 'The pods hiss when they land, breathing white. Somebody has already taped a name to the best one.',
   },
   {
     id: 'library', name: 'THE LIBRARY',
-    blurbs: ['one sad shelf of speculative fiction', 'a tutoring corner: study weeks help', 'real stacks: fewer academic fires', 'the archive: film study feeds BRAINS harder'],
+    blurbs: ['one sad shelf of speculative fiction', 'a tutoring corner', 'real stacks: fewer academic fires', 'the archive: film study feeds BRAINS harder'],
     arrive: 'Crates of books arrive addressed to "the basketball school, apparently". The nerd has them shelved by tip-off.',
   },
   {
@@ -1485,10 +1485,12 @@ ITEMS.push(
     effectText: 'TIME · an absence (not an injury): two weeks less of it',
     context: ['away'],
     target: 'player',
+    // SAFE, and it means it: the down tail is the never-zero kind (season
+    // zero's misfire is scripted — this label is the joke's setup)
     check: (ctx) => timeCheck(ctx.player, 'the ring finds nobody to circle'),
     up: { pct: 2, cls: 'SPIRIT' },
-    down: { pct: 15, cls: 'DRAMA' },
-    use: (ctx) => timeUse(ctx.player!, 2, 15),
+    down: { pct: 2, cls: 'DRAMA' },
+    use: (ctx) => timeUse(ctx.player!, 2, 2),
   },
   {
     id: 'juice',
@@ -2566,6 +2568,8 @@ export const STORIES: StoryDef[] = [
       const opts = (ctx.data.opts as string[]) ?? [];
       const right = opts[answer] ?? '';
       const correct = key === 'notebook' || Number(key) === answer;
+      // a page that answered a question is SPENT: it leaves the notebook
+      if (key === 'notebook') ctx.s.notebook = ctx.s.notebook.filter((n) => n.key !== ctx.data.noteKey);
       if (correct) {
         const two = tails(25, 0) === 'up';
         return {
@@ -3634,13 +3638,13 @@ STORIES.push({
       return { tag: 'THE MORNING AFTER', text: `${p} pulls up lame in Monday's shootaround — the fire took its toll. The trainer says ${label}: ${weeks} week${weeks === 1 ? '' : 's'}.` };
     }
     const pts = (ctx.data.pts as number) ?? 25;
-    // SEASON ZERO's fire is the story: benching him is not on the menu
-    const choices = ctx.s.tutorial !== undefined
-      ? [C('cook', 'LET HIM COOK', { up: { pct: 50, cls: 'SPIRIT', note: 'the whole team lifts' }, down: { pct: 25, cls: 'INJURY', note: 'the body pays Monday' }, want: 'love' })]
-      : [
-          C('cook', 'LET HIM COOK', { up: { pct: 50, cls: 'SPIRIT', note: 'the whole team lifts' }, down: { pct: 25, cls: 'INJURY', note: 'the body pays Monday' }, want: 'love' }),
-          C('rotate', 'ROTATE AS NORMAL', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' }, want: 'hate' }),
-        ];
+    // SEASON ZERO shows both doors — but the bench one is a dead end: the
+    // assistant overrides it (a choice that isn't, which is the tutorial's
+    // favorite kind of choice)
+    const choices = [
+      C('cook', 'LET HIM COOK', { up: { pct: 50, cls: 'SPIRIT', note: 'the whole team lifts' }, down: { pct: 25, cls: 'INJURY', note: 'the body pays Monday' }, want: 'love' }),
+      C('rotate', 'ROTATE AS NORMAL', { up: { pct: 5, cls: 'SPIRIT' }, down: { pct: 5, cls: 'DRAMA' }, want: 'hate' }),
+    ];
     return {
       tag: '🔥 ON FIRE',
       text: `${p} is playing LIGHTS OUT tonight — ${pts} already and counting. He is setting the rim on fire. Literally: the net is smoking.\n\nThe bench is on its feet. So is the other coach.`,
@@ -3654,14 +3658,17 @@ STORIES.push({
       const weeks = (ctx.data.weeks as number) ?? 1;
       return { text: 'Fire is a loan. This is the interest.', fx: [{ playerId: p.id, outWeeks: weeks, outReason: (ctx.data.label as string) ?? 'a strain', outKind: 'injury', mood: -4 }] };
     }
-    if (key === 'cook') {
+    const overridden = key === 'rotate' && s.tutorial !== undefined;
+    if (key === 'cook' || overridden) {
       const bump = 4 + rand(3);
       s.gameShift = (s.gameShift ?? 0) + bump;
       p.onFire = true;
       p.fireWeeks = 0; // the streak starts tonight — the risk climbs weekly
       const inj = rollInjury(0, fragility(p.speciesId));
       return {
-        text: `You leave him in. The whole building leans forward and the whole TEAM plays up to him. +${bump} on the night.`,
+        text: overridden
+          ? `"Not tonight, coach." The assistant catches your arm before the substitution board is even up. "Look at him. LET HIM COOK."\n\nYou leave him in. The whole building leans forward and the whole TEAM plays up to him. +${bump} on the night.`
+          : `You leave him in. The whole building leans forward and the whole TEAM plays up to him. +${bump} on the night.`,
         fx: [{ playerId: p.id, mood: 10 }, { teamMood: 4 }],
         follow: roll(15) ? [{ weeks: 1, beat: 'after', data: { label: inj.label, weeks: Math.max(1, Math.min(2, inj.weeks)) } }] : [],
       };

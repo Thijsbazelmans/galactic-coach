@@ -1108,7 +1108,7 @@ export function iconOutlinedUrl(kind: IconKind, color = '#7dfc9a'): string {
 // Each scene/figure renders as a 24-frame sheet on the same CSS steps() loop
 // as the player rigs. The team's color is the accent (stripe, fin, tie).
 
-export type SceneId = 'bus-move' | 'bus-stranded' | 'bus-hoop' | 'saucer-move' | 'saucer-stranded' | 'saucer-hoop' | 'tourney' | 'champs' | 'seasonlost';
+export type SceneId = 'bus-move' | 'bus-stranded' | 'bus-hoop' | 'saucer-move' | 'saucer-stranded' | 'saucer-hoop' | 'tourney' | 'champs' | 'seasonlost' | 'moonnight';
 export type FigureId = 'dean' | 'booster' | 'scoop' | 'janitor' | 'assistant' | 'attendant' | 'oracle' | 'cheerleader' | 'nerd' | 'ref' | 'bookie' | 'goblin';
 export type FigureMood = 'neutral' | 'worried' | 'mad' | 'elated';
 
@@ -1186,6 +1186,7 @@ const SCENE_SIZE: Record<SceneId, [number, number]> = {
   'bus-move': [64, 32], 'bus-stranded': [64, 32], 'bus-hoop': [64, 32],
   'saucer-move': [48, 28], 'saucer-stranded': [48, 28], 'saucer-hoop': [48, 28],
   tourney: [64, 44], champs: [64, 44], seasonlost: [64, 44],
+  moonnight: [64, 44],
 };
 
 function drawScene(R: RFn, scene: SceneId, acc: string, f: number): void {
@@ -1272,6 +1273,34 @@ function drawScene(R: RFn, scene: SceneId, acc: string, f: number): void {
         else R(x, y, 1, 1, '#8a8f9e');
       });
       if (f % 4 < 2) { R(22, 6, 2, 2, acc); R(42, 5, 2, 2, acc); }
+      break;
+    }
+    case 'moonnight': {
+      // THE CALL's window view: a starry night, one big moon dead center,
+      // and the moon-base skyline hunched along the bottom
+      R(0, 0, 64, 44, IL_SPACE);
+      for (let i = 0; i < 40; i++) {
+        const x = (i * 23 + 7) % 64, y = (i * 13 + 5) % 40;
+        if ((i + f) % 9 < 7) R(x, y, 1, 1, i % 3 ? IL_DIM : IL_WHITE);
+      }
+      // the moon: a pixel disc with a lit edge and a few tired craters
+      const cx = 32, cy = 19, r = 11;
+      for (let dy = -r; dy <= r; dy++) {
+        const hw = Math.floor(Math.sqrt(r * r - dy * dy));
+        R(cx - hw, cy + dy, hw * 2 + 1, 1, '#c9c9d6');
+      }
+      for (let dy = -r; dy <= r; dy++) {
+        const hw = Math.floor(Math.sqrt(r * r - dy * dy));
+        R(cx - hw, cy + dy, Math.max(1, Math.floor(hw * 0.55)), 1, '#e6e6f0');
+      }
+      R(29, 14, 3, 2, '#a9a9ba'); R(35, 22, 4, 3, '#a9a9ba'); R(27, 24, 2, 2, '#a9a9ba'); R(36, 15, 2, 2, '#b5b5c4');
+      // a satellite blinking its way across the dark
+      const sx = (f * 7) % 64;
+      R(sx, 6, 1, 1, f % 4 < 2 ? IL_WIN : IL_DIM);
+      // the moon-base skyline: low blocks, a few windows still awake
+      R(0, 38, 64, 6, '#141828');
+      R(4, 34, 10, 4, '#1b2136'); R(20, 32, 8, 6, '#1b2136'); R(44, 35, 12, 3, '#1b2136'); R(33, 34, 6, 4, '#1b2136');
+      R(6, 35, 1, 1, IL_WIN); R(23, 33, 1, 1, IL_WIN); R(47, 36, 1, 1, f % 6 < 3 ? IL_WIN : IL_DIM); R(35, 35, 1, 1, IL_WIN);
       break;
     }
     case 'seasonlost': {
@@ -2065,6 +2094,51 @@ function illoHtml(url: string, W: number, H: number, scale: number, cls: string)
 
 /** A story scene: the bus or the saucer — moving, stranded, or at the hoop.
     flip = heading home (screen-left). */
+// ---- FACILITY ICONS: one 14×14 pixel glyph per campus building --------------
+// a UFO, a basket, a cryo pod, a book stack, a bleacher, the Kappa Nebula
+// letters — drawn in neutral greys with one team-color accent
+
+export function facIconHtml(facId: string, accent: string, scale = 2): string {
+  const url = illoSheet(`fic|${facId}|${accent}`, 14, 14, (R, f) => {
+    const grey = '#8a90a4', dark = '#3c4150', lite = '#c9cede';
+    switch (facId) {
+      case 'ship': // the UFO
+        R(4, 3, 6, 2, lite); R(5, 2, 4, 1, IL_WIN);
+        R(2, 5, 10, 2, grey); R(1, 6, 12, 1, dark);
+        if (f % 4 < 2) { R(4, 8, 1, 1, accent); R(9, 8, 1, 1, accent); }
+        break;
+      case 'gym': // the basket
+        R(11, 1, 2, 12, dark);
+        R(3, 2, 8, 5, lite); R(6, 4, 3, 2, accent);
+        R(4, 8, 6, 1, grey); R(4, 9, 1, 3, grey); R(9, 9, 1, 3, grey);
+        R(5, 10, 1, 1, grey); R(8, 10, 1, 1, grey); R(6, 11, 2, 1, grey);
+        break;
+      case 'cryo': // the pod, breathing white
+        R(4, 1, 6, 12, grey); R(5, 2, 4, 10, dark); R(5, 3, 4, 4, IL_WIN);
+        R(6, 8, 2, 1, accent);
+        if (f % 4 < 2) R(3, 0, 1, 1, lite);
+        else R(10, 0, 1, 1, lite);
+        break;
+      case 'library': // the stack of books
+        R(2, 10, 10, 2, accent); R(3, 8, 9, 2, grey); R(2, 6, 8, 2, lite); R(4, 4, 7, 2, grey);
+        R(5, 2, 5, 2, lite); R(6, 3, 1, 1, dark);
+        break;
+      case 'stadium': // the bleacher
+        R(2, 9, 10, 2, grey); R(4, 6, 8, 2, grey); R(6, 3, 6, 2, grey);
+        R(2, 11, 1, 2, dark); R(11, 11, 1, 2, dark); R(7, 5, 1, 1, accent); R(4, 8, 1, 1, accent);
+        break;
+      case 'greekrow': { // ΚΝ, the Kappa Nebula letters
+        R(2, 3, 2, 9, accent); R(5, 3, 2, 2, accent); R(4, 6, 2, 2, accent); R(5, 9, 2, 3, accent);
+        R(8, 3, 2, 9, lite); R(12, 3, 1, 9, lite); R(10, 5, 1, 3, lite); R(11, 7, 1, 3, lite);
+        break;
+      }
+      default:
+        R(4, 4, 6, 6, grey);
+    }
+  });
+  return illoHtml(url, 14, 14, scale, 'facicon');
+}
+
 export function sceneHtml(scene: SceneId, kit: Kit, scale = 3, flip = false, cls = ''): string {
   const [W, H] = SCENE_SIZE[scene];
   const url = illoSheet(`sc|${scene}|${kit.bg}`, W, H, (R, f) => drawScene(R, scene, kit.bg, f));

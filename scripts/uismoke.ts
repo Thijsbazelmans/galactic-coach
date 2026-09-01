@@ -385,9 +385,14 @@ async function main(): Promise<void> {
   if (st3().tutorial === undefined) throw new Error('the tutorial did not arm');
   if (Object.values(st3().facilities).some((v) => v !== 0)) throw new Error('the tutorial campus should start at level 0');
   const me3 = (): any => st3().teams[st3().myTeamId];
-  drain(); // the call · the dean: gauge → credit → time machine (take only)
+  drain(); // the call · the dean points at the gauge
   if (me3().wins !== 0 || me3().losses !== 9) throw new Error(`season zero must stand 0–9, got ${me3().wins}–${me3().losses}`);
   if (!me3().players.some((p: any) => p.stats.gp > 0)) throw new Error('the lost season should show in the stats');
+  // the job-security lesson: the walk points at the bar, the coach opens it
+  if (!st3().tutWalk || st3().tutWalk.key !== 'jobsec') throw new Error('the job-security walk did not arm');
+  if (!click('[data-action="job-open"]')) throw new Error('the job gauge did not answer the walk');
+  if (!click('.modalback[data-action="job-close"]')) throw new Error('the job menu did not open');
+  drain(); // the dean resumes: four opinions → the credit → the time machine
   if (st3().energy !== 1) throw new Error(`the dean hands exactly one credit, got ${st3().energy}`);
   if (!st3().bag.includes('timeloop')) throw new Error('the time machine never entered the bag');
   if (st3().phase !== 'weekstart') throw new Error(`expected weekstart in season zero, got ${st3().phase}`);
@@ -438,9 +443,11 @@ async function main(): Promise<void> {
   click('.bslot.notebook'); // WRITE IT DOWN
   toasts();
   if (!st3().notebook.some((n: any) => n.key === 'cheer:0')) throw new Error('the cheer never landed in the notebook');
-  drain(); // the marker board reveal → GREEK ROW → the ship talk
+  drain(); // the marker board reveal → GREEK ROW
   if (!st3().prospects.every((p: any) => p.digits >= 2)) throw new Error('the cheerleader should reveal the whole board');
   if (st3().facilities.greekrow !== 1) throw new Error('Kappa Nebula should open GREEK ROW 1');
+  walkSkip(); // the star-rating lesson (POTENTIAL, the stars, locked ratings)
+  drain(); // the ship talk ("these kids won't amount to much")
   walkSkip(); // the search walk (the bus, the rec center)
   anyWin.gcAction('gx-run', ''); // LOCAL REC CENTER — free, pinned to find the gem
   click('[data-action="gx-result-tap"]');
@@ -514,22 +521,37 @@ async function main(): Promise<void> {
     toasts();
     if (!st3().prospects.some((p: any) => p.signed)) throw new Error('the blank check should sign the rec-center kid');
   }
+  // the lineup lesson normally parks these two — the walk was skipped, so
+  // park them by hand: the freshman at starting guard, the standout at center
+  {
+    const slots = me3().lineup.slots as (number | null)[];
+    const park = (pid: number, at: number): void => {
+      const from = slots.indexOf(pid);
+      if (from < 0 || from === at) return;
+      const tmp = slots[at];
+      slots[at] = pid;
+      slots[from] = tmp;
+    };
+    const fr = me3().players.find((p: any) => p.classYear === 0);
+    const so = me3().players.find((p: any) => p.form === 'femme' && p.classYear === 1);
+    if (fr) park(fr.id, 0);
+    if (so && so.outWeeks === 0) park(so.id, 2);
+  }
   anyWin.gcAction('to-matchup', '');
   drain(); // Scoop (three beats), then the breakdown and the goblins
   if (st3().phase !== 'matchup') throw new Error(`expected matchup, got ${st3().phase}`);
   if (st3().energy !== 1) throw new Error('the goblin gag must hand the credit back');
-  walkSkip(); // the matchup walk (the bars) — hands off to the cheerleader
+  walkSkip(); // the matchup walk (the bars, the assistant's despair) — hands off to the cheerleader
   drain(); // "You WROTE IT DOWN. Use it."
   if (!st3().tutWalk || st3().tutWalk.key !== 'speechnote') throw new Error('the speech-from-the-page walk did not arm');
-  click('.bslot.notebook'); // the page becomes THE RALLY
+  click('.bslot.notebook'); // the page comes out: THE CHEER runs as a scene
   toasts();
-  if (st3().tutWalk) throw new Error('the notebook tap should ready the rally');
-  anyWin.gcAction('speech-run', ''); // THE RALLY — and tonight it TEARS THE ROOF OFF
-  toasts();
-  drain(); // the assistant: the room is LOUD
-  if (!st3().pregameWk) throw new Error('the rally never got said');
-  if (st3().speechTook !== true) throw new Error('the tutorial rally must land');
-  if (me3().players.some((p: any) => p.outWeeks === 0 && p.mood < 80)) throw new Error('the rally should put the room at 80+ mood');
+  drain(); // the cheer → the room explodes → "bottle it" → OUR HOUSE learned
+  if (!st3().pregameWk) throw new Error('the cheer never became the speech');
+  if (st3().speechTook !== true) throw new Error('the tutorial cheer must land');
+  if (!st3().knownPlans.includes('rally')) throw new Error('OUR HOUSE should join the sheet');
+  if (me3().players.some((p: any) => p.outWeeks === 0 && p.mood < 80)) throw new Error('the cheer should put the room at 80+ mood');
+  walkSkip(); // "slightly is STEALABLE" — the post-cheer gauge read
   // the freshman STARTS the finale — top row, no exceptions
   {
     const fr = me3().players.find((p: any) => p.classYear === 0);

@@ -39,6 +39,11 @@ async function main(): Promise<void> {
   anyWin.gcAction('setup-team', '0');
   anyWin.gcAction('setup-confirm', '');
   drain();
+  // the job-security lesson comes first: tap the gauge, close the menu
+  if (st().tutWalk?.key !== 'jobsec') throw new Error(`jobsec walk missing, got ${st().tutWalk?.key}`);
+  if (!click('[data-action="job-open"]')) throw new Error('the job gauge did not answer');
+  if (!click('.modalback[data-action="job-close"]')) throw new Error('the job menu did not open');
+  drain(); // the dean resumes → the credit → the machine → the roster walk
   if (st().tutWalk?.key !== 'roster') throw new Error(`roster walk missing, got ${st().tutWalk?.key}`);
 
   // header chrome in season zero: no ?, live ⚙, no notebook
