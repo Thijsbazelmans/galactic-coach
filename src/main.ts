@@ -3418,6 +3418,11 @@ function tutWalkAdvance(sig: string): void {
     if (adv === `lens:${lens}`) return true;
     const m = adv.match(/^spot:(\d+):(\d+)$/);
     if (m) return myTeam(state).lineup.slots[Number(m[2])] === Number(m[1]);
+    const fl = adv.match(/^floor:(\d+)$/);
+    if (fl) {
+      const at = myTeam(state).lineup.slots.indexOf(Number(fl[1]));
+      return at >= 0 && at < 6; // already dragged up during the free look
+    }
     return false;
   };
   while (satisfied(steps[w.ix])) {

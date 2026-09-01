@@ -483,8 +483,10 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
         { text: 'Tap ABILITIES.', hi: 'lens:2', pos: 'bot', advance: 'lens:2' },
         // the lesson floats over the DIMMED bottom half, covering nothing lit
         { text: 'Every player is four things: SKILL (SKL), ATHLETICISM (ATH), FIERCENESS (FRC), BRAINS (BRN). The shape in the middle is their current ability, the outline around it is their potential — with the exact numbers in the corners.', hi: 'grid', pos: 'low' },
-        { text: 'Have a look around — tap here when you are ready.', pos: 'low' },
-        { text: 'And back to the ROSTER.', hi: 'lens:0', pos: 'bot', advance: 'lens:0' },
+        { text: 'Have a look around — all three tabs answer. Tap here when you are ready.', pos: 'low' },
+        // this step only ever shows to a coach on the WRONG tab — the walk
+        // auto-skips it when the lens already reads ROSTER
+        { text: 'Meet me back on the ROSTER screen.', hi: 'lens:0', pos: 'bot', advance: 'lens:0' },
       ];
     case 'timeloop':
       return star
