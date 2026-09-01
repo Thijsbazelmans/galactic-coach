@@ -10,9 +10,10 @@ import {
   SPECIES_ODDS,
   STARTING_INSTRUCTIONS,
   STARTING_PLANS,
-  TEAM_TEMPLATES,
+  conferenceById,
   speciesById,
 } from './data';
+import type { TeamTemplate } from './data';
 import type { Attr, AttrRec, ChampTeam, GameState, Lineup, PlanId, Player, Prospect, Team } from './types';
 import { ATTRS, clamp, copyAttrs, genderize, ovr, pick, rand, zeroAttrs, zeroStats } from './util';
 
@@ -456,8 +457,7 @@ export function emptyLineup(): Lineup {
   return { slots: Array.from({ length: 9 }, () => null) };
 }
 
-function genTeam(counter: { nextId: number }, idx: number, taken: Set<string>): Team {
-  const t = TEAM_TEMPLATES[idx];
+function genTeam(counter: { nextId: number }, idx: number, taken: Set<string>, t: TeamTemplate): Team {
   // a placeholder roster: chooseTeam() re-tiers the whole conference around
   // whichever program you pick (THE SLIDE)
   const players = genRosterAt(counter, CONF_TIERS[2], taken);
@@ -538,15 +538,17 @@ export function genChamps(shift = 0): ChampTeam[] {
 
 // ---- fresh state -----------------------------------------------------------------------
 
-export function newGameState(): GameState {
+export function newGameState(confId?: string): GameState {
   const counter = { nextId: 1 };
   const takenNames = new Set<string>();
-  const teams = TEAM_TEMPLATES.map((_, i) => genTeam(counter, i, takenNames));
+  const conf = conferenceById(confId);
+  const teams = conf.teams.map((tt, i) => genTeam(counter, i, takenNames, tt));
   return {
     version: SAVE_VERSION,
     season: 1,
     week: 1,
     phase: 'pickTeam',
+    conference: conf.id,
     myTeamId: -1,
     teams,
     schedule: genSchedule(teams.length),

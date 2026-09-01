@@ -34,8 +34,10 @@ async function main(): Promise<void> {
     }
   };
   click('[data-action="press-start"]');
-  click('[data-action="pick-team"]');
-  anyWin.gcAction('tut-fresh', '');
+  anyWin.gcAction('setup-codex-burn', '');
+  anyWin.gcAction('setup-conf', 'acc');
+  anyWin.gcAction('setup-team', '0');
+  anyWin.gcAction('setup-confirm', '');
   drain();
   if (st().tutWalk?.key !== 'roster') throw new Error(`roster walk missing, got ${st().tutWalk?.key}`);
 

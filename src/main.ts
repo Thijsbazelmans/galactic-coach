@@ -7,6 +7,8 @@ import {
   ATTR_LABEL,
   ATTR_SHORT,
   CLASS_ABBR,
+  CONFERENCES,
+  conferenceById,
   DRILLS,
   FACILITIES,
   GALAXY_ACTS,
@@ -33,6 +35,7 @@ import {
   actCooldown,
   actionGalaxy,
   addNote,
+  applyConference,
   beginWeek,
   chooseTeam,
   confirmBoard,
@@ -128,12 +131,43 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 let state: GameState = load() ?? freshGame();
 
-// THE TITLE SCREEN: everyone lands on MARCH MANIACS — press start (anywhere)
-// and you either pick a program or pick up exactly where you left off
+// THE TITLE SCREEN: everyone lands on MARCH MANIACS — press start (anywhere).
+// A saved career opens the CAREER menu (continue, or wipe it and start over);
+// a blank slate walks straight into the NEW CAREER wizard.
 let titleOpen = true;
+let titleMenu = false;
 
-/** the picked program, waiting on the FIRST TIME PLAYING? answer (v5 M3) */
+/** the picked program, waiting on the wizard's final LOCK IT IN (v5 M6) */
 let pendingTeam: number | null = null;
+
+// THE NEW CAREER WIZARD (v5 M6): codex question → conference pick → the six
+// programs (names and colors editable, your pick highlighted) → lock it in.
+// Everything here lives OUTSIDE the save: quitting mid-wizard restarts it.
+interface SetupState {
+  step: 'codex' | 'conf' | 'teams';
+  /** season zero happens unless a codex veteran skips straight to tryouts */
+  tutorial: boolean;
+  /** the team being edited in the ✎ modal */
+  editing: number | null;
+}
+let setup: SetupState | null = null;
+
+function codexHasEntries(): boolean {
+  const c = loadCodex();
+  return c.plans.length + c.drills.length + c.instrs.length + c.regions.length > 0;
+}
+
+function ensureSetup(): SetupState {
+  if (!setup) {
+    const has = codexHasEntries();
+    setup = { step: has ? 'codex' : 'conf', tutorial: !has, editing: null };
+  }
+  return setup;
+}
+
+function canResume(): boolean {
+  return state.phase !== 'pickTeam' && state.myTeamId >= 0;
+}
 
 function titleScreenHtml(): string {
   const t = state.myTeamId >= 0 ? myTeam(state) : null;
@@ -141,12 +175,22 @@ function titleScreenHtml(): string {
   // 128×72 at ×3 is 384px wide — zoomed down to fit narrower phones
   const avail = Math.min(window.innerWidth || 480, 480) - 16;
   const zoom = Math.min(1, avail / 384);
-  const resume = state.phase !== 'pickTeam' && t !== null;
+  const resume = canResume();
+  const saveLine = resume ? `${esc(t!.name).toUpperCase()} · SEASON ${Math.max(1, state.season)} · ${esc(weekLabel(state))}` : 'A NEW CAREER AWAITS';
+  // THE CAREER MENU: continue is a tap; wiping the save is a hold
+  const menu = titleMenu && resume
+    ? `<div class="modalback"><div class="modal">
+        <span class="tag">YOUR CAREER</span>
+        <p class="askteam">${chipBig(teamLabel(t!), t!.bg, t!.fg)}<br/><span class="dim">SEASON ${Math.max(1, state.season)} · ${esc(weekLabel(state))}</span></p>
+        <button class="wide askbtn" data-action="menu-continue"><b>▸ CONTINUE</b><span>Pick up exactly where you left off</span></button>
+        <button class="wide askbtn hold danger" data-action="menu-new"><b>NEW GAME</b><span>Wipe this save and start a new career (the codex survives)</span></button>
+      </div></div>`
+    : '';
   return `<div class="titlescreen" data-action="press-start">
     <div class="titlewrap" style="zoom:${zoom.toFixed(3)}">${titleHtml(kit, 3, 'title')}</div>
     <div class="titlehint">▸ TAP ANYWHERE</div>
-    <div class="titlesave">${resume ? `${esc(t!.name).toUpperCase()} · SEASON ${Math.max(1, state.season)} · ${esc(weekLabel(state))}` : 'A NEW CAREER AWAITS'}</div>
-  </div>`;
+    <div class="titlesave">${saveLine}</div>
+  </div>${menu}`;
 }
 
 // ---- THE RAMP: one hue per save ------------------------------------------------
@@ -2843,32 +2887,68 @@ function stageGameover(s: GameState): string {
   </div>`;
 }
 
-function stagePickTeam(s: GameState): string {
-  const cards = s.teams.map((t) => {
-    return `<button class="teampickbtn" data-action="pick-team" data-id="${t.id}" style="background:${t.bg};color:${t.fg}">
-      <b>${esc(teamLabel(t))}</b><br/><span>${esc(t.region)} · ${esc(t.planet)}</span></button>`;
-  }).join('');
-  // START A NEW CAREER (v5 M4): no codex → the tutorial always teaches;
-  // codex present → keep the knowledge and skip to tryouts, or burn it and
-  // coach season zero again from scratch
-  const pt = pendingTeam !== null ? s.teams[pendingTeam] : null;
-  const cdx0 = loadCodex();
-  const hasCodex = cdx0.plans.length + cdx0.drills.length + cdx0.instrs.length + cdx0.regions.length > 0;
-  const askBtns = hasCodex
-    ? `<button class="wide askbtn" data-action="tut-skip"><b>I KNOW THE DRILL</b><span>Keep your knowledge — go straight to tryouts</span></button>
-      <button class="wide askbtn hold danger" data-action="tut-fresh"><b>START FRESH</b><span>Delete the codex and coach the tutorial (cannot be undone)</span></button>`
-    : `<button class="wide askbtn" data-action="tut-yes"><b>FIRST TIME PLAYER</b><span>Coach a short tutorial</span></button>`;
-  const ask = pt
-    ? `<div class="modalback"><div class="modal">
-      <span class="tag">START A NEW CAREER</span>
-      <p class="askteam"><span class="dim">SELECTED TEAM</span><br/>${chipBig(teamLabel(pt), pt.bg, pt.fg)}</p>
-      ${askBtns}
-      <button class="wide askbtn" data-action="tut-back"><b>PICK A DIFFERENT PROGRAM</b></button>
-    </div></div>`
-    : '';
+// ---- THE NEW CAREER WIZARD (v5 M6) -----------------------------------------------
+// Step 1 (codex veterans only): keep the knowledge or burn it.
+// Step 2: pick a conference — four leagues, six programs each.
+// Step 3: the six programs, names and colors editable, pick yours, LOCK IT IN.
+
+function stageSetupCodex(): string {
+  const cdx = loadCodex();
+  const n = cdx.plans.length + cdx.drills.length + cdx.instrs.length + cdx.regions.length;
   return `<h1>GALACTIC COACH</h1>
     <p class="sub">3-on-3. Every choice has two tails.</p>
-    <div class="teampick">${cards}</div>${ask}`;
+    <div class="report"><b>THE CODEX</b> <span class="dim">· ${n} entr${n === 1 ? 'y' : 'ies'} carried across careers</span></div>
+    <button class="wide askbtn" data-action="setup-codex-keep"><b>I KNOW THE DRILL</b><span>Keep everything you learned — skip the tutorial, straight to tryouts</span></button>
+    <button class="wide askbtn hold danger" data-action="setup-codex-burn"><b>START FRESH</b><span>Delete the codex and coach the tutorial season (cannot be undone)</span></button>`;
+}
+
+function stageSetupConf(): string {
+  const cards = CONFERENCES.map((c) => {
+    const chips = c.teams.map((t) => chip(t.name, t.bg, t.fg, true)).join(' ');
+    return `<button class="wide confcard" data-action="setup-conf" data-id="${c.id}">
+      <b>${esc(c.name)}</b><span>${esc(c.sub)}</span>
+      <div class="confchips">${chips}</div>
+    </button>`;
+  }).join('');
+  return `<h1>PICK A CONFERENCE</h1>
+    <p class="sub">Six programs. One of them is about to hire you.</p>
+    <div class="teampick">${cards}</div>`;
+}
+
+function stageSetupTeams(s: GameState): string {
+  const conf = conferenceById(s.conference);
+  const rows = s.teams.map((t) => {
+    const mine = pendingTeam === t.id;
+    return `<div class="confteamrow ${mine ? 'mine' : ''}">
+      <button class="teampickbtn" data-action="setup-team" data-id="${t.id}" style="background:${t.bg};color:${t.fg}">
+        <b>${esc(teamLabel(t))}</b>${mine ? ' <i class="youtag">YOU</i>' : ''}<br/><span>${esc(t.region)} · ${esc(t.planet)}</span></button>
+      <button class="editbtn" data-action="setup-edit" data-id="${t.id}" title="edit name & colors">✎</button>
+    </div>`;
+  }).join('');
+  const edIx = setup !== null ? setup.editing : null;
+  const ed = edIx !== null ? s.teams[edIx] ?? null : null;
+  const editModal = ed
+    ? `<div class="modalback"><div class="modal">
+        <span class="tag">EDIT PROGRAM</span>
+        <label class="edrow"><span>PLANET</span><input id="ed-planet" type="text" maxlength="18" value="${esc(ed.planet)}"/></label>
+        <label class="edrow"><span>TEAM NAME</span><input id="ed-name" type="text" maxlength="18" value="${esc(ed.name)}"/></label>
+        <label class="edrow"><span>MAIN COLOR</span><input id="ed-bg" type="color" value="${esc(ed.bg)}"/></label>
+        <label class="edrow"><span>TEXT COLOR</span><input id="ed-fg" type="color" value="${esc(ed.fg)}"/></label>
+        <button class="wide askbtn" data-action="setup-edit-save"><b>SAVE</b></button>
+        <button class="wide askbtn" data-action="setup-edit-cancel"><b>CANCEL</b></button>
+      </div></div>`
+    : '';
+  return `<h1>${esc(conf.name)}</h1>
+    <p class="sub">Tap the program you'll coach. ✎ renames any of the six — names and colors lock when the season starts.</p>
+    <div class="teampick">${rows}</div>
+    <button class="wide askbtn" data-action="setup-back"><b>PICK A DIFFERENT CONFERENCE</b></button>${editModal}`;
+}
+
+function stagePickTeam(s: GameState): string {
+  const st = ensureSetup();
+  if (st.step === 'codex') return stageSetupCodex();
+  if (st.step === 'conf') return stageSetupConf();
+  return stageSetupTeams(s);
 }
 
 // ---- nav (always there) ------------------------------------------------------------------------------------
@@ -2896,8 +2976,15 @@ function navAction(label: string, sub: string, runAction: string, sheetAction: s
 function nav(s: GameState): string {
   if (currentStory(s)) return navMain('THE GALAXY IS TALKING…', 'noop', true);
   switch (s.phase) {
-    case 'pickTeam':
-      return navMain('CHOOSE YOUR PROGRAM', 'noop', true);
+    case 'pickTeam': {
+      const st = ensureSetup();
+      if (st.step === 'teams') {
+        return pendingTeam !== null
+          ? navMain('⭐ LOCK IT IN — START THE CAREER', 'setup-confirm')
+          : navMain('TAP THE PROGRAM YOU WILL COACH', 'noop', true);
+      }
+      return navMain(st.step === 'conf' ? 'PICK A CONFERENCE' : 'A NEW CAREER AWAITS', 'noop', true);
+    }
     case 'teamSelect':
       return navMain('CONFIRM SQUAD', 'cut-confirm-open', false, false);
     case 'weekstart':
@@ -4367,33 +4454,92 @@ const PHASE_TIP: Record<string, string> = {
 
 function executeAction(action: string, id: string): void {
   switch (action) {
-    case 'press-start': titleOpen = false; builtKey = ''; break;
-    case 'pick-team': pendingTeam = Number(id); break;
-    case 'tut-yes': {
-      if (pendingTeam === null) break;
-      for (const r of tutorialBoot(state, pendingTeam)) queueStory(state, r.defId, r.beat, r.playerId, r.data ?? {});
-      save(state);
-      pendingTeam = null;
+    case 'press-start':
+      // a saved career opens the menu; a blank slate walks into the wizard
+      if (canResume()) titleMenu = true;
+      else { titleOpen = false; builtKey = ''; }
+      break;
+    case 'menu-continue': titleMenu = false; titleOpen = false; builtKey = ''; break;
+    case 'menu-back': titleMenu = false; break;
+    case 'menu-new':
+      titleMenu = false;
+      titleOpen = false;
+      builtKey = '';
+      executeAction('new-game', '');
+      break;
+    case 'setup-codex-keep': {
+      const st = ensureSetup();
+      st.tutorial = false;
+      st.step = 'conf';
       break;
     }
-    case 'tut-skip':
-      if (pendingTeam !== null) chooseTeam(state, pendingTeam);
-      pendingTeam = null;
-      break;
-    case 'tut-fresh': {
-      // START FRESH: the codex burns, and the tutorial teaches from zero
-      if (pendingTeam === null) break;
+    case 'setup-codex-burn': {
+      // START FRESH: the codex burns — including whatever freshGame() already
+      // merged into this run — and the tutorial teaches from zero
+      const st = ensureSetup();
       wipeCodex();
       state.codexPending = undefined;
       state.unlockedDrills = ['shootaround', 'scrimmage', 'twodays', 'rest', 'bonfire'];
       state.unlockedRegions = ['reccenter', 'home', 'nebula', 'stormlayers', 'outerrim'];
       state.knownInstr = ['counter'];
-      for (const r of tutorialBoot(state, pendingTeam)) queueStory(state, r.defId, r.beat, r.playerId, r.data ?? {});
+      st.tutorial = true;
+      st.step = 'conf';
+      break;
+    }
+    case 'setup-conf': {
+      const st = ensureSetup();
+      applyConference(state, id);
+      st.step = 'teams';
+      st.editing = null;
+      pendingTeam = null;
       save(state);
+      break;
+    }
+    case 'setup-team': pendingTeam = Number(id); break;
+    case 'setup-edit': ensureSetup().editing = Number(id); break;
+    case 'setup-edit-cancel': if (setup) setup.editing = null; break;
+    case 'setup-edit-save': {
+      const st = ensureSetup();
+      if (st.editing === null) break;
+      const t = state.teams[st.editing];
+      const val = (elId: string): string => (document.getElementById(elId) as HTMLInputElement | null)?.value ?? '';
+      const name = val('ed-name').trim();
+      const planet = val('ed-planet').trim();
+      const bg = val('ed-bg');
+      const fg = val('ed-fg');
+      if (t) {
+        if (name) t.name = name.slice(0, 18);
+        if (planet) t.planet = planet.slice(0, 18);
+        if (/^#[0-9a-fA-F]{6}$/.test(bg)) t.bg = bg.toUpperCase();
+        if (/^#[0-9a-fA-F]{6}$/.test(fg)) t.fg = fg.toUpperCase();
+      }
+      st.editing = null;
+      save(state);
+      break;
+    }
+    case 'setup-back': {
+      const st = ensureSetup();
+      st.editing = null;
+      if (st.step === 'teams') {
+        st.step = 'conf';
+        pendingTeam = null;
+      }
+      break;
+    }
+    case 'setup-confirm': {
+      // LOCK IT IN: from here the conference, names and colors are forever
+      if (pendingTeam === null) break;
+      const st = ensureSetup();
+      setup = null;
+      if (st.tutorial) {
+        for (const r of tutorialBoot(state, pendingTeam)) queueStory(state, r.defId, r.beat, r.playerId, r.data ?? {});
+        save(state);
+      } else {
+        chooseTeam(state, pendingTeam);
+      }
       pendingTeam = null;
       break;
     }
-    case 'tut-back': pendingTeam = null; break;
     case 'tut-walk-tap':
       if (finishTypeNow()) break; // first tap lands the whole line
       tutWalkAdvance('tap');
@@ -4644,6 +4790,8 @@ function executeAction(action: string, id: string): void {
       state = freshGame();
       lens = 0;
       pendingTeam = null;
+      setup = null;
+      titleMenu = false;
       coachOpen = false;
       itemUi = null;
       toast = null;

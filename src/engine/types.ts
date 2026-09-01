@@ -424,6 +424,8 @@ export interface GameState {
   season: number;
   week: number;
   phase: Phase;
+  /** the chosen conference (locked once the first season starts) */
+  conference?: string;
   myTeamId: number;
   teams: Team[];
   schedule: [number, number][][];

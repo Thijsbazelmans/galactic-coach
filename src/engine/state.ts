@@ -27,6 +27,7 @@ import {
   instrById,
   itemById,
   planById,
+  conferenceById,
   rollInjury,
   speciesById,
   storyById,
@@ -2652,6 +2653,23 @@ function settleTier(team: Team, target: number): void {
   }
   for (const p of team.players) p.startAttrs = copyAttrs(p.attrs);
   autoLineup(team);
+}
+
+/** FOUND THE CONFERENCE: repaint the six programs with the chosen
+    conference's identities. Rosters stay put — they are placeholders until
+    chooseTeam() re-tiers the league anyway. */
+export function applyConference(s: GameState, confId: string): void {
+  const conf = conferenceById(confId);
+  s.conference = conf.id;
+  conf.teams.forEach((tt, i) => {
+    const t = s.teams[i];
+    if (!t) return;
+    t.name = tt.name;
+    t.planet = tt.planet;
+    t.region = tt.region;
+    t.bg = tt.bg;
+    t.fg = tt.fg;
+  });
 }
 
 export function chooseTeam(s: GameState, teamId: number): void {

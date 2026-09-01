@@ -71,19 +71,40 @@ async function main(): Promise<void> {
     if ((gc.state() as any).tutWalk) anyWin.gcAction('tut-walk-skip', '');
   };
 
-  // everyone lands on MARCH MANIACS: press start (anywhere) → the program pick
+  // everyone lands on MARCH MANIACS: press start (anywhere) → the wizard
   if (!app.querySelector('.titlescreen')) throw new Error('title screen missing');
   if (!app.innerHTML.includes('A NEW CAREER AWAITS')) throw new Error('fresh title should offer a new career');
   must('[data-action="press-start"]', 'press start');
-  if (!app.innerHTML.includes('GALACTIC COACH')) throw new Error('pick-team screen missing');
-  must('[data-action="pick-team"]', 'pick team');
-  // START A NEW CAREER — with a codex present: keep the knowledge, or burn it
-  if (!app.innerHTML.includes('START A NEW CAREER')) throw new Error('new-career dialog missing after pick');
-  if (!app.innerHTML.includes('SELECTED TEAM')) throw new Error('selected team missing from the new-career dialog');
+  // wizard step 1 — with a codex present: keep the knowledge, or burn it
+  if (!app.innerHTML.includes('GALACTIC COACH')) throw new Error('wizard screen missing');
+  if (!app.innerHTML.includes('THE CODEX')) throw new Error('codex step missing');
   if (!app.innerHTML.includes('I KNOW THE DRILL')) throw new Error('the keep-knowledge path is missing');
   if (!app.innerHTML.includes('START FRESH')) throw new Error('the burn-the-codex path is missing');
-  must('[data-action="tut-skip"]', 'skip the tutorial (keep the codex)');
+  must('[data-action="setup-codex-keep"]', 'keep the codex');
+  // wizard step 2 — four conferences on the board
+  if (app.querySelectorAll('[data-action="setup-conf"]').length !== 4) throw new Error('four conferences must offer themselves');
+  if (!app.innerHTML.includes('THE BIG DIPPER')) throw new Error('the Big Dipper is missing');
+  if (!app.innerHTML.includes('THE IVY CLUSTER')) throw new Error('the Ivy Cluster is missing');
+  anyWin.gcAction('setup-conf', 'acc');
+  // wizard step 3 — six editable programs; tap one and it wears the YOU tag
+  if (app.querySelectorAll('[data-action="setup-team"]').length !== 6) throw new Error('six programs must show');
+  if (!app.innerHTML.includes('Star Heels')) throw new Error('the Star Heels left the Asteroid Coast');
+  anyWin.gcAction('setup-team', '0');
+  if (!app.innerHTML.includes('youtag')) throw new Error('the picked program must wear the YOU tag');
+  // the ✎ modal: rename a rival and repaint it (Real Blue Devils, welcome)
+  anyWin.gcAction('setup-edit', '1');
+  const edName = doc.getElementById('ed-name') as unknown as { value: string } | null;
+  const edBg = doc.getElementById('ed-bg') as unknown as { value: string } | null;
+  if (!edName || !edBg) throw new Error('the edit modal did not open');
+  edName.value = 'Real Blue Devils';
+  edBg.value = '#001A57';
+  anyWin.gcAction('setup-edit-save', '');
+  const rival = (gc.state() as any).teams[1];
+  if (rival.name !== 'Real Blue Devils' || rival.bg !== '#001A57') throw new Error('the program edit did not stick');
+  // LOCK IT IN → the codex skipped the tutorial, straight to tryouts
+  anyWin.gcAction('setup-confirm', '');
   if (state().phase !== 'teamSelect') throw new Error(`expected teamSelect, got ${state().phase}`);
+  if ((gc.state() as any).conference !== 'acc') throw new Error('the conference did not lock into the save');
   drain();
   if (!anyWin.gcAction) throw new Error('gcAction dev handle missing (expose it for the smoke test)');
   // TRYOUTS: the selection grid — 4 rows, the bottom one is the CUT
@@ -349,9 +370,12 @@ async function main(): Promise<void> {
 
   // ---- THE TUTORIAL SEASON (v5 M4.1): season zero, paced, locked, walked ----
   anyWin.gcAction('new-game', ''); // no title screen on an in-session reset
-  must('[data-action="pick-team"]', 'pick team (tutorial run)');
   if (!app.innerHTML.includes('START FRESH')) throw new Error('burn-the-codex path missing on the second career');
-  anyWin.gcAction('tut-fresh', ''); // wipe the codex, coach season zero
+  anyWin.gcAction('setup-codex-burn', ''); // wipe the codex, coach season zero
+  if (app.querySelectorAll('[data-action="setup-conf"]').length !== 4) throw new Error('conference pick missing on the second career');
+  anyWin.gcAction('setup-conf', 'dipper');
+  anyWin.gcAction('setup-team', '2');
+  anyWin.gcAction('setup-confirm', '');
   const st3 = (): any => gc.state() as any;
   if (st3().tutorial === undefined) throw new Error('the tutorial did not arm');
   if (Object.values(st3().facilities).some((v) => v !== 0)) throw new Error('the tutorial campus should start at level 0');

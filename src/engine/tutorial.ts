@@ -573,6 +573,7 @@ const TUT_ALWAYS = new Set([
   'story-tap', 'story-choice', 'toast-tap', 'gx-result-tap', 'tut-walk-tap',
   'tut-walk-skip', 'card', 'noop', 'week-turn-close', 'item-close',
   'press-start', // a reload mid-walk still lands on the title screen — START must work
+  'menu-continue', 'menu-new', 'menu-back', // …and so must the career menu behind it
   'coach-open', 'coach-close', // the settings gear always answers…
   'new-game', // …and NEW GAME inside it is the universal escape hatch
 ]);

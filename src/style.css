@@ -1711,6 +1711,20 @@ button.hopp .chip { vertical-align: 1px; }
 .askbtn b { display: block; font-size: 15px; letter-spacing: 1px; color: var(--r95); }
 .askbtn span { display: block; font-size: 11px; color: var(--r55); margin-top: 2px; }
 
+/* ---- THE NEW CAREER WIZARD: conference cards + editable program rows ------ */
+.confcard b { display: block; font-size: 16px; letter-spacing: 1px; color: var(--r95); }
+.confcard span { display: block; font-size: 11px; color: var(--r55); margin: 2px 0 6px; }
+.confchips { display: flex; flex-wrap: wrap; gap: 3px; }
+.confteamrow { display: flex; gap: 6px; align-items: stretch; }
+.confteamrow .teampickbtn { flex: 1; min-width: 0; }
+.confteamrow.mine .teampickbtn { outline: 2px solid var(--r95); outline-offset: 1px; }
+.confteamrow .editbtn { width: 46px; flex: none; font-size: 18px; color: var(--r75); border-color: var(--r55); margin: 0; }
+.youtag { font-style: normal; font-size: 10px; letter-spacing: 1px; border: 1px solid currentColor; padding: 1px 5px; vertical-align: 3px; }
+.edrow { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 11px; letter-spacing: 1px; color: var(--r55); }
+.edrow span { width: 88px; flex: none; }
+.edrow input { flex: 1; min-width: 0; background: transparent; border: 1px solid var(--r55); color: var(--r95); font-family: inherit; font-size: 14px; padding: 6px 8px; }
+.edrow input[type='color'] { height: 34px; padding: 2px; cursor: pointer; }
+
 /* ---- FACILITIES tiles: current state + a cost, nothing more --------------- */
 .factile { margin: 4px 0; padding: 7px 10px; }
 .facstate { margin-top: 3px; font-size: 12px; color: var(--r55); }

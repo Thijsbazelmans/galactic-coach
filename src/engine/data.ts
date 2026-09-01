@@ -130,16 +130,84 @@ export function fragility(speciesId: string): number {
   return speciesById(speciesId).tier === 3 ? 2 : 1;
 }
 
-// ---- the league: 6 programs, hue-spread for clean ramps ---------------------
+// ---- the league: 4 conferences × 6 programs ---------------------------------
+// Every program is a wink at a real school — its main colors, a planet, and a
+// space mascot. The player picks ONE conference for the whole career; names
+// and colors stay editable until the first season tips off.
 
-export const TEAM_TEMPLATES = [
-  { name: 'Aurum Orsos', planet: 'Montalvo', region: 'Western Rim', bg: '#2D68C4', fg: '#F2A900' },
-  { name: 'Voidfiends', planet: 'Duqat', region: 'Core Worlds', bg: '#5B21B6', fg: '#E6D5FF' },
-  { name: 'Skyhawks', planet: 'Kanzar', region: 'Central Plains Belt', bg: '#C8102E', fg: '#FFE9E9' },
-  { name: 'Voidcats', planet: 'Kentaurus', region: 'Bluegrass Nebula', bg: '#177245', fg: '#C9F2E4' },
-  { name: 'Star Heels', planet: 'Novacarina', region: 'Eastern Drift', bg: '#4A9ED4', fg: '#0B2537' },
-  { name: 'Voidhounds', planet: 'Zagnar Prime', region: 'Northwest Expanse', bg: '#C25E10', fg: '#FFE1C9' },
+export interface TeamTemplate {
+  name: string;
+  planet: string;
+  region: string;
+  bg: string;
+  fg: string;
+}
+
+export interface ConferenceDef {
+  id: string;
+  name: string;
+  sub: string;
+  teams: TeamTemplate[];
+}
+
+export const CONFERENCES: ConferenceDef[] = [
+  {
+    id: 'dipper',
+    name: 'THE BIG DIPPER',
+    sub: 'Twelve plus ten equals six. The committee stands by the math.',
+    teams: [
+      { name: 'Skyhawks', planet: 'Kanzar', region: 'Central Plains Belt', bg: '#0051BA', fg: '#FFC82D' },
+      { name: 'Aurum Orsos', planet: 'Montalvo', region: 'Western Rim', bg: '#2D68C4', fg: '#F2A900' },
+      { name: 'Wolvernauts', planet: 'Arboria', region: 'Great Lakes Nebula', bg: '#00274C', fg: '#FFCB05' },
+      { name: 'Starhorns', planet: 'Austonia', region: 'Southern Void', bg: '#BF5700', fg: '#FFF2E5' },
+      { name: 'Comethuskers', planet: 'Lincolnia', region: 'The Grain Belt', bg: '#E41C38', fg: '#FDF2D9' },
+      { name: 'Boostermakers', planet: 'Lafayetta', region: 'Rustbelt Cluster', bg: '#CEB888', fg: '#241C0A' },
+    ],
+  },
+  {
+    id: 'sec',
+    name: 'SPACE EXPLORATION CONFERENCE',
+    sub: 'It just means more. Light-years more.',
+    teams: [
+      { name: 'Redshift Tide', planet: 'Tuscaloona', region: 'Crimson Reach', bg: '#9E1B32', fg: '#FFEDF0' },
+      { name: 'Voidcats', planet: 'Kentaurus', region: 'Bluegrass Nebula', bg: '#0033A0', fg: '#E9F0FF' },
+      { name: 'Volunauts', planet: 'Rockytopia', region: 'Smoky Drift', bg: '#FF8200', fg: '#331A00' },
+      { name: 'Gravigators', planet: 'Swampia', region: 'The Swamp Sector', bg: '#0021A5', fg: '#FF8A5C' },
+      { name: 'Nebula Bengals', planet: 'Batonia', region: 'Bayou Cluster', bg: '#461D7C', fg: '#FDD023' },
+      { name: 'Moondogs', planet: 'Athenova', region: 'Peach Arm', bg: '#BA0C2F', fg: '#FFECEC' },
+    ],
+  },
+  {
+    id: 'acc',
+    name: 'ASTEROID COAST CONFERENCE',
+    sub: 'Tobacco Road, repaved in stardust.',
+    teams: [
+      { name: 'Star Heels', planet: 'Novacarina', region: 'Eastern Drift', bg: '#4A9ED4', fg: '#0B2537' },
+      { name: 'Voidfiends', planet: 'Duqat', region: 'Gothic Belt', bg: '#00539B', fg: '#E6F0FF' },
+      { name: 'Warpack', planet: 'Raleixa', region: 'The Research Triangle', bg: '#CC0000', fg: '#FFEAEA' },
+      { name: 'Gravaliers', planet: 'Charlottia', region: 'Blue Ridge Rim', bg: '#232D4B', fg: '#F84C1E' },
+      { name: 'Solarcanes', planet: 'Coralia', region: 'Tropic Stormbelt', bg: '#F47321', fg: '#0A3D2B' },
+      { name: 'Yellowjets', planet: 'Atlantia', region: 'Southern Spiral', bg: '#003057', fg: '#B3A369' },
+    ],
+  },
+  {
+    id: 'ivy',
+    name: 'THE IVY CLUSTER',
+    sub: 'Old stars. Older money. No athletic scholarships in this galaxy.',
+    teams: [
+      { name: 'Crimsonauts', planet: 'Cantabria', region: 'The Endowment Cloud', bg: '#A51C30', fg: '#FFEBEE' },
+      { name: 'Brown Dwarfs', planet: 'Providencia', region: 'New England Drift', bg: '#4E3629', fg: '#F5E9DF' },
+      { name: 'Big Red Giants', planet: 'Ithacania', region: 'The Gorge Nebula', bg: '#B31B1B', fg: '#FFEDED' },
+      { name: 'Quasars', planet: 'Phillyon', region: 'Liberty Belt', bg: '#011F5B', fg: '#EDF2FF' },
+      { name: 'Lionauts', planet: 'Morningside', region: 'Upper West Arm', bg: '#B9D9EB', fg: '#16324A' },
+      { name: 'Tigertrons', planet: 'Nassau IX', region: 'Old Money Belt', bg: '#E77500', fg: '#1A1000' },
+    ],
+  },
 ];
+
+export function conferenceById(id: string | undefined): ConferenceDef {
+  return CONFERENCES.find((c) => c.id === id) ?? CONFERENCES[0];
+}
 
 export const DEITY_NAMES = [
   'Zeuxx', 'Apollyx', 'Arex', 'Hermezz', 'Poseidrox', 'Hadezz', 'Dionyzos',
