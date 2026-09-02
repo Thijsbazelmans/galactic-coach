@@ -26,11 +26,57 @@ import {
   observe,
   prospectToPlayer,
 } from './gen';
-import { autoLineup, verdictLines } from './sim';
+import { autoLineup, matchAttrs, tacticsMult, verdictLines } from './sim';
 import type { BoxRow, GameState, MyGameResult, Player, StoryChoiceView, StoryReq, Team } from './types';
 import { ATTRS, addStats, bumpAny, clamp, ovr, rand } from './util';
 
 const TC = (key: string, label: string, opts: Partial<StoryChoiceView> = {}): StoryChoiceView => ({ key, label, ...opts });
+
+/** THE FINALE'S OPPONENT, levelled after the cheer (playtest #11): the room's
+    lift used to push OUR OVERALL past theirs, and "slightly is STEALABLE"
+    read as nonsense. Their roster is scaled, number by number, until their
+    OVERALL sits 1–2 points above ours as the bars print it — still theirs,
+    but only slightly (the rig lands the upset regardless). */
+export function tutorialLevelOpponent(s: GameState): void {
+  const wk = s.schedule[s.week - 1] ?? [];
+  const pair = wk.find(([h, a]) => h === s.myTeamId || a === s.myTeamId);
+  if (!pair) return;
+  const opp = s.teams[pair[0] === s.myTeamId ? pair[1] : pair[0]];
+  const mine = ovr(matchAttrs(myT(s), s.speechFx ?? null, undefined, tacticsMult(s.tacO, s.tacD)));
+  const theirs = (): number => ovr(matchAttrs(opp, null));
+  const base = opp.players.map((p) => ({ p, attrs: { ...p.attrs } }));
+  const apply = (k: number): void => {
+    for (const { p, attrs } of base) {
+      for (const a of ATTRS) {
+        p.attrs[a] = clamp(Math.round(attrs[a] * k), 1, 99);
+        p.pots[a] = Math.max(p.pots[a], p.attrs[a]);
+      }
+    }
+  };
+  // a uniform scale keeps their pecking order (the lineup stands); binary-
+  // search the factor that lands them just above us, then trim the rounding
+  const target = mine + 1.5;
+  let lo = 0.4;
+  let hi = 3;
+  for (let i = 0; i < 30; i++) {
+    const k = (lo + hi) / 2;
+    apply(k);
+    if (theirs() > target) hi = k; else lo = k;
+  }
+  apply(hi);
+  const floor = (): Player[] => opp.lineup.slots.slice(0, 6).map((id) => opp.players.find((p) => p.id === id)).filter((p): p is Player => !!p && p.outWeeks === 0);
+  for (let i = 0; i < 60; i++) {
+    const gap = theirs() - mine;
+    if (gap >= 1 && gap <= 2) break;
+    const six = floor();
+    if (!six.length) break;
+    const p = six[i % six.length];
+    const a = ATTRS[(i * 7) % ATTRS.length];
+    if (gap > 2) p.attrs[a] = Math.max(1, p.attrs[a] - 1);
+    else { p.attrs[a] = Math.min(99, p.attrs[a] + 1); p.pots[a] = Math.max(p.pots[a], p.attrs[a]); }
+  }
+  for (const p of opp.players) p.startAttrs = { ...p.attrs };
+}
 
 /** The bookie's gift lands, whichever answer you gave him. */
 function tutCryoLands(s: GameState): string {
@@ -1398,6 +1444,8 @@ STORIES.push(
       s.speechTook = true;
       s.plan = 'rally';
       (s.tutSeen ??= []).push('cheered');
+      // the room is loud now: their side gets levelled to "only slightly"
+      tutorialLevelOpponent(s);
       return { text: '', fx: [{ unlockPlan: 'rally' }] };
     },
   },

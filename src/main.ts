@@ -3905,13 +3905,30 @@ function showWheel(chancePct: number, success: boolean, label: string, onDone: (
     needle.style.transition = 'transform 2.3s cubic-bezier(.12,.8,.2,1)';
     needle.style.transform = `rotate(${1080 + 180 + landDeg}deg)`;
   });
+  // onDone fires ONCE: a tap while the verdict is showing used to run
+  // finish() a second time, and the story underneath got resolved twice —
+  // season zero's car-and-goodbye chain played back to back (playtest #11)
+  let finished = false;
+  let closed = false;
+  let t2 = 0;
+  const close = (): void => {
+    if (closed) return;
+    closed = true;
+    clearTimeout(t2);
+    overlay.remove();
+    onDone();
+  };
   const finish = (): void => {
+    if (finished) return;
+    finished = true;
     verdict.classList.remove('hide');
     verdict.classList.add(success ? 'up' : 'down');
-    window.setTimeout(() => { overlay.remove(); onDone(); }, 900);
+    t2 = window.setTimeout(close, 900);
   };
   const t1 = window.setTimeout(finish, 2450);
   overlay.addEventListener('click', () => {
+    // mid-spin: land it now and show the verdict; verdict up: skip the wait
+    if (finished) { close(); return; }
     clearTimeout(t1);
     needle.style.transition = 'none';
     needle.style.transform = `rotate(${1080 + 180 + landDeg}deg)`;

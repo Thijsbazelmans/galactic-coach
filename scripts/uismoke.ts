@@ -649,6 +649,17 @@ async function main(): Promise<void> {
   if (!st3().careerLog.some((l: string) => l.startsWith('Learned GO GO GO'))) throw new Error('GO GO GO should arrive as a find (the reveal card)');
   if (!revealSeen) throw new Error('the reveal card never showed the GO GO GO row');
   if (me3().players.some((p: any) => p.outWeeks === 0 && p.mood < 80)) throw new Error('the cheer should put the room at 80+ mood');
+  // "slightly is STEALABLE" has to be TRUE: after the cheer their OVERALL
+  // prints 1–2 above ours (playtest #11: the lift used to push us past them)
+  {
+    const big = app.querySelector('.tbars.mu .tbar.big');
+    if (!big) throw new Error('the OVERALL bar is missing after the cheer');
+    const mineOvr = Number(big.querySelector('.tbv:not(.opp)')?.textContent);
+    const theirOvr = Number(big.querySelector('.tbv.opp')?.textContent);
+    const gap = theirOvr - mineOvr;
+    if (!(gap >= 1 && gap <= 2)) throw new Error(`after the cheer their OVERALL should sit 1–2 above ours, got ${mineOvr} vs ${theirOvr}`);
+    console.log(`post-cheer gauge: ${mineOvr} vs ${theirOvr} — still theirs, slightly`);
+  }
   walkSkip(); // "slightly is STEALABLE" — the post-cheer gauge read
   // the freshman STARTS the finale — top row, no exceptions
   {

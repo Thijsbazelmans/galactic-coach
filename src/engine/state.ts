@@ -590,6 +590,10 @@ export function resolveStory(s: GameState, choiceKey: string): { resolved: Story
   const ev = s.queue[0];
   if (!ev) return null;
   lastLevelUps = [];
+  // a story resolves ONCE: a second call (a doubled UI callback) hands back
+  // the same resolution and spawns nothing — no second next-beat, no
+  // double-charged choice (playtest #11)
+  if (ev.resolvedText !== undefined) return { resolved: ev, fx: [] };
   // the galaxy can TAKE somebody mid-queue (the ride home's debt collector):
   // a story about a player who is no longer on the roster dissolves quietly
   if (ev.playerId !== null && !myTeam(s).players.some((p) => p.id === ev.playerId)) {
