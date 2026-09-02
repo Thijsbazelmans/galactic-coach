@@ -58,9 +58,13 @@ export function tutFreshman(s: GameState): Player | null {
   return myT(s).players.find((p) => p.classYear === 0) ?? null;
 }
 
-/** The injured standout — the one the patch kit is FOR. */
+/** The injured standout — the one the patch kit is FOR. Once patched she
+    loses the injury tag, so the fallback finds her by class: season zero's
+    only sophomore (playtest #8: the old lookup went null after the patch and
+    the best-two gate could never pass). */
 export function tutStandout(s: GameState): Player | null {
-  return myT(s).players.find((p) => p.outKind === 'injury') ?? null;
+  const ps = myT(s).players;
+  return ps.find((p) => p.outKind === 'injury') ?? ps.find((p) => p.classYear === 1) ?? null;
 }
 
 /** The suspended star (later: the one the machine erases). */
@@ -366,9 +370,12 @@ export interface TutStep {
   mark?: string;
   /** the step advances on a HOLD button in the box instead of a tap */
   hold?: boolean;
-  /** the hold refuses until the gate passes ('bestfive': the freshman starts
-      at guard, the standout starts in the frontcourt) */
+  /** the hold refuses until the gate passes ('bestfive': the freshman and
+      the standout both START — top row) */
   gate?: string;
+  /** a FREE look (no spotlight) that still keeps the lens tabs locked —
+      the board of ?? has nothing worth a tab yet */
+  lock?: boolean;
 }
 
 /** Every screen opens with ONE full-screen assistant line — the walk's
@@ -402,8 +409,6 @@ export function tutorialWalkStart(s: GameState, gnStage: string): string | null 
   const seen = s.tutSeen ?? [];
   const want = (key: string): string | null => (seen.includes(key) ? null : key);
   if (s.phase === 'weekstart' && at >= TUT_AT.BOOT) {
-    // the dean pointed at the gauge: the walk hands it to the coach's thumb
-    if (seen.includes('dean-gauge') && !seen.includes('jobsec')) return 'jobsec';
     if (!seen.includes('roster')) return 'roster';
     // the haywire idea has landed: the machine must be pointed at the star
     const star = tutStar(s);
@@ -459,10 +464,6 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
   const seniors = t.players.filter((p) => p.classYear >= 3 && p.id !== star?.id);
   const senIds = seniors.map((p) => p.id).join(',');
   switch (key) {
-    case 'jobsec':
-      return [
-        { text: 'That bar she pointed at — tap it. See exactly which opinions are holding you up, and which have let go.', hi: 'jobbar', pos: 'mid', advance: 'job' },
-      ];
     case 'roster':
       return [
         { text: 'The seniors. Look at those tanks.', hi: `ids:${senIds}`, pos: 'low' },
@@ -483,7 +484,7 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
         { text: 'Tap ABILITIES.', hi: 'lens:2', pos: 'bot', advance: 'lens:2' },
         // the lesson floats over the DIMMED bottom half, covering nothing lit
         { text: 'Every player is four things: SKILL (SKL), ATHLETICISM (ATH), FIERCENESS (FRC), BRAINS (BRN). The shape in the middle is their current ability, the outline around it is their potential — with the exact numbers in the corners.', hi: 'grid', pos: 'low' },
-        { text: 'Have a look around — all three tabs answer. Tap here when you are ready.', pos: 'low' },
+        { text: 'Have a look around — tap here when you are ready.', pos: 'low' },
         // this step only ever shows to a coach on the WRONG tab — the walk
         // auto-skips it when the lens already reads ROSTER
         { text: 'Meet me back on the ROSTER screen.', hi: 'lens:0', pos: 'bot', advance: 'lens:0' },
@@ -503,7 +504,8 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
         { text: 'The rows are your PRIORITY. Top row: THE TARGETS — the kids you actually want.', hi: 'row:0', pos: 'low' },
         { text: 'Middle row: THE BACKUPS — in case the targets say no.', hi: 'row:1', pos: 'low' },
         { text: 'Bottom row: LAST RESORTS. Somebody has to hold the clipboard. Drag names between rows to reorder them, any time.', hi: 'row:2', pos: 'low' },
-        { text: "Have a look around — tap here when you're done.", pos: 'low' },
+        // a free look at a board of ?? — the tabs stay locked a while longer
+        { text: "Have a look around — tap here when you're done.", pos: 'low', lock: true },
       ];
     case 'cheernote':
       return [
@@ -515,8 +517,8 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
       ];
     case 'starlesson':
       return [
-        { text: 'One more thing the marker showed us: tap POTENTIAL.', hi: 'lens:2', pos: 'bot', advance: 'lens:2' },
-        { text: "The STARS guess how good a kid could BECOME — one star a warm body, five a legend. And once you've seen a rating, it's yours: it never changes on you.", hi: 'board', pos: 'low' },
+        { text: 'The cheerleader gave us everything we need to know. Tap POTENTIAL.', hi: 'lens:2', pos: 'bot', advance: 'lens:2' },
+        { text: 'The STARS guess how good a kid could BECOME — one star a warm body, five a legend.', hi: 'board', pos: 'low' },
         { text: 'Two stars, tops, anywhere on this board.', hi: 'board', pos: 'low' },
         { text: 'Back to the BOARD.', hi: 'lens:0', pos: 'bot', advance: 'lens:0' },
       ];
@@ -532,28 +534,31 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
       return gem
         ? [
             S({ text: `There they are — ${gem.pr.name}. And we know NOTHING: the rating reads ??. Nobody has seen them play a real game.`, hi: `pr:${gem.pr.id}`, pos: 'top' }),
-            S({ text: 'So read the one thing we CAN read. Tap POTENTIAL.', hi: 'lens:2', pos: 'bot', advance: 'lens:2' }),
+            S({ text: 'Maybe we can find out something about their future? Tap POTENTIAL.', hi: 'lens:2', pos: 'bot', advance: 'lens:2' }),
             S({ text: 'FIVE. STARS.', hi: `pr:${gem.pr.id}`, pos: 'top' }),
           ]
         : [];
     case 'potential2':
       return gem && gem.where === 'pending'
         ? [
-            S({ text: `The board only holds nine, and it's full — drag ${gem.pr.name} onto it and bump a nobody down.`, hi: `pr:${gem.pr.id}`, pos: 'low', advance: 'swap:gem' }),
+            // 'bot': the kid sits in the found row at the foot of the grid —
+            // the box must not cover the very card it points at
+            S({ text: `The board only holds nine, and it's full — drag ${gem.pr.name} onto it and bump a nobody down.`, hi: `pr:${gem.pr.id}`, pos: 'bot', advance: 'swap:gem' }),
             S({ text: 'Whoever sits in the bottom row when you confirm walks away forever. Anybody but the kid. CONFIRM THE BOARD.', hi: 'nav', pos: 'lens' }),
           ]
         : [];
     case 'practice':
       return [
-        // free look first: the floor answers drags from second one
-        { text: 'The floor: STARTERS on top, the BENCH in the middle, RESERVES at the bottom. Drag players between rows — try it, then tap here.', pos: 'low' },
+        // the floor stays FROZEN through the letter lesson (playtest #8): the
+        // rows, the letters, the shapes — the first drag is the freshman's
+        { text: 'The floor: STARTERS on top, the BENCH in the middle, RESERVES at the bottom.', hi: 'grid', pos: 'low' },
         { text: 'The LETTERS on the cards: what each player is WORTH in that spot tonight.', hi: 'grid', pos: 'low' },
         { text: 'Tap ABILITIES.', hi: 'lens:2', pos: 'bot', advance: 'lens:2' },
         { text: 'Small shapes, everywhere. This roster\'s numbers are… modest. The seniors\' too.', hi: 'grid', pos: 'low' },
         { text: 'Back to the ROSTER.', hi: 'lens:0', pos: 'bot', advance: 'lens:0' },
-        { text: 'And modest numbers, gassed and miserable, read F. But a letter is MORE than the numbers: energy and mood drag it under them — or lift it clean over.', hi: `ids:${senIds}`, pos: 'low' },
+        { text: 'And modest numbers, gassed and miserable, read F. But a letter is MORE than the numbers: ENERGY and MOOD move it just as much — in both directions!', hi: `ids:${senIds}`, pos: 'low' },
         ...(fresh ? [
-          S({ text: `The freshman: the worst RATING in the room — and the only full tank in the building. Drag ${fresh.name} onto the floor.`, hi: `p:${fresh.id}`, pos: 'low', advance: `floor:${fresh.id}` }),
+          S({ text: `The freshman: the worst RATING in the room — and the only full tank in the building. Players move by DRAGGING: drag ${fresh.name} up onto the floor.`, hi: `p:${fresh.id}`, pos: 'low', advance: `floor:${fresh.id}` }),
           S({ text: 'Look at that letter! Full tanks play a kid ABOVE his numbers.', hi: `p:${fresh.id}`, pos: 'low' }),
           S({ text: `And WHERE he stands matters: ${fresh.name} is a GUARD — brains read big in the BACKCOURT and sag in the FRONTCOURT. Slide him along the top row and watch the letter change.`, hi: 'grid', pos: 'low' }),
           S({ text: `Park ${fresh.name} in the starting BACKCOURT — top row, left.`, hi: `p:${fresh.id}`, pos: 'low', advance: `spot:${fresh.id}:0` }),
@@ -563,7 +568,9 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
           : []),
         ...(hurt ? [S({ text: `${hurt.name} is a CENTER — the FRONTCOURT is hers. Park her in the starting FRONTCOURT: top row, right.`, hi: `p:${hurt.id}`, pos: 'low', advance: `spot:${hurt.id}:2` })] : []),
         { text: "Now — the TEAM BARS: your team's strength, line by line, ranked against the rest of the league.", hi: 'bars', pos: 'top', mark: 'm:bars' },
-        { text: 'Your best players in their best spots move the lines. Fill out the rest of the five — watch the bars — and keep your best two STARTING.', pos: 'lens', hold: true, gate: 'bestfive' },
+        // a free look, boxed at the very bottom: the bars are the lesson, so
+        // nothing may cover them. Starting the best two is GAME NIGHT's gate
+        { text: "Your best players in their best spots move the lines. Shuffle the rest of the five around — watch the bars lean. Tap here when you're done.", pos: 'bot' },
         { text: 'As well as positions, you tell the players WHAT to practice: THE STRATEGY. Tap a different scheme — our bars lean into it. A slightly better chance to not lose. A girl can dream, right?!', hi: 'tac', pos: 'top', advance: 'tac', mark: 'm:tac' },
         { text: "Play with the schemes for a bit — watch the bars lean. Tap here when you've found one you like.", pos: 'top' },
         { text: 'You can run ONE practice each week. But we have no hoop — so all we can give them is a week of REST. They could use it. Hold ▶ RUN.', hi: 'nav', pos: 'lens' },
@@ -586,6 +593,11 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
         : [];
     case 'matchup':
       return [
+        // the gate lives HERE, where it matters: the best two START tonight
+        // (skips itself when the lineup already holds)
+        ...(fresh && hurt
+          ? [S({ text: `First things first — tonight's FIVE. ${fresh.name} and ${hurt.name} are the best we have: make sure both START. Top row.`, pos: 'bot', hold: true, gate: 'bestfive' })]
+          : []),
         { text: "The bars: you against them, line by line. The big OVERALL gauge is tonight's win chance.", hi: 'bars', pos: 'top' },
         { text: "And… oh. Oh no. They're going to eat us alive, coach. After the week we've had, I don't know what else there is to give.", hi: 'bars', pos: 'top' },
       ];
@@ -605,7 +617,6 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
 /** A finished walk hands back its follow-up stories (the caller queues). */
 export function tutorialWalkDone(s: GameState, key: string): StoryReq[] {
   const star = tutStar(s);
-  if (key === 'jobsec') return [{ defId: 'tut_dean1b', beat: 'start', playerId: null }];
   if (key === 'starlesson') return [{ defId: 'tut_ship0', beat: 'start', playerId: null }];
   if (key === 'roster' && star && s.bag.includes('timeloop')) {
     return [{ defId: 'tut_haywire', beat: 'start', playerId: star.id }];
@@ -641,13 +652,12 @@ export function tutorialAllows(s: GameState, action: string, id: string): boolea
     if (adv === `lens:${id}` && action === 'lens-set') return true;
     if (adv === 'note' && action === 'notebook') return true;
     if (adv === 'tac' && action === 'tac-set') return true;
-    if (adv === 'job' && (action === 'job-open' || action === 'job-close')) return true;
     // the scripted item must stay ALIVE: tutoff would kill the pointerdown
     // that starts the very drag the step is asking for
     if (adv === `item:${id}` && action === 'bag-item') return true;
     // a FREE look (no spotlight) really is free: the lens tabs answer, and
     // on the practice floor so does the tactics board
-    if (!step.hi && ['lens-set', 'tac-set'].includes(action)) return true;
+    if (!step.hi && !step.lock && ['lens-set', 'tac-set'].includes(action)) return true;
     return false;
   }
   // between walks the top menu is a safe room: the standings, the schedule
@@ -799,13 +809,25 @@ STORIES.push(
     }),
     resolve: (key) => {
       if (key === 'ignore') {
+        // the dead end never rewinds the scene: it rings again, and the
+        // only door left is picking up
         return {
           text: 'You let it ring. It stops — then starts again, the exact same length, somehow more polite about it.\n\nThe landlord\'s texts, meanwhile, have started mentioning the phone BY NAME.',
-          next: { defId: 'tut_call0', beat: 'start', playerId: null },
+          next: { defId: 'tut_call0r', beat: 'start', playerId: null },
         };
       }
       return { text: '', next: { defId: 'tut_call0b', beat: 'start', playerId: null } };
     },
+  },
+  {
+    id: 'tut_call0r',
+    kind: 'coach',
+    beat: () => ({
+      tag: 'THE CALL',
+      text: 'It rings again.',
+      choices: [TC('answer', 'ANSWER IT')],
+    }),
+    resolve: () => ({ text: '', next: { defId: 'tut_call0b', beat: 'start', playerId: null } }),
   },
   {
     id: 'tut_call0b',
@@ -846,15 +868,11 @@ STORIES.push(
     figure: 'dean',
     beat: () => ({
       tag: 'THE DEAN',
+      // no button: the dialog waits until the coach TAPS the blinking gauge
+      // (the UI opens the four opinions over the dean, then lets her go on)
       text: 'The dean is waiting in your office, already pouring two cups. "Let me be clear, coach: I don\'t care about sports. I need GRADUATION numbers. Students who study, behave, and walk out of here with a diploma."\n\nShe points her cup at the JOB SECURITY gauge blinking at the top of your screen.',
-      choices: [TC('look', 'LOOK WHERE SHE POINTS')],
     }),
-    resolve: (_k, ctx) => {
-      // the gauge lesson happens ON the gauge: the walk points at the bar,
-      // the coach opens the four opinions, and the dean resumes after
-      (ctx.s.tutSeen ??= []).push('dean-gauge');
-      return { text: '' };
-    },
+    resolve: () => ({ text: '', next: { defId: 'tut_dean1b', beat: 'start', playerId: null } }),
   },
   {
     id: 'tut_dean1b',
@@ -902,21 +920,13 @@ STORIES.push(
       text: '"I almost forgot." She produces a device shaped like an alarm clock with opinions. "Found it in the faculty-lounge trash. A LOCAL TIME MACHINE, the label says — point it at somebody who\'s AWAY and it eats weeks off the wait."\n\n"Allegedly. It was in the trash."',
       choices: [TC('take', '"MAYBE I CAN USE IT"')],
     }),
+    // the offer dialog itself carries the assistant's read of the card (the
+    // item_offer beat wears her voice in season zero) — she talks while the
+    // device is actually on screen
     resolve: () => ({
       text: '',
       fx: [{ giveItem: 'timeloop' }],
-      next: { defId: 'tut_dean_item2', beat: 'start', playerId: null },
     }),
-  },
-  {
-    id: 'tut_dean_item2',
-    kind: 'coach',
-    figure: 'assistant',
-    beat: () => ({
-      tag: 'ASSISTANT COACH',
-      text: 'The assistant reads the device\'s card over your shoulder.\n\n"Every device wears two tails, coach: ▲ what can go RIGHT, ▼ what can go WRONG — and a label that sizes the gamble. This one\'s marked SAFE. The bad tail is minuscule. Practically a rounding error."',
-    }),
-    resolve: () => ({ text: '' }),
   },
   // 03 · SETUP — the time machine: the idea, the blessing, the drag, the mishap
   {
@@ -935,9 +945,16 @@ STORIES.push(
     beat: () => ({
       tag: 'ASSISTANT COACH',
       text: '"Coach — YES. The time machine!" The assistant is already holding the paperwork out to you.\n\n"Point it at the suspension. That\'s a GREAT idea."',
-      choices: [TC('ok', '"WHAT COULD GO WRONG?"')],
+      choices: [TC('ok', '"WHAT COULD GO WRONG?"'), TC('risky', '"THAT FEELS TOO RISKY"')],
     }),
-    resolve: (_k, ctx) => {
+    resolve: (key, ctx) => {
+      if (key === 'risky') {
+        // the dead end: the institution talks you back to the question
+        return {
+          text: '"If we play tonight without our star, we have NO chance. The risk is minimal, coach."',
+          next: { defId: 'tut_haywire2', beat: 'start', playerId: null },
+        };
+      }
       (ctx.s.tutSeen ??= []).push('haywire-idea');
       return { text: '' };
     },

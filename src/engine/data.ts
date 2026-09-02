@@ -2623,7 +2623,17 @@ export const STORIES: StoryDef[] = [
     beat: (_b, ctx) => {
       const item = itemById((ctx.data.itemId as string) ?? 'protein');
       // SEASON ZERO hands you exactly what the script needs — no leaving it
-      const choices = ctx.s.tutorial !== undefined
+      const tut = ctx.s.tutorial !== undefined;
+      // the dean's device: the assistant reads its card over your shoulder
+      // WHILE the card is on screen (playtest #8) — the tails lesson
+      if (tut && item.id === 'timeloop') {
+        return {
+          tag: 'ASSISTANT COACH',
+          text: 'The assistant reads the device\'s card over your shoulder.\n\n"Every device has two possible consequences when it\'s used, coach: ▲ what can go RIGHT, ▼ what can go WRONG. As you can see, this one\'s marked SAFE — the bad tail is minuscule. Practically a rounding error."',
+          choices: [C('take', 'PUT IT IN THE BAG')],
+        };
+      }
+      const choices = tut
         ? [C('take', 'INTO THE BAG')]
         : [
             C('take', 'INTO THE BAG'),
@@ -2645,6 +2655,8 @@ export const STORIES: StoryDef[] = [
         return { text: `You reach for ${item.name} — and THE BAG has no room. A kid outside the arena walks off with it, delighted.` };
       }
       ctx.s.bag.push(itemId);
+      // season zero's device: straight into the bag, straight on to the team
+      if (ctx.s.tutorial !== undefined && itemId === 'timeloop') return { text: '' };
       return { text: `${item.name} goes into THE BAG.` };
     },
   },

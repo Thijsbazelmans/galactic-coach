@@ -55,6 +55,19 @@ async function main(): Promise<void> {
         click('.bslot.notebook');
         continue;
       }
+      // THE ERASURE's GONE page keeps the empty card (sneakers, name) in the
+      // art slot — no dashed ghost box
+      if (q?.defId === 'tut_haywire3' && app.querySelector('.impactpanel')) {
+        if (app.querySelector('.ghostbox')) throw new Error('the GONE page should keep the player card, not a ghost box');
+        if (!app.querySelector('.storyart .modalcard')) throw new Error('the GONE page lost the empty card');
+        goneSeen = true;
+      }
+      // the dean's gauge beat waits on the GAUGE: open it over her, close it
+      if (q?.defId === 'tut_dean' && !((gc.state() as any).tutSeen ?? []).includes('dean-gauge')) {
+        if (!click('[data-action="job-open"]')) throw new Error('the job gauge did not answer over the dean');
+        if (!click('.modalback[data-action="job-close"]')) throw new Error('the job menu did not open over the dean');
+        continue;
+      }
       // choice buttons are hold-to-commit (clicks are ignored) — fire the action
       const c = app.querySelector('[data-action="story-choice"]:not([disabled])');
       if (c) {
@@ -64,6 +77,7 @@ async function main(): Promise<void> {
       if (!click('[data-action="story-tap"]')) break;
     }
   };
+  let goneSeen = false;
   const toasts = (): void => {
     for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* beats */ }
   };
@@ -84,7 +98,7 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('CODEX')) throw new Error('codex step missing');
   if (app.innerHTML.includes('3-on-3')) throw new Error('the old tagline must be gone');
   if (!app.innerHTML.includes('KEEP THE CODEX')) throw new Error('the keep-knowledge path is missing');
-  if (!app.innerHTML.includes('START FRESH')) throw new Error('the burn-the-codex path is missing');
+  if (!app.innerHTML.includes('BURN THE CODEX')) throw new Error('the burn-the-codex path is missing');
   must('[data-action="setup-codex-keep"]', 'keep the codex');
   // wizard step 2 — THE BIG SIX: six editable programs, tap one, it wears YOU
   if (!app.innerHTML.includes('THE BIG SIX')) throw new Error('the league headline is missing');
@@ -97,9 +111,17 @@ async function main(): Promise<void> {
   anyWin.gcAction('setup-edit', '4');
   const edName = doc.getElementById('ed-name') as unknown as { value: string } | null;
   if (!edName) throw new Error('the edit modal did not open');
-  if (!app.querySelector('[data-action="setup-swatch-bg"]')) throw new Error('the swatch picker did not render');
-  if (!app.querySelector('.swatch.dead')) throw new Error('the text row should blank the unreadable swatches');
+  // the two picked colors show as tiles; the 32-grid is an overlay per tile
+  if (app.querySelectorAll('[data-action="setup-pick-open"]').length !== 2) throw new Error('the kit modal should show the two color tiles');
+  if (app.querySelector('[data-action="setup-swatch-bg"]')) throw new Error('the swatch grid must wait for a tile tap');
+  anyWin.gcAction('setup-pick-open', 'bg');
+  if (!app.querySelector('[data-action="setup-swatch-bg"]')) throw new Error('the MAIN swatch overlay did not open');
   anyWin.gcAction('setup-swatch-bg', '#003057');
+  if (app.querySelector('.pickback')) throw new Error('a swatch pick should close the overlay');
+  anyWin.gcAction('setup-pick-open', 'fg');
+  if (!app.querySelector('.swatch.dead')) throw new Error('the TEXT overlay should blank the unreadable swatches');
+  anyWin.gcAction('setup-pick-close', '');
+  if (app.querySelector('.pickback')) throw new Error('the overlay backdrop should close it');
   // a re-render follows the swatch pick: grab the rebuilt input before typing
   const edName2 = doc.getElementById('ed-name') as unknown as { value: string } | null;
   if (!edName2) throw new Error('the edit modal lost its name input');
@@ -392,7 +414,7 @@ async function main(): Promise<void> {
 
   // ---- THE TUTORIAL SEASON (v5 M4.1): season zero, paced, locked, walked ----
   anyWin.gcAction('new-game', ''); // no title screen on an in-session reset
-  if (!app.innerHTML.includes('START FRESH')) throw new Error('burn-the-codex path missing on the second career');
+  if (!app.innerHTML.includes('BURN THE CODEX')) throw new Error('burn-the-codex path missing on the second career');
   anyWin.gcAction('setup-codex-burn', ''); // wipe the codex, coach season zero
   if (app.querySelectorAll('[data-action="setup-team"]').length !== 6) throw new Error('the six programs missing on the second career');
   anyWin.gcAction('setup-team', '2');
@@ -401,14 +423,11 @@ async function main(): Promise<void> {
   if (st3().tutorial === undefined) throw new Error('the tutorial did not arm');
   if (Object.values(st3().facilities).some((v) => v !== 0)) throw new Error('the tutorial campus should start at level 0');
   const me3 = (): any => st3().teams[st3().myTeamId];
-  drain(); // the call · the dean points at the gauge
+  drain(); // the call · the dean points at the gauge (drain taps it) · the credit · the machine
   if (me3().wins !== 0 || me3().losses !== 9) throw new Error(`season zero must stand 0–9, got ${me3().wins}–${me3().losses}`);
   if (!me3().players.some((p: any) => p.stats.gp > 0)) throw new Error('the lost season should show in the stats');
-  // the job-security lesson: the walk points at the bar, the coach opens it
-  if (!st3().tutWalk || st3().tutWalk.key !== 'jobsec') throw new Error('the job-security walk did not arm');
-  if (!click('[data-action="job-open"]')) throw new Error('the job gauge did not answer the walk');
-  if (!click('.modalback[data-action="job-close"]')) throw new Error('the job menu did not open');
-  drain(); // the dean resumes: four opinions → the credit → the time machine
+  if (!(st3().tutSeen ?? []).includes('dean-gauge')) throw new Error('the dean\'s gauge lesson never landed');
+  if (app.innerHTML.includes('class="jrv"')) throw new Error('the four opinions must be numberless bars');
   if (st3().energy !== 1) throw new Error(`the dean hands exactly one credit, got ${st3().energy}`);
   if (!st3().bag.includes('timeloop')) throw new Error('the time machine never entered the bag');
   if (st3().phase !== 'weekstart') throw new Error(`expected weekstart in season zero, got ${st3().phase}`);
@@ -434,6 +453,7 @@ async function main(): Promise<void> {
   const rosterBefore = me3().players.length;
   (gc as any).drop('timeloop', 'p', star3.id);
   drain(); // the mishap: the star is ERASED — the assistant's institutional shrug
+  if (!goneSeen) throw new Error('the GONE page never showed');
   if (me3().players.some((p: any) => p.id === star3.id)) throw new Error('the haywire beat must erase the star');
   if (me3().players.length !== rosterBefore - 1) throw new Error('the roster should stand one body short');
   if (!st3().alumni.some((a: any) => a.name === star3.name)) throw new Error('the erased star should rest in the alumni ledger');
@@ -452,6 +472,12 @@ async function main(): Promise<void> {
   // the board opens UNREAD and the notebook is still an empty pocket
   if (st3().prospects.every((p: any) => p.digits >= 2)) throw new Error('the board must open unread — the reveal waits for the cheerleader');
   if (app.querySelector('.bslot.notebook')) throw new Error('the notebook must stay hidden until the cheer');
+  // the board walk's free look keeps the lens tabs LOCKED (a board of ??)
+  if (!st3().tutWalk || st3().tutWalk.key !== 'board') throw new Error('the board walk did not arm');
+  for (let i = 0; i < 4; i++) { anyWin.gcAction('tut-walk-tap', ''); anyWin.gcAction('tut-walk-tap', ''); }
+  if (st3().tutWalk?.ix !== 4) throw new Error(`expected the board free look, got step ${st3().tutWalk?.ix}`);
+  if (app.querySelector('.tutfade')) throw new Error('the board free look should not dim');
+  if (!app.querySelector('[data-action="lens-set"][data-id="2"].tutoff')) throw new Error('POTENTIAL must stay locked during the board free look');
   walkSkip(); // the board walk (the intel, the rows, a free look)
   drain(); // the cheerleader cartwheels in: SCHOOL SPIRIT, shouted back
   if (!st3().tutWalk || st3().tutWalk.key !== 'cheernote') throw new Error('the write-it-down walk did not arm');
@@ -540,8 +566,10 @@ async function main(): Promise<void> {
   // the lineup lesson normally parks these two — the walk was skipped, so
   // park them by hand: the freshman at starting guard, the standout at center
   {
-    const slots = me3().lineup.slots as (number | null)[];
+    // (read the slots fresh each time — the lineup array is replaced on the
+    // way into the matchup)
     const park = (pid: number, at: number): void => {
+      const slots = me3().lineup.slots as (number | null)[];
       const from = slots.indexOf(pid);
       if (from < 0 || from === at) return;
       const tmp = slots[at];
@@ -550,13 +578,23 @@ async function main(): Promise<void> {
     };
     const fr = me3().players.find((p: any) => p.classYear === 0);
     const so = me3().players.find((p: any) => p.form === 'femme' && p.classYear === 1);
+    // …but FIRST the gate must be seen refusing: bench them both
+    if (fr) park(fr.id, 7);
+    if (so && so.outWeeks === 0) park(so.id, 8);
+    anyWin.gcAction('to-matchup', '');
+    drain(); // Scoop (three beats), then the breakdown and the goblins
+    if (st3().phase !== 'matchup') throw new Error(`expected matchup, got ${st3().phase}`);
+    if (st3().energy !== 1) throw new Error('the goblin gag must hand the credit back');
+    // GAME NIGHT's gate: the best two must START — the hold refuses until they do
+    if (!st3().tutWalk || st3().tutWalk.key !== 'matchup' || st3().tutWalk.ix !== 0) throw new Error('the matchup walk should open on the best-two gate');
+    if (!app.innerHTML.includes('START YOUR BEST TWO FIRST')) throw new Error('the gate should refuse with the best two benched');
+    anyWin.gcAction('tut-walk-hold', '');
+    if (st3().tutWalk?.ix !== 0) throw new Error('the hold must not pass a failing gate');
     if (fr) park(fr.id, 0);
     if (so && so.outWeeks === 0) park(so.id, 2);
+    anyWin.gcAction('tut-walk-hold', '');
+    if (st3().tutWalk?.ix !== 1) throw new Error(`the gate should pass once both start (ix ${st3().tutWalk?.ix})`);
   }
-  anyWin.gcAction('to-matchup', '');
-  drain(); // Scoop (three beats), then the breakdown and the goblins
-  if (st3().phase !== 'matchup') throw new Error(`expected matchup, got ${st3().phase}`);
-  if (st3().energy !== 1) throw new Error('the goblin gag must hand the credit back');
   walkSkip(); // the matchup walk (the bars, the assistant's despair) — hands off to the cheerleader
   drain(); // "You WROTE IT DOWN. Use it."
   if (!st3().tutWalk || st3().tutWalk.key !== 'speechnote') throw new Error('the speech-from-the-page walk did not arm');

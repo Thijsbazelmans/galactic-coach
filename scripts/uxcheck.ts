@@ -28,6 +28,13 @@ async function main(): Promise<void> {
         if (!q.text.startsWith('A thought arrives')) throw new Error('the thought line is missing from the body');
         if (app.innerHTML.includes('<span class="tag"></span>')) throw new Error('an empty tag pill rendered');
       }
+      // the dean's gauge beat waits on the GAUGE: open it over her, close it
+      if (q?.defId === 'tut_dean' && !(st().tutSeen ?? []).includes('dean-gauge')) {
+        if (!app.innerHTML.includes('TAP THE JOB SECURITY GAUGE') && !app.querySelector('#modal-actions.hide')) throw new Error('the dean beat should point at the gauge');
+        if (!click('[data-action="job-open"]')) throw new Error('the job gauge did not answer over the dean');
+        if (!click('.modalback[data-action="job-close"]')) throw new Error('the job menu did not open over the dean');
+        continue;
+      }
       const c = app.querySelector('[data-action="story-choice"]:not([disabled])');
       if (c) { anyWin.gcAction('story-choice', c.getAttribute('data-id') ?? 'ok'); continue; }
       if (!click('[data-action="story-tap"]')) break;
@@ -38,12 +45,8 @@ async function main(): Promise<void> {
   anyWin.gcAction('setup-codex-burn', '');
   anyWin.gcAction('setup-team', '0');
   anyWin.gcAction('setup-confirm', '');
-  drain();
-  // the job-security lesson comes first: tap the gauge, close the menu
-  if (st().tutWalk?.key !== 'jobsec') throw new Error(`jobsec walk missing, got ${st().tutWalk?.key}`);
-  if (!click('[data-action="job-open"]')) throw new Error('the job gauge did not answer');
-  if (!click('.modalback[data-action="job-close"]')) throw new Error('the job menu did not open');
-  drain(); // the dean resumes → the credit → the machine → the roster walk
+  drain(); // the call → the dean (the gauge, tapped over her) → the credit → the machine → the roster walk
+  if (!(st().tutSeen ?? []).includes('dean-gauge')) throw new Error('the gauge lesson never landed');
   if (st().tutWalk?.key !== 'roster') throw new Error(`roster walk missing, got ${st().tutWalk?.key}`);
 
   // header chrome in season zero: no ?, live ⚙, no notebook

@@ -1664,12 +1664,14 @@ button.hopp .chip { vertical-align: 1px; }
    mid  = mid-grid (rare)
    low  = just under the grid, overlapping the team stats
    lens = just under that, overlapping the view tabs
-   bot  = just under that, overlapping the continue/action button
+   bot  = the very bottom, over the action button AND the bag (playtest #8:
+          it used to sit over the bag only — and its second line covered the
+          view tab it was pointing at)
    (offsets measured against the fixed bottom stack — nudge here if a
    device disagrees) */
 .tutwalk.top { position: fixed; top: 6px; left: 10px; right: 10px; z-index: 70; }
 .tutwalk.mid { top: 38%; }
-.tutwalk.bot { position: fixed; bottom: calc(88px + env(safe-area-inset-bottom)); left: 10px; right: 10px; z-index: 70; }
+.tutwalk.bot { position: fixed; bottom: calc(8px + env(safe-area-inset-bottom)); left: 10px; right: 10px; z-index: 70; }
 .tutwalk.lens { position: fixed; bottom: calc(158px + env(safe-area-inset-bottom)); left: 10px; right: 10px; z-index: 70; }
 .tutwalk b {
   display: block;
@@ -1725,6 +1727,18 @@ button.hopp .chip { vertical-align: 1px; }
 .swatch { aspect-ratio: 1; min-width: 0; border: 1px solid var(--r35); padding: 0; cursor: pointer; }
 .swatch.sel { outline: 2px solid var(--r95); outline-offset: 1px; }
 .swatch.dead { border: 1px dashed var(--rline); opacity: 0.25; }
+/* THE KIT PICKER (playtest #8): the modal shows the TWO picked colors as big
+   tiles; tapping one opens the same 32-swatch grid, big, as an overlay */
+.kitpair { display: flex; gap: 8px; flex: 1; }
+.kitbig { flex: 1; height: 44px; margin: 0; padding: 0; border: 1px solid var(--r55); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.kitbig i { font-style: normal; font-size: 10px; letter-spacing: 2px; font-weight: bold; }
+.pickback { z-index: 75; }
+.pickgrid { width: min(92vw, 400px); }
+.pickgrid .swatches.big { gap: 6px; }
+.pickgrid .swatch { min-height: 34px; }
+.picknote { font-size: 10px; letter-spacing: 1px; margin: 10px 0 0; }
+/* the dean's gauge beat: the hint points UP at the blinking bar */
+.taphint.gaugehint { animation: blink 1.2s steps(2, start) infinite; text-align: center; }
 .edrow { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 11px; letter-spacing: 1px; color: var(--r55); }
 .edrow span { width: 88px; flex: none; }
 .edrow input { flex: 1; min-width: 0; background: transparent; border: 1px solid var(--r55); color: var(--r95); font-family: inherit; font-size: 14px; padding: 6px 8px; }

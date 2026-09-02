@@ -177,6 +177,9 @@ const KIT_SWATCHES = [
 /** the ✎ modal's pending kit picks (null = the team's current color) */
 let edBg: string | null = null;
 let edFg: string | null = null;
+/** which of the two kit colors has the 32-swatch overlay open (playtest #8:
+    the modal shows the two picked colors; tapping one opens the grid) */
+let edPick: 'bg' | 'fg' | null = null;
 /** typed-but-unsaved name/planet, preserved across the swatch re-renders */
 let edNameV: string | null = null;
 let edPlanetV: string | null = null;
@@ -211,6 +214,17 @@ function kitSwatchesHtml(which: 'bg' | 'fg'): string {
   }).join('');
 }
 
+/** The swatch OVERLAY: one grid, the same size for either color — the TEXT
+    grid blanks whatever would vanish on the chosen MAIN. */
+function kitPickHtml(): string {
+  if (!edPick) return '';
+  return `<div class="modalback pickback" data-action="setup-pick-close"><div class="modal pickgrid">
+    <span class="tag">${edPick === 'bg' ? 'MAIN COLOR' : 'TEXT COLOR'}</span>
+    <div class="swatches big">${kitSwatchesHtml(edPick)}</div>
+    <p class="dim picknote">${edPick === 'bg' ? 'The jersey, the chips, the whole kit.' : 'Only colors that still read on the main one.'}</p>
+  </div></div>`;
+}
+
 function canResume(): boolean {
   return state.phase !== 'pickTeam' && state.myTeamId >= 0;
 }
@@ -232,7 +246,7 @@ function titleScreenHtml(): string {
         ${resume
           ? `<p class="askteam">${chipBig(teamLabel(t!), t!.bg, t!.fg)}<br/><span class="dim">SEASON ${Math.max(1, state.season)} · ${esc(weekLabel(state))}</span></p>
         <button class="wide askbtn" data-action="menu-continue"><b>▸ CONTINUE CAREER</b><span>Pick up exactly where you left off</span></button>
-        <button class="wide askbtn dashed hold danger" data-action="menu-new"><b>START FRESH</b><span>Wipe this save and start a new career (the codex survives)</span></button>`
+        <button class="wide askbtn dashed hold danger" data-action="menu-new"><b>START FRESH</b><span>${codexHasEntries() ? 'Wipe this save — then choose: keep the codex, or burn it too' : 'Wipe this save and start a new career'}</span></button>`
           : `<button class="wide askbtn dashed" data-action="menu-new"><b>START FRESH</b><span>Start a new career</span></button>`}
       </div></div>`
     : '';
@@ -342,6 +356,9 @@ type StoryMode = 'antic' | 'reveal' | 'choices' | 'r-antic' | 'r-reveal' | 'impa
 let storyMode: StoryMode = 'antic';
 let storyUid = -1;
 let stageTyped = false;
+/** the beat that last finished typing (`uid|mode|text`): a re-render of the
+    same beat (an overlay opened over it) paints it whole, no second typing */
+let typedKey = '';
 
 interface ImpRow {
   label: string;
@@ -354,7 +371,7 @@ interface ImpRow {
 /** ONE voice per dialog: the player's rewards/penalties (his sprite), then
     the squad's, then the coach's world (credits, JOB SECURITY — the dean or
     the booster standing over it). Separate screens, tapped through. */
-interface ImpPage { kind: 'player' | 'squad' | 'coach'; pid: number | null; rows: ImpRow[]; gone?: string }
+interface ImpPage { kind: 'player' | 'squad' | 'coach'; pid: number | null; rows: ImpRow[]; gone?: string; /** the erased player, as he stood — his empty card stays on the GONE page */ goneP?: Player }
 let impact: { pages: ImpPage[]; ix: number } | null = null;
 let impactPlayed = false;
 let impactTimers: number[] = [];
@@ -568,7 +585,7 @@ function snapState(): Snap {
 
 /** Diff the world before/after a resolution into celebration pages — one
     per voice: the player, the squad, the coach's world. */
-function buildImpact(snap: Snap, fxList: Fx[], pid: number | null): { pages: ImpPage[]; ix: number } {
+function buildImpact(snap: Snap, fxList: Fx[], pid: number | null, before?: Player): { pages: ImpPage[]; ix: number } {
   const t = myTeam(state);
   const rows: ImpRow[] = [];
   const was = pid !== null ? snap.players.get(pid) : undefined;
@@ -612,7 +629,7 @@ function buildImpact(snap: Snap, fxList: Fx[], pid: number | null): { pages: Imp
   if (trackMoved && sec1 !== snap.sec) coach.push({ label: 'JOB SECURITY', from: snap.sec, to: sec1, up: sec1 > snap.sec });
   if (state.legacy !== snap.legacy) coach.push({ label: 'LEGACY', from: snap.legacy, to: state.legacy, up: state.legacy > snap.legacy });
   const pages: ImpPage[] = [];
-  if (rows.length) pages.push({ kind: 'player', pid, rows: [...rows, ...(pid !== null ? squad : [])], gone: was && !p ? was.name : undefined });
+  if (rows.length) pages.push({ kind: 'player', pid, rows: [...rows, ...(pid !== null ? squad : [])], gone: was && !p ? was.name : undefined, goneP: was && !p ? before : undefined });
   if (squad.length && (pid === null || !rows.length)) pages.push({ kind: 'squad', pid: null, rows: squad });
   if (coach.length) pages.push({ kind: 'coach', pid: null, rows: coach });
   return { pages, ix: 0 };
@@ -642,6 +659,9 @@ function doResolve(key: string): void {
   const preCommits = new Map(state.prospects.map((pr) => [pr.id, pr.commitPct]));
   const choice = ev.choices?.find((c) => c.key === key);
   const cost = choice?.cost ?? 0;
+  // the player as he stood BEFORE the resolution — if the story takes him,
+  // his card can still stand on the GONE page
+  const before = ev.playerId !== null ? myTeam(state).players.find((x) => x.id === ev.playerId) : undefined;
   const res = resolveStory(state, key);
   if (!res) return;
   // a story that moved a recruit leaves a sticker on the board — one that
@@ -668,7 +688,7 @@ function doResolve(key: string): void {
     sec: trackMoved ? security(state) - snap.sec : 0,
   };
   jobAnimDone = false;
-  impact = buildImpact(snap, res.fx, res.resolved.playerId ?? ev.playerId);
+  impact = buildImpact(snap, res.fx, res.resolved.playerId ?? ev.playerId, before);
   impactPlayed = false;
   const rBeats = splitBeats(res.resolved.resolvedText ?? '');
   if (rBeats.length) {
@@ -1064,14 +1084,15 @@ function edgeGauge(side: 'l' | 'r', value: number, kind: 'boltx' | 'facex', _pid
 
 /** The sprite tells the truth: mood, energy, size and fire, straight from the
     rig — and a delayed-outcome story holds him NERVOUS until the result. */
-function rigView(p: Player, story?: 'good' | 'bad' | 'worried' | 'neutral', pose?: 'bench' | 'shrug'): RigView {
+function rigView(p: Player, story?: 'good' | 'bad' | 'worried' | 'neutral', pose?: 'bench' | 'shrug' | 'gone'): RigView {
   const held = story ?? (p.tense ? 'worried' : undefined);
   if (held) {
-    // in a story the STATE is the story's: neutral → the emotion, no ball
+    // in a story the STATE is the story's: neutral → the emotion, no ball —
+    // and the erasure keeps its sneakers even mid-story
     return {
       id: p.id, speciesId: p.speciesId, heightCm: p.heightCm, weightKg: p.weightKg,
       jersey: p.jersey, form: p.form, mood: 'neutral', energy: 'normal',
-      fire: !!p.onFire && p.outWeeks === 0, story: held,
+      fire: !!p.onFire && p.outWeeks === 0, story: held, pose: pose === 'gone' ? 'gone' : undefined,
     };
   }
   // THE CHAMBER WINS: the injured/away stand in their pod and the exhausted
@@ -1131,8 +1152,8 @@ interface CardOpts {
       no ring, no grade, no compass; the meters come back on the next pass */
   bare?: boolean;
   /** the calm screens (lineup, box score): the bench SITS, the reserves
-      stand in street clothes and shrug */
-  pose?: 'bench' | 'shrug';
+      stand in street clothes and shrug; GONE = the erasure (sneakers only) */
+  pose?: 'bench' | 'shrug' | 'gone';
   pick?: boolean; // selection screens
   /** THE SCOPE PREVIEW: this card is inside / outside a pending scoped action */
   scope?: 'in' | 'out';
@@ -1428,9 +1449,11 @@ function jobModalHtml(s: GameState): string {
     { label: 'THE PLAYERS', who: "the locker room — the squad's mood, live", v: o.players },
     { label: 'THE PUBLIC', who: 'Scoop — fairness, cheating, attention', v: o.pub },
   ];
+  // the four opinions are BARS, not numbers (playtest #8): four 30s under a
+  // 32/100 headline read like a sum that doesn't add up
   const mn = Math.min(...rows.map((r) => r.v));
   const bars = rows.map((r) => `<div class="jobrow">
-    <div class="jr1"><b>${r.label}</b>${r.v === mn && r.v < 50 ? '<span class="jangry blink">▼ THE ANGRIEST</span>' : ''}<b class="jrv" style="color:${heatColor(r.v)}">${r.v}</b></div>
+    <div class="jr1"><b>${r.label}</b>${r.v === mn && r.v < 50 ? '<span class="jangry blink">▼ THE ANGRIEST</span>' : ''}</div>
     <div class="jrtrack"><span style="width:${r.v}%;background:${heatColor(r.v)}"></span></div>
     <div class="jr2 dim">${r.who}</div>
   </div>`).join('');
@@ -1888,7 +1911,7 @@ function impactHtml(s: GameState): string {
   const more = impact && impact.ix < impact.pages.length - 1;
   return `<div class="impactpanel">
     ${p ? `<span class="imp-sprite">${rigSpriteHtml(rigView(p, page.rows.some((r) => !r.up) ? 'bad' : 'good'), { bg: t.bg, fg: t.fg }, 2)}</span><div class="imp-name">${esc(p.name)}</div>` : ''}
-    ${!p && page.gone ? `<span class="imp-sprite"><span class="ghostbox"></span></span><div class="imp-name">${esc(page.gone)}</div>` : ''}
+    ${!p && page.gone && !page.goneP ? `<span class="imp-sprite"><span class="ghostbox"></span></span><div class="imp-name">${esc(page.gone)}</div>` : ''}
     ${page.kind === 'squad' ? '<div class="imp-name">THE SQUAD</div>' : ''}
     <div class="imp-rows">${rows}</div>
     ${more ? '<div class="imp-more dim">▸ and then…</div>' : ''}
@@ -1958,7 +1981,7 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
     return `<div class="revealbox">${revealPreview('item', (ev.data?.itemId as string) ?? '', { noFlavor: true })}</div>`;
   }
   // SEASON MOMENTS (260830): the arena arrival, the trophy, the rained-out court
-  if (ev.defId === 'tut_call0' || ev.defId === 'tut_call0b') return `<div class="scenebox">${sceneHtml('moonnight', kit, 3)}</div>`;
+  if (ev.defId === 'tut_call0' || ev.defId === 'tut_call0r' || ev.defId === 'tut_call0b') return `<div class="scenebox">${sceneHtml('moonnight', kit, 3)}</div>`;
   if (ev.defId === 'bigbang_invite') return `<div class="scenebox">${sceneHtml('tourney', kit, 3)}</div>`;
   if (ev.defId === 'bigbang_champs') return `<div class="scenebox">${sceneHtml('champs', kit, 3)}</div>`;
   if (ev.defId === 'bigbang_out' || ev.defId === 'season_over') return `<div class="scenebox">${sceneHtml('seasonlost', kit, 3)}</div>`;
@@ -2012,7 +2035,10 @@ function storyArt(s: GameState, ev: { defId: string; playerId: number | null; ta
       : ev.choices?.length ? 'worried' : storySentiment(ev.tag);
     // the story picks its card backdrop: the ABILITIES compass for growth
     // stories, the energy/mood gauges for everything else
-    return `<div class="modalcard">${playerCard(p, { inert: true, story: acting, storyView: def.card ?? 'meters' })}</div>`;
+    // THE ERASURE (tut_haywire3): on the "polite pop" beat the body goes —
+    // the sneakers stay, the card stays, everything else stays put
+    const gone = ev.defId === 'tut_haywire3' && storyMode !== 'antic';
+    return `<div class="modalcard">${playerCard(p, { inert: true, story: acting, storyView: def.card ?? 'meters', pose: gone ? 'gone' : undefined })}</div>`;
   }
   const side = ev.data?.side as string | undefined;
   // a beat can override the def's figure (the goblins take over the hold)
@@ -2076,6 +2102,10 @@ function storyPanel(s: GameState): string {
       } else if (!p) {
         pageArt = art;
       }
+    } else if (page?.kind === 'player' && page.goneP) {
+      // THE ERASURE: the empty card stays exactly where the beat left it —
+      // the sneakers, the name — and the GONE counter pops under it
+      pageArt = `<div class="modalcard">${playerCard(page.goneP, { inert: true, story: 'neutral', storyView: 'meters', pose: 'gone', labelPop: false })}</div>`;
     }
     return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
       ${fete}
@@ -2116,12 +2146,15 @@ function storyPanel(s: GameState): string {
   // a single typed beat — the SAME frame as every other beat: the art region
   // holds the top (even when empty), the words start in the same place every
   // message, nothing ever jumps between beats
+  // the dean's gauge beat waits on the GAUGE, not a tap: the hint sends the
+  // thumb up to the blinking bar, and the tap comes back once it's been seen
+  const gaugeWait = ev.defId === 'tut_dean' && !(s.tutSeen ?? []).includes('dean-gauge');
   return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
     ${fete}
     ${ev.tag ? `<span class="tag">${esc(ev.tag)}</span>` : ''}
     <div class="storyart">${art}</div>
     <div class="typebox beatbox" id="typebox"></div>
-    <div class="modal-actions hide" id="modal-actions"><div class="taphint">▸ tap</div></div>
+    <div class="modal-actions hide" id="modal-actions"><div class="taphint ${gaugeWait ? 'gaugehint' : ''}">${gaugeWait ? '▲ TAP THE JOB SECURITY GAUGE' : '▸ tap'}</div></div>
   </div>`;
 }
 
@@ -3008,7 +3041,7 @@ function stageSetupCodex(): string {
     <p class="sub">An Intergalactic College Basketball Madness Simulator</p>
     <div class="report">A <b>CODEX</b> of knowledge survives from a previous career <span class="dim">· ${n} entr${n === 1 ? 'y' : 'ies'}</span></div>
     <button class="wide askbtn" data-action="setup-codex-keep"><b>KEEP THE CODEX</b><span>Start in SEASON 1 with everything you learned — skip the tutorial, straight to tryouts</span></button>
-    <button class="wide askbtn hold danger" data-action="setup-codex-burn"><b>START FRESH</b><span>Wipe the codex — this is permanent — and coach the season-zero tutorial</span></button>`;
+    <button class="wide askbtn hold danger" data-action="setup-codex-burn"><b>BURN THE CODEX</b><span>Wipe the codex — this is permanent — and coach the season-zero tutorial</span></button>`;
 }
 
 function stageSetupTeams(s: GameState): string {
@@ -3027,12 +3060,14 @@ function stageSetupTeams(s: GameState): string {
         <span class="tag">EDIT PROGRAM</span>
         <label class="edrow"><span>PLANET</span><input id="ed-planet" type="text" maxlength="18" value="${esc(edPlanetV ?? ed.planet)}"/></label>
         <label class="edrow"><span>TEAM NAME</span><input id="ed-name" type="text" maxlength="18" value="${esc(edNameV ?? ed.name)}"/></label>
-        <div class="edrow"><span>MAIN COLOR</span><div class="swatches">${kitSwatchesHtml('bg')}</div></div>
-        <div class="edrow"><span>TEXT COLOR</span><div class="swatches">${kitSwatchesHtml('fg')}</div></div>
-        <div class="edrow"><span>PREVIEW</span>${chip(ed.name, edBg ?? ed.bg, edFg ?? ed.fg)}</div>
+        <div class="edrow"><span>COLORS</span><div class="kitpair">
+          <button class="kitbig" data-action="setup-pick-open" data-id="bg" style="background:${edBg ?? ed.bg};color:${edFg ?? ed.fg}"><i>MAIN</i></button>
+          <button class="kitbig" data-action="setup-pick-open" data-id="fg" style="background:${edFg ?? ed.fg};color:${edBg ?? ed.bg}"><i>TEXT</i></button>
+        </div></div>
+        <div class="edrow"><span>PREVIEW</span>${chip(edNameV ?? ed.name, edBg ?? ed.bg, edFg ?? ed.fg)}</div>
         <button class="wide askbtn" data-action="setup-edit-save"><b>SAVE</b></button>
         <button class="wide askbtn" data-action="setup-edit-cancel"><b>CANCEL</b></button>
-      </div></div>`
+      </div></div>${kitPickHtml()}`
     : '';
   return `<h1>${esc(LEAGUE.name)}</h1>
     <p class="sub">${esc(LEAGUE.sub)} Tap yours. ✎ renames any of the six — names and colors lock when the season starts.</p>
@@ -3336,7 +3371,7 @@ function coachModalHtml(s: GameState): string {
       <div class="acthead">SCOUTING</div>${scouting}
     </div>
     <p class="dim">GALACTIC COACH ${VERSION} · build ${typeof __BUILD_ID__ === 'undefined' ? 'dev' : __BUILD_ID__}</p>
-    <button class="wide danger hold" data-action="new-game">NEW GAME (wipes this save — the codex survives)</button>
+    <button class="wide danger hold" data-action="new-game">NEW GAME (wipes this save)</button>
     <button class="wide" data-action="coach-close">CLOSE</button>
   </div></div>`;
 }
@@ -3395,7 +3430,10 @@ function tutMaybeWalk(): void {
   // the steps freeze at walk start: names and spotlights stay stable even
   // as the state underneath changes mid-walk
   state.tutWalk = { key, ix: 0, steps };
-  save(state);
+  // a walk may open on a step that's already met (a gate the lineup
+  // already passes): it skips itself the same way mid-walk steps do
+  tutWalkAdvance('');
+  if (state.tutWalk) save(state);
 }
 
 function tutWalkFinish(key: string): void {
@@ -3420,7 +3458,9 @@ function tutAllowsDrag(kind: 'card' | 'item' | 'pr', itemId: string): boolean {
   if (kind === 'item') return !!step && (step.advance ?? '') === `item:${itemId}`;
   if (kind === 'pr') return state.phase === 'scouting';
   if (state.phase === 'practice') return true;
-  if (state.phase === 'matchup') return !state.pregameWk && !step;
+  // game night: the floor answers drags before the speech — and during the
+  // best-two gate step, which is asking for exactly that
+  if (state.phase === 'matchup') return !state.pregameWk && (!step || !!step.gate);
   if (state.phase === 'teamSelect') return true;
   return false;
 }
@@ -3428,10 +3468,12 @@ function tutAllowsDrag(kind: 'card' | 'item' | 'pr', itemId: string): boolean {
 /** A step's gate: the hold refuses until the lineup lesson actually holds. */
 function tutGateOk(gate: string): boolean {
   if (gate === 'bestfive') {
-    const t = myTeam(state);
+    // the best two START: both in the top row (the columns were practice's
+    // lesson — game night only insists they play)
+    const top = myTeam(state).lineup.slots.slice(0, 3);
     const fr = tutFreshman(state);
     const so = tutStandout(state);
-    return !!fr && t.lineup.slots[0] === fr.id && !!so && so.outWeeks === 0 && t.lineup.slots[2] === so.id;
+    return !!fr && top.includes(fr.id) && !!so && so.outWeeks === 0 && top.includes(so.id);
   }
   return true;
 }
@@ -3443,8 +3485,9 @@ function tutWalkAdvance(sig: string): void {
   const steps = (w.steps as TutStep[] | undefined) ?? tutorialWalkSteps(state, w.key);
   const step = steps[w.ix];
   if (!step) { tutWalkFinish(w.key); return; }
-  if ((step.advance ?? 'tap') !== sig) return;
-  w.ix++;
+  // '' is the walk-start probe: no advance, just the satisfied-skip below
+  if (sig !== '' && (step.advance ?? 'tap') !== sig) return;
+  if (sig !== '') w.ix++;
   // the NEW step's mark lands the moment it takes the floor — the render
   // reads these to reveal hidden pieces (the team bars, the tactics board)
   let mk = steps[w.ix]?.mark;
@@ -3454,6 +3497,8 @@ function tutWalkAdvance(sig: string): void {
   // roster" never fires at someone who's standing on the roster)
   const satisfied = (st: TutStep | undefined): boolean => {
     if (!st) return false;
+    // a gated hold the lineup already passes has nothing left to teach
+    if (st.hold && st.gate) return tutGateOk(st.gate);
     const adv = st.advance ?? '';
     if (adv === `lens:${lens}`) return true;
     const m = adv.match(/^spot:(\d+):(\d+)$/);
@@ -3659,7 +3704,7 @@ function render(): void {
   const walkHtml = wStep
     ? `<div class="tutwalk ${wStep.pos ?? 'bot'}" ${walkTap ? 'data-action="tut-walk-tap"' : ''}>
         <b>${esc(wStep.who ?? 'ASSISTANT COACH')}</b><span id="tutwalktext"></span>${walkTap ? '<i class="wtap">▸ tap</i>' : ''}
-        ${walkHold ? `<button class="wide hold walkhold" data-action="tut-walk-hold" ${gateOk ? '' : 'disabled'}>${gateOk ? 'HOLD ▸ MOVE ON' : 'START YOUR BEST PLAYERS FIRST'}</button>` : ''}
+        ${walkHold ? `<button class="wide hold walkhold" data-action="tut-walk-hold" ${gateOk ? '' : 'disabled'}>${gateOk ? 'HOLD ▸ MOVE ON' : 'START YOUR BEST TWO FIRST'}</button>` : ''}
       </div>`
     : '';
   const frame = (state.phase === 'pickTeam' || state.phase === 'gameover'
@@ -3946,8 +3991,13 @@ function postRender(): void {
     typewrite(tbox, beats[Math.min(toastBeat, beats.length - 1)] ?? toast, () => { document.getElementById('toast-actions')?.classList.remove('hide'); });
   } else if (ev) {
     const text = box ? currentBeatText(ev) : null;
-    if (box && text !== null) {
+    if (box && text !== null && typedKey === `${ev.uid}|${storyMode}|${text}`) {
+      box.textContent = text;
+      stageTyped = true;
+      revealActions();
+    } else if (box && text !== null) {
       typewrite(box, text, () => {
+        typedKey = `${ev.uid}|${storyMode}|${text}`;
         stageTyped = true;
         // the verdict is out and a decision is waiting — bring it up
         if (storyMode === 'reveal' && ev.choices && !ev.resolvedText) {
@@ -4621,10 +4671,13 @@ function executeAction(action: string, id: string): void {
       break;
     }
     case 'setup-team': pendingTeam = Number(id); break;
-    case 'setup-edit': ensureSetup().editing = Number(id); edBg = null; edFg = null; edNameV = null; edPlanetV = null; break;
-    case 'setup-edit-cancel': if (setup) setup.editing = null; edBg = null; edFg = null; edNameV = null; edPlanetV = null; break;
+    case 'setup-edit': ensureSetup().editing = Number(id); edBg = null; edFg = null; edPick = null; edNameV = null; edPlanetV = null; break;
+    case 'setup-edit-cancel': if (setup) setup.editing = null; edBg = null; edFg = null; edPick = null; edNameV = null; edPlanetV = null; break;
+    case 'setup-pick-open': bankEditInputs(); edPick = id === 'fg' ? 'fg' : 'bg'; break;
+    case 'setup-pick-close': edPick = null; break;
     case 'setup-swatch-bg': {
       bankEditInputs();
+      edPick = null;
       edBg = id.toUpperCase();
       // the standing text color can go invisible on the new main — when it
       // does, hand the kit the first swatch that still reads
@@ -4634,7 +4687,7 @@ function executeAction(action: string, id: string): void {
       if (!swatchVisible(edBg, fg)) edFg = KIT_SWATCHES.find((c) => swatchVisible(edBg!, c)) ?? edFg;
       break;
     }
-    case 'setup-swatch-fg': bankEditInputs(); edFg = id.toUpperCase(); break;
+    case 'setup-swatch-fg': bankEditInputs(); edPick = null; edFg = id.toUpperCase(); break;
     case 'setup-edit-save': {
       const st = ensureSetup();
       if (st.editing === null) break;
@@ -4651,6 +4704,7 @@ function executeAction(action: string, id: string): void {
       st.editing = null;
       edBg = null;
       edFg = null;
+      edPick = null;
       edNameV = null;
       edPlanetV = null;
       save(state);
@@ -4981,6 +5035,8 @@ app.addEventListener('click', (e) => {
       }
       if (finishTypeNow()) return; // finish the current beat instantly
       if (!stageTyped || storyMode === 'choices') return;
+      // the dean's gauge beat only moves on once the gauge has been opened
+      if (ev.defId === 'tut_dean' && !(state.tutSeen ?? []).includes('dean-gauge')) return;
       if (storyMode === 'antic') {
         // signing day: the wheel decides between the ring and the answer
         if (ev.data?.wheel && !wheelDone) {
@@ -5052,8 +5108,16 @@ app.addEventListener('click', (e) => {
     case 'item-close': itemUi = null; break;
     case 'sched-open': if (!currentStory(state) && !liveGameOn(state)) { schedOpen = true; standOpen = false; jobOpen = false; } break;
     case 'sched-close': schedOpen = false; break;
-    case 'job-open': if (!currentStory(state) && !liveGameOn(state)) { jobOpen = true; schedOpen = false; standOpen = false; } break;
-    case 'job-close': jobOpen = false; tutWalkAdvance('job'); break;
+    // the gauge answers over the dean's lesson — that beat is ABOUT tapping it
+    case 'job-open': if ((!currentStory(state) || currentStory(state)?.defId === 'tut_dean') && !liveGameOn(state)) { jobOpen = true; schedOpen = false; standOpen = false; } break;
+    case 'job-close': {
+      jobOpen = false;
+      if (currentStory(state)?.defId === 'tut_dean' && !(state.tutSeen ?? []).includes('dean-gauge')) {
+        (state.tutSeen ??= []).push('dean-gauge');
+        save(state);
+      }
+      break;
+    }
     case 'stand-open': if (!currentStory(state) && !liveGameOn(state)) { standOpen = true; schedOpen = false; jobOpen = false; } break;
     case 'stand-close': standOpen = false; break;
     case 'stand-tab': standTab = id as 'table' | 'leaders'; break;

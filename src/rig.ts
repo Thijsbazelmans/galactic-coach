@@ -548,8 +548,9 @@ export interface RigView {
   story?: 'good' | 'bad' | 'worried' | 'neutral';
   /** the calm poses of the lineup and box-score screens: BENCH sits on a
       little bench (no ball), SHRUG stands still in street clothes and
-      shrugs now and then (the reserves' "we'll see") */
-  pose?: 'bench' | 'shrug';
+      shrugs now and then (the reserves' "we'll see"); GONE is the erasure —
+      a pair of sneakers, still warm, and nothing above them */
+  pose?: 'bench' | 'shrug' | 'gone';
 }
 
 /** Street clothes for the reserves: a grey hoodie, no number. */
@@ -613,7 +614,7 @@ function buildMap(
   fire: boolean,
   f: number,
   story?: 'good' | 'bad' | 'worried' | 'neutral',
-  pose?: 'bench' | 'shrug'
+  pose?: 'bench' | 'shrug' | 'gone'
 ): { map: string[][]; up: number } {
   const cfg = getCfg(species, form);
   const SZ = RIG_SIZES[Math.max(0, Math.min(4, sizeIx))];
@@ -850,6 +851,12 @@ function buildMap(
   }
   if (E.tuck && ball) RA.forEach((c) => { for (let y2 = armTop + E.drop; y2 <= armEnd; y2++) if (map[y2]) map[y2][c] = 's'; });
   handPx.forEach(([x, y2]) => { if (map[y2]) map[y2][x] = 's'; });
+  if (pose === 'gone') {
+    // THE ERASURE: everything above the sneakers (the last four rows of a
+    // legged body) is gone — a legless species leaves nothing at all
+    const keep = cfg.hasLegs ? H - 4 : H;
+    for (let y2 = 0; y2 < keep; y2++) map[y2].fill('.');
+  }
   return { map, up };
 }
 
