@@ -1230,6 +1230,9 @@ button.actmain.scopehl { border-color: var(--r95); }
 /* ---- THE NUMBER CASCADE: counted rows flash as they land ------------------- */
 
 .tbar.cascflash { animation: cascpop 0.5s; }
+/* after the cascade the changed rows stay LIT — white numbers, the delta
+   bands blinking — until the next change or the next screen */
+.tbar.tbglow .tbv { color: #fff; }
 .tbar.cascflash .tbv { color: #fff; }
 /* THE GRADE: a letter in the OVR corner — F red … A white, S glows */
 .kovr.kgrade {

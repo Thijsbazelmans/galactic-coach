@@ -425,6 +425,10 @@ let notebookOpen = false;
 let gxResult: { text: string; cost: number; played: boolean; art?: string } | null = null;
 /** THE WEEK TURN: the calendar flip between the horn and Monday's envelope */
 let weekTurn: { season: number; from: number; to: number; seasonOnly?: boolean } | null = null;
+/** the page flip held back until the ride home has been told (playtest
+    #10): it lands the moment that story leaves the floor — still ahead of
+    the dean's envelope */
+let weekTurnHold: { turn: { season: number; from: number; to: number }; afterUid: number } | null = null;
 /** how the story's resolution moved the four opinions (drives the dean/booster verdict + the job-bar flash) */
 let opShift: { school: number; fans: number; pub: number; sec: number } | null = null;
 /** THE FOUR OPINIONS dialog (tap the job-security gauge) */
@@ -3567,6 +3571,10 @@ function applyTutLock(): void {
 function render(): void {
   if (progressTimer !== null) { clearInterval(progressTimer); progressTimer = null; }
   stopType();
+  if (weekTurnHold && currentStory(state)?.uid !== weekTurnHold.afterUid) {
+    weekTurn = weekTurnHold.turn;
+    weekTurnHold = null;
+  }
   setRamp();
   if (titleOpen) {
     app.className = '';
@@ -3696,6 +3704,34 @@ function revealActions(): void {
 // loudest, each number pulling the eye.
 
 let cascArmed: 'bars' | 'speech' | null = null;
+/** what the last cascade lit — re-lit on every re-render of the SAME screen
+    until the next change, so a practice's gains keep blinking (playtest #10) */
+let barsGlow: { key: string; rows: { i: number; bands: { j: number; rtl: boolean; lo: number; w: number; up: boolean }[] }[] } | null = null;
+const glowKey = (): string => `${state.phase}|${state.season}|${state.week}`;
+
+/** Put the last cascade's bands back on freshly rendered bars (no count,
+    no pop — they simply keep blinking where the change landed). */
+function reapplyBarsGlow(): void {
+  if (!barsGlow || barsGlow.key !== glowKey() || cascArmed || barsPre) { if (barsGlow && barsGlow.key !== glowKey()) barsGlow = null; return; }
+  const rows = [...document.querySelectorAll('.tbars .tbar')] as HTMLElement[];
+  for (const r of barsGlow.rows) {
+    const row = rows[r.i];
+    if (!row) continue;
+    row.classList.add('tbglow');
+    const fEls = [...row.querySelectorAll('.tbfill, .tbopp')] as HTMLElement[];
+    for (const b of r.bands) {
+      const track = fEls[b.j]?.parentElement;
+      if (!track || track.querySelector('.tbdelta')) continue;
+      const band = document.createElement('span');
+      band.className = `tbdelta ${b.up ? 'up' : 'down'}`;
+      if (b.rtl) band.style.right = `${b.lo}%`;
+      else band.style.left = `${b.lo}%`;
+      band.style.width = `${b.w}%`;
+      band.style.animationDelay = `-${wallPhase(SWAP_MS)}ms`;
+      track.appendChild(band);
+    }
+  }
+}
 
 function clearCascTimers(): void {
   for (const tm of cascTimers) { clearTimeout(tm); clearInterval(tm); }
@@ -3723,6 +3759,7 @@ function applyPreBars(): void {
 
 /** Snapshot the currently rendered team bars (call BEFORE the change). */
 function captureBars(): void {
+  barsGlow = null; // a new change is coming: the old one stops blinking
   const rows = [...document.querySelectorAll('.tbars .tbar')] as HTMLElement[];
   barsPre = rows.length
     ? rows.map((row) => ({
@@ -3755,7 +3792,10 @@ function cascadeBars(): void {
   });
   const changed = posts.filter((x) => x.moved);
   if (!changed.length) return;
+  const glow: NonNullable<typeof barsGlow> = { key: glowKey(), rows: [] };
   changed.forEach((c, ix) => {
+    const gRow: (typeof glow.rows)[number] = { i: rows.indexOf(c.row), bands: [] };
+    glow.rows.push(gRow);
     const isBig = c.row.classList.contains('big');
     const at = 280 + ix * 300 + (isBig ? 320 : 0);
     cascTimers.push(window.setTimeout(() => {
@@ -3778,6 +3818,7 @@ function cascadeBars(): void {
             band.style.width = `${Math.abs(postW - preW)}%`;
             band.style.animationDelay = `-${wallPhase(SWAP_MS)}ms`;
             track.appendChild(band);
+            gRow.bands.push({ j, rtl: track.classList.contains('rtl'), lo, w: Math.abs(postW - preW), up: postW > preW });
           }
         }
       });
@@ -3796,8 +3837,9 @@ function cascadeBars(): void {
         }, 50);
         cascTimers.push(iv);
       });
-      cascTimers.push(window.setTimeout(() => c.row.classList.remove('cascflash', 'cascbig'), 1050));
+      cascTimers.push(window.setTimeout(() => { c.row.classList.remove('cascflash', 'cascbig'); c.row.classList.add('tbglow'); }, 1050));
     }, at));
+  barsGlow = glow;
   });
 }
 
@@ -4005,6 +4047,7 @@ function postRender(): void {
     }
   }
 
+  reapplyBarsGlow();
   // THE NUMBER CASCADE fires once the screen is quiet (no overlay on top)
   if (cascArmed && !gxResult && !toast && !currentStory(state)) {
     const kind = cascArmed;
@@ -4278,6 +4321,17 @@ function handleProspectDrop(zoneIdx: number, prospectId: number): void {
   const pendIdx = state.pendingRecruits.findIndex((x) => x.id === prospectId);
   const from = boardIdx >= 0 ? boardIdx : pendIdx >= 0 ? 9 + pendIdx : -1;
   if (from < 0 || from === zoneIdx) return;
+  // season zero: once the kid is ON the board he stays there — no dragging
+  // him back down, no swapping a nobody up into his slot (playtest #10)
+  if (state.tutorial !== undefined) {
+    const g = tutGem(state);
+    const gemId = g?.where === 'board' ? g.pr.id : null;
+    const at = (i: number): number | null => (i < 9 ? state.prospects[i]?.id ?? null : state.pendingRecruits[i - 9]?.id ?? null);
+    if (gemId !== null && ((at(from) === gemId && zoneIdx >= 9) || (at(zoneIdx) === gemId && from >= 9))) {
+      toast = `◆ Not the kid, coach. ${g!.pr.name} stays on the board.`;
+      return;
+    }
+  }
   swapBoardSlot(state, from, zoneIdx);
   // season zero's board lesson: the gem lands ON the board
   if (state.tutorial !== undefined && tutGem(state)?.where === 'board') tutWalkAdvance('swap:gem');
@@ -4773,15 +4827,21 @@ function executeAction(action: string, id: string): void {
     case 'continue-result': {
       const wkFrom = state.week;
       const seasonFrom = state.season;
+      const wasAway = !!state.lastResult && !state.lastResult.home && !isUtWeek(state);
       gnStage = 'beat';
       clearFloatTimers();
       cardDeltas = null;
       gxStickers = null;
       liveProg = null;
       continueFromResult(state);
-      // THE WEEK TURN: the calendar page flips between the horn and Monday
+      // THE WEEK TURN: the calendar page flips between the horn and Monday —
+      // after the ride home from an away game (the first story in the queue
+      // then), before the dean's envelope
       if (!state.end && state.tutorial === undefined && state.season === seasonFrom && state.week !== wkFrom) {
-        weekTurn = { season: state.season, from: wkFrom, to: state.week };
+        const turn = { season: state.season, from: wkFrom, to: state.week };
+        const ride = wasAway ? currentStory(state) : null;
+        if (ride) weekTurnHold = { turn, afterUid: ride.uid };
+        else weekTurn = turn;
       }
       break;
     }
@@ -4840,6 +4900,12 @@ function executeAction(action: string, id: string): void {
     case 'speech-pick': selPregame = { kind: 'speech', id: id as PlanId }; speechSheet = false; break;
     case 'instr-pick': selPregame = { kind: 'instr', id }; speechSheet = false; break;
     case 'board-confirm-do': {
+      // season zero: the board never confirms with the kid in the OUT row
+      if (state.tutorial !== undefined && tutGem(state)?.where === 'pending') {
+        boardConfirm = false;
+        toast = `◆ Anybody but the kid. Drag ${tutGem(state)!.pr.name} back onto the board first.`;
+        break;
+      }
       const gone = confirmBoard(state);
       boardConfirm = false;
       gxFound.clear();
@@ -5166,6 +5232,7 @@ app.addEventListener('click', (e) => {
     else dropItemOnPlayer(itemId, id);
     render();
   },
+  pdrop: (zone: number, prId: number) => { handleProspectDrop(zone, prId); render(); },
   ui: () => ({ storyMode, stageTyped, impact, impactPlayed }),
 };
 

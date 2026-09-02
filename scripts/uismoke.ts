@@ -270,6 +270,14 @@ async function main(): Promise<void> {
   click('[data-action="gx-result-tap"]');
   drain();
 
+  // the first game is AWAY (flip the fixture if the draw made it home): the
+  // week-turn-after-the-ride-home path below needs a bus to come back on
+  {
+    const s0 = gc.state() as any;
+    const pairs = s0.schedule[s0.week - 1] as [number, number][];
+    const ix = pairs.findIndex(([h]) => h === s0.myTeamId);
+    if (ix >= 0) pairs[ix] = [pairs[ix][1], pairs[ix][0]];
+  }
   // matchup
   anyWin.gcAction('to-matchup', '');
   drain();
@@ -357,8 +365,22 @@ async function main(): Promise<void> {
   if (!app.innerHTML.includes('POINTS')) throw new Error('the leaders lists did not render post-game');
   must('[data-action="stand-tab"][data-id="table"]', 'back to the table');
   if (app.innerHTML.includes('AROUND THE LEAGUE')) throw new Error('other results should have left the standings screen');
+  const wasAway = !!(gc.state() as any).lastResult && !(gc.state() as any).lastResult.home;
   anyWin.gcAction('continue-result', '');
-  // THE WEEK TURN: the calendar flips before the dean shows up
+  // THE WEEK TURN: the calendar flips before the dean shows up — but AFTER
+  // the ride home from an away game (playtest #10)
+  if (wasAway) {
+    const q0 = (gc.state() as any).queue[0];
+    if (!q0) throw new Error('an away weekend should open on the ride home');
+    if (app.innerHTML.includes('weekturn')) throw new Error('the week turn must wait for the ride home');
+    for (let i = 0; i < 40 && (gc.state() as any).queue[0]?.uid === q0.uid; i++) {
+      const c = app.querySelector('[data-action="story-choice"]:not([disabled])');
+      if (c) anyWin.gcAction('story-choice', c.getAttribute('data-id') ?? 'ok');
+      else click('[data-action="story-tap"]');
+    }
+    if ((gc.state() as any).queue[0]?.uid === q0.uid) throw new Error('the ride home never ended');
+    console.log(`week turn held for the ride home (${q0.defId}) — then flipped`);
+  }
   if (!app.innerHTML.includes('weekturn')) throw new Error('the week-turn animation is missing');
   must('[data-action="week-turn-close"]', 'flip the calendar');
   drain(); // the wrap-up dialogues: returns, the dean's envelope
@@ -489,9 +511,26 @@ async function main(): Promise<void> {
   if (st3().pendingRecruits.length) {
     // the board was full: swap the 5★ kid on, let a nobody go
     stateMod.swapBoardSlot(st3(), 9, 8);
+    // …and once he's ON the board he can't be dragged off it, swapped out,
+    // or cut (playtest #10)
+    const gemPr = st3().prospects[8];
+    const nobody = st3().pendingRecruits[0];
+    (gc as any).pdrop(9, gemPr.id);
+    toasts();
+    if (st3().prospects[8]?.id !== gemPr.id) throw new Error('the kid must not leave the board by drag');
+    (gc as any).pdrop(8, nobody.id);
+    toasts();
+    if (st3().prospects[8]?.id !== gemPr.id) throw new Error('a nobody must not swap into the kid\'s slot');
+    stateMod.swapBoardSlot(st3(), 8, 9); // force him into the OUT row…
     anyWin.gcAction('board-confirm-open', '');
     anyWin.gcAction('board-confirm-do', '');
     toasts();
+    if (!st3().pendingRecruits.some((p: any) => p.id === gemPr.id)) throw new Error('confirming with the kid in the OUT row must refuse');
+    stateMod.swapBoardSlot(st3(), 9, 8); // …and back on
+    anyWin.gcAction('board-confirm-open', '');
+    anyWin.gcAction('board-confirm-do', '');
+    toasts();
+    if (!st3().prospects.some((p: any) => p.id === gemPr.id)) throw new Error('the kid should survive the confirm');
   }
   anyWin.gcAction('to-practice', '');
   drain(); // the practice intro
@@ -518,6 +557,11 @@ async function main(): Promise<void> {
   anyWin.gcAction('drill-run', ''); // TEAM REST — season zero's miracle week off
   drain();
   if (me3().players.some((p: any) => p.outWeeks === 0 && p.energy < 80)) throw new Error('the tutorial rest should put the whole squad in the green');
+  // the bars keep blinking their gains after the cascade, across re-renders
+  await new Promise((r) => setTimeout(r, 2800));
+  anyWin.gcAction('noop', '');
+  if (!app.querySelector('.tbar.tbglow')) throw new Error('the changed bars should stay lit after practice');
+  if (!app.querySelector('.tbdelta')) throw new Error('the gain bands should still blink after a re-render');
   // the guarantee: even rested, nobody out-grades the full-tank freshman
   {
     const sim = await import('../src/engine/sim');

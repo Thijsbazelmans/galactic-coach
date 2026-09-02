@@ -2609,6 +2609,12 @@ export function startNewSeason(s: GameState): void {
     p.onFire = false; // summer puts every fire out
     p.fireWeeks = 0;
   }
+  // the league's lines fold too (playtest #10): season zero's seeded box
+  // scores used to walk straight into season one's LEADERS
+  for (const t of s.teams) {
+    if (t.id === s.myTeamId) continue;
+    for (const p of t.players) { addStats(p.career, p.stats); p.stats = zeroStats(); }
+  }
   for (const t of s.teams) { t.wins = 0; t.losses = 0; t.pointsFor = 0; t.pointsAgainst = 0; }
   s.schedule = genSchedule(s.teams.length);
   s.commits = [];
