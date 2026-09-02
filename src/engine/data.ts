@@ -254,14 +254,31 @@ export const PLANS: PlanDef[] = [
   { id: 'rungun', name: 'RUN & GUN', speech: 'RUN THEM RAGGED', kind: 'shift', attr: 'ath', off: 'skl', gain: [4, 5], loss: [2, 3], cooldown: 1, scene: 'they\'re bench-pressing the cheerleaders. The cheerleaders seem fine with it.', fantasy: 'Outrun everything. Seven seconds or less. Nobody said anything about making shots.' },
   { id: 'lockdown', name: 'LOCKDOWN', speech: 'MAKE THEM HATE THE BALL', kind: 'shift', attr: 'frc', off: 'brn', gain: [4, 5], loss: [2, 3], cooldown: 1, scene: 'somebody is headbutting a locker, lovingly. Then somebody else does. The locker will need replacing.', fantasy: 'Full-court terror. Make them hate the ball. Thinking is for the bus ride home.' },
   { id: 'clockwork', name: 'CLOCKWORK', speech: 'USE YOUR BRAINS', kind: 'shift', attr: 'brn', off: 'frc', gain: [4, 5], loss: [2, 3], cooldown: 1, scene: 'a quiet confidence has settled over the room. Is someone humming "ohm"? Are they ALL?', fantasy: 'The system. Every cut scripted. Nobody gets angry, nobody gets a steal.' },
-  { id: 'rally', name: 'THE RALLY', speech: 'THIS IS OUR HOUSE', kind: 'rally', attr: 'skl', off: 'skl', gain: [0, 0], loss: [0, 0], cooldown: 1, scene: 'chairs are scraping back. Somebody is pounding a locker in rhythm, and the rhythm is spreading.', fantasy: 'No X\'s, no O\'s — just the roof, and whether it stays on. A coin flip on morale; a sliver of chance it goes very right, or very wrong.' },
+  // the cheerleader's cheer, circled in the notebook on season zero's one
+  // night — the id stays 'rally' (saves, the tutorial rig) but the words are
+  // hers: GO, GO, GO!
+  { id: 'rally', name: 'GO GO GO', speech: 'GO, GO, GO!', kind: 'rally', attr: 'skl', off: 'skl', gain: [0, 0], loss: [0, 0], cooldown: 1, scene: 'the room is answering back, half a beat off and all the louder for it. Somebody is drumming a locker.', fantasy: 'The cheer, straight off the page. No X\'s, no O\'s — just the roof, and whether it stays on. A coin flip on morale; a sliver of chance it goes very right, or very wrong.' },
   { id: 'easy', name: 'TAKE IT EASY', speech: 'SAVE SOMETHING FOR NEXT WEEK', kind: 'easy', attr: 'ath', off: 'ath', gain: [0, 0], loss: [0, 0], scene: 'somebody is yawning, on purpose. The starters are stretching like it\'s a Tuesday.', fantasy: 'Coast tonight: the floor players burn far less energy, and you play a little softer for it. Lose, and a coasting room takes it badly.' },
   // premium speeches — found in stories: a better trade, 3-week recharge
   { id: 'warcry', name: 'THE WAR CRY', speech: 'TONIGHT WE ARE ANIMALS', kind: 'shift', attr: 'frc', off: 'brn', gain: [7, 8], loss: [2, 3], scene: 'the chant is going up in old Quadran. The paint on the far wall is peeling a little.', fantasy: 'An old Quadran battle chant. The paint peels.', premium: true, cooldown: 3 },
   { id: 'zenmind', name: 'THE STILL POND', speech: 'BE THE STILL POND', kind: 'shift', attr: 'brn', off: 'frc', gain: [7, 8], loss: [2, 3], scene: 'the room is so quiet you can hear the arena breathing through the wall.', fantasy: 'The oracle taught you this one. The gym goes quiet inside.', premium: true, cooldown: 3 },
   { id: 'stardust', name: 'STARDUST', speech: 'BE UNGUARDABLE', kind: 'shift', attr: 'skl', off: 'ath', gain: [7, 8], loss: [2, 3], scene: 'somebody is spinning a ball on one finger and hasn\'t looked at it once.', fantasy: 'A retired Nimbus legend whispered it once. Nets have feared it since.', premium: true, cooldown: 3 },
   { id: 'engine', name: 'THE ENGINE', speech: 'LEGS ARE A LIE', kind: 'shift', attr: 'ath', off: 'skl', gain: [7, 8], loss: [2, 3], scene: 'the whole room is bouncing. The floor has opinions about it.', fantasy: 'A Robota conditioning mantra. The floor gets smaller for everyone else.', premium: true, cooldown: 3 },
+  // the premium rally: the words every home crowd has always known, said the
+  // way they were meant to be said — the roof comes off more often than not
+  { id: 'ourhouse', name: 'OUR HOUSE', speech: 'THIS IS OUR HOUSE', kind: 'rally', attr: 'skl', off: 'skl', gain: [0, 0], loss: [0, 0], scene: 'chairs are scraping back. Somebody is pounding a locker in rhythm, and the rhythm is spreading.', fantasy: 'The oldest words in the game, and they still work. Three nights in four the room stands up; some nights the roof goes with it.', premium: true, cooldown: 3 },
 ];
+
+/** THE RALLY's coin, in percent: bust (mood −20) · roof (the big lift) ·
+    lift (the everyday one) — the rest of the roll is a night it doesn't
+    take. The premium find weights the coin. */
+export const RALLY_ODDS = {
+  standard: { bust: 2, roof: 2, lift: 48, liftAmt: 12, roofAmt: 25 },
+  premium: { bust: 2, roof: 8, lift: 65, liftAmt: 15, roofAmt: 30 },
+} as const;
+export function rallyOdds(pl: PlanDef): (typeof RALLY_ODDS)['standard'] | (typeof RALLY_ODDS)['premium'] {
+  return pl.premium ? RALLY_ODDS.premium : RALLY_ODDS.standard;
+}
 
 export function planById(id: PlanId): PlanDef {
   return PLANS.find((p) => p.id === id)!;
@@ -1677,6 +1694,7 @@ export const CHAMP_STYLE: Record<PlanId, string[]> = {
   stardust: ['their handles have handles', 'the ball never touched the floor. I timed it'],
   engine: ['their legs don\'t know what a fourth quarter is', 'they pressed me on the way to my seat'],
   rally: ['their locker room can be heard from the next system', 'their morale has its own gravity well'],
+  ourhouse: ['they chant like the building belongs to them, and the building agrees', 'their crowd starts the roar; their bench finishes it'],
   easy: ['they coast until they don\'t, and then it\'s over', 'they save everything for the exact minute you relax'],
 };
 

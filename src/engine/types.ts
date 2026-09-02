@@ -24,7 +24,7 @@ export type Attr = 'skl' | 'ath' | 'frc' | 'brn';
 export type AttrRec = Record<Attr, number>;
 
 /** Speech ids (the old tactics are speeches now; premium ones come from stories). */
-export type PlanId = 'showtime' | 'rungun' | 'lockdown' | 'clockwork' | 'warcry' | 'zenmind' | 'stardust' | 'engine' | 'rally' | 'easy';
+export type PlanId = 'showtime' | 'rungun' | 'lockdown' | 'clockwork' | 'warcry' | 'zenmind' | 'stardust' | 'engine' | 'rally' | 'ourhouse' | 'easy';
 
 /** A landed speech: the room ignited — every player plays +amt in that attribute. */
 export interface SpeechFx {
@@ -529,6 +529,10 @@ export interface GameState {
   /** the pricey moves recharge too: drill/board-act id → weeks until again
       (2¢ → 1 week, 3¢ → 2 weeks; free and 1¢ actions never wait) */
   actCooldowns?: Record<string, number>;
+  /** recharges and injuries dealt THIS week (after Monday's tick): they skip
+      the very next tick, so "1w" is one full week off — keys 'sc:<plan>',
+      'ac:<act>', 'out:<playerId>' (playtest #11) */
+  freshWk?: string[];
   sitouts: number[];
   drillReport: string | null;
   voyageRolled: boolean;

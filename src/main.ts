@@ -25,6 +25,7 @@ import {
   instrById,
   itemById,
   planById,
+  rallyOdds,
   speciesById,
   storyById,
 } from './engine/data';
@@ -2338,8 +2339,9 @@ function speechSub(pl: (typeof PLANS)[number]): string {
     and takes; the down tail is the night it doesn't. THE RALLY is the coin
     flip, TAKE IT EASY the one sure thing. */
 function speechRow(pl: (typeof PLANS)[number], tag: 'button' | 'div', cls: string, attrs: string): string {
+  const odds = rallyOdds(pl);
   const facts: Fact[] = pl.kind === 'rally'
-    ? [fact('MORALE, a coin flip', 1), fact('the roof — on or off', 0)]
+    ? [fact(pl.premium ? `MORALE, ${odds.lift + odds.roof}% it lands` : 'MORALE, a coin flip', pl.premium ? 2 : 1), fact('the roof — on or off', 0)]
     : pl.kind === 'easy'
       ? [fact('−40% ⚡ burned', 2), fact('softer tonight · a loss stings', 0)]
       : [fact(`+${pl.gain[0]}–${pl.gain[1]} ${ATTR_SHORT[pl.attr]}`, pl.gain[1] >= 6 ? 3 : 1), fact(`−${pl.loss[0]}–${pl.loss[1]} ${ATTR_SHORT[pl.off]}`, pl.loss[1] <= 3 ? 2 : 0)];
@@ -2347,7 +2349,7 @@ function speechRow(pl: (typeof PLANS)[number], tag: 'button' | 'div', cls: strin
   // no tail on a speech: nothing is risked, and the sheet head already says
   // some nights it doesn't take — THE RALLY alone prints its coin flip;
   // the sticker stays TRADE
-  const down = pl.kind === 'rally' ? { pct: 50, cls: 'DRAMA', note: 'a coin flip, the roof on or off' } : undefined;
+  const down = pl.kind === 'rally' ? { pct: 100 - odds.lift - odds.roof, cls: 'DRAMA', note: pl.premium ? 'the night it doesn\'t take' : 'a coin flip, the roof on or off' } : undefined;
   return pickerRow({ tag, cls, attrs, name: pl.speech, down, facts, risk: pl.kind === 'easy' ? 'safe' : pl.kind === 'rally' ? 'risky' : 'trade', desc: pl.fantasy });
 }
 
@@ -2643,7 +2645,7 @@ function speechSheetHtml(s: GameState): string {
   const speeches = PLANS.map((pl) => {
     if (!s.knownPlans.includes(pl.id)) { hidden++; return ''; }
     // SEASON ZERO: before the cheerleader keeps her promise, only the four
-    // standard trades are on the sheet — THE RALLY isn't yours yet; after,
+    // standard trades are on the sheet — GO GO GO isn't yours yet; after,
     // hers are the only words tonight
     if (s.tutorial !== undefined) {
       if ((s.tutorial ?? 0) < TUT_AT.SPEECH) {
@@ -4915,12 +4917,12 @@ function executeAction(action: string, id: string): void {
     case 'noop': break;
 
     case 'speech-run': {
-      // SEASON ZERO: only THE RALLY — the page you wrote — leaves your mouth
+      // SEASON ZERO: only GO GO GO — the page you wrote — leaves your mouth
       if (state.tutorial !== undefined) {
         const selT = pregameSel(state);
         if (!(selT.kind === 'speech' && selT.id === 'rally')) {
           selPregame = { kind: 'speech', id: 'rally' };
-          toast = 'Tonight the words are the ones you wrote down: THE RALLY.';
+          toast = 'Tonight the words are the ones you wrote down: GO, GO, GO!';
           break;
         }
       }
@@ -5156,7 +5158,7 @@ app.addEventListener('click', (e) => {
       // swallow the tap — the slot already renders dead for them
       if (notebookDead(state)) break;
       // SEASON ZERO's scripted pages: the cheer gets WRITTEN at scouting;
-      // at the matchup the written page becomes THE RALLY, ready to deliver
+      // at the matchup the written page becomes GO GO GO, ready to deliver
       const wNote = state.tutWalk?.steps?.[state.tutWalk.ix];
       if (state.tutorial !== undefined && (wNote?.advance ?? '') === 'note' && !currentStory(state)) {
         if (state.phase === 'scouting') {

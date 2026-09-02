@@ -1413,10 +1413,12 @@ character for the story web; the old rating tick is gone.
 **SPEECHES.** Each has its own scene (the humming "ohm", the locker
 headbutt, cheerleader bench presses, trick shots for the 'gram); the picker
 reads title / trade (abbreviations, one line) / small print; the nav's
-second row is the trade. Two new standard speeches: THE RALLY (no
-attributes — 48% squad mood +12, 2% the roof comes off +25, 2% it lands
-wrong −20) and TAKE IT EASY (floor burn ×0.6, power ×0.93, a loss costs
-extra mood). `PlanDef.kind`.
+second row is the trade. Two new standard speeches: GO GO GO — the
+cheerleader's cheer, circled in season zero's notebook (no attributes —
+48% squad mood +12, 2% the roof comes off +25, 2% it lands wrong −20) and
+TAKE IT EASY (floor burn ×0.6, power ×0.93, a loss costs extra mood).
+`PlanDef.kind`. OUR HOUSE is the premium rally, a knowledge find: 65% +15,
+8% the roof +30, 2% wrong, 3-week recharge (`RALLY_ODDS`).
 
 **CARDS.** The faint ability shape sits behind every ROSTER card and on
 tryouts (the matchup had it first). Anchored STICKERS are back for every

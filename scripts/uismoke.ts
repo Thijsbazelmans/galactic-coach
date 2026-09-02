@@ -62,6 +62,8 @@ async function main(): Promise<void> {
         if (!app.querySelector('.storyart .modalcard')) throw new Error('the GONE page lost the empty card');
         goneSeen = true;
       }
+      // THE REVEAL CARD: a find shows the very row it adds to the sheet
+      if (q?.defId === 'reveal' && app.querySelector('.revealbox .revealrow')) revealSeen = true;
       // the dean's gauge beat waits on the GAUGE: open it over her, close it
       if (q?.defId === 'tut_dean1b' && !((gc.state() as any).tutSeen ?? []).includes('dean-gauge')) {
         if (!click('[data-action="job-open"]')) throw new Error('the job gauge did not answer over the dean');
@@ -78,6 +80,7 @@ async function main(): Promise<void> {
     }
   };
   let goneSeen = false;
+  let revealSeen = false;
   const toasts = (): void => {
     for (let i = 0; i < 8 && click('[data-action="toast-tap"]'); i++) { /* beats */ }
   };
@@ -293,6 +296,9 @@ async function main(): Promise<void> {
   anyWin.gcAction('speech-pick', 'showtime');
   anyWin.gcAction('speech-run', '');
   if (!(gc.state() as any).pregameWk) throw new Error('the pregame move did not commit');
+  // the recharge starts now — and is FRESH: Monday's tick must skip it
+  if ((gc.state() as any).speechCooldowns?.showtime !== 1) throw new Error('SHOWTIME should be recharging for a week');
+  if (!((gc.state() as any).freshWk ?? []).includes('sc:showtime')) throw new Error('a recharge set this week should be marked fresh');
   // the speech verdict lands as a two-beat toast (the words, then the
   // trade) — tap it through until it closes
   toasts();
@@ -385,6 +391,10 @@ async function main(): Promise<void> {
   must('[data-action="week-turn-close"]', 'flip the calendar');
   drain(); // the wrap-up dialogues: returns, the dean's envelope
   if (state().phase !== 'weekstart') throw new Error(`expected weekstart, got ${state().phase}`);
+  // "1w recharge" is a FULL week off: the speech given Friday is still
+  // recharging on Monday, and the fresh mark is spent (playtest #11)
+  if ((gc.state() as any).speechCooldowns?.showtime !== 1) throw new Error('SHOWTIME must still be recharging the week after it was given');
+  if (((gc.state() as any).freshWk ?? []).length) throw new Error('the fresh marks should clear on the tick');
   if (!app.innerHTML.includes('WEEK START')) throw new Error('WEEK START screen missing');
   if ((gc.state() as any).facilities.cryo === 2) throw new Error('the upgrade should land at the CAMPUS door, not on the Monday report');
   anyWin.gcAction('begin-week', '');
@@ -631,10 +641,13 @@ async function main(): Promise<void> {
   if (!st3().tutWalk || st3().tutWalk.key !== 'speechnote') throw new Error('the speech-from-the-page walk did not arm');
   click('.bslot.notebook'); // the page comes out: THE CHEER runs as a scene
   toasts();
-  drain(); // the cheer → the room explodes → "bottle it" → OUR HOUSE learned
+  if (st3().knownPlans.includes('rally')) throw new Error('GO GO GO must not be on the sheet before the cheer runs');
+  drain(); // the cheer → the room explodes → "bottle it" → GO GO GO learned, THE REVEAL CARD
   if (!st3().pregameWk) throw new Error('the cheer never became the speech');
   if (st3().speechTook !== true) throw new Error('the tutorial cheer must land');
-  if (!st3().knownPlans.includes('rally')) throw new Error('OUR HOUSE should join the sheet');
+  if (!st3().knownPlans.includes('rally')) throw new Error('GO GO GO should join the sheet');
+  if (!st3().careerLog.some((l: string) => l.startsWith('Learned GO GO GO'))) throw new Error('GO GO GO should arrive as a find (the reveal card)');
+  if (!revealSeen) throw new Error('the reveal card never showed the GO GO GO row');
   if (me3().players.some((p: any) => p.outWeeks === 0 && p.mood < 80)) throw new Error('the cheer should put the room at 80+ mood');
   walkSkip(); // "slightly is STEALABLE" — the post-cheer gauge read
   // the freshman STARTS the finale — top row, no exceptions
@@ -660,6 +673,9 @@ async function main(): Promise<void> {
   // the night reads TIGHT, lightly the opponent's way (the rig lands the upset)
   {
     const share = st3().lastResult?.share ?? 0;
+    // the dealt night ADDS UP: the box's points are the final score (#11)
+    const boxPts = (st3().lastResult?.box ?? []).reduce((a: number, r: any) => a + r.pts, 0);
+    if (boxPts !== st3().lastResult?.myScore) throw new Error(`the tutorial box (${boxPts}) must add up to the score (${st3().lastResult?.myScore})`);
     if (share < 0.4 || share > 0.5) throw new Error(`the finale must be dealt tight and opponent-leaning, got share ${share.toFixed(2)}`);
   }
   anyWin.gcAction('gn-recap', '');
@@ -693,7 +709,7 @@ async function main(): Promise<void> {
   if (st3().tutorial !== undefined) throw new Error('the tutorial should end with the cut');
   if (st3().season !== 1) throw new Error(`season 1 should begin after tutorial tryouts, got ${st3().season}`);
 
-  console.log('UI SMOKE OK — new-career paths → tryouts → one campus move → scouting → lenses → drill → recruiting → pregame → live game → box score + leaders note → standings w/ leaders tab → WEEK TURN → arrival at the campus door → campus cast → TUTORIAL season zero (the call, walks, lock, timeloop, mop, cheer-in-the-notebook, marker board, five-star, piece-meal practice, stamp, check, rally-off-the-page, notebook, goodbye-then-tryouts, SEASON 1 flip, dean\'s terms)');
+  console.log('UI SMOKE OK — new-career paths → tryouts → one campus move → scouting → lenses → drill → recruiting → pregame → live game → box score + leaders note → standings w/ leaders tab → WEEK TURN → arrival at the campus door → campus cast → TUTORIAL season zero (the call, walks, lock, timeloop, mop, cheer-in-the-notebook, marker board, five-star, piece-meal practice, stamp, check, cheer-off-the-page + reveal card, notebook, goodbye-then-tryouts, SEASON 1 flip, dean\'s terms)');
 }
 
 main().catch((e) => {

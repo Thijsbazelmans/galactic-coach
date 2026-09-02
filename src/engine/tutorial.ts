@@ -27,10 +27,16 @@ import {
   prospectToPlayer,
 } from './gen';
 import { autoLineup, verdictLines } from './sim';
-import type { GameState, MyGameResult, Player, StoryChoiceView, StoryReq, Team } from './types';
+import type { BoxRow, GameState, MyGameResult, Player, StoryChoiceView, StoryReq, Team } from './types';
 import { ATTRS, addStats, bumpAny, clamp, ovr, rand } from './util';
 
 const TC = (key: string, label: string, opts: Partial<StoryChoiceView> = {}): StoryChoiceView => ({ key, label, ...opts });
+
+/** The bookie's gift lands, whichever answer you gave him. */
+function tutCryoLands(s: GameState): string {
+  if (s.facilities) s.facilities.cryo = 1;
+  return 'By the time you\'re home, a CRYO BAY stands where the ice-filled dumpster used to be — still cold from the truck. The dumpster retires with honors.\n\nNobody mentions a price. Somewhere, all the same, a ledger you will never be shown opens a column with your name at the top.';
+}
 
 /** The stage ladder of season zero. */
 export const TUT_AT = {
@@ -99,8 +105,9 @@ export function tutorialBoot(s: GameState, teamId: number): StoryReq[] {
   // the campus at LEVEL ZERO — the only place level 0 ever exists
   s.facilities = { ship: 0, gym: 0, cryo: 0, library: 0, stadium: 0, greekrow: 0 };
   // the four standard speeches are on the sheet (the assistant explains the
-  // trade) — THE RALLY arrives with the cheerleader, game night
-  s.knownPlans = [...STARTING_PLANS];
+  // trade) — GO GO GO arrives with the cheerleader, game night, and gets
+  // its REVEAL CARD like any other find (so it can't be known yet)
+  s.knownPlans = STARTING_PLANS.filter((p) => p !== 'rally');
   s.knownInstr = [];
 
   const counter = { nextId: s.nextId };
@@ -726,16 +733,38 @@ export function tutorialRigGame(s: GameState, r: MyGameResult): void {
   r.share = 0.45; // the gauge read them slightly ahead — and you stole it
   r.needle = r.share;
   r.bookiePct = 42; // a slight underdog, as promised
+  // the box was dealt against the sim's score, and the season stats are
+  // already banked from it — the dealt night has to add up (playtest #11):
+  // the freshman's 26 is fixed, the rest is re-dealt to the others in the
+  // sim's proportions, and every row's delta follows it into the stats
+  const before = new Map(r.box.map((x) => [x.playerId, x.pts]));
   const fr = tutFreshman(s);
+  let hero: BoxRow | null = null;
   if (fr && fr.outWeeks === 0) {
-    let row = r.box.find((x) => x.playerId === fr.id);
-    if (!row) {
-      row = { playerId: fr.id, name: fr.name, pts: 0, reb: 2, stl: 1, ast: 1 };
-      r.box.unshift(row);
+    hero = r.box.find((x) => x.playerId === fr.id) ?? null;
+    if (!hero) {
+      hero = { playerId: fr.id, name: fr.name, pts: 0, reb: 2, stl: 1, ast: 1 };
+      r.box.unshift(hero);
     }
-    row.pts = Math.max(row.pts, 26);
-    r.box.sort((a, b) => b.pts - a.pts);
+    hero.pts = Math.min(r.myScore, Math.max(hero.pts, 26));
     r.mvpId = fr.id;
+  }
+  const others = r.box.filter((x) => x !== hero);
+  const rest = r.myScore - (hero?.pts ?? 0);
+  const pool = others.reduce((a, x) => a + x.pts, 0);
+  let dealt = 0;
+  for (const x of others) {
+    x.pts = pool > 0 ? Math.floor((x.pts / pool) * rest) : Math.floor(rest / Math.max(1, others.length));
+    dealt += x.pts;
+  }
+  if (others.length) [...others].sort((a, b) => b.pts - a.pts)[0].pts += rest - dealt;
+  r.box.sort((a, b) => b.pts - a.pts);
+  for (const x of r.box) {
+    const p = t.players.find((q) => q.id === x.playerId);
+    if (!p) continue;
+    const was = before.get(x.playerId);
+    if (was === undefined) p.stats.gp++;
+    p.stats.pts += x.pts - (was ?? 0);
   }
   const lines = verdictLines(t, r.planMine, true, r.share, Math.abs(r.myScore - r.oppScore), r.box, r.forms);
   r.wheelLine = lines.wheelLine;
@@ -1322,8 +1351,8 @@ STORIES.push(
     },
   },
   // 09b · THE CHEER, run off the page: the room answers, the roof lifts,
-  // and only then does it become a speech you own (OUR HOUSE, greyed for
-  // tonight — you already said it)
+  // and only then does it become a speech you own (GO GO GO — the reveal
+  // card puts it on the sheet; tonight it's already been said)
   {
     id: 'tut_cheerrun',
     kind: 'coach',
@@ -1353,14 +1382,14 @@ STORIES.push(
       text: '"Whatever you just did, coach," the assistant grins over the noise, "bottle it."',
       choices: [TC('bottle', 'BOTTLE IT')],
     }),
-    resolve: () => ({ text: '', next: { defId: 'tut_ourhouse', beat: 'start', playerId: null } }),
+    resolve: () => ({ text: '', next: { defId: 'tut_gogogo', beat: 'start', playerId: null } }),
   },
   {
-    id: 'tut_ourhouse',
+    id: 'tut_gogogo',
     kind: 'coach',
     beat: () => ({
       tag: 'A SPEECH IS BORN',
-      text: 'You write one line under the cheer, for every game night to come: THIS IS OUR HOUSE.\n\nIt goes on your sheet with the others — though tonight it\'s already been said. Tonight you just hit PLAY.',
+      text: 'You circle the cheer on the page, twice, hard enough to dent the next sheet. Three words, and a room stood up.\n\nThose are yours now — for every locker room to come. Tonight they\'ve already been said. Tonight you just hit PLAY.',
     }),
     resolve: (_k, ctx) => {
       const s = ctx.s;
@@ -1391,12 +1420,28 @@ STORIES.push(
     beat: () => ({
       tag: 'THE BOOKIE SETTLES UP',
       text: 'The bookie is waiting outside the visitors\' gym, radiating the specific joy of a man who had you as a slight underdog and bet accordingly.\n\n"Coach. Beautiful upset. BEAUTIFUL. Listen —" a truck horn sounds, somewhere close, "— a cryo unit is about to fall off a truck outside your gym. Tragic. Nobody will claim it. You understand."',
-      choices: [TC('understand', 'YOU UNDERSTAND')],
+      choices: [TC('understand', 'YOU UNDERSTAND'), TC('confused', 'I DON\'T UNDERSTAND, ACTUALLY')],
     }),
-    resolve: (_k, ctx) => {
-      if (ctx.s.facilities) ctx.s.facilities.cryo = 1;
-      return { text: 'By the time you\'re home, a CRYO BAY stands where the ice-filled dumpster used to be — still cold from the truck. The dumpster retires with honors.\n\nNobody mentions a price. Somewhere, all the same, a ledger you will never be shown opens a column with your name at the top.' };
+    resolve: (key, ctx) => {
+      if (key === 'confused') {
+        return {
+          text: 'The smile stays exactly where it is. Everything behind it leaves.\n\n"Coach." He folds the little board shut. "Let me say it slower. A cryo unit is going to fall off a truck. It is going to land outside YOUR gym. You are going to keep it. And one day — not today, not this season — I am going to ask you for something small, and you are going to remember this conversation."\n\nThe truck horn sounds again. Closer.',
+          next: { defId: 'tut_cryo2', beat: 'start', playerId: null },
+        };
+      }
+      return { text: tutCryoLands(ctx.s) };
     },
+  },
+  {
+    id: 'tut_cryo2',
+    kind: 'coach',
+    figure: 'bookie',
+    beat: () => ({
+      tag: 'THE BOOKIE SETTLES UP',
+      text: '"There." The smile comes back, all of it, like nothing happened. "Now you understand."',
+      choices: [TC('understand', '…YOU UNDERSTAND')],
+    }),
+    resolve: (_k, ctx) => ({ text: tutCryoLands(ctx.s) }),
   },
   // 12 · WRAP — the road home: the attendant, the kid, the last credit
   {

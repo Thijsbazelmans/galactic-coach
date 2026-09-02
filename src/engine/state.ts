@@ -27,6 +27,7 @@ import {
   instrById,
   itemById,
   planById,
+  rallyOdds,
   rollInjury,
   speciesById,
   storyById,
@@ -465,6 +466,9 @@ export function applyFx(s: GameState, fxList: Fx[] | undefined, defaultPlayerId:
     if (fx.outWeeks !== undefined) {
       const wasOut = p.outWeeks > 0;
       p.outWeeks = fx.outWeeks;
+      // dealt after the horn (a midgame beat, the aftermath): the first
+      // Monday doesn't count it down — he misses NEXT week's game
+      if (fx.outWeeks > 0 && s.phase === 'gamenight') markFresh(s, `out:${p.id}`);
       p.outReason = fx.outWeeks > 0 ? fx.outReason ?? p.outReason ?? 'unspecified' : '';
       // the KIND decides which item can shorten it: a running absence keeps
       // its kind (medicine and time machines only change the weeks); a fresh
@@ -777,18 +781,19 @@ function startWeek(s: GameState): void {
   // it over — it lands when her budget dialog resolves, counter and all
   const stipend = stipendFor(s.season);
   if (isUtWeek(s)) s.energy = clamp(s.energy + stipend, 0, CACHE_MAX);
-  // premium speeches recharge
-  if (s.speechCooldowns) {
-    for (const k of Object.keys(s.speechCooldowns)) {
-      s.speechCooldowns[k] = Math.max(0, (s.speechCooldowns[k] ?? 0) - 1);
-      if (!s.speechCooldowns[k]) delete s.speechCooldowns[k];
-    }
-  }
-  // the pricey drills and board moves recharge on the same clock
-  if (s.actCooldowns) {
-    for (const k of Object.keys(s.actCooldowns)) {
-      s.actCooldowns[k] = Math.max(0, (s.actCooldowns[k] ?? 0) - 1);
-      if (!s.actCooldowns[k]) delete s.actCooldowns[k];
+  // speeches, instructions, the pricey drills and board moves recharge on
+  // the same clock — anything set since LAST Monday's tick sits this one
+  // out, so "1w recharge" is a full week off (playtest #11: the same speech
+  // every Friday, because the dean's envelope had already cleared it)
+  const fresh = new Set(s.freshWk ?? []);
+  s.freshWk = [];
+  for (const [ledger, pre] of [['speechCooldowns', 'sc'], ['actCooldowns', 'ac']] as const) {
+    const L = s[ledger];
+    if (!L) continue;
+    for (const k of Object.keys(L)) {
+      if (fresh.has(`${pre}:${k}`)) continue;
+      L[k] = Math.max(0, (L[k] ?? 0) - 1);
+      if (!L[k]) delete L[k];
     }
   }
   // the opinion ledgers drift home: one point toward neutral, every week —
@@ -853,7 +858,9 @@ function startWeek(s: GameState): void {
       // shows the truth of the NEW week, and the return is told first. A
       // dedicated return story coming due (the festival, the exchange)
       // replaces the generic notice: nobody steps off the bus twice.
-      if (p.outWeeks > 0 && --p.outWeeks === 0) {
+      // (an injury dealt at game night sits the first tick out: "1 week"
+      // means he misses next week's game, not a phantom CLEARED TO PLAY)
+      if (p.outWeeks > 0 && !fresh.has(`out:${p.id}`) && --p.outWeeks === 0) {
         if (mine && !s.futureBeats.some((fb) => fb.playerId === p.id && fb.weeksLeft <= 1)) {
           deferPre('notice', 'start', p.id, {
             tag: 'CLEARED TO PLAY',
@@ -1171,7 +1178,7 @@ export function runDrill(s: GameState, drillId: string, onePlayerId?: number): D
   s.energy -= d.cost;
   s.trainedThisWeek = true;
   // the pricey sessions can't run back to back: 2¢ rests a week, 3¢ two
-  if (d.cost >= 2) s.actCooldowns = { ...(s.actCooldowns ?? {}), [drillId]: d.cost - 1 };
+  if (d.cost >= 2) setCooldown(s, 'actCooldowns', drillId, d.cost - 1);
 
   const ups: LevelUp[] = [];
   const gainByPlayer = new Map<number, string>();
@@ -1356,7 +1363,7 @@ export function actionGalaxy(s: GameState, actId: string, targetIds?: number[]):
   else s.scoutActWk = true;
   // the big plays can't run every week: 2¢ rests a week, 3¢ two — no duffel
   // bags two Fridays in a row
-  if (act.cost >= 2) s.actCooldowns = { ...(s.actCooldowns ?? {}), [act.id]: act.cost - 1 };
+  if (act.cost >= 2) setCooldown(s, 'actCooldowns', act.id, act.cost - 1);
   // season zero: the charm move landing is the booster's cue
   if (act.kind === 'recruit' && s.tutorial !== undefined) tutQueue(s, tutorialArrive(s, 'recruited'));
   const per = new Map<number, { text: string; up?: boolean; commitFrom?: number }[]>();
@@ -1603,7 +1610,9 @@ export function confirmBoard(s: GameState): string[] {
 function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx[]; text: string; took: boolean } {
   const pl = planById(plan);
   const t = myTeam(s);
-  const exit = `"Tonight, ${pl.speech}," you say — and you leave the room for dramatic effect.`;
+  const exit = /[!?]$/.test(pl.speech)
+    ? `"Tonight — ${pl.speech}" you say — and you leave the room for dramatic effect.`
+    : `"Tonight, ${pl.speech}," you say — and you leave the room for dramatic effect.`;
   const back = 'When you come back in,';
   if (pl.kind === 'rally') {
     // no X's and O's: a coin flip on morale, a sliver of chance either way —
@@ -1612,10 +1621,11 @@ function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx[]; text: string;
       for (const p of t.players) p.mood = clamp(p.mood + 75, 0, 100);
       return { took: true, fx: [], text: `${exit}\n\n${back} the roof is OFF. Chairs are over. Somebody is crying. The other team can hear it through the wall. Squad MOOD +75.` };
     }
+    const odds = rallyOdds(pl);
     const r = Math.random() * 100;
-    if (r < 2) { for (const p of t.players) p.mood = clamp(p.mood - 20, 0, 100); return { took: false, fx: [], text: `${exit}\n\n${back} somebody is laughing. Then somebody else. The room deflates like a tire. Squad MOOD −20.` }; }
-    if (r < 4) { for (const p of t.players) p.mood = clamp(p.mood + 25, 0, 100); return { took: true, fx: [], text: `${exit}\n\n${back} the roof is OFF. Chairs are over. Somebody is crying. The other team can hear it through the wall. Squad MOOD +25.` }; }
-    if (r < 52) { for (const p of t.players) p.mood = clamp(p.mood + 12, 0, 100); return { took: true, fx: [], text: `${exit}\n\n${back} ${pl.scene} The room is on its feet. Squad MOOD +12.` }; }
+    if (r < odds.bust) { for (const p of t.players) p.mood = clamp(p.mood - 20, 0, 100); return { took: false, fx: [], text: `${exit}\n\n${back} somebody is laughing. Then somebody else. The room deflates like a tire. Squad MOOD −20.` }; }
+    if (r < odds.bust + odds.roof) { for (const p of t.players) p.mood = clamp(p.mood + odds.roofAmt, 0, 100); return { took: true, fx: [], text: `${exit}\n\n${back} the roof is OFF. Chairs are over. Somebody is crying. The other team can hear it through the wall. Squad MOOD +${odds.roofAmt}.` }; }
+    if (r < odds.bust + odds.roof + odds.lift) { for (const p of t.players) p.mood = clamp(p.mood + odds.liftAmt, 0, 100); return { took: true, fx: [], text: `${exit}\n\n${back} ${pl.scene} The room is on its feet. Squad MOOD +${odds.liftAmt}.` }; }
     return { took: false, fx: [], text: `${exit}\n\n${back} ${pick(SPEECH_FLOPS)} Tonight it doesn't take. The rest is on them.` };
   }
   if (pl.kind === 'easy') {
@@ -1634,6 +1644,16 @@ function rollSpeech(s: GameState, plan: PlanId): { fx: SpeechFx[]; text: string;
     fx: [{ attr: pl.attr, amt: gain }, { attr: pl.off, amt: -loss }],
     text: `${exit}\n\n${back} ${pl.scene} Tonight the squad plays +${gain} ${A} — and gives up ${loss} ${O} to do it.`,
   };
+}
+
+/** A recharge starts NOW — and skips Monday's tick, so the weeks printed
+    on the row are whole weeks off. */
+function setCooldown(s: GameState, ledger: 'speechCooldowns' | 'actCooldowns', id: string, weeks: number): void {
+  s[ledger] = { ...(s[ledger] ?? {}), [id]: weeks };
+  markFresh(s, `${ledger === 'speechCooldowns' ? 'sc' : 'ac'}:${id}`);
+}
+function markFresh(s: GameState, key: string): void {
+  s.freshWk = [...(s.freshWk ?? []).filter((k) => k !== key), key];
 }
 
 /** Weeks before this speech can be given again (premium finds recharge). */
@@ -1684,7 +1704,7 @@ export function deliverSpeech(s: GameState, plan: PlanId): string | null {
   s.speechFx = out.fx;
   s.speechTook = out.took;
   const cd = planById(plan).cooldown;
-  if (cd) s.speechCooldowns = { ...(s.speechCooldowns ?? {}), [plan]: cd };
+  if (cd) setCooldown(s, 'speechCooldowns', plan, cd);
   save(s);
   return out.text;
 }
@@ -1700,7 +1720,7 @@ export function deliverInstructions(s: GameState, instrId: string): string | nul
   if (s.energy < it.cost) return null;
   s.energy -= it.cost;
   s.pregameWk = true;
-  if (it.cooldown) s.speechCooldowns = { ...(s.speechCooldowns ?? {}), [instrId]: it.cooldown };
+  if (it.cooldown) setCooldown(s, 'speechCooldowns', instrId, it.cooldown);
   // the call is MADE now; whether it lands you learn at tip-off
   s.instrPending = instrId;
   save(s);
@@ -2184,6 +2204,7 @@ function applyGameEffects(s: GameState, won: boolean): void {
     p.outWeeks = Math.min(8, inj.weeks);
     p.outReason = inj.label;
     p.outKind = 'injury';
+    markFresh(s, `out:${p.id}`);
     if (inj.levelLoss) p.level = Math.max(0, p.level - 1);
   }
   s.gameInjuries = [];
