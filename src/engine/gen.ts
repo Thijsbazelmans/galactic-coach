@@ -47,16 +47,11 @@ export const PRO_OVR = 75;
 // net-positive trade (gain 4–5 / lose 2–3, mine only) — under the ^6
 // win-share curve that edge compounded to ~+25 wins a career, so the other
 // programs stand a step taller to keep the accepted curve (~131 wins/career)
-// +1 across the slide (playtest #7): THE COUNTER hands the coach a weekly
-// ×0.95 shave on the opponent — worth ~+15 wins/career at the board — so
-// the other programs stand a step taller again to keep the accepted curve
-// (the cellar door stays at 40: one beatable neighbor keeps the early-career
-// seat survivable — headless security floors sank when it rose too)
-export const CONF_TIERS = [65, 58, 52, 47, 40];
+export const CONF_TIERS = [64, 57, 51, 46, 40];
 /** your founding six (walk-ons fill the rest, weaker) */
 export const FOUNDER_TIER = 47;
 /** THE BIG BANG by round: first round · semifinal · the final */
-export const UT_TIERS: [number, number][] = [[64, 74], [70, 80], [74, 84]];
+export const UT_TIERS: [number, number][] = [[62, 72], [68, 78], [72, 82]];
 /** the rubber band: per title / per season without a tournament win, and its
     walls. Raised for THE CAMPUS era: a facilities-powered dynasty outgrew
     the old +9 ceiling (headless: 11 titles in ten careers) — the field now

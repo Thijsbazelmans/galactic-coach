@@ -29,7 +29,7 @@ async function main(): Promise<void> {
         if (app.innerHTML.includes('<span class="tag"></span>')) throw new Error('an empty tag pill rendered');
       }
       // the dean's gauge beat waits on the GAUGE: open it over her, close it
-      if (q?.defId === 'tut_dean' && !(st().tutSeen ?? []).includes('dean-gauge')) {
+      if (q?.defId === 'tut_dean1b' && !(st().tutSeen ?? []).includes('dean-gauge')) {
         if (!app.innerHTML.includes('TAP THE JOB SECURITY GAUGE') && !app.querySelector('#modal-actions.hide')) throw new Error('the dean beat should point at the gauge');
         if (!click('[data-action="job-open"]')) throw new Error('the job gauge did not answer over the dean');
         if (!click('.modalback[data-action="job-close"]')) throw new Error('the job menu did not open over the dean');
@@ -43,8 +43,7 @@ async function main(): Promise<void> {
   click('[data-action="press-start"]');
   anyWin.gcAction('menu-new', ''); // the career menu's START FRESH
   anyWin.gcAction('setup-codex-burn', '');
-  anyWin.gcAction('setup-team', '0');
-  anyWin.gcAction('setup-confirm', '');
+  anyWin.gcAction('setup-confirm', '0'); // HOLD a program
   drain(); // the call → the dean (the gauge, tapped over her) → the credit → the machine → the roster walk
   if (!(st().tutSeen ?? []).includes('dean-gauge')) throw new Error('the gauge lesson never landed');
   if (st().tutWalk?.key !== 'roster') throw new Error(`roster walk missing, got ${st().tutWalk?.key}`);

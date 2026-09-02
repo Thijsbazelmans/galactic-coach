@@ -29,7 +29,7 @@ import {
   storyById,
 } from './engine/data';
 import { BAG_SIZE, CACHE_MAX, LEVEL_CAP, REGULAR_WEEKS, stipendFor, xpNeed } from './engine/gen';
-import { COL_LABELS, COUNTER_EDGE, COUNTER_OF, benchPlayers, bestCol, bookieLine, counterLanded, grade, gradeRating, matchAttrs, posArrows, reserves, slotPlayer, tacticsMult, winShare, type Grade } from './engine/sim';
+import { COL_LABELS, benchPlayers, bestCol, bookieLine, grade, gradeRating, matchAttrs, posArrows, reserves, slotPlayer, tacticsMult, winShare, type Grade } from './engine/sim';
 import {
   actCooldown,
   actionGalaxy,
@@ -1507,7 +1507,7 @@ function headerHtml(s: GameState): string {
   // start (blinking while the dean introduces it), credits once the first
   // one lands, the schedule row when there is finally a game to point at
   const th = s.tutorial !== undefined ? tutorialHeader(s) : null;
-  const jobBlink = currentStory(s)?.defId === 'tut_dean';
+  const jobBlink = currentStory(s)?.defId === 'tut_dean1b';
   const schedRow = th && !th.sched
     ? '<div></div>'
     : `<button class="hrow hopp" data-action="sched-open">S<b>${Math.max(1, s.season)}</b> · ${nextOppRow(s)}</button>`;
@@ -1572,16 +1572,16 @@ function schedModalHtml(s: GameState): string {
 function leadersListHtml(s: GameState): string {
   // SEASON ZERO: the league has no season of stats behind it — the board
   // reads a pre-written league, and none of the names are yours
+  // (playtest #9: it used to print ONE OVR-sorted list under all four
+  // headings — now each column reads the attr-tilted lines the boot seeded)
   if (s.tutorial !== undefined) {
     const others = s.teams.filter((t) => t.id !== s.myTeamId);
-    const pool = others.flatMap((t) => t.players.map((p) => ({ p, t })))
-      .sort((a, b) => ovr(b.p.attrs) - ovr(a.p.attrs)).slice(0, 12);
-    const SEC0: [string, number][] = [['POINTS', 14], ['REBOUNDS', 8], ['STEALS', 3], ['ASSISTS', 5]];
-    return SEC0.map(([label, base], si) => `<div class="acthead">${label}</div><table class="standings leaders">${
-      pool.slice(0, 8).map((e, i) => {
-        const v = Math.max(1, Math.round((base + 4 - i * 0.9 + ((e.p.id * 7 + si * 13) % 5) * 0.4) * 9));
-        return `<tr><td>${i + 1}. ${esc(e.p.name)} ${chip(e.t.name, e.t.bg, e.t.fg, true)}</td><td class="num">${v}</td></tr>`;
-      }).join('')}</table>`).join('');
+    const pool = others.flatMap((t) => t.players.map((p) => ({ p, t })));
+    const SEC0: ['pts' | 'reb' | 'stl' | 'ast', string][] = [['pts', 'POINTS'], ['reb', 'REBOUNDS'], ['stl', 'STEALS'], ['ast', 'ASSISTS']];
+    return SEC0.map(([k, label]) => `<div class="acthead">${label}</div><table class="standings leaders">${
+      [...pool].sort((a, b) => b.p.stats[k] - a.p.stats[k]).slice(0, 8).map((e, i) =>
+        `<tr><td>${i + 1}. ${esc(e.p.name)} ${chip(e.t.name, e.t.bg, e.t.fg, true)}</td><td class="num">${e.p.stats[k]}</td></tr>`
+      ).join('')}</table>`).join('');
   }
   const L = statLeaders(s);
   const SEC: ['pts' | 'reb' | 'stl' | 'ast', string][] = [['pts', 'POINTS'], ['reb', 'REBOUNDS'], ['stl', 'STEALS'], ['ast', 'ASSISTS']];
@@ -2148,7 +2148,7 @@ function storyPanel(s: GameState): string {
   // message, nothing ever jumps between beats
   // the dean's gauge beat waits on the GAUGE, not a tap: the hint sends the
   // thumb up to the blinking bar, and the tap comes back once it's been seen
-  const gaugeWait = ev.defId === 'tut_dean' && !(s.tutSeen ?? []).includes('dean-gauge');
+  const gaugeWait = ev.defId === 'tut_dean1b' && !(s.tutSeen ?? []).includes('dean-gauge');
   return `<div class="storypanel ${fete ? 'fete' : ''}" data-action="story-tap" id="storypanel">
     ${fete}
     ${ev.tag ? `<span class="tag">${esc(ev.tag)}</span>` : ''}
@@ -2191,36 +2191,10 @@ const TAC_ROWS: { key: 'o' | 'd'; opts: { id: string; name: string; sub: string 
   ] },
 ];
 
-/** THE COUNTER read: who's next, what they run, which scheme beats it —
-    null in season zero (one lesson at a time) and when nobody's next. */
-function counterRead(s: GameState): { planName: string; schemeName: string; verb: string; oppName: string; landed: boolean; counterId: string } | null {
-  if (s.tutorial !== undefined) return null;
-  const champ = isUtWeek(s) ? utOpponent(s) : null;
-  const m = champ ? null : myMatchup(s);
-  const planId = champ ? champ.plan : m?.opponent.plan;
-  if (!planId) return null;
-  const plan = planById(planId);
-  const c = COUNTER_OF[plan.attr];
-  const scheme = TAC_ROWS.flatMap((r) => r.opts).find((o) => o.id === c.id);
-  return {
-    planName: plan.name,
-    schemeName: scheme?.name ?? c.id.toUpperCase(),
-    verb: c.verb,
-    oppName: champ ? champ.name : teamLabel(m!.opponent),
-    landed: counterLanded(s, planId),
-    counterId: c.id,
-  };
-}
-
 function tacticsBoard(s: GameState): string {
   const sel = { o: s.tacO ?? 'triangle', d: s.tacD ?? 'man' };
-  const cr = counterRead(s);
-  // the scouting line: the board is where you can still ACT on the read
-  const read = cr
-    ? `<div class="tacread ${cr.landed ? 'on' : ''}">${cr.landed ? '◆ COUNTERED — ' : ''}${esc(cr.oppName.toUpperCase())} RUN <b>${esc(cr.planName)}</b>${cr.landed ? '' : ` · <b>${esc(cr.schemeName)}</b> ${esc(cr.verb)}`}</div>`
-    : '';
-  return `${read}<div class="tacboard">${TAC_ROWS.map((row) => `<div class="tacrow">${row.opts.map((o) =>
-    `<button class="tacbtn ${sel[row.key] === o.id ? 'sel' : ''} ${cr?.counterId === o.id ? 'counter' : ''}" data-action="tac-set" data-id="${row.key}:${o.id}"><b>${o.name}</b><span class="${o.sub === 'balanced' ? 'dim' : 'gaintag'}">${o.sub}</span>${cr?.counterId === o.id ? '<i class="ctag">◆ COUNTER</i>' : ''}</button>`
+  return `<div class="tacboard">${TAC_ROWS.map((row) => `<div class="tacrow">${row.opts.map((o) =>
+    `<button class="tacbtn ${sel[row.key] === o.id ? 'sel' : ''}" data-action="tac-set" data-id="${row.key}:${o.id}"><b>${o.name}</b><span class="${o.sub === 'balanced' ? 'dim' : 'gaintag'}">${o.sub}</span></button>`
   ).join('')}</div>`).join('')}</div>`;
 }
 
@@ -2298,13 +2272,6 @@ function teamBarsMatchup(s: GameState, opts: { fx?: SpeechFx | SpeechFx[] | null
     theirsTotal = ovr(theirs);
     oppBg = m.opponent.bg;
   }
-  // THE COUNTER shows in the bars: a landed one shaves their whole side
-  const oppPlanId = champ ? champ.plan : m?.opponent.plan;
-  const countered = oppPlanId !== undefined && counterLanded(s, oppPlanId);
-  if (theirs && countered) {
-    for (const a of ATTRS) theirs[a] *= COUNTER_EDGE;
-    theirsTotal *= COUNTER_EDGE;
-  }
   const rows = BAR_ROWS.map(({ a, label }) => {
     const big = a === 'all';
     const mv = big ? mineTotal : mine[a];
@@ -2336,14 +2303,7 @@ function teamBarsMatchup(s: GameState, opts: { fx?: SpeechFx | SpeechFx[] | null
       ${right}
     </div>`;
   }).join('');
-  // the read, confirmed: on game night the schemes are what they are
-  const cr = counterRead(s);
-  const readLine = cr
-    ? `<div class="tacread mu ${cr.landed ? 'on' : ''}">${cr.landed
-      ? `◆ COUNTERED — <b>${esc(cr.schemeName)}</b> ${esc(cr.verb)}`
-      : `THEY RUN <b>${esc(cr.planName)}</b> · the counter was <b>${esc(cr.schemeName)}</b>`}</div>`
-    : '';
-  return `<div class="mu-bars"><div class="tbars mu">${opts.noVs ? '' : vsRow}${rows}</div>${readLine}</div>`;
+  return `<div class="mu-bars"><div class="tbars mu">${opts.noVs ? '' : vsRow}${rows}</div></div>`;
 }
 
 function lensBar(names: string[] = LENS_NAMES): string {
@@ -2576,10 +2536,12 @@ function nextYearLine(s: GameState): string {
   for (const p of returning) for (const a of ATTRS) sums[a] += p.attrs[a];
   const low = ATTRS.reduce((worst, a) => (sums[a] < sums[worst] ? a : worst), 'skl' as Attr);
   void leaving; // inferred from the returnees — the strip stays short
-  const bits = [`${returning.length} return`, `${byCol.map((n, c) => `${COL_SHORT[c]}×${n}`).join(' ')}`];
+  // two lines (playtest #9): the count, then the shape — the strip used to
+  // run off the screen as one
+  const bits = [`${byCol.map((n, c) => `${COL_SHORT[c]}×${n}`).join(' ')}`];
   if (holes.length) bits.push(`no ${holes.join('/')} coming back`);
   else bits.push(`thin on ${ATTR_SHORT[low]}`);
-  return `NEXT YEAR: ${bits.join(' · ')}`;
+  return `NEXT YEAR: ${returning.length} return\n${bits.join(' · ')}`;
 }
 
 /** SCOUTING and RECRUITING: the same board, two different weeks' moves. */
@@ -2595,7 +2557,7 @@ function stageBoard(s: GameState): string {
   const weeksLeft = Math.max(0, REGULAR_WEEKS - s.week) + (done ? 0 : 1);
   const infoRows = swapping ? '' : `
       ${need !== null ? `<div class="fourthrow slim"><div class="report">HIGHLIGHT UP TO ${need} NAME${need === 1 ? '' : 'S'} — tap the cards (${gxSel.size}/${need})</div></div>` : ''}
-      <div class="fourthrow slim two"><div class="report dim"><span>${weeksLeft} ${title} WEEK${weeksLeft === 1 ? '' : 'S'} LEFT THIS SEASON</span><span>${esc(nextYearLine(s))}</span></div></div>
+      <div class="fourthrow slim two"><div class="report dim"><span>${weeksLeft} ${title} WEEK${weeksLeft === 1 ? '' : 'S'} LEFT THIS SEASON</span>${nextYearLine(s).split('\n').map((l) => `<span>${esc(l)}</span>`).join('')}</div></div>
       ${scouting && s.groundedWeeks > 0 ? `<div class="fourthrow slim"><div class="report blink">SHIP GROUNDED ${s.groundedWeeks}w — local searches only</div></div>` : ''}`;
   return `<h2 class="gridhead">${title}</h2>
     ${prospectGridHtml(s, need)}
@@ -3045,11 +3007,12 @@ function stageSetupCodex(): string {
 }
 
 function stageSetupTeams(s: GameState): string {
+  // HOLD a program to coach it (playtest #9): one gesture, no select-then-
+  // confirm, no YOU tag growing and shrinking the rows
   const rows = s.teams.map((t) => {
-    const mine = pendingTeam === t.id;
-    return `<div class="confteamrow ${mine ? 'mine' : ''}">
-      <button class="teampickbtn" data-action="setup-team" data-id="${t.id}" style="background:${t.bg};color:${t.fg}">
-        <b>${esc(teamLabel(t))}</b>${mine ? ' <i class="youtag">YOU</i>' : ''}<br/><span>${esc(t.region)}</span></button>
+    return `<div class="confteamrow">
+      <button class="teampickbtn hold" data-action="setup-confirm" data-id="${t.id}" style="background:${t.bg};color:${t.fg}">
+        <b>${esc(teamLabel(t))}</b><br/><span>${esc(t.region)}</span></button>
       <button class="editbtn" data-action="setup-edit" data-id="${t.id}" title="edit name & colors">✎</button>
     </div>`;
   }).join('');
@@ -3070,7 +3033,7 @@ function stageSetupTeams(s: GameState): string {
       </div></div>${kitPickHtml()}`
     : '';
   return `<h1>${esc(LEAGUE.name)}</h1>
-    <p class="sub">${esc(LEAGUE.sub)} Tap yours. ✎ renames any of the six — names and colors lock when the season starts.</p>
+    <p class="sub">${esc(LEAGUE.sub)} HOLD yours to start. ✎ renames any of the six — names and colors lock when the season starts.</p>
     <div class="teampick">${rows}</div>${editModal}`;
 }
 
@@ -3107,11 +3070,7 @@ function nav(s: GameState): string {
   switch (s.phase) {
     case 'pickTeam': {
       const st = ensureSetup();
-      if (st.step === 'teams') {
-        return pendingTeam !== null
-          ? navMain('⭐ LOCK IT IN — START THE CAREER', 'setup-confirm')
-          : navMain('TAP THE PROGRAM YOU WILL COACH', 'noop', true);
-      }
+      if (st.step === 'teams') return navMain('HOLD THE PROGRAM YOU WILL COACH', 'noop', true);
       return navMain('A NEW CAREER AWAITS', 'noop', true);
     }
     case 'teamSelect':
@@ -3550,7 +3509,12 @@ function applyWalkSpotlight(): void {
       else el.classList.add('scopedim');
     });
   } else if (hi.startsWith('p:') || hi.startsWith('pr:')) spotCards(new Set([Number(hi.split(':')[1])]));
-  else if (hi.startsWith('ids:')) spotCards(idsOf(hi.slice(4)));
+  else if (hi.startsWith('drop:')) {
+    // a card AND the exact cell it must land in: 'drop:<pid>:<zone>'
+    const [, pid, zone] = hi.split(':');
+    spotCards(new Set([Number(pid)]));
+    collect(`.grid .gcell[data-zone="${Number(zone)}"]`);
+  } else if (hi.startsWith('ids:')) spotCards(idsOf(hi.slice(4)));
   else if (hi.startsWith('ge:')) spotCards(idsOf(hi.slice(3)), 'ge');
   else if (hi.startsWith('gm:')) spotCards(idsOf(hi.slice(3)), 'gm');
   else if (hi.startsWith('ovr:')) spotCards(new Set([Number(hi.slice(4))]), 'ovr');
@@ -4670,7 +4634,6 @@ function executeAction(action: string, id: string): void {
       pendingTeam = null;
       break;
     }
-    case 'setup-team': pendingTeam = Number(id); break;
     case 'setup-edit': ensureSetup().editing = Number(id); edBg = null; edFg = null; edPick = null; edNameV = null; edPlanetV = null; break;
     case 'setup-edit-cancel': if (setup) setup.editing = null; edBg = null; edFg = null; edPick = null; edNameV = null; edPlanetV = null; break;
     case 'setup-pick-open': bankEditInputs(); edPick = id === 'fg' ? 'fg' : 'bg'; break;
@@ -4711,7 +4674,8 @@ function executeAction(action: string, id: string): void {
       break;
     }
     case 'setup-confirm': {
-      // LOCK IT IN: from here the names and colors are forever
+      // the HOLD on a program row: from here the names and colors are forever
+      if (id !== '') pendingTeam = Number(id);
       if (pendingTeam === null) break;
       const st = ensureSetup();
       setup = null;
@@ -5036,7 +5000,7 @@ app.addEventListener('click', (e) => {
       if (finishTypeNow()) return; // finish the current beat instantly
       if (!stageTyped || storyMode === 'choices') return;
       // the dean's gauge beat only moves on once the gauge has been opened
-      if (ev.defId === 'tut_dean' && !(state.tutSeen ?? []).includes('dean-gauge')) return;
+      if (ev.defId === 'tut_dean1b' && !(state.tutSeen ?? []).includes('dean-gauge')) return;
       if (storyMode === 'antic') {
         // signing day: the wheel decides between the ring and the answer
         if (ev.data?.wheel && !wheelDone) {
@@ -5109,10 +5073,10 @@ app.addEventListener('click', (e) => {
     case 'sched-open': if (!currentStory(state) && !liveGameOn(state)) { schedOpen = true; standOpen = false; jobOpen = false; } break;
     case 'sched-close': schedOpen = false; break;
     // the gauge answers over the dean's lesson — that beat is ABOUT tapping it
-    case 'job-open': if ((!currentStory(state) || currentStory(state)?.defId === 'tut_dean') && !liveGameOn(state)) { jobOpen = true; schedOpen = false; standOpen = false; } break;
+    case 'job-open': if ((!currentStory(state) || currentStory(state)?.defId === 'tut_dean1b') && !liveGameOn(state)) { jobOpen = true; schedOpen = false; standOpen = false; } break;
     case 'job-close': {
       jobOpen = false;
-      if (currentStory(state)?.defId === 'tut_dean' && !(state.tutSeen ?? []).includes('dean-gauge')) {
+      if (currentStory(state)?.defId === 'tut_dean1b' && !(state.tutSeen ?? []).includes('dean-gauge')) {
         (state.tutSeen ??= []).push('dean-gauge');
         save(state);
       }

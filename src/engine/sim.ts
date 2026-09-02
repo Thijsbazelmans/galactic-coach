@@ -251,29 +251,6 @@ export function tacticsMult(tacO?: string, tacD?: string): AttrRec {
   return m;
 }
 
-// ---- THE COUNTER (playtest #7): the weekly read ------------------------------
-// Every opponent has an IDENTITY — the attribute their speeches feed. Each
-// OUTER scheme beats exactly one of them: patience picks apart muscle, pace
-// runs past the system, a wall stops the runners, chaos rattles the
-// shooters. A landed counter shaves the opponent's whole night. The middles
-// stay neutral: safety counters nothing. The trade that makes it a weekly
-// DECISION: the counter scheme still leans your own bars ±20%, so countering
-// them can mean fighting your own shape.
-
-export const COUNTER_EDGE = 0.95;
-/** their identity attribute → the scheme that beats it */
-export const COUNTER_OF: Record<Attr, { id: string; row: 'o' | 'd'; verb: string }> = {
-  frc: { id: 'playcall', row: 'o', verb: 'picks it apart' }, // vs LOCKDOWN
-  brn: { id: 'fastbreak', row: 'o', verb: 'runs right past it' }, // vs CLOCKWORK
-  ath: { id: 'zone', row: 'd', verb: 'walls it off' }, // vs RUN & GUN
-  skl: { id: 'press', row: 'd', verb: 'rattles it' }, // vs SHOWTIME
-};
-
-export function counterLanded(s: GameState, oppPlan: PlanId): boolean {
-  const c = COUNTER_OF[planById(oppPlan).attr];
-  return (c.row === 'o' ? s.tacO : s.tacD) === c.id;
-}
-
 /** The night's split as a percentage — what the bookie prints. DETERMINISTIC:
     the same state always prints the same line (no re-rolled opponent speech),
     so the number on the matchup screen IS the number quoted after the horn. */
@@ -456,11 +433,15 @@ export function dealBox(me: Team, myScore: number, plan: PlanId, forms?: Forms, 
   // one attribute per column: SKILL scores, FIERCENESS owns the glass,
   // ATHLETICISM jumps the lanes, BRAINS runs the show — distribution, not
   // outcomes; starters (w=3) still out-touch the bench (w=1)
+  // SQUARED (playtest #9): a linear share let one balanced star top every
+  // column of every board — the specialist's edge has to bite, so the glass
+  // goes to the fierce one and the dimes to the brainy one
+  const sq = (v: number): number => (v * v) / 8;
   const speechAttr = planById(plan).attr;
-  const pts = dealStat(pool, myScore, (p) => attrEff(p, 'skl') + attrEff(p, 'ath') * 0.3, (c) => colB(c, true));
-  const reb = dealStat(pool, 16 + rand(11), (p) => attrEff(p, 'frc') + sizeIndex(p) * 2, (c) => colB(c, false));
-  const stl = dealStat(pool, 3 + rand(7) + (speechAttr === 'ath' ? 3 : 0), (p) => attrEff(p, 'ath'), (c) => colB(c, false));
-  const ast = dealStat(pool, 6 + rand(7) + (speechAttr === 'brn' ? 3 : 0), (p) => attrEff(p, 'brn'), (c) => colB(c, false));
+  const pts = dealStat(pool, myScore, (p) => sq(attrEff(p, 'skl') + attrEff(p, 'ath') * 0.3), (c) => colB(c, true));
+  const reb = dealStat(pool, 16 + rand(11), (p) => sq(attrEff(p, 'frc') + sizeIndex(p) * 2), (c) => colB(c, false));
+  const stl = dealStat(pool, 3 + rand(7) + (speechAttr === 'ath' ? 3 : 0), (p) => sq(attrEff(p, 'ath')), (c) => colB(c, false));
+  const ast = dealStat(pool, 6 + rand(7) + (speechAttr === 'brn' ? 3 : 0), (p) => sq(attrEff(p, 'brn')), (c) => colB(c, false));
   return pool
     .map(({ p }) => ({
       playerId: p.id,
@@ -595,8 +576,6 @@ function gameRope(
   if (s.pregameFlags.wallet) mine *= 1.03; // the whistle leans your way
   if (s.pregameFlags.cloak) theirs *= 0.95; // they prepared for the wrong team
   if (s.pregameFlags.alarm) theirs *= 0.92; // the 3am fire alarm
-  // THE COUNTER: the right scheme against their identity shaves their night
-  if (counterLanded(s, champ ? champ.plan : opp!.plan)) theirs *= COUNTER_EDGE;
   return { mine, theirs };
 }
 
@@ -630,6 +609,9 @@ export function simMyGame(s: GameState, me: Team, opp: Team | null, champ: Champ
   const u = Math.random();
   const sc = fullScores(share, u);
   const box = dealBox(me, sc.my, s.plan, forms, s.tacO, s.tacD);
+  // a cold roll that still tops the scoring column got going after all —
+  // the recap can't say "never got going" under "led the way with 27"
+  if (box[0] && forms[box[0].playerId] === -1) delete forms[box[0].playerId];
   const mvpId = commitBox(me, box);
   const { wheelLine, heroLine } = verdictLines(me, s.plan, sc.won, share, Math.abs(sc.my - sc.opp), box, forms);
   return {

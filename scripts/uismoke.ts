@@ -63,7 +63,7 @@ async function main(): Promise<void> {
         goneSeen = true;
       }
       // the dean's gauge beat waits on the GAUGE: open it over her, close it
-      if (q?.defId === 'tut_dean' && !((gc.state() as any).tutSeen ?? []).includes('dean-gauge')) {
+      if (q?.defId === 'tut_dean1b' && !((gc.state() as any).tutSeen ?? []).includes('dean-gauge')) {
         if (!click('[data-action="job-open"]')) throw new Error('the job gauge did not answer over the dean');
         if (!click('.modalback[data-action="job-close"]')) throw new Error('the job menu did not open over the dean');
         continue;
@@ -102,11 +102,9 @@ async function main(): Promise<void> {
   must('[data-action="setup-codex-keep"]', 'keep the codex');
   // wizard step 2 — THE BIG SIX: six editable programs, tap one, it wears YOU
   if (!app.innerHTML.includes('THE BIG SIX')) throw new Error('the league headline is missing');
-  if (app.querySelectorAll('[data-action="setup-team"]').length !== 6) throw new Error('six programs must show');
+  if (app.querySelectorAll('.teampickbtn.hold[data-action="setup-confirm"]').length !== 6) throw new Error('six hold-to-coach programs must show');
   if (!app.innerHTML.includes('Star Heels')) throw new Error('the Star Heels left the league');
   if (!app.innerHTML.includes('Whooshers')) throw new Error('the Whooshers left the league');
-  anyWin.gcAction('setup-team', '0');
-  if (!app.innerHTML.includes('youtag')) throw new Error('the picked program must wear the YOU tag');
   // the ✎ modal: rename a rival and repaint it via the swatch picker
   anyWin.gcAction('setup-edit', '4');
   const edName = doc.getElementById('ed-name') as unknown as { value: string } | null;
@@ -130,7 +128,7 @@ async function main(): Promise<void> {
   const rival = (gc.state() as any).teams[4];
   if (rival.name !== 'Real Blue Devils' || rival.bg !== '#003057') throw new Error('the program edit did not stick');
   // LOCK IT IN → the codex skipped the tutorial, straight to tryouts
-  anyWin.gcAction('setup-confirm', '');
+  anyWin.gcAction('setup-confirm', '0'); // HOLD the Star Heels
   if (state().phase !== 'teamSelect') throw new Error(`expected teamSelect, got ${state().phase}`);
   if ((gc.state() as any).teams[0].name !== 'Star Heels') throw new Error('the league teams did not seed');
   drain();
@@ -235,22 +233,6 @@ async function main(): Promise<void> {
   // by default (TRIANGLE / MAN 2 MAN), persistent until changed
   if (app.querySelectorAll('.tacboard .tacrow').length !== 2) throw new Error('tactics board missing');
   if (app.querySelectorAll('.tacboard .tacbtn').length !== 6) throw new Error('expected six tactic buttons');
-  // THE COUNTER (playtest #7): the read names the opponent's identity and
-  // marks the scheme that beats it — and landing it moves the engine
-  if (!app.querySelector('.tacread')) throw new Error('the counter read is missing from the board');
-  if (!app.querySelector('.tacbtn .ctag')) throw new Error('the counter scheme is not marked');
-  {
-    const simC = await import('../src/engine/sim');
-    const dataC = await import('../src/engine/data');
-    const stC = gc.state() as any;
-    const mC = (await import('../src/engine/state')).myMatchup(stC);
-    if (!mC) throw new Error('no matchup to counter');
-    const c = simC.COUNTER_OF[dataC.planById(mC.opponent.plan).attr];
-    anyWin.gcAction('tac-set', `${c.row}:${c.id}`);
-    if (!simC.counterLanded(gc.state() as any, mC.opponent.plan)) throw new Error('the counter did not land');
-    if (!app.querySelector('.tacread.on')) throw new Error('a landed counter should light the read');
-    anyWin.gcAction('tac-set', c.row === 'o' ? 'o:triangle' : 'd:man'); // back to neutral
-  }
   const selTacs = [...app.querySelectorAll('.tacbtn.sel b')].map((el) => (el as unknown as { textContent: string }).textContent);
   if (selTacs.join(',') !== 'TRIANGLE,MAN 2 MAN') throw new Error(`wrong default tactics: ${selTacs.join(',')}`);
   anyWin.gcAction('tac-set', 'd:zone');
@@ -416,9 +398,8 @@ async function main(): Promise<void> {
   anyWin.gcAction('new-game', ''); // no title screen on an in-session reset
   if (!app.innerHTML.includes('BURN THE CODEX')) throw new Error('burn-the-codex path missing on the second career');
   anyWin.gcAction('setup-codex-burn', ''); // wipe the codex, coach season zero
-  if (app.querySelectorAll('[data-action="setup-team"]').length !== 6) throw new Error('the six programs missing on the second career');
-  anyWin.gcAction('setup-team', '2');
-  anyWin.gcAction('setup-confirm', '');
+  if (app.querySelectorAll('.teampickbtn.hold').length !== 6) throw new Error('the six programs missing on the second career');
+  anyWin.gcAction('setup-confirm', '2'); // HOLD a program
   const st3 = (): any => gc.state() as any;
   if (st3().tutorial === undefined) throw new Error('the tutorial did not arm');
   if (Object.values(st3().facilities).some((v) => v !== 0)) throw new Error('the tutorial campus should start at level 0');
@@ -431,6 +412,12 @@ async function main(): Promise<void> {
   if (st3().energy !== 1) throw new Error(`the dean hands exactly one credit, got ${st3().energy}`);
   if (!st3().bag.includes('timeloop')) throw new Error('the time machine never entered the bag');
   if (st3().phase !== 'weekstart') throw new Error(`expected weekstart in season zero, got ${st3().phase}`);
+  // season zero's LEADERS: four columns, not one OVR list four times
+  {
+    const pool = st3().teams.filter((t: any) => t.id !== st3().myTeamId).flatMap((t: any) => t.players);
+    const lead = (k: string): number => [...pool].sort((a: any, b: any) => b.stats[k] - a.stats[k])[0].id;
+    if (new Set(['pts', 'reb', 'stl', 'ast'].map(lead)).size < 2) throw new Error('season-zero leaders should differ by column');
+  }
   // the freshman must be the WORST rating on the roster
   {
     const fr = me3().players.find((p: any) => p.classYear === 0);

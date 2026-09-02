@@ -3,9 +3,9 @@
 // Definition of done (SPEC §16): survives full careers without error and
 // reports skill curves, UT reach, ending causes, and energy starvation.
 
-import { GYM_REQ, PLANS, facLevel, planById } from '../src/engine/data';
+import { GYM_REQ, PLANS, facLevel } from '../src/engine/data';
 import { LEVEL_CAP, ROSTER_SIZE, newGameState } from '../src/engine/gen';
-import { COUNTER_OF, arrangeRow, floorAvg, meterMult, normalizeLineup } from '../src/engine/sim';
+import { arrangeRow, floorAvg, meterMult, normalizeLineup } from '../src/engine/sim';
 import { ATTRS, bestAttr, opTracks, ovr, security } from '../src/engine/util';
 import {
   actionGalaxy,
@@ -20,7 +20,6 @@ import {
   grabMop,
   isUtWeek,
   letGoPro,
-  myMatchup,
   myTeam,
   playGame,
   releaseHeldStories,
@@ -29,7 +28,6 @@ import {
   resolveStory,
   retire,
   runDrill,
-  setTactic,
   speechCooldown,
   toPractice,
   toRecruiting,
@@ -182,13 +180,6 @@ function playCareer(idx: number): CareerStats {
       case 'practice': {
         drainQueue(s);
         if (s.phase !== 'practice') break;
-        // THE COUNTER: read the next opponent's identity, set the scheme that
-        // beats it — the weekly ritual a live coach runs at this board
-        const nextM = myMatchup(s);
-        if (nextM) {
-          const c = COUNTER_OF[planById(nextM.opponent.plan).attr];
-          setTactic(s, c.row, c.id);
-        }
         if (!s.trainedThisWeek) {
           // practice is mandatory: rest tired or broke squads, otherwise train
           const t = myTeam(s);

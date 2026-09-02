@@ -558,7 +558,9 @@ export function tutorialWalkSteps(s: GameState, key: string): TutStep[] {
         { text: 'Back to the ROSTER.', hi: 'lens:0', pos: 'bot', advance: 'lens:0' },
         { text: 'And modest numbers, gassed and miserable, read F. But a letter is MORE than the numbers: ENERGY and MOOD move it just as much — in both directions!', hi: `ids:${senIds}`, pos: 'low' },
         ...(fresh ? [
-          S({ text: `The freshman: the worst RATING in the room — and the only full tank in the building. Players move by DRAGGING: drag ${fresh.name} up onto the floor.`, hi: `p:${fresh.id}`, pos: 'low', advance: `floor:${fresh.id}` }),
+          // the first drag lands in the STARTING BACKCOURT, nowhere else: a
+          // guard dropped at center reads F and muddles the whole lesson
+          S({ text: `The freshman: the worst RATING in the room — and the only full tank in the building. Players move by DRAGGING: drag ${fresh.name} into the starting BACKCOURT — top row, left.`, hi: `drop:${fresh.id}:0`, pos: 'low', advance: `spot:${fresh.id}:0` }),
           S({ text: 'Look at that letter! Full tanks play a kid ABOVE his numbers.', hi: `p:${fresh.id}`, pos: 'low' }),
           S({ text: `And WHERE he stands matters: ${fresh.name} is a GUARD — brains read big in the BACKCOURT and sag in the FRONTCOURT. Slide him along the top row and watch the letter change.`, hi: 'grid', pos: 'low' }),
           S({ text: `Park ${fresh.name} in the starting BACKCOURT — top row, left.`, hi: `p:${fresh.id}`, pos: 'low', advance: `spot:${fresh.id}:0` }),
@@ -880,8 +882,9 @@ STORIES.push(
     figure: 'dean',
     beat: () => ({
       tag: 'THE DEAN',
+      // no button: THIS is the beat that waits for a tap on the blinking
+      // gauge (the four opinions open over her), then the dean goes on
       text: '"Four opinions hold that bar up: the school, the fans, the players, the public. Right now the only one holding is mine — because I value your… passion. Yes. Let\'s call it passion."',
-      choices: [TC('on', '"I WON\'T LET YOU DOWN"')],
     }),
     resolve: () => ({
       text: '',
